@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medarot-J</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="main-container">
+        <h1 class="text-3xl font-bold text-center mb-4 text-white">ロボトルシミュレーター</h1>
+        
+        <div id="battlefield" class="battlefield">
+            <div class="center-line"></div>
+        </div>
+
+        <div class="info-panels">
+            <div id="team1InfoPanel" class="team-info-panel">
+                <h2 class="text-xl font-bold mb-3 text-blue-300">チーム 1</h2>
+            </div>
+            <div id="team2InfoPanel" class="team-info-panel">
+                <h2 class="text-xl font-bold mb-3 text-red-300">チーム 2</h2>
+            </div>
+        </div>
+
+        <div class="buttons-center">
+            <button id="startButton">ロボトル開始</button>
+            <button id="resetButton" class="bg-red-500 hover:bg-red-600" style="display: none;">リセット</button>
+        </div>
+    </div>
+
+    <div id="actionModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="modalTitle" class="modal-title"></h3>
+            <p id="modalActorName" class="modal-actor"></p>
+            <div id="partSelectionContainer" class="buttons-center gap-4 flex-col"></div>
+            <button id="modalConfirmButton" class="modal-button" style="display: none;"></button>
+            <button id="battleStartConfirmButton" class="modal-button" style="display: none;">ロボトルファイト！</button>
+        </div>
+    </div>
+
+    <script type="module" src="scripts/main.js"></script>
+</body>
+</html>
