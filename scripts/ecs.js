@@ -1,3 +1,5 @@
+import { GamePhaseType } from './constants.js';
+
 export class World {
     constructor() {
         this.entities = new Map(); // entityId -> Set<Component>
@@ -5,9 +7,36 @@ export class World {
         this.systems = [];
 
         // componentClass -> Map<entityId, componentInstance>
-        this.components = new Map(); 
+        this.components = new Map();
+
+        // --- New: Event Dispatcher ---
+        this.listeners = new Map(); // eventName -> Set<callback>
+
+        // --- New: Global Game State ---
+        this.gamePhase = {
+            phase: GamePhaseType.IDLE,
+            activePlayer: null,
+            isModalActive: false,
+        };
     }
 
+    // --- New: Event Dispatcher Methods ---
+    on(eventName, callback) {
+        if (!this.listeners.has(eventName)) {
+            this.listeners.set(eventName, new Set());
+        }
+        this.listeners.get(eventName).add(callback);
+    }
+
+    emit(eventName, detail) {
+        if (this.listeners.has(eventName)) {
+            for (const callback of this.listeners.get(eventName)) {
+                callback(detail);
+            }
+        }
+    }
+
+    // --- Entity and Component Methods ---
     createEntity() {
         const entityId = this.nextEntityId++;
         this.entities.set(entityId, new Set());
@@ -50,6 +79,7 @@ export class World {
         this.entities.delete(entityId);
     }
 
+    // --- System Methods ---
     registerSystem(system) {
         this.systems.push(system);
     }

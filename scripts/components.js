@@ -82,11 +82,3 @@ export class Team {
     }
 }
 
-// グローバルなゲーム状態
-export class GamePhase {
-    constructor() {
-        this.phase = 'IDLE'; // IDLE, INITIAL_SELECTION, BATTLE_START_CONFIRM, BATTLE, GAME_OVER
-        this.activePlayer = null; // 行動中のプレイヤーのEntityID
-        this.isModalActive = false;
-    }
-}

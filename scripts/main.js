@@ -11,7 +11,7 @@ import { StateSystem } from './systems/stateSystem.js';
 import { AiSystem } from './systems/aiSystem.js';
 import { InputSystem } from './systems/inputSystem.js';
 import { ActionSystem } from './systems/actionSystem.js';
-import { GamePhaseType, PlayerStateType } from './constants.js';
+import { GamePhaseType, PlayerStateType, TeamID } from './constants.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const world = new World();
@@ -33,9 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
     world.registerSystem(uiSystem);
     world.registerSystem(renderSystem); // 描画は最後
 
-    // グローバル状態のエンティティを作成
-    const gameEntity = world.createEntity();
-    
     let animationFrameId = null;
     let lastTime = 0;
 
@@ -55,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 world.addComponent(entityId, new Components.DOMReference());
                 world.addComponent(entityId, new Components.Action());
                 world.addComponent(entityId, new Components.Attack());
-                world.addComponent(entityId, new Components.Position(teamId === 'team1' ? 0 : 1, 25 + i * 25));
+                world.addComponent(entityId, new Components.Position(teamId === TeamID.TEAM1 ? 0 : 1, 25 + i * 25));
             }
         }
     }
@@ -69,34 +66,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    /**
+     * ゲームの状態を完全にリセットする関数
+     */
     function resetGame() {
-        // gameEntity以外の全エンティティIDを収集
-        const entitiesToDelete = Array.from(world.entities.keys()).filter(id => id !== gameEntity);
+        // 不具合①修正：より安定した方法で全エンティティを削除する
+        const allEntities = [...world.entities.keys()];
+        allEntities.forEach(id => world.destroyEntity(id));
 
-        // 収集したIDに基づいてエンティティを削除
-        for (const entityId of entitiesToDelete) {
-            world.destroyEntity(entityId);
-        }
+        // world.gamePhase をリセット
+        world.gamePhase.phase = GamePhaseType.IDLE;
+        world.gamePhase.activePlayer = null;
+        world.gamePhase.isModalActive = false;
 
-        // 新しいGamePhaseコンポーネントを追加してリセット
-        world.addComponent(gameEntity, new Components.GamePhase());
-
+        // UIをリセットし、新しいプレイヤーを生成・配置
         uiSystem.resetUI();
         createPlayers();
         setupUI();
     }
 
     /**
-     * 新規追加：イベントリスナーをまとめる関数
-     * main.jsの初期化処理を整理し、見通しを良くする
+     * イベントリスナーをセットアップする
+     * DOMイベントをWorld内のイベントに変換する責務を持つ
      */
     function setupEventListeners() {
         uiSystem.dom.startButton.addEventListener('click', () => {
-            const gamePhase = world.getComponent(gameEntity, Components.GamePhase);
-            if (gamePhase.phase !== GamePhaseType.IDLE) return;
+            world.emit(GameEvents.START_BUTTON_CLICKED);
+        });
 
-            gamePhase.phase = GamePhaseType.INITIAL_SELECTION;
+        uiSystem.dom.resetButton.addEventListener('click', resetGame);
+
+        uiSystem.dom.battleStartConfirmButton.addEventListener('click', () => {
+            world.emit(GameEvents.BATTLE_START_CONFIRMED);
+        });
+
+        // 不具合②修正：攻撃実行モーダルの「OK」ボタンの処理
+        uiSystem.dom.modalConfirmButton.addEventListener('click', () => {
+            if (world.gamePhase.phase === GamePhaseType.GAME_OVER) {
+                resetGame();
+                return;
+            }
+            // 行動中のプレイヤーがいる場合、その行動が承認されたことを通知する
+            // 不具合修正：activePlayerが0の場合もtrueになるように修正
+            if (world.gamePhase.activePlayer !== null && world.gamePhase.activePlayer !== undefined) {
+                world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: world.gamePhase.activePlayer });
+            }
+        });
+
+        world.on(GameEvents.START_BUTTON_CLICKED, () => {
+            if (world.gamePhase.phase !== GamePhaseType.IDLE) return;
+
+            world.gamePhase.phase = GamePhaseType.INITIAL_SELECTION;
             const players = world.getEntitiesWith(Components.GameState);
+
             players.forEach(id => {
                 const gameState = world.getComponent(id, Components.GameState);
                 const gauge = world.getComponent(id, Components.Gauge);
@@ -108,64 +130,26 @@ document.addEventListener('DOMContentLoaded', () => {
             uiSystem.dom.startButton.textContent = "シミュレーション中...";
             uiSystem.dom.resetButton.style.display = "inline-block";
         });
-
-        uiSystem.dom.resetButton.addEventListener('click', resetGame);
-
-        uiSystem.dom.battleStartConfirmButton.addEventListener('click', () => {
-            const gamePhase = world.getComponent(gameEntity, Components.GamePhase);
-            gamePhase.phase = GamePhaseType.BATTLE;
+        
+        world.on(GameEvents.BATTLE_START_CONFIRMED, () => {
+            world.gamePhase.phase = GamePhaseType.BATTLE;
             world.getEntitiesWith(Components.Gauge).forEach(id => {
                 const gauge = world.getComponent(id, Components.Gauge);
                 if(gauge) gauge.value = 0;
             });
-            uiSystem.hideModal();
-        });
-
-        document.addEventListener(GameEvents.ACTION_SELECTED, ({ detail }) => {
-            const { entityId, partKey } = detail;
-            const action = world.getComponent(entityId, Components.Action);
-            const parts = world.getComponent(entityId, Components.Parts);
-            const gameState = world.getComponent(entityId, Components.GameState);
-            const gauge = world.getComponent(entityId, Components.Gauge);
-            const gamePhase = world.getComponent(gameEntity, Components.GamePhase);
-
-            action.partKey = partKey;
-            action.type = parts[partKey].action;
-            gameState.state = PlayerStateType.SELECTED_CHARGING;
-            gauge.value = 0;
-            gamePhase.activePlayer = null;
-            uiSystem.hideModal();
-        });
-
-        uiSystem.dom.modalConfirmButton.addEventListener('click', () => {
-            const gamePhase = world.getComponent(gameEntity, Components.GamePhase);
-            if (gamePhase.phase === GamePhaseType.GAME_OVER) {
-                resetGame();
-                return;
-            }
-            if (gamePhase.activePlayer) {
-                // 提案1: ActionSystemを直接呼び出すのではなく、イベントを発行して疎結合にする
-                document.dispatchEvent(new CustomEvent(GameEvents.EXECUTION_CONFIRMED, {
-                    detail: { entityId: gamePhase.activePlayer }
-                }));
-                // actionSystem.applyDamage(gamePhase.activePlayer); // ← この直接呼び出しをやめる
-            }
-            uiSystem.hideModal();
+            world.emit(GameEvents.HIDE_MODAL);
         });
     }
 
     // --- 初期化とゲームループ開始 ---
     function gameLoop(timestamp) {
-        const gamePhase = world.getComponent(gameEntity, Components.GamePhase);
-
         if (!lastTime) {
             lastTime = timestamp;
         }
         const deltaTime = timestamp - lastTime;
         lastTime = timestamp;
 
-        // ゲームがアクティブなときだけ更新
-        if (gamePhase && gamePhase.phase !== GamePhaseType.IDLE) {
+        if (world.gamePhase.phase !== GamePhaseType.IDLE) {
             world.update(deltaTime);
         }
 
@@ -174,6 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初回起動
     resetGame();
-    setupEventListeners(); // イベントリスナーをセットアップ
+    setupEventListeners();
     requestAnimationFrame(gameLoop);
 });

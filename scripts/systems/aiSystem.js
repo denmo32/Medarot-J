@@ -1,62 +1,60 @@
 // scripts/systems/aiSystem.js:
 
-import { PlayerInfo, GameState, Parts, Action, GamePhase, Gauge } from '../components.js';
-import { PlayerStateType, PartType } from '../constants.js';
+import { PlayerInfo, GameState, Parts, Action } from '../components.js';
+import { PlayerStateType, PartType, GamePhaseType, TeamID } from '../constants.js';
+import { GameEvents } from '../events.js';
 
 export class AiSystem {
     constructor(world) {
         this.world = world;
+        this.world.on(GameEvents.AI_ACTION_REQUIRED, this.onAiActionRequired.bind(this));
     }
 
-    /**
-     * 新規追加：AIの行動選択ロジックを分離
-     * @param {number} entityId - AIのエンティティID
-     * @param {Array} availableParts - 攻撃に使用可能なパーツのリスト
-     * @returns {[string, object]} - 選択された [partKey, partObject]
-     */
+    onAiActionRequired(detail) {
+        const { entityId } = detail;
+        const parts = this.world.getComponent(entityId, Parts);
+
+        const availableParts = Object.entries(parts)
+            .filter(([key, part]) => !part.isBroken && [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM].includes(key));
+
+        if (availableParts.length > 0) {
+            const [partKey, part] = this.chooseAction(entityId, availableParts);
+            // 状態を変更せず、ACTION_SELECTEDイベントを発行する
+            this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey });
+        } else {
+            // 攻撃パーツがない場合、StateSystemに状態変更を委ねるためBROKENイベントを発行
+            // (StateSystem側で頭部破壊時にBROKENになる処理があるが、念のため)
+            this.world.emit(GameEvents.PLAYER_BROKEN, { entityId });
+        }
+    }
+
     chooseAction(entityId, availableParts) {
-        // TODO: もう少し賢いロジックにする
-        // 例：リーダーを優先的に狙う、HPの低い敵を狙う、など
-        // 現在は、とりあえず最初の有効なパーツで攻撃する
+        // TODO: もっと賢いロジックに
         return availableParts[0];
     }
 
     update(deltaTime) {
-        const [gamePhaseEntity] = this.world.getEntitiesWith(GamePhase);
-        const gamePhase = this.world.getComponent(gamePhaseEntity, GamePhase);
-        if (gamePhase.activePlayer) return; // プレイヤーが入力中の場合はCPUは思考しない
+        const gamePhase = this.world.gamePhase;
 
-        const cpuEntities = this.world.getEntitiesWith(PlayerInfo, GameState, Parts, Action)
+        const activePhases = [GamePhaseType.INITIAL_SELECTION, GamePhaseType.BATTLE];
+        if (gamePhase.activePlayer || gamePhase.isModalActive || !activePhases.includes(gamePhase.phase)) {
+            return;
+        }
+
+        const cpuEntities = this.world.getEntitiesWith(PlayerInfo, GameState)
             .filter(id => {
                 const playerInfo = this.world.getComponent(id, PlayerInfo);
-                return playerInfo.teamId === 'team2';
+                const gameState = this.world.getComponent(id, GameState);
+                const selectableStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
+                return playerInfo.teamId === TeamID.TEAM2 && selectableStates.includes(gameState.state);
             });
 
         for (const entityId of cpuEntities) {
             const gameState = this.world.getComponent(entityId, GameState);
-
-            if (gameState.state === PlayerStateType.READY_SELECT || gameState.state === PlayerStateType.COOLDOWN_COMPLETE) {
-                const parts = this.world.getComponent(entityId, Parts);
-                const action = this.world.getComponent(entityId, Action);
-                const gauge = this.world.getComponent(entityId, Gauge);
-
-                // 定数を使用して攻撃可能なパーツをフィルタリング
-                const availableParts = Object.entries(parts)
-                    .filter(([key, part]) => !part.isBroken && [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM].includes(key));
-
-                if (availableParts.length > 0) {
-                    // 変更点：行動選択ロジックを専用メソッドに委譲
-                    const [partKey, part] = this.chooseAction(entityId, availableParts);
-
-                    action.partKey = partKey;
-                    action.type = part.action;
-                    gameState.state = PlayerStateType.SELECTED_CHARGING;
-                    gauge.value = 0;
-                } else {
-                    // 攻撃パーツがない場合
-                    gameState.state = PlayerStateType.BROKEN;
-                }
-            }
+            gameState.state = PlayerStateType.READY_SELECT;
+            
+            // このAIに行動を要求するイベントを発行
+            this.world.emit(GameEvents.AI_ACTION_REQUIRED, { entityId });
         }
     }
 }

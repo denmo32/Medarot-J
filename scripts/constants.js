@@ -32,3 +32,11 @@ export const PartType = {
     LEFT_ARM: 'leftArm',
     LEGS: 'legs'
 };
+
+/**
+ * チームIDを定義する定数
+ */
+export const TeamID = {
+    TEAM1: 'team1',
+    TEAM2: 'team2'
+};

@@ -1,7 +1,7 @@
 // scripts/systems/renderSystem.js:
 
 import { PlayerInfo, Position, Gauge, GameState, Parts, DOMReference } from '../components.js';
-import { PlayerStateType } from '../constants.js';
+import { PlayerStateType, TeamID } from '../constants.js'; // TeamIDをインポート
 
 export class RenderSystem {
     constructor(world) {
@@ -29,20 +29,20 @@ export class RenderSystem {
         const progress = gauge.value / gauge.max;
         let positionXRatio;
 
-        // 状態の比較を定数に変更
+        // TeamID定数を使用するように変更
         switch(gameState.state) {
             case PlayerStateType.SELECTED_CHARGING:
-                positionXRatio = (playerInfo.teamId === 'team1') ? (progress * 0.5) : (1 - (progress * 0.5));
+                positionXRatio = (playerInfo.teamId === TeamID.TEAM1) ? (progress * 0.5) : (1 - (progress * 0.5));
                 break;
             case PlayerStateType.CHARGING:
-                positionXRatio = (playerInfo.teamId === 'team1') ? (0.5 - (progress * 0.5)) : (0.5 + (progress * 0.5));
+                positionXRatio = (playerInfo.teamId === TeamID.TEAM1) ? (0.5 - (progress * 0.5)) : (0.5 + (progress * 0.5));
                 break;
             case PlayerStateType.READY_EXECUTE:
                 positionXRatio = 0.5;
                 break;
             case PlayerStateType.COOLDOWN_COMPLETE:
             case PlayerStateType.READY_SELECT:
-                positionXRatio = (playerInfo.teamId === 'team1') ? 0 : 1;
+                positionXRatio = (playerInfo.teamId === TeamID.TEAM1) ? 0 : 1;
                 break;
             default:
                  positionXRatio = position.x; // 状態が変わらない場合は現在の位置を維持

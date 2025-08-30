@@ -1,6 +1,6 @@
 // scripts/systems/gaugeSystem.js:
 
-import { Gauge, GameState, GamePhase } from '../components.js';
+import { Gauge, GameState } from '../components.js';
 import { CONFIG } from '../config.js';
 import { PlayerStateType, GamePhaseType } from '../constants.js';
 
@@ -10,8 +10,7 @@ export class GaugeSystem {
     }
 
     update(deltaTime) {
-        const [gamePhaseEntity] = this.world.getEntitiesWith(GamePhase);
-        const gamePhase = this.world.getComponent(gamePhaseEntity, GamePhase);
+        const gamePhase = this.world.gamePhase;
 
         // activePlayerがいる、モーダル表示中、またはバトルフェーズ以外ではゲージを進めない
         // 比較を定数に変更

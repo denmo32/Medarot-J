@@ -1,11 +1,30 @@
 // scripts/events.js:
+
+/**
+ * ゲーム内で発生するイベントを定義します。
+ * これにより、システム間の疎結合を実現します。
+ */
 export const GameEvents = {
-    SHOW_SELECTION_MODAL: 'showSelectionModal',
-    SHOW_EXECUTION_MODAL: 'showExecutionModal',
-    SHOW_BATTLE_START_MODAL: 'showBattleStartModal',
-    SHOW_GAME_OVER_MODAL: 'showGameOverModal',
-    ACTION_SELECTED: 'actionSelected',
-    PART_BROKEN: 'partBroken', // パーツ破壊を通知するイベント
-    // 提案1: 攻撃実行の承認を通知するイベントを追加
-    EXECUTION_CONFIRMED: 'executionConfirmed',
+    // --- Game Flow Events ---
+    START_BUTTON_CLICKED: 'START_BUTTON_CLICKED', // スタートボタンがクリックされた
+    RESET_BUTTON_CLICKED: 'RESET_BUTTON_CLICKED', // リセットボタンがクリックされた
+    BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED', // 「ロボトルファイト！」がクリックされた
+
+    // --- Player Input & AI Events ---
+    PLAYER_INPUT_REQUIRED: 'PLAYER_INPUT_REQUIRED', // プレイヤーの行動選択が必要になった
+    AI_ACTION_REQUIRED: 'AI_ACTION_REQUIRED',       // AIの行動選択が必要になった
+    ACTION_SELECTED: 'ACTION_SELECTED',             // プレイヤーまたはAIが行動を決定した
+
+    // --- Action Execution Events ---
+    ACTION_EXECUTION_CONFIRMED: 'ACTION_EXECUTION_CONFIRMED', // 攻撃モーダルのOKが押された
+    ACTION_EXECUTED: 'ACTION_EXECUTED',                       // 行動が実行され、ダメージなどが計算された
+
+    // --- State Change Events ---
+    PART_BROKEN: 'PART_BROKEN',         // パーツが破壊された
+    PLAYER_BROKEN: 'PLAYER_BROKEN',     // プレイヤー（頭部）が破壊された
+    GAME_OVER: 'GAME_OVER',             // ゲームが終了した
+
+    // --- UI Events ---
+    SHOW_MODAL: 'SHOW_MODAL', // モーダル表示を要求
+    HIDE_MODAL: 'HIDE_MODAL', // モーダル非表示を要求
 };

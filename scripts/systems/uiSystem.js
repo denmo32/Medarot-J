@@ -2,8 +2,9 @@
 
 import { CONFIG } from '../config.js';
 import { GameEvents } from '../events.js';
-import { GamePhase, PlayerInfo, DOMReference, Parts, GameState, Action } from '../components.js';
-import { PartType } from '../constants.js';
+// GamePhaseコンポーネントは不要になったので削除
+import { PlayerInfo, DOMReference, Parts } from '../components.js';
+import { TeamID } from '../constants.js';
 
 export class UiSystem {
     constructor(world) {
@@ -19,22 +20,21 @@ export class UiSystem {
             modalConfirmButton: document.getElementById('modalConfirmButton'),
             battleStartConfirmButton: document.getElementById('battleStartConfirmButton')
         };
-        this.bindModalEvents(); // イベントリスナーを登録
+        this.bindWorldEvents(); // イベントリスナーを登録
     }
 
-    // イベントリスナーを登録するメソッド
-    bindModalEvents() {
-        document.addEventListener(GameEvents.SHOW_SELECTION_MODAL, ({ detail }) => {
-            this.showModal('selection', detail);
+    // Worldからのイベントを購読する
+    bindWorldEvents() {
+        // document.addEventListenerの代わりにworld.onを使用
+        this.world.on(GameEvents.SHOW_MODAL, (detail) => {
+            this.showModal(detail.type, detail.data);
         });
-        document.addEventListener(GameEvents.SHOW_EXECUTION_MODAL, ({ detail }) => {
-            this.showModal('execution', detail);
+        this.world.on(GameEvents.HIDE_MODAL, () => {
+            this.hideModal();
         });
-        document.addEventListener(GameEvents.SHOW_BATTLE_START_MODAL, ({ detail }) => {
-            this.showModal('battle_start_confirm', detail);
-        });
-        document.addEventListener(GameEvents.SHOW_GAME_OVER_MODAL, ({ detail }) => {
-            this.showModal('game_over', detail);
+        // 攻撃実行が確定したらモーダルを閉じる
+        this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, () => {
+            this.hideModal();
         });
     }
 
@@ -43,7 +43,6 @@ export class UiSystem {
         const domRef = this.world.getComponent(entityId, DOMReference);
         const parts = this.world.getComponent(entityId, Parts);
 
-        // アイコン作成
         const icon = document.createElement('div');
         icon.id = `player-${entityId}-icon`;
         icon.className = 'player-icon';
@@ -52,7 +51,6 @@ export class UiSystem {
         domRef.iconElement = icon;
         this.dom.battlefield.appendChild(icon);
 
-        // 情報パネル作成
         const info = document.createElement('div');
         info.className = 'player-info';
         const teamConfig = CONFIG.TEAMS[playerInfo.teamId];
@@ -96,15 +94,13 @@ export class UiSystem {
     }
 
     update(deltaTime) {
-        // モーダル表示はイベント駆動になったため、このメソッドからはロジックを削除
+        // このシステムはイベント駆動なので、updateループで何かをする必要はない
     }
 
     showModal(type, data) {
-        const [gamePhaseEntity] = this.world.getEntitiesWith(GamePhase);
-        if (gamePhaseEntity) {
-            const gamePhase = this.world.getComponent(gamePhaseEntity, GamePhase);
-            if (gamePhase) gamePhase.isModalActive = true;
-        }
+        // world.gamePhaseを直接参照
+        this.world.gamePhase.isModalActive = true;
+        
         const { modalTitle: title, modalActorName: actorName, partSelectionContainer: partContainer, modalConfirmButton: confirmBtn, battleStartConfirmButton: startBtn } = this.dom;
         
         [partContainer, confirmBtn, startBtn].forEach(el => el.style.display = 'none');
@@ -112,20 +108,17 @@ export class UiSystem {
 
         switch (type) {
             case 'selection':
-                // 提案3: InputSystemから渡されたデータに基づいてモーダルを構築する
                 title.textContent = data.title;
                 actorName.textContent = data.actorName;
                 partContainer.innerHTML = '';
                 
-                // ゲームロジック（どのパーツが使えるか等）の判定はここからなくなり、
-                // 渡されたボタン情報を元に描画するだけの責務に集中する
                 data.buttons.forEach(buttonInfo => {
                     const button = document.createElement('button');
                     button.className = 'part-action-button';
                     button.textContent = buttonInfo.text;
                     button.onclick = () => {
-                        // main.js にイベント処理を移譲
-                        document.dispatchEvent(new CustomEvent(GameEvents.ACTION_SELECTED, { detail: { entityId: data.entityId, partKey: buttonInfo.partKey } }));
+                        // world.emitを使ってイベントを発行
+                        this.world.emit(GameEvents.ACTION_SELECTED, { entityId: data.entityId, partKey: buttonInfo.partKey });
                     };
                     partContainer.appendChild(button);
                 });
@@ -157,11 +150,8 @@ export class UiSystem {
     }
 
     hideModal() {
-        const [gamePhaseEntity] = this.world.getEntitiesWith(GamePhase);
-        if (gamePhaseEntity) {
-            const gamePhase = this.world.getComponent(gamePhaseEntity, GamePhase);
-            if (gamePhase) gamePhase.isModalActive = false;
-        }
+        // world.gamePhaseを直接参照
+        this.world.gamePhase.isModalActive = false;
         this.dom.modal.classList.add('hidden');
     }
 }

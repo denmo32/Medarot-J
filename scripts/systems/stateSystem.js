@@ -1,61 +1,96 @@
 // scripts/systems/stateSystem.js:
 
-import { Gauge, GameState, Parts, GamePhase, PlayerInfo } from '../components.js';
+import { Gauge, GameState, Parts, PlayerInfo, Action, Attack } from '../components.js';
 import { GameEvents } from '../events.js';
 import { PlayerStateType, GamePhaseType, PartType } from '../constants.js';
 
 export class StateSystem {
     constructor(world) {
         this.world = world;
-        // 新規追加：パーツ破壊イベントを監視するためのリスナーを登録
-        document.addEventListener(GameEvents.PART_BROKEN, this.handlePartBroken.bind(this));
+        this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
+        this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
     }
 
-    /**
-     * 新規追加：パーツ破壊イベントを処理するハンドラ
-     * ゲームのルール（勝敗判定）に関する責務をこのシステムに集約
-     * @param {CustomEvent} event - partBrokenイベント
-     */
-    handlePartBroken(event) {
-        const { entityId, partKey, isLeader, attackerId } = event.detail;
+    onActionSelected(detail) {
+        const { entityId, partKey } = detail;
+        const action = this.world.getComponent(entityId, Action);
+        const parts = this.world.getComponent(entityId, Parts);
+        const gameState = this.world.getComponent(entityId, GameState);
+        const gauge = this.world.getComponent(entityId, Gauge);
 
-        // リーダーの頭部が破壊された場合、ゲームオーバー処理を行う
-        if (partKey === PartType.HEAD && isLeader) {
-            const [gamePhaseEntity] = this.world.getEntitiesWith(GamePhase);
-            const gamePhase = this.world.getComponent(gamePhaseEntity, GamePhase);
-            
-            // 既にゲームオーバーなら何もしない
-            if (gamePhase.phase === GamePhaseType.GAME_OVER) return;
-
-            gamePhase.phase = GamePhaseType.GAME_OVER;
-            
-            // 攻撃者の情報から勝利チームを特定する
-            const winningTeam = this.world.getComponent(attackerId, PlayerInfo).teamId;
-
-            // UIシステムにゲームオーバーモーダルの表示を依頼する
-            const eventData = { winningTeam: winningTeam };
-            document.dispatchEvent(new CustomEvent(GameEvents.SHOW_GAME_OVER_MODAL, { detail: eventData }));
+        action.partKey = partKey;
+        action.type = parts[partKey].action;
+        gameState.state = PlayerStateType.SELECTED_CHARGING;
+        gauge.value = 0;
+        
+        this.world.emit(GameEvents.HIDE_MODAL);
+        
+        if (this.world.gamePhase.activePlayer === entityId) {
+            this.world.gamePhase.activePlayer = null;
         }
     }
 
+    onActionExecuted(detail) {
+        const { attackerId, targetId, targetPartKey, damage, isPartBroken, isPlayerBroken } = detail;
+
+        // 1. ダメージ適用と破壊判定
+        const targetParts = this.world.getComponent(targetId, Parts);
+        const part = targetParts[targetPartKey];
+        part.hp = Math.max(0, part.hp - damage);
+
+        if (isPartBroken) {
+            part.isBroken = true;
+            this.world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey: targetPartKey });
+        }
+
+        if (isPlayerBroken) {
+            const gameState = this.world.getComponent(targetId, GameState);
+            gameState.state = PlayerStateType.BROKEN;
+            this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId });
+
+            const playerInfo = this.world.getComponent(targetId, PlayerInfo);
+            if (playerInfo.isLeader) {
+                if (this.world.gamePhase.phase === GamePhaseType.GAME_OVER) return;
+
+                this.world.gamePhase.phase = GamePhaseType.GAME_OVER;
+                const winningTeam = this.world.getComponent(attackerId, PlayerInfo).teamId;
+                this.world.emit(GameEvents.SHOW_MODAL, { type: 'game_over', data: { winningTeam } });
+            }
+        }
+
+        // 2. 行動完了者の状態リセット
+        const attackerGameState = this.world.getComponent(attackerId, GameState);
+        const attackerGauge = this.world.getComponent(attackerId, Gauge);
+        const attackerAction = this.world.getComponent(attackerId, Action);
+        const attackerAttack = this.world.getComponent(attackerId, Attack);
+
+        attackerGameState.state = PlayerStateType.CHARGING;
+        attackerGauge.value = 0;
+        attackerAction.partKey = null;
+        attackerAction.type = null;
+        attackerAttack.target = null;
+        attackerAttack.partKey = null;
+        attackerAttack.damage = 0;
+        
+        this.world.gamePhase.activePlayer = null;
+    }
+
     update(deltaTime) {
+        const gamePhase = this.world.gamePhase;
         const entities = this.world.getEntitiesWith(Gauge, GameState, Parts);
-        const [gamePhaseEntity] = this.world.getEntitiesWith(GamePhase);
-        const gamePhase = this.world.getComponent(gamePhaseEntity, GamePhase);
 
         for (const entityId of entities) {
             const gauge = this.world.getComponent(entityId, Gauge);
             const gameState = this.world.getComponent(entityId, GameState);
             const parts = this.world.getComponent(entityId, Parts);
 
-            // 頭部が破壊されていたら、stateを'broken'に強制変更
             if (parts.head.isBroken && gameState.state !== PlayerStateType.BROKEN) {
                 gameState.state = PlayerStateType.BROKEN;
                 gauge.value = 0;
-                continue; // このフレームでは以降の判定は不要
+                this.world.emit(GameEvents.PLAYER_BROKEN, { entityId });
+                continue; 
             }
 
-            // ゲージが最大に達した場合の状態遷移
             if (gauge.value >= gauge.max) {
                 if (gameState.state === PlayerStateType.CHARGING) {
                     gameState.state = PlayerStateType.COOLDOWN_COMPLETE;
@@ -65,7 +100,6 @@ export class StateSystem {
             }
         }
 
-        // 全員の行動選択が終わったら、戦闘開始確認フェーズへ
         if (gamePhase.phase === GamePhaseType.INITIAL_SELECTION) {
             const allPlayers = this.world.getEntitiesWith(GameState);
             const allSelected = allPlayers.every(id => {
@@ -75,7 +109,7 @@ export class StateSystem {
 
             if (allSelected) {
                 gamePhase.phase = GamePhaseType.BATTLE_START_CONFIRM;
-                document.dispatchEvent(new CustomEvent(GameEvents.SHOW_BATTLE_START_MODAL));
+                this.world.emit(GameEvents.SHOW_MODAL, { type: 'battle_start_confirm' });
             }
         }
     }

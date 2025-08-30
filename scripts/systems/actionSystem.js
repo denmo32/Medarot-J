@@ -2,125 +2,84 @@
 
 import { CONFIG } from '../config.js';
 import { GameEvents } from '../events.js';
-import { GameState, PlayerInfo, Parts, Action, Attack, GamePhase, Gauge } from '../components.js';
-import { PlayerStateType, PartType } from '../constants.js';
+import { GameState, PlayerInfo, Parts, Action, Attack } from '../components.js';
+import { PlayerStateType, PartType, TeamID } from '../constants.js';
 import { calculateDamage } from '../battleUtils.js';
 
 export class ActionSystem {
     constructor(world) {
         this.world = world;
-        // 提案1: UIからの直接呼び出しを避けるため、攻撃実行イベントをリッスンする
-        document.addEventListener(GameEvents.EXECUTION_CONFIRMED, this.handleExecutionConfirmed.bind(this));
+        this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
     }
 
-    /**
-     * 提案1: EXECUTION_CONFIRMED イベントを処理するハンドラ
-     * @param {CustomEvent} event 
-     */
-    handleExecutionConfirmed(event) {
-        const { entityId } = event.detail;
-        this.applyDamage(entityId);
-    }
+    onActionExecutionConfirmed(detail) {
+        const { entityId } = detail;
+        const attack = this.world.getComponent(entityId, Attack);
 
-    // プレイヤーからの確認に応じてダメージを適用する
-    applyDamage(attackerId) {
-        const attack = this.world.getComponent(attackerId, Attack);
-        const [gamePhaseEntity] = this.world.getEntitiesWith(GamePhase);
-        const gamePhase = this.world.getComponent(gamePhaseEntity, GamePhase);
-
-        if (!attack || !attack.target) {
-            this.endAction(attackerId);
+        if (!attack || attack.target === null || attack.target === undefined) {
+            return;
+        }
+        
+        const target = this.world.getComponent(attack.target, Parts);
+        if (!target) {
             return;
         }
 
-        const { target, partKey, damage } = attack;
-        const targetParts = this.world.getComponent(target, Parts);
-        const targetPlayerInfo = this.world.getComponent(target, PlayerInfo);
+        const targetPart = target[attack.partKey];
+        const newHp = Math.max(0, targetPart.hp - attack.damage);
 
-        const part = targetParts[partKey];
-        part.hp = Math.max(0, part.hp - damage);
-        if (part.hp === 0) {
-            part.isBroken = true;
-            
-            // 変更点：ゲームオーバー判定を削除し、代わりにパーツ破壊イベントを発行
-            // これにより、このシステムの責務が「ダメージ計算と適用」に限定される
-            document.dispatchEvent(new CustomEvent(GameEvents.PART_BROKEN, {
-                detail: {
-                    entityId: target,
-                    partKey: partKey,
-                    attackerId: attackerId,
-                    isLeader: targetPlayerInfo.isLeader,
-                    targetTeamId: targetPlayerInfo.teamId
-                }
-            }));
-        }
-        
-        this.endAction(attackerId);
-    }
-
-    // 行動終了処理
-    endAction(entityId) {
-        const gauge = this.world.getComponent(entityId, Gauge);
-        const gameState = this.world.getComponent(entityId, GameState);
-        const action = this.world.getComponent(entityId, Action);
-        const attack = this.world.getComponent(entityId, Attack);
-        const [gamePhaseEntity] = this.world.getEntitiesWith(GamePhase);
-        const gamePhase = this.world.getComponent(gamePhaseEntity, GamePhase);
-
-        gauge.value = 0;
-        // 状態遷移を定数で行う
-        gameState.state = PlayerStateType.CHARGING;
-        action.partKey = null;
-        action.type = null;
-        attack.target = null;
-        attack.partKey = null;
-        attack.damage = 0;
-        gamePhase.activePlayer = null;
+        this.world.emit(GameEvents.ACTION_EXECUTED, {
+            attackerId: entityId,
+            targetId: attack.target,
+            targetPartKey: attack.partKey,
+            damage: attack.damage,
+            isPartBroken: newHp === 0,
+            isPlayerBroken: attack.partKey === PartType.HEAD && newHp === 0,
+        });
     }
 
     update(deltaTime) {
-        const [gamePhaseEntity] = this.world.getEntitiesWith(GamePhase);
-        const gamePhase = this.world.getComponent(gamePhaseEntity, GamePhase);
-        if (gamePhase.activePlayer) return; // 誰かが行動選択中の場合は実行しない
+        const gamePhase = this.world.gamePhase;
+        if (gamePhase.activePlayer || gamePhase.isModalActive) return;
 
         const executor = this.world.getEntitiesWith(GameState)
             .find(id => this.world.getComponent(id, GameState).state === PlayerStateType.READY_EXECUTE);
 
-        if (executor) {
-            const attackerInfo = this.world.getComponent(executor, PlayerInfo);
+        if (executor !== undefined && executor !== null) {
             const action = this.world.getComponent(executor, Action);
             const attack = this.world.getComponent(executor, Attack);
 
-            const target = this.findEnemyTarget(executor);
-
-            if (!target) {
-                this.endAction(executor);
+            const targetId = this.findEnemyTarget(executor);
+            if (targetId === null) {
+                this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: executor });
                 return;
             }
 
-            const targetParts = this.world.getComponent(target, Parts);
-            const availableTargetParts = Object.keys(targetParts).filter(key => !targetParts[key].isBroken);
+            const targetParts = this.world.getComponent(targetId, Parts);
+            const availableTargetParts = Object.keys(targetParts).filter(key => !targetParts[key].isBroken && key !== PartType.LEGS);
 
             if (availableTargetParts.length === 0) {
-                this.endAction(executor);
+                this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: executor });
                 return;
             }
 
             const targetPartKey = availableTargetParts[Math.floor(Math.random() * availableTargetParts.length)];
-            
-            // 変更点：ダメージ計算を外部の battleUtils 関数に委譲
-            const damage = calculateDamage(this.world, executor, target, action);
+            const damage = calculateDamage(this.world, executor, targetId, action);
 
-            attack.target = target;
+            attack.target = targetId;
             attack.partKey = targetPartKey;
             attack.damage = damage;
 
-            gamePhase.activePlayer = executor;
+            const attackerInfo = this.world.getComponent(executor, PlayerInfo);
+            const targetInfo = this.world.getComponent(targetId, PlayerInfo);
+            this.world.emit(GameEvents.SHOW_MODAL, {
+                type: 'execution',
+                data: {
+                    message: `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${targetParts[targetPartKey].name}に${damage}ダメージ！`
+                }
+            });
 
-            const modalData = {
-                message: `${attackerInfo.name}の${action.type}！ ${this.world.getComponent(target, PlayerInfo).name}の${targetParts[targetPartKey].name}に${damage}ダメージ！`
-            };
-            document.dispatchEvent(new CustomEvent(GameEvents.SHOW_EXECUTION_MODAL, { detail: modalData }));
+            gamePhase.activePlayer = executor;
         }
     }
 
@@ -136,7 +95,6 @@ export class ActionSystem {
 
         if (enemies.length === 0) return null;
         
-        // リーダーを探す
         const leader = enemies.find(id => this.world.getComponent(id, PlayerInfo).isLeader);
         return leader || enemies[0];
     }
