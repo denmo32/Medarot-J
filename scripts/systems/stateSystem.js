@@ -1,12 +1,16 @@
 // scripts/systems/stateSystem.js:
 
-import { Gauge, GameState, Parts, PlayerInfo, Action, Attack } from '../components.js';
+import { Gauge, GameState, Parts, PlayerInfo, Action, Attack, GameContext } from '../components.js';
 import { GameEvents } from '../events.js';
 import { PlayerStateType, GamePhaseType, PartType } from '../constants.js';
 
 export class StateSystem {
     constructor(world) {
         this.world = world;
+        // GameContextへの参照を保持
+        const contextEntity = this.world.getEntitiesWith(GameContext)[0];
+        this.context = this.world.getComponent(contextEntity, GameContext);
+
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
     }
@@ -18,16 +22,13 @@ export class StateSystem {
         const gameState = this.world.getComponent(entityId, GameState);
         const gauge = this.world.getComponent(entityId, Gauge);
 
+        // 1. 選択されたアクションとパーツを記録
         action.partKey = partKey;
         action.type = parts[partKey].action;
+        // 2. プレイヤーの状態を「選択後チャージ中」へ変更
         gameState.state = PlayerStateType.SELECTED_CHARGING;
+        // 3. ゲージをリセット
         gauge.value = 0;
-        
-        this.world.emit(GameEvents.HIDE_MODAL);
-        
-        if (this.world.gamePhase.activePlayer === entityId) {
-            this.world.gamePhase.activePlayer = null;
-        }
     }
 
     onActionExecuted(detail) {
@@ -43,19 +44,12 @@ export class StateSystem {
             this.world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey: targetPartKey });
         }
 
+        // プレイヤー（頭部）破壊の処理
         if (isPlayerBroken) {
             const gameState = this.world.getComponent(targetId, GameState);
             gameState.state = PlayerStateType.BROKEN;
+            // PLAYER_BROKENイベントを発行し、GameFlowSystemにゲームオーバー判定を委ねる
             this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId });
-
-            const playerInfo = this.world.getComponent(targetId, PlayerInfo);
-            if (playerInfo.isLeader) {
-                if (this.world.gamePhase.phase === GamePhaseType.GAME_OVER) return;
-
-                this.world.gamePhase.phase = GamePhaseType.GAME_OVER;
-                const winningTeam = this.world.getComponent(attackerId, PlayerInfo).teamId;
-                this.world.emit(GameEvents.SHOW_MODAL, { type: 'game_over', data: { winningTeam } });
-            }
         }
 
         // 2. 行動完了者の状態リセット
@@ -71,12 +65,9 @@ export class StateSystem {
         attackerAttack.target = null;
         attackerAttack.partKey = null;
         attackerAttack.damage = 0;
-        
-        this.world.gamePhase.activePlayer = null;
     }
 
     update(deltaTime) {
-        const gamePhase = this.world.gamePhase;
         const entities = this.world.getEntitiesWith(Gauge, GameState, Parts);
 
         for (const entityId of entities) {
@@ -84,6 +75,7 @@ export class StateSystem {
             const gameState = this.world.getComponent(entityId, GameState);
             const parts = this.world.getComponent(entityId, Parts);
 
+            // 頭部が破壊されている場合、状態をBROKENに強制変更
             if (parts.head.isBroken && gameState.state !== PlayerStateType.BROKEN) {
                 gameState.state = PlayerStateType.BROKEN;
                 gauge.value = 0;
@@ -91,25 +83,15 @@ export class StateSystem {
                 continue; 
             }
 
+            // ゲージ満タン時の状態遷移
             if (gauge.value >= gauge.max) {
                 if (gameState.state === PlayerStateType.CHARGING) {
+                    // チャージ完了 → クールダウン完了（行動選択可能）
                     gameState.state = PlayerStateType.COOLDOWN_COMPLETE;
                 } else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
+                    // 選択後チャージ完了 → 実行準備完了
                     gameState.state = PlayerStateType.READY_EXECUTE;
                 }
-            }
-        }
-
-        if (gamePhase.phase === GamePhaseType.INITIAL_SELECTION) {
-            const allPlayers = this.world.getEntitiesWith(GameState);
-            const allSelected = allPlayers.every(id => {
-                const state = this.world.getComponent(id, GameState);
-                return state.state !== PlayerStateType.READY_SELECT && state.state !== PlayerStateType.COOLDOWN_COMPLETE;
-            });
-
-            if (allSelected) {
-                gamePhase.phase = GamePhaseType.BATTLE_START_CONFIRM;
-                this.world.emit(GameEvents.SHOW_MODAL, { type: 'battle_start_confirm' });
             }
         }
     }

@@ -1,3 +1,5 @@
+import { TeamID } from './constants.js';
+
 export const CONFIG = {
     MAX_GAUGE: 100,
     UPDATE_INTERVAL: 20,
@@ -6,7 +8,7 @@ export const CONFIG = {
     LEGS_HP_BONUS: 10,
     BASE_DAMAGE: 20,
     TEAMS: {
-        team1: { name: 'チーム 1', color: '#63b3ed', baseSpeed: 1.0, textColor: 'text-blue-300' },
-        team2: { name: 'チーム 2', color: '#f56565', baseSpeed: 1.0, textColor: 'text-red-300' }
+        [TeamID.TEAM1]: { name: 'チーム 1', color: '#63b3ed', baseSpeed: 1.0, textColor: 'text-blue-300' },
+        [TeamID.TEAM2]: { name: 'チーム 2', color: '#f56565', baseSpeed: 1.0, textColor: 'text-red-300' }
     }
 };

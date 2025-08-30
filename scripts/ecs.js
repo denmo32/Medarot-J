@@ -11,13 +11,6 @@ export class World {
 
         // --- New: Event Dispatcher ---
         this.listeners = new Map(); // eventName -> Set<callback>
-
-        // --- New: Global Game State ---
-        this.gamePhase = {
-            phase: GamePhaseType.IDLE,
-            activePlayer: null,
-            isModalActive: false,
-        };
     }
 
     // --- New: Event Dispatcher Methods ---

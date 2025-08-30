@@ -1,5 +1,5 @@
 import { CONFIG } from './config.js';
-import { PlayerStateType, PartType } from './constants.js';
+import { PlayerStateType, PartType, GamePhaseType } from './constants.js';
 
 // プレイヤーの基本情報
 export class PlayerInfo {
@@ -79,6 +79,16 @@ export class Team {
     constructor(id) {
         this.id = id;
         this.name = CONFIG.TEAMS[id].name;
+    }
+}
+
+// --- New: ゲーム全体のグローバルな状態を管理するシングルトンコンポーネント ---
+export class GameContext {
+    constructor() {
+        this.phase = GamePhaseType.IDLE;
+        this.activePlayer = null; // 行動選択中または実行中のプレイヤー
+        this.isModalActive = false; // モーダルが表示されているか
+        this.winningTeam = null; // 勝利したチームID
     }
 }
 

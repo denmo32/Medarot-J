@@ -1,12 +1,16 @@
 // scripts/systems/inputSystem.js:
 
-import { PlayerInfo, GameState, Parts } from '../components.js';
+import { PlayerInfo, GameState, Parts, GameContext } from '../components.js';
 import { GameEvents } from '../events.js';
 import { PlayerStateType, GamePhaseType, PartType, TeamID } from '../constants.js';
 
 export class InputSystem {
     constructor(world) {
         this.world = world;
+        // GameContextへの参照を保持
+        const contextEntity = this.world.getEntitiesWith(GameContext)[0];
+        this.context = this.world.getComponent(contextEntity, GameContext);
+
         this.world.on(GameEvents.PLAYER_INPUT_REQUIRED, this.onPlayerInputRequired.bind(this));
     }
 
@@ -14,10 +18,13 @@ export class InputSystem {
         const { entityId } = detail;
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         const parts = this.world.getComponent(entityId, Parts);
+        
+        // 攻撃に使用可能なパーツ（頭、右腕、左腕）をフィルタリング
         const attackableParts = [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM];
         const availableParts = Object.entries(parts)
             .filter(([key, part]) => !part.isBroken && attackableParts.includes(key));
         
+        // モーダル表示に必要なデータを準備して、UIシステムに表示を要求
         const modalData = {
             entityId: entityId,
             title: '行動選択',
@@ -32,13 +39,13 @@ export class InputSystem {
     }
 
     update(deltaTime) {
-        const gamePhase = this.world.gamePhase;
-
+        // ゲームが入力待ち付け可能なフェーズか、また他の処理が実行中でないかを確認
         const activePhases = [GamePhaseType.INITIAL_SELECTION, GamePhaseType.BATTLE];
-        if (gamePhase.activePlayer || gamePhase.isModalActive || !activePhases.includes(gamePhase.phase)) {
+        if (this.context.activePlayer || this.context.isModalActive || !activePhases.includes(this.context.phase)) {
             return;
         }
 
+        // チーム1の中で行動選択可能なプレイヤーを探す
         const selectablePlayer = this.world.getEntitiesWith(PlayerInfo, GameState)
             .find(id => {
                 const playerInfo = this.world.getComponent(id, PlayerInfo);
@@ -46,20 +53,18 @@ export class InputSystem {
                 
                 if (!playerInfo || !gameState) return false;
 
-                const currentTeamId = playerInfo.teamId.trim();
-                const currentState = gameState.state.trim();
-
                 const selectableStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
-                return currentTeamId === TeamID.TEAM1 && selectableStates.includes(currentState);
+                // チームIDが1で、かつ選択可能な状態のプレイヤー
+                return playerInfo.teamId === TeamID.TEAM1 && selectableStates.includes(gameState.state);
             });
 
         // ★★★ 不具合修正：selectablePlayerが0の場合もtrueになるように修正 ★★★
         if (selectablePlayer !== undefined && selectablePlayer !== null) {
             const gameState = this.world.getComponent(selectablePlayer, GameState);
+            // 状態を確定させる（クールダウン完了から選択準備完了へ）
             gameState.state = PlayerStateType.READY_SELECT;
 
-            gamePhase.activePlayer = selectablePlayer;
-
+            // プレイヤーに入力を要求するイベントを発行
             this.world.emit(GameEvents.PLAYER_INPUT_REQUIRED, { entityId: selectablePlayer });
         }
     }

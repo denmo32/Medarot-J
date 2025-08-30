@@ -1,20 +1,20 @@
 // scripts/systems/gaugeSystem.js:
 
-import { Gauge, GameState } from '../components.js';
+import { Gauge, GameState, GameContext } from '../components.js';
 import { CONFIG } from '../config.js';
 import { PlayerStateType, GamePhaseType } from '../constants.js';
 
 export class GaugeSystem {
     constructor(world) {
         this.world = world;
+        // GameContextへの参照を保持
+        const contextEntity = this.world.getEntitiesWith(GameContext)[0];
+        this.context = this.world.getComponent(contextEntity, GameContext);
     }
 
     update(deltaTime) {
-        const gamePhase = this.world.gamePhase;
-
         // activePlayerがいる、モーダル表示中、またはバトルフェーズ以外ではゲージを進めない
-        // 比較を定数に変更
-        if (gamePhase.activePlayer || gamePhase.isModalActive || gamePhase.phase !== GamePhaseType.BATTLE) {
+        if (this.context.activePlayer || this.context.isModalActive || this.context.phase !== GamePhaseType.BATTLE) {
             return;
         }
 
@@ -24,7 +24,7 @@ export class GaugeSystem {
             const gauge = this.world.getComponent(entityId, Gauge);
             const gameState = this.world.getComponent(entityId, GameState);
 
-            // 比較を定数に変更
+            // ゲージの進行を止めるべき状態かを判定
             const statesToPause = [
                 PlayerStateType.READY_SELECT, 
                 PlayerStateType.READY_EXECUTE, 
@@ -35,9 +35,11 @@ export class GaugeSystem {
                 continue;
             }
 
+            // ゲージを増加させる
             const increment = gauge.speed * (deltaTime / CONFIG.UPDATE_INTERVAL);
             gauge.value += increment;
 
+            // ゲージが最大値を超えないようにする
             if (gauge.value >= gauge.max) {
                 gauge.value = gauge.max;
             }
