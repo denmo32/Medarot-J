@@ -97,20 +97,26 @@
             padding: 15px;
             border-radius: 8px;
         }
+        /* ★変更: チーム内のプレイヤーを横に並べるためのコンテナ */
+        .team-players-container {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 10px;
+        }
+        /* ★変更: プレイヤー情報を縦に並べる */
         .player-info {
-            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.9em;
         }
         .player-name {
             font-weight: bold;
         }
-        .parts-container {
-            display: flex;
-            gap: 10px;
-            margin-top: 5px;
-            font-size: 0.8em;
-        }
-        .part-hp { display: flex; align-items: center; gap: 4px; }
-        .part-hp-bar-container { width: 30px; height: 6px; background-color: #718096; border-radius: 3px; overflow: hidden; }
+        /* parts-container は削除 */
+        .part-hp { display: flex; align-items: center; gap: 8px; } /* gapを調整 */
+        .part-hp-bar-container { width: 80px; height: 8px; background-color: #718096; border-radius: 4px; overflow: hidden; } /* サイズを調整 */
         .part-hp-bar { height: 100%; transition: width 0.3s ease; }
         .part-hp.broken .part-name { text-decoration: line-through; color: #a0aec0; }
 

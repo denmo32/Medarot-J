@@ -93,13 +93,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // 既存のワールドを破棄して、新しいインスタンスを作成
         world = new World();
         
-        // UIをリセット（DOM要素をクリア）
-        if (uiSystem) {
-            uiSystem.resetUI();
-        }
-
-        // システムを再初期化
+        // ★修正: 処理順を変更
+        // システムを再初期化し、uiSystemを生成する
         initializeSystems();
+
+        // UIをリセットする。initializeSystemsの後なのでuiSystemは必ず存在する
+        uiSystem.resetUI();
+
         // プレイヤーを再生成
         createPlayers();
         // UIを再セットアップ

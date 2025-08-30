@@ -75,13 +75,16 @@ export class UiSystem {
         const info = document.createElement('div');
         info.className = 'player-info';
         const teamConfig = CONFIG.TEAMS[playerInfo.teamId];
+
+        // ★変更: 縦並びにするため、parts-container を使わず直接HTMLを構築
         let partsHTML = '';
         Object.keys(parts).forEach(key => {
             partsHTML += `<div id="player-${entityId}-${key}-part" class="part-hp"></div>`;
         });
+
         info.innerHTML = `
             <div class="player-name ${teamConfig.textColor}">${playerInfo.name} ${playerInfo.isLeader ? '(L)' : ''}</div>
-            <div class="parts-container">${partsHTML}</div>
+            ${partsHTML}
         `;
         
         // 各パーツのDOM要素への参照を保存
@@ -98,7 +101,8 @@ export class UiSystem {
             };
         });
         
-        const panel = document.getElementById(`${playerInfo.teamId}InfoPanel`);
+        // ★変更: 新しく作ったチーム別プレイヤーコンテナに追加
+        const panel = document.querySelector(`#${playerInfo.teamId}InfoPanel .team-players-container`);
         panel.appendChild(info);
         domRef.infoPanel = info;
     }
@@ -108,7 +112,11 @@ export class UiSystem {
         this.dom.battlefield.innerHTML = '<div class="center-line"></div>';
         Object.entries(CONFIG.TEAMS).forEach(([teamId, teamConfig]) => {
             const panel = document.getElementById(`${teamId}InfoPanel`);
-            panel.innerHTML = `<h2 class="text-xl font-bold mb-3 ${teamConfig.textColor}">${teamConfig.name}</h2>`;
+            // ★変更: プレイヤー情報を格納するコンテナを追加
+            panel.innerHTML = `
+                <h2 class="text-xl font-bold mb-3 ${teamConfig.textColor}">${teamConfig.name}</h2>
+                <div class="team-players-container"></div>
+            `;
         });
         // ★変更: ボタンの状態を初期化
         this.dom.gameStartButton.style.display = "flex"; // 開始アイコンを表示
