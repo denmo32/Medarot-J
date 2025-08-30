@@ -2,6 +2,7 @@
 
 import { PlayerInfo, Position, Gauge, GameState, Parts, DOMReference } from '../components.js';
 import { PlayerStateType, TeamID } from '../constants.js'; // TeamIDをインポート
+import { CONFIG } from '../config.js'; // ★追加: 設定ファイルをインポート
 
 export class RenderSystem {
     constructor(world) {
@@ -29,20 +30,30 @@ export class RenderSystem {
         const progress = gauge.value / gauge.max;
         let positionXRatio;
 
-        // TeamID定数を使用するように変更
+        // 各チームのアクションラインの位置を定義
+        const ACTION_LINE_TEAM1 = 0.45; // 45%
+        const ACTION_LINE_TEAM2 = 0.55; // 55%
+
+        const isTeam1 = playerInfo.teamId === TeamID.TEAM1;
+        const actionLine = isTeam1 ? ACTION_LINE_TEAM1 : ACTION_LINE_TEAM2;
+        // ★変更: ホームポジションを見切れなくするため、マージンを適用
+        const startLine = isTeam1 ? CONFIG.HOME_MARGIN : 1 - CONFIG.HOME_MARGIN;
+
         switch(gameState.state) {
-            case PlayerStateType.SELECTED_CHARGING:
-                positionXRatio = (playerInfo.teamId === TeamID.TEAM1) ? (progress * 0.5) : (1 - (progress * 0.5));
+            case PlayerStateType.SELECTED_CHARGING: // 自陣 -> アクションライン
+                // チーム1: 0 -> 0.4, チーム2: 1 -> 0.6
+                positionXRatio = startLine + (actionLine - startLine) * progress;
                 break;
-            case PlayerStateType.CHARGING:
-                positionXRatio = (playerInfo.teamId === TeamID.TEAM1) ? (0.5 - (progress * 0.5)) : (0.5 + (progress * 0.5));
+            case PlayerStateType.CHARGING: // アクションライン -> 自陣
+                // チーム1: 0.4 -> 0, チーム2: 0.6 -> 1
+                positionXRatio = actionLine + (startLine - actionLine) * progress;
                 break;
             case PlayerStateType.READY_EXECUTE:
-                positionXRatio = 0.5;
+                positionXRatio = actionLine;
                 break;
             case PlayerStateType.COOLDOWN_COMPLETE:
             case PlayerStateType.READY_SELECT:
-                positionXRatio = (playerInfo.teamId === TeamID.TEAM1) ? 0 : 1;
+                positionXRatio = startLine;
                 break;
             default:
                  positionXRatio = position.x; // 状態が変わらない場合は現在の位置を維持

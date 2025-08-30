@@ -1,5 +1,4 @@
-
-        body {
+body {
             font-family: 'Inter', sans-serif;
             display: flex;
             flex-direction: column;
@@ -38,15 +37,34 @@
             overflow: hidden;
         }
 
-        /* 中央線 */
-        .center-line {
+        /* アクションライン */
+        .action-line-1 {
             position: absolute;
-            left: 50%;
+            left: 45%;
             top: 0;
             bottom: 0;
             width: 2px;
             background-color: rgba(255, 255, 255, 0.2);
             transform: translateX(-50%);
+        }
+        .action-line-2 {
+            position: absolute;
+            left: 55%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: translateX(-50%);
+        }
+
+        /* ホームポジションマーカー */
+        .home-marker {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
         }
 
         /* プレイヤーアイコン */

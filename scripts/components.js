@@ -43,10 +43,11 @@ export class Parts {
 // DOM要素への参照
 export class DOMReference {
     constructor() {
-        this.iconElement = null;
-        this.infoPanel = null;
-        this.partDOMElements = {};
-    }
+            this.iconElement = null;
+            this.homeMarkerElement = null; // ホームポジションのマーカー要素
+            this.infoPanel = null;
+            this.partDOMElements = {};
+        }
 }
 
 // 選択されたアクション

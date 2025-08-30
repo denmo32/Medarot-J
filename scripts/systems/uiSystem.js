@@ -2,7 +2,7 @@
 
 import { CONFIG } from '../config.js';
 import { GameEvents } from '../events.js';
-import { PlayerInfo, DOMReference, Parts, GameContext } from '../components.js';
+import { PlayerInfo, DOMReference, Parts, GameContext, Position } from '../components.js'; // ★変更: Positionコンポーネントをインポート
 import { TeamID, GamePhaseType } from '../constants.js';
 
 export class UiSystem {
@@ -61,6 +61,20 @@ export class UiSystem {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         const domRef = this.world.getComponent(entityId, DOMReference);
         const parts = this.world.getComponent(entityId, Parts);
+        const position = this.world.getComponent(entityId, Position); // Y座標の取得に必要
+
+        // ホームポジションのX座標を計算
+        const homeX = playerInfo.teamId === TeamID.TEAM1
+            ? CONFIG.HOME_MARGIN
+            : 1 - CONFIG.HOME_MARGIN;
+
+        // ホームポジションを示すマーカーを生成
+        const marker = document.createElement('div');
+        marker.className = 'home-marker';
+        marker.style.left = `${homeX * 100}%`;
+        marker.style.top = `${position.y}%`; // プレイヤーのY座標に合わせる
+        domRef.homeMarkerElement = marker;
+        this.dom.battlefield.appendChild(marker);
 
         // プレイヤーアイコンの生成
         const icon = document.createElement('div');
@@ -109,7 +123,7 @@ export class UiSystem {
 
     resetUI() {
         // バトルフィールドと情報パネルをクリア
-        this.dom.battlefield.innerHTML = '<div class="center-line"></div>';
+        this.dom.battlefield.innerHTML = '<div class="action-line-1"></div><div class="action-line-2"></div>';
         Object.entries(CONFIG.TEAMS).forEach(([teamId, teamConfig]) => {
             const panel = document.getElementById(`${teamId}InfoPanel`);
             // ★変更: プレイヤー情報を格納するコンテナを追加
