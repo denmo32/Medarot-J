@@ -3,7 +3,7 @@
 import { CONFIG } from '../config.js';
 import { GameEvents } from '../events.js';
 import { PlayerInfo, DOMReference, Parts, GameContext } from '../components.js';
-import { TeamID } from '../constants.js';
+import { TeamID, GamePhaseType } from '../constants.js';
 
 export class UiSystem {
     constructor(world) {
@@ -46,7 +46,7 @@ export class UiSystem {
         });
 
         this.dom.modalConfirmButton.addEventListener('click', () => {
-            if (this.context.phase === 'game_over') {
+            if (this.context.phase === GamePhaseType.GAME_OVER) {
                 this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
                 return;
             }
