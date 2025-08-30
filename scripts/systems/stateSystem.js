@@ -39,6 +39,7 @@ export class StateSystem {
         const part = targetParts[targetPartKey];
         part.hp = Math.max(0, part.hp - damage);
 
+        // ★変更: isPartBrokenとisPlayerBrokenのイベント発行と状態変更をここに集約
         if (isPartBroken) {
             part.isBroken = true;
             this.world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey: targetPartKey });
@@ -47,7 +48,10 @@ export class StateSystem {
         // プレイヤー（頭部）破壊の処理
         if (isPlayerBroken) {
             const gameState = this.world.getComponent(targetId, GameState);
+            const gauge = this.world.getComponent(targetId, Gauge);
+            // 状態を即座にBROKENに変更し、ゲージをリセット
             gameState.state = PlayerStateType.BROKEN;
+            gauge.value = 0; 
             // PLAYER_BROKENイベントを発行し、GameFlowSystemにゲームオーバー判定を委ねる
             this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId });
         }
@@ -75,13 +79,8 @@ export class StateSystem {
             const gameState = this.world.getComponent(entityId, GameState);
             const parts = this.world.getComponent(entityId, Parts);
 
-            // 頭部が破壊されている場合、状態をBROKENに強制変更
-            if (parts.head.isBroken && gameState.state !== PlayerStateType.BROKEN) {
-                gameState.state = PlayerStateType.BROKEN;
-                gauge.value = 0;
-                this.world.emit(GameEvents.PLAYER_BROKEN, { entityId });
-                continue; 
-            }
+            // ★削除: 頭部破壊のチェックはonActionExecutedに一本化されたため、ここでのチェックは不要になりました。
+            // if (parts.head.isBroken && gameState.state !== PlayerStateType.BROKEN) { ... }
 
             // ゲージ満タン時の状態遷移
             if (gauge.value >= gauge.max) {

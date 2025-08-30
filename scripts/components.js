@@ -87,8 +87,18 @@ export class GameContext {
     constructor() {
         this.phase = GamePhaseType.IDLE;
         this.activePlayer = null; // 行動選択中または実行中のプレイヤー
-        this.isModalActive = false; // モーダルが表示されているか
+        // ★変更: isModalActiveからリネームし、役割を明確化
+        this.isPausedByModal = false; // モーダル表示により、ゲームの進行が一時停止しているか
         this.winningTeam = null; // 勝利したチームID
+    }
+
+    /**
+     * ★追加: システムの更新を停止すべきか判定します。
+     * 行動中のプレイヤーがいる場合や、モーダル表示によってゲームが一時停止している場合にtrueを返します。
+     * @returns {boolean}
+     */
+    isPaused() {
+        return !!this.activePlayer || this.isPausedByModal;
     }
 }
 

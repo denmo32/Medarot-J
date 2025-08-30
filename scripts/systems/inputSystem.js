@@ -39,9 +39,9 @@ export class InputSystem {
     }
 
     update(deltaTime) {
-        // ゲームが入力待ち付け可能なフェーズか、また他の処理が実行中でないかを確認
+        // ★変更: isPaused()で、他の処理が実行中でないかを確認
         const activePhases = [GamePhaseType.INITIAL_SELECTION, GamePhaseType.BATTLE];
-        if (this.context.activePlayer || this.context.isModalActive || !activePhases.includes(this.context.phase)) {
+        if (this.context.isPaused() || !activePhases.includes(this.context.phase)) {
             return;
         }
 

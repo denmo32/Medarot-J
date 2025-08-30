@@ -13,8 +13,8 @@ export class GaugeSystem {
     }
 
     update(deltaTime) {
-        // activePlayerがいる、モーダル表示中、またはバトルフェーズ以外ではゲージを進めない
-        if (this.context.activePlayer || this.context.isModalActive || this.context.phase !== GamePhaseType.BATTLE) {
+        // ★変更: isPaused()でゲームがアクティブかを確認。バトルフェーズ以外ではゲージを進めない
+        if (this.context.isPaused() || this.context.phase !== GamePhaseType.BATTLE) {
             return;
         }
 

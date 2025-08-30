@@ -45,8 +45,8 @@ export class ActionSystem {
     }
 
     update(deltaTime) {
-        // 他の処理が実行中、またはモーダル表示中は何もしない
-        if (this.context.activePlayer || this.context.isModalActive) return;
+        // ★変更: isPaused()で、他の処理が実行中でないかを確認
+        if (this.context.isPaused()) return;
 
         // 実行準備が完了しているプレイヤーを探す
         const executor = this.world.getEntitiesWith(GameState)

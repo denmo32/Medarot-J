@@ -78,8 +78,8 @@ export class GameFlowSystem {
     }
 
     onShowModal(detail) {
-        // モーダル表示中はフラグを立てる
-        this.context.isModalActive = true;
+        // ★変更: isModalActiveの代わりにisPausedByModalフラグを立て、UI起因のゲーム停止を通知
+        this.context.isPausedByModal = true;
         // 行動選択または実行のモーダルの場合、誰がアクティブかを記録
         if (detail.type === 'selection') {
             this.context.activePlayer = detail.data.entityId;
@@ -90,8 +90,8 @@ export class GameFlowSystem {
     }
 
     onHideModal() {
-        // モーダルが非表示になったらフラグを解除
-        this.context.isModalActive = false;
+        // ★変更: isPausedByModalフラグを解除し、UI起因のゲーム停止を解除
+        this.context.isPausedByModal = false;
     }
 
     onPlayerBroken(detail) {
