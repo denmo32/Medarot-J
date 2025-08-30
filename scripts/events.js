@@ -6,7 +6,8 @@
  */
 export const GameEvents = {
     // --- Game Flow Events ---
-    START_BUTTON_CLICKED: 'START_BUTTON_CLICKED', // スタートボタンがクリックされた
+    GAME_START_REQUESTED: 'GAME_START_REQUESTED',       // ★変更: 開始アイコンがクリックされた
+    GAME_START_CONFIRMED: 'GAME_START_CONFIRMED',       // ★追加: 開始確認モーダルで「はい」が押された
     RESET_BUTTON_CLICKED: 'RESET_BUTTON_CLICKED', // リセットボタンがクリックされた
     BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED', // 「ロボトルファイト！」がクリックされた
 

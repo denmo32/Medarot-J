@@ -13,8 +13,7 @@ export class UiSystem {
         this.context = this.world.getComponent(contextEntity, GameContext);
 
         this.dom = {
-            startButton: document.getElementById('startButton'),
-            resetButton: document.getElementById('resetButton'),
+            gameStartButton: document.getElementById('gameStartButton'), // ★変更: 新しい開始ボタン
             battlefield: document.getElementById('battlefield'),
             modal: document.getElementById('actionModal'),
             modalTitle: document.getElementById('modalTitle'),
@@ -31,16 +30,15 @@ export class UiSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showModal(detail.type, detail.data));
         this.world.on(GameEvents.HIDE_MODAL, () => this.hideModal());
+        // ★追加: ゲーム開始要求を受けたら、確認モーダルを表示する
+        this.world.on(GameEvents.GAME_START_REQUESTED, () => this.showModal('start_confirm'));
     }
 
     // DOM要素のイベントリスナーを登録する
     bindDOMEvents() {
-        this.dom.startButton.addEventListener('click', () => {
-            this.world.emit(GameEvents.START_BUTTON_CLICKED);
-        });
-
-        this.dom.resetButton.addEventListener('click', () => {
-            this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
+        // ★変更: 新しい開始アイコンボタンのクリックイベント
+        this.dom.gameStartButton.addEventListener('click', () => {
+            this.world.emit(GameEvents.GAME_START_REQUESTED);
         });
 
         this.dom.battleStartConfirmButton.addEventListener('click', () => {
@@ -112,18 +110,14 @@ export class UiSystem {
             const panel = document.getElementById(`${teamId}InfoPanel`);
             panel.innerHTML = `<h2 class="text-xl font-bold mb-3 ${teamConfig.textColor}">${teamConfig.name}</h2>`;
         });
-        // ボタンの状態を初期化
-        this.dom.startButton.disabled = false;
-        this.dom.startButton.textContent = "シミュレーション開始";
-        this.dom.resetButton.style.display = "none";
+        // ★変更: ボタンの状態を初期化
+        this.dom.gameStartButton.style.display = "flex"; // 開始アイコンを表示
         this.hideModal();
     }
 
     update(deltaTime) {
-        // このシステムはイベント駆動が主だが、UIの更新（ボタンの有効/無効など）はここで行う
-        this.dom.startButton.disabled = this.context.phase !== 'IDLE';
-        this.dom.startButton.textContent = this.context.phase === 'IDLE' ? "シミュレーション開始" : "シミュレーション中...";
-        this.dom.resetButton.style.display = this.context.phase !== 'IDLE' ? "inline-block" : "none";
+        // ★変更: ゲーム中でなければ開始アイコンを表示、ゲーム中なら非表示
+        this.dom.gameStartButton.style.display = this.context.phase === 'IDLE' ? "flex" : "none";
     }
 
     showModal(type, data) {
@@ -134,6 +128,31 @@ export class UiSystem {
         actorName.textContent = ''; // メッセージもクリア
 
         switch (type) {
+            // ★追加: ゲーム開始確認モーダル
+            case 'start_confirm':
+                title.textContent = 'ロボトル開始';
+                actorName.textContent = 'シミュレーションを開始しますか？';
+                partContainer.innerHTML = ''; // ボタンをクリア
+
+                const yesButton = document.createElement('button');
+                yesButton.className = 'modal-button';
+                yesButton.textContent = 'はい';
+                yesButton.onclick = () => {
+                    // ゲーム開始が確定したことを通知
+                    this.world.emit(GameEvents.GAME_START_CONFIRMED);
+                    this.hideModal();
+                };
+
+                const noButton = document.createElement('button');
+                noButton.className = 'modal-button bg-red-500 hover:bg-red-600';
+                noButton.textContent = 'いいえ';
+                noButton.onclick = () => this.hideModal();
+
+                partContainer.appendChild(yesButton);
+                partContainer.appendChild(noButton);
+                partContainer.style.display = 'flex';
+                break;
+
             case 'selection':
                 title.textContent = data.title;
                 actorName.textContent = data.actorName;

@@ -20,7 +20,8 @@ export class GameFlowSystem {
     }
 
     bindWorldEvents() {
-        this.world.on(GameEvents.START_BUTTON_CLICKED, this.onStartButtonClicked.bind(this));
+        // ★変更: ゲーム開始のトリガーを、確認モーダルで「はい」が押されたイベントに変更
+        this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
         this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
@@ -29,7 +30,8 @@ export class GameFlowSystem {
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
     }
 
-    onStartButtonClicked() {
+    // ★変更: メソッド名をイベントに合わせて変更
+    onGameStartConfirmed() {
         if (this.context.phase !== GamePhaseType.IDLE) return;
 
         // 1. ゲームフェーズを初期選択に変更
