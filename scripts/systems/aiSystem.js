@@ -41,9 +41,15 @@ export class AiSystem {
      * @returns {[string, object]} - 選択されたパーツのキーとオブジェクト
      */
     chooseAction(entityId, availableParts) {
-        // TODO: もっと賢いロジックに（例：HPが少ない敵を狙う、強力なパーツを使うなど）
-        // 現在は最初に見つかった有効なパーツを返す
-        return availableParts[0];
+        // 利用可能なパーツの中で最も攻撃力が高いものを選択する
+        if (!availableParts || availableParts.length === 0) {
+            return [null, null];
+        }
+
+        // powerで降順にソートして、最初の要素（最もpowerが高い）を選ぶ
+        const sortedParts = [...availableParts].sort(([, partA], [, partB]) => partB.power - partA.power);
+        
+        return sortedParts[0];
     }
 
     update(deltaTime) {

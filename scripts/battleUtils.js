@@ -1,6 +1,7 @@
 // scripts/battleUtils.js:
 
 import { CONFIG } from './config.js';
+import { Parts } from './components.js';
 
 /**
  * ダメージ計算を行う関数
@@ -11,11 +12,12 @@ import { CONFIG } from './config.js';
  * @returns {number} 計算されたダメージ値
  */
 export function calculateDamage(world, attackerId, targetId, action) {
-    // 将来的には、ここからパーツの攻撃力、防御力、相性などを考慮した
-    // 複雑なダメージ計算ロジックを実装できます。
-    // 例: const attackerParts = world.getComponent(attackerId, Parts);
-    // 例: const power = attackerParts[action.partKey].power;
-    
-    // 現在は設定ファイルに基づいた基本ダメージを返します。
-    return CONFIG.BASE_DAMAGE;
+    const attackerParts = world.getComponent(attackerId, Parts);
+    const attackingPart = attackerParts[action.partKey];
+
+    // 将来的には、防御力や相性も考慮できます
+    // const targetParts = world.getComponent(targetId, Parts);
+
+    // パーツのpowerをダメージの基本値とします
+    return attackingPart.power || 0;
 }
