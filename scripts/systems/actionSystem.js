@@ -6,13 +6,13 @@ import { GameEvents } from '../events.js';
 import { GameState, PlayerInfo, Parts, Action, GameContext, Medal, BattleLog } from '../components.js';
 import { PlayerStateType, PartType, TeamID, MedalPersonality } from '../constants.js';
 // ★変更: 汎用的なcalculateDamageとdetermineTargetをインポート
-import { calculateDamage, determineTarget } from '../battleUtils.js';
+import { calculateDamage } from '../battleUtils.js';
 
 export class ActionSystem {
     constructor(world) {
         this.world = world;
-        // GameContextへの参照を保持
-        this.context = this.world.getSingletonComponent(GameContext);
+        // ★変更: GameContextへの参照を削除。isPaused()がなくなったため不要。
+        // this.context = this.world.getSingletonComponent(GameContext);
 
         this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
     }
@@ -49,35 +49,23 @@ export class ActionSystem {
     }
 
     update(deltaTime) {
-        if (this.context.isPaused()) return;
+        // ★変更: isPaused()のチェックを削除。システムは自身の責務に集中し、
+        // ゲーム全体の進行管理はGameFlowSystemとStateSystemに委ねる。
 
         const executor = this.world.getEntitiesWith(GameState)
             .find(id => this.world.getComponent(id, GameState).state === PlayerStateType.READY_EXECUTE);
 
         if (executor === undefined || executor === null) return;
 
-        // ★変更: Attackの代わりにActionコンポーネントを取得
         const action = this.world.getComponent(executor, Action);
 
-        // --- ターゲット決定処理 ---
-        // ★変更: Actionコンポーネントにターゲットが未設定の場合（＝プレイヤーの行動）のみ、ここでターゲットを決定します。
-        // AIの場合はDecisionSystemで事前にターゲットが決定され、Actionコンポーネントに保存されています。
-        if (action.targetId === null || action.targetId === undefined) {
-            // ★変更: battleUtilsに集約されたロジックを呼び出す
-            const target = determineTarget(this.world, executor);
-            if (!target) {
-                // ターゲットが見つからない場合は行動をスキップして完了させます。
-                console.warn(`ActionSystem: ターゲットが見つからなかったため、行動をスキップします。Attacker: ${executor}`);
-                this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: executor });
-                return;
-            }
-            // 決定したターゲットをActionコンポーネントに設定します。
-            action.targetId = target.targetId;
-            action.targetPartKey = target.targetPartKey;
-        }
+        // ★削除: ターゲット決定処理を削除。
+        // ターゲットは、AIの場合はDecisionSystem、プレイヤーの場合はStateSystemで、
+        // 行動が選択されたタイミングで既に決定され、Actionコンポーネントに格納されている。
+        // これにより、ActionSystemは純粋に「決定された行動を実行する」責務に集中できる。
 
         // --- ダメージ計算 ---
-        // これで全実行者のターゲット情報が確定したので、ダメージを計算します。
+        // Actionコンポーネントに保存された情報に基づき、ダメージを計算します。
         const damage = calculateDamage(this.world, executor, action.targetId, action);
         action.damage = damage;
 

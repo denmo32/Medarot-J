@@ -12,8 +12,10 @@ export class GaugeSystem {
     }
 
     update(deltaTime) {
-        // ★変更: isPaused()でゲームがアクティブかを確認。バトルフェーズ以外ではゲージを進めない
-        if (this.context.isPaused() || this.context.phase !== GamePhaseType.BATTLE) {
+        // ★変更: ゲームの進行停止条件を修正。
+        // バトルフェーズでない場合、またはモーダル表示などでアクティブなプレイヤーがいる（操作を待っている）場合は、
+        // ゲージの進行を停止するように修正しました。
+        if (this.context.phase !== GamePhaseType.BATTLE || this.context.activePlayer !== null) {
             return;
         }
 

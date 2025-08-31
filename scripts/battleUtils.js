@@ -178,6 +178,24 @@ export function getAvailableParts(world, entityId) {
     return Object.keys(parts).filter(key => !parts[key].isBroken && key !== PartType.LEGS);
 }
 
+/**
+ * ★新規: 指定されたエンティティの、破壊されていない「攻撃用」パーツのリストを取得します。
+ * DecisionSystemの重複コードを共通化するために作成されました。
+ * @param {World} world - ワールドオブジェクト
+ * @param {number} entityId - エンティティID
+ * @returns {[string, object][]} - [パーツキー, パーツオブジェクト]の配列
+ */
+export function getAttackableParts(world, entityId) {
+    const parts = world.getComponent(entityId, Parts);
+    if (!parts) return [];
+
+    // 攻撃に使用できるパーツ種別
+    const attackablePartTypes = [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM];
+
+    return Object.entries(parts)
+        .filter(([key, part]) => !part.isBroken && attackablePartTypes.includes(key));
+}
+
 /** 
  * 指定されたターゲットIDやパーツキーが現在有効（生存・未破壊）か検証します 
  * @param {World} world

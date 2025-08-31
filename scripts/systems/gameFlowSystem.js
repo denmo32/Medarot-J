@@ -77,8 +77,9 @@ export class GameFlowSystem {
     }
 
     onShowModal(detail) {
-        // ★変更: isModalActiveの代わりにisPausedByModalフラグを立て、UI起因のゲーム停止を通知
-        this.context.isPausedByModal = true;
+        // ★変更: isPausedByModalフラグの操作を削除。
+        // ゲームの進行停止はGameContext.phaseで一元管理するため、UI起因の停止フラグは不要になりました。
+
         // 行動選択または実行のモーダルの場合、誰がアクティブかを記録
         if (detail.type === 'selection') {
             this.context.activePlayer = detail.data.entityId;
@@ -89,8 +90,7 @@ export class GameFlowSystem {
     }
 
     onHideModal() {
-        // ★変更: isPausedByModalフラグを解除し、UI起因のゲーム停止を解除
-        this.context.isPausedByModal = false;
+        // ★変更: isPausedByModalフラグの操作を削除。
     }
 
     onPlayerBroken(detail) {

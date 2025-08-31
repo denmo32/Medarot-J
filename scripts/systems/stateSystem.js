@@ -2,7 +2,8 @@
 
 import { Gauge, GameState, Parts, PlayerInfo, Action, GameContext } from '../components.js'; // ★Attackを削除
 import { GameEvents } from '../events.js';
-import { PlayerStateType, GamePhaseType, PartType } from '../constants.js';
+import { PlayerStateType, GamePhaseType, PartType, TeamID } from '../constants.js'; // ★TeamIDを追加
+import { determineTarget } from '../battleUtils.js'; // ★determineTargetを追加
 
 export class StateSystem {
     constructor(world) {
@@ -32,9 +33,22 @@ export class StateSystem {
         action.partKey = partKey;
         action.type = parts[partKey].action;
 
-        // 2. ★変更: AIによってターゲットが決定済みの場合は、Actionコンポーネントに保存
-        // targetIdがnullの場合（ターゲットが見つからなかった）も考慮
-        if (targetId !== undefined && targetPartKey !== undefined) {
+        // ★変更: ターゲット決定タイミングを統一
+        // AIからのアクション（targetIdが既に設定されている）でない場合、
+        // ここでターゲットを決定し、Actionコンポーネントに格納する。
+        // これにより、プレイヤーとAIのターゲット決定フローが統一される。
+        if (targetId === undefined) {
+            const target = determineTarget(this.world, entityId);
+            if (target) {
+                action.targetId = target.targetId;
+                action.targetPartKey = target.targetPartKey;
+            } else {
+                // ターゲットが見つからなかった場合も、その情報を記録しておく
+                action.targetId = null;
+                action.targetPartKey = null;
+            }
+        } else {
+            // AIによって決定済みの場合は、そのままActionコンポーネントに保存
             action.targetId = targetId;
             action.targetPartKey = targetPartKey;
         }
@@ -89,17 +103,15 @@ export class StateSystem {
     
 
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(Gauge, GameState, Parts);
+        // ★変更: DecisionSystemの責務を一部移管。
+        // このシステムが状態遷移の管理と、それに伴う行動決定のトリガー（イベント発行）を担う。
+        const entities = this.world.getEntitiesWith(Gauge, GameState, Parts, PlayerInfo);
 
         for (const entityId of entities) {
             const gauge = this.world.getComponent(entityId, Gauge);
             const gameState = this.world.getComponent(entityId, GameState);
-            const parts = this.world.getComponent(entityId, Parts);
 
-            // ★削除: 頭部破壊のチェックはonActionExecutedに一本化されたため、ここでのチェックは不要になりました。
-            // if (parts.head.isBroken && gameState.state !== PlayerStateType.BROKEN) { ... }
-
-            // ゲージ満タン時の状態遷移
+            // 1. ゲージ満タン時の状態遷移
             if (gauge.value >= gauge.max) {
                 if (gameState.state === PlayerStateType.CHARGING) {
                     // チャージ完了 → クールダウン完了（行動選択可能）
@@ -108,6 +120,24 @@ export class StateSystem {
                     // 選択後チャージ完了 → 実行準備完了
                     gameState.state = PlayerStateType.READY_EXECUTE;
                 }
+            }
+
+            // 2. ★新規: 行動決定が必要なエンティティを検知し、イベントを発行する
+            // 行動選択可能状態であり、かつ、まだ他のプレイヤーが行動選択中でない場合に実行
+            const selectableStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
+            if (selectableStates.includes(gameState.state) && this.context.activePlayer === null) {
+                
+                // 他のシステムが重複して処理しないよう、状態を更新しておく
+                gameState.state = PlayerStateType.READY_SELECT;
+
+                const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+                
+                // チームIDに応じて、プレイヤー操作かAI操作かを判断し、適切なイベントを発行
+                const eventToEmit = playerInfo.teamId === TeamID.TEAM1 
+                    ? GameEvents.PLAYER_INPUT_REQUIRED 
+                    : GameEvents.AI_ACTION_REQUIRED;
+                
+                this.world.emit(eventToEmit, { entityId });
             }
         }
     }

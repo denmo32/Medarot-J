@@ -78,8 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
         world.registerSystem(historySystem);
         world.registerSystem(gaugeSystem);
         world.registerSystem(stateSystem);
-        world.registerSystem(playerDecisionSystem);
-        world.registerSystem(aiDecisionSystem);
+        // ★削除: DecisionSystemはupdateメソッドを持たない純粋なイベント駆動システムに変更されたため、
+        // updateループへの登録は不要になりました。インスタンス化されると、コンストラクタでイベントリスナーが登録されます。
+        // world.registerSystem(playerDecisionSystem);
+        // world.registerSystem(aiDecisionSystem);
         world.registerSystem(actionSystem);
         world.registerSystem(movementSystem);
         world.registerSystem(uiSystem);

@@ -4,7 +4,7 @@ import { PlayerInfo, GameState, Parts, GameContext, Medal, BattleLog } from '../
 import { PlayerStateType, PartType, GamePhaseType, TeamID, MedalPersonality } from '../constants.js';
 import { GameEvents } from '../events.js';
 // ★追加: 汎用的なターゲット決定ロジックをインポート
-import { determineTarget } from '../battleUtils.js';
+import { determineTarget, getAttackableParts } from '../battleUtils.js';
 
 /**
  * プレイヤーまたはAIの行動選択を管理し、ターゲットを決定するシステム。
@@ -21,8 +21,8 @@ export class DecisionSystem {
         this.teamId = teamId;
         this.type = type; // 'player' or 'ai'
 
-        // GameContextへの参照を保持
-        this.context = this.world.getSingletonComponent(GameContext);
+        // ★変更: GameContextへの参照を削除。update()がなくなったため不要。
+        // this.context = this.world.getSingletonComponent(GameContext);
 
         this._bindEvents();
     }
@@ -39,36 +39,11 @@ export class DecisionSystem {
         }
     }
 
-    /**
-     * 担当チームの中から、行動選択が必要なエンティティを探してイベントを発行します。
-     */
-    update(deltaTime) {
-        const activePhases = [GamePhaseType.INITIAL_SELECTION, GamePhaseType.BATTLE];
-        if (this.context.isPaused() || !activePhases.includes(this.context.phase)) {
-            return;
-        }
-
-        // 担当チームの中で行動選択可能なエンティティを探す
-        const selectableEntity = this.world.getEntitiesWith(PlayerInfo, GameState)
-            .find(id => {
-                const playerInfo = this.world.getComponent(id, PlayerInfo);
-                const gameState = this.world.getComponent(id, GameState);
-                if (!playerInfo || !gameState) return false;
-
-                const selectableStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
-                return playerInfo.teamId === this.teamId && selectableStates.includes(gameState.state);
-            });
-
-        if (selectableEntity !== undefined && selectableEntity !== null) {
-            const gameState = this.world.getComponent(selectableEntity, GameState);
-            // 状態を確定させ、他のシステムが重複して処理しないようにする
-            gameState.state = PlayerStateType.READY_SELECT;
-
-            // タイプに応じて適切なイベントを発行
-            const eventToEmit = this.type === 'player' ? GameEvents.PLAYER_INPUT_REQUIRED : GameEvents.AI_ACTION_REQUIRED;
-            this.world.emit(eventToEmit, { entityId: selectableEntity });
-        }
-    }
+    // ★削除: updateメソッドは削除されました。
+    // このシステムの責務は、StateSystemからイベントが発行された際に、
+    // 行動内容を決定することに特化されました。
+    // これにより、フレームごとの不要なエンティティ検索がなくなり、
+    // 「状態遷移が行動決定をトリガーする」という流れが明確になります。
 
     // --- イベントハンドラ ---
 
@@ -80,11 +55,9 @@ export class DecisionSystem {
     _handlePlayerInput(detail) {
         const { entityId } = detail;
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        const parts = this.world.getComponent(entityId, Parts);
         
-        const attackableParts = [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM];
-        const availableParts = Object.entries(parts)
-            .filter(([key, part]) => !part.isBroken && attackableParts.includes(key));
+        // ★変更: battleUtilsの共通関数を利用して、重複コードを削減
+        const availableParts = getAttackableParts(this.world, entityId);
         
         // UIシステムにモーダル表示を要求
         const modalData = {
@@ -107,10 +80,9 @@ export class DecisionSystem {
      */
     _handleAiAction(detail) {
         const { entityId } = detail;
-        const parts = this.world.getComponent(entityId, Parts);
 
-        const availableParts = Object.entries(parts)
-            .filter(([key, part]) => !part.isBroken && [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM].includes(key));
+        // ★変更: battleUtilsの共通関数を利用して、重複コードを削減
+        const availableParts = getAttackableParts(this.world, entityId);
 
         if (availableParts.length > 0) {
             // 1. どのパーツで攻撃するかを選択

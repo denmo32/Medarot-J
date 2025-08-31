@@ -108,14 +108,8 @@ export class GameContext {
         };
     }
 
-    /**
-     * ★追加: システムの更新を停止すべきか判定します。
-     * 行動中のプレイヤーがいる場合や、モーダル表示によってゲームが一時停止している場合にtrueを返します。
-     * @returns {boolean}
-     */
-    isPaused() {
-        return !!this.activePlayer || this.isPausedByModal;
-    }
+    // ★削除: isPausedメソッドは削除されました。
+    // ゲームの進行可否は、GameFlowSystemが管理するGameContext.phaseによって一元的に判断されるように変更されました。
 }
 
 /**
