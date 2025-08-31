@@ -38,35 +38,26 @@ export function determineTarget(world, attackerId) {
     const enemies = getValidEnemies(world, attackerId);
     if (enemies.length === 0) return null;
 
-    // 性格に対応する戦略関数を取得。なければランダム戦略をデフォルトとする
+    // ★変更: 性格に対応する戦略関数を取得。各戦略は自己完結しているため、この関数は単なる呼び出し窓口(ファサード)になります。
     const strategy = targetingStrategies[attackerMedal.personality] || targetingStrategies.RANDOM;
     let target = strategy(world, attackerId, enemies);
 
-    // 戦略によってターゲットが見つからなかった場合、または無効な場合のフォールバック
+    // ★変更: 戦略が見つけられなかった場合のフォールバック処理を簡素化。
+    // 各戦略関数は、ターゲットが見つからない場合に、内部でRANDOM戦略を呼び出すかnullを返す責務を負います。
+    // ここでは、最終的にターゲットが見つからなかった場合のみ、安全策としてRANDOM戦略を呼び出します。
     if (!target || !isValidTarget(world, target.targetId, target.targetPartKey)) {
         target = targetingStrategies.RANDOM(world, attackerId, enemies);
     }
     
-    // それでも見つからなければ諦める
-    if (!target) return null;
-
-    // ターゲットエンティティは決まったが、パーツが決まっていない場合のフォールバック
-    if (!target.targetPartKey) {
-        const availableParts = getAvailableParts(world, target.targetId);
-        if (availableParts.length > 0) {
-            target.targetPartKey = availableParts[Math.floor(Math.random() * availableParts.length)];
-        } else {
-            // 攻撃可能なパーツがない場合は行動不可
-            return null;
-        }
-    }
-
     return target;
 }
 
 // --- 性格別ターゲット決定戦略 ---
 
+// ★変更: 各戦略が自己完結するように修正。
+// ターゲットエンティティとターゲットパーツの両方を決定して返すか、nullを返すように責務を明確化。
 const targetingStrategies = {
+    // [HUNTER]: 最もHPが低いパーツを狙う
     [MedalPersonality.HUNTER]: (world, attackerId, enemies) => {
         const allParts = getAllEnemyParts(world, enemies);
         if (allParts.length === 0) return null;
@@ -75,6 +66,7 @@ const targetingStrategies = {
         return { targetId: targetPartInfo.entityId, targetPartKey: targetPartInfo.partKey };
     },
 
+    // [CRUSHER]: 最もHPが高いパーツを狙う
     [MedalPersonality.CRUSHER]: (world, attackerId, enemies) => {
         const allParts = getAllEnemyParts(world, enemies);
         if (allParts.length === 0) return null;
@@ -83,6 +75,7 @@ const targetingStrategies = {
         return { targetId: targetPartInfo.entityId, targetPartKey: targetPartInfo.partKey };
     },
 
+    // [JOKER]: 敵全体のパーツからランダムに1つを狙う
     [MedalPersonality.JOKER]: (world, attackerId, enemies) => {
         const allParts = getAllEnemyParts(world, enemies);
         if (allParts.length === 0) return null;
@@ -90,44 +83,83 @@ const targetingStrategies = {
         return { targetId: randomPart.entityId, targetPartKey: randomPart.partKey };
     },
 
-    [MedalPersonality.COUNTER]: (world, attackerId) => {
+    // [COUNTER]: 自分を最後に攻撃した敵を狙う。いなければランダム。
+    [MedalPersonality.COUNTER]: (world, attackerId, enemies) => {
         const attackerLog = world.getComponent(attackerId, BattleLog);
-        const lastAttackerId = attackerLog.lastAttackedBy;
-        return isValidTarget(world, lastAttackerId) ? { targetId: lastAttackerId, targetPartKey: null } : null;
+        const targetId = attackerLog.lastAttackedBy;
+        if (isValidTarget(world, targetId)) {
+            return selectRandomPart(world, targetId);
+        }
+        return targetingStrategies.RANDOM(world, attackerId, enemies);
     },
 
-    [MedalPersonality.GUARD]: (world, attackerId) => {
+    // [GUARD]: 味方リーダーを最後に攻撃した敵を狙う。いなければランダム。
+    [MedalPersonality.GUARD]: (world, attackerId, enemies) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
         const context = world.getSingletonComponent(GameContext);
-        const leaderLastAttackerId = context.leaderLastAttackedBy[attackerInfo.teamId];
-        return isValidTarget(world, leaderLastAttackerId) ? { targetId: leaderLastAttackerId, targetPartKey: null } : null;
+        const targetId = context.leaderLastAttackedBy[attackerInfo.teamId];
+        if (isValidTarget(world, targetId)) {
+            return selectRandomPart(world, targetId);
+        }
+        return targetingStrategies.RANDOM(world, attackerId, enemies);
     },
 
-    [MedalPersonality.FOCUS]: (world, attackerId) => {
+    // [FOCUS]: 自分が最後に攻撃したパーツを狙う。なければランダム。
+    [MedalPersonality.FOCUS]: (world, attackerId, enemies) => {
         const attackerLog = world.getComponent(attackerId, BattleLog);
         const lastAttack = attackerLog.lastAttack;
-        return isValidTarget(world, lastAttack.targetId, lastAttack.partKey) ? { ...lastAttack } : null;
+        if (isValidTarget(world, lastAttack.targetId, lastAttack.partKey)) {
+            // ★修正: プロパティ名を `targetPartKey` に統一して返す
+            return { targetId: lastAttack.targetId, targetPartKey: lastAttack.partKey };
+        }
+        return targetingStrategies.RANDOM(world, attackerId, enemies);
     },
 
-    [MedalPersonality.ASSIST]: (world, attackerId) => {
+    // [ASSIST]: 味方が最後に攻撃したパーツを狙う。なければランダム。
+    [MedalPersonality.ASSIST]: (world, attackerId, enemies) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
         const context = world.getSingletonComponent(GameContext);
         const teamLastAttack = context.teamLastAttack[attackerInfo.teamId];
-        return isValidTarget(world, teamLastAttack.targetId, teamLastAttack.partKey) ? { ...teamLastAttack } : null;
+        if (isValidTarget(world, teamLastAttack.targetId, teamLastAttack.partKey)) {
+            // ★修正: プロパティ名を `targetPartKey` に統一して返す
+            return { targetId: teamLastAttack.targetId, targetPartKey: teamLastAttack.partKey };
+        }
+        return targetingStrategies.RANDOM(world, attackerId, enemies);
     },
 
+    // [LEADER_FOCUS]: 敵リーダーを狙う。いなければランダム。
     [MedalPersonality.LEADER_FOCUS]: (world, attackerId, enemies) => {
         const leader = enemies.find(id => world.getComponent(id, PlayerInfo).isLeader);
-        return isValidTarget(world, leader) ? { targetId: leader, targetPartKey: null } : null;
+        if (isValidTarget(world, leader)) {
+            return selectRandomPart(world, leader);
+        }
+        return targetingStrategies.RANDOM(world, attackerId, enemies);
     },
 
+    // [RANDOM]: 敵1体をランダムに選び、そのパーツをランダムに狙う
     [MedalPersonality.RANDOM]: (world, attackerId, enemies) => {
         if (enemies.length === 0) return null;
         const targetId = enemies[Math.floor(Math.random() * enemies.length)];
-        // パーツは後続のフォールバックで決定されるため、ここではnullを返す
-        return { targetId, targetPartKey: null };
+        return selectRandomPart(world, targetId);
     }
 };
+
+/** 
+ * ★新規: 指定されたエンティティから攻撃可能なパーツをランダムに1つ選択するヘルパー関数
+ * @param {World} world
+ * @param {number} entityId - ターゲットのエンティティID
+ * @returns {{targetId: number, targetPartKey: string} | null}
+ */
+function selectRandomPart(world, entityId) {
+    // ★変更: getAttackableParts を使用するように統一
+    const attackableParts = getAttackableParts(world, entityId);
+    if (attackableParts.length > 0) {
+        // getAttackablePartsは [[key, part], ...] の形式で返すため、[0]でキーを取得
+        const partKey = attackableParts[Math.floor(Math.random() * attackableParts.length)][0];
+        return { targetId: entityId, targetPartKey: partKey };
+    }
+    return null; // 攻撃可能なパーツがない
+}
 
 /** 
  * 生存している敵エンティティのリストを取得します 
@@ -165,27 +197,20 @@ export function getAllEnemyParts(world, enemyIds) {
 }
 
 /** 
- * 指定されたエンティティの、破壊されていない攻撃可能パーツキーのリストを取得します 
- * @param {World} world
- * @param {number} entityId
- * @returns {string[]}
+ * ★削除: getAvailablePartsはgetAttackablePartsと機能が重複するため削除されました。
  */
-export function getAvailableParts(world, entityId) {
-    if (entityId === null || entityId === undefined) return [];
-    const parts = world.getComponent(entityId, Parts);
-    if (!parts) return [];
-    // 脚部パーツは攻撃に使えないため除外
-    return Object.keys(parts).filter(key => !parts[key].isBroken && key !== PartType.LEGS);
-}
 
 /**
- * ★新規: 指定されたエンティティの、破壊されていない「攻撃用」パーツのリストを取得します。
+ * 指定されたエンティティの、破壊されていない「攻撃用」パーツのリストを取得します。
  * DecisionSystemの重複コードを共通化するために作成されました。
+ * ★変更: プロジェクト全体でこの関数に統一されました。
  * @param {World} world - ワールドオブジェクト
  * @param {number} entityId - エンティティID
  * @returns {[string, object][]} - [パーツキー, パーツオブジェクト]の配列
  */
 export function getAttackableParts(world, entityId) {
+    // ★追加: ターゲットが存在しない場合に空配列を返すガード節
+    if (entityId === null || entityId === undefined) return [];
     const parts = world.getComponent(entityId, Parts);
     if (!parts) return [];
 

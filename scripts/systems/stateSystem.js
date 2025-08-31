@@ -3,7 +3,6 @@
 import { Gauge, GameState, Parts, PlayerInfo, Action, GameContext } from '../components.js'; // ★Attackを削除
 import { GameEvents } from '../events.js';
 import { PlayerStateType, GamePhaseType, PartType, TeamID } from '../constants.js'; // ★TeamIDを追加
-import { determineTarget } from '../battleUtils.js'; // ★determineTargetを追加
 
 export class StateSystem {
     constructor(world) {
@@ -16,47 +15,36 @@ export class StateSystem {
     }
 
     onActionSelected(detail) {
-        // ★変更: AIによる行動決定の場合、ターゲット情報もペイロードに含まれる
+        // ★変更: DecisionSystemのリファクタリングにより、このイベントには常に完全な情報(ターゲット含む)が含まれます。
         const { entityId, partKey, targetId, targetPartKey } = detail;
         const action = this.world.getComponent(entityId, Action);
         const parts = this.world.getComponent(entityId, Parts);
         const gameState = this.world.getComponent(entityId, GameState);
         const gauge = this.world.getComponent(entityId, Gauge);
 
-        // 念のため、行動不能なパーツが選択された場合は無視する
-        if (!partKey || !parts[partKey] || parts[partKey].isBroken) {
-            // 選択をキャンセルし、再度選択可能な状態に戻すなどの発展も考えられる
+        // ★変更: アクションが完全に有効かどうかの検証を強化します。
+        // 使用パーツ、ターゲット、ターゲットパーツがすべて有効でなければ、アクションを中止します。
+        const isActionValid = partKey && parts[partKey] && !parts[partKey].isBroken && 
+                              targetId !== null && targetId !== undefined && 
+                              targetPartKey !== null && targetPartKey !== undefined;
+
+        if (!isActionValid) {
+            // アクションが無効な場合、コンソールに警告を出し、処理を中断します。
+            // これにより、エンティティは現在の選択待ち状態に留まり、次の機会に行動を再試行します。
+            console.warn(`StateSystem: Invalid action for entity ${entityId} was aborted.`, detail);
             return;
         }
 
-        // 1. 選択されたアクション（使用パーツ）を記録
+        // 1. 決定された完全なアクションをActionコンポーネントに記録します。
         action.partKey = partKey;
         action.type = parts[partKey].action;
+        action.targetId = targetId;
+        action.targetPartKey = targetPartKey;
 
-        // ★変更: ターゲット決定タイミングを統一
-        // AIからのアクション（targetIdが既に設定されている）でない場合、
-        // ここでターゲットを決定し、Actionコンポーネントに格納する。
-        // これにより、プレイヤーとAIのターゲット決定フローが統一される。
-        if (targetId === undefined) {
-            const target = determineTarget(this.world, entityId);
-            if (target) {
-                action.targetId = target.targetId;
-                action.targetPartKey = target.targetPartKey;
-            } else {
-                // ターゲットが見つからなかった場合も、その情報を記録しておく
-                action.targetId = null;
-                action.targetPartKey = null;
-            }
-        } else {
-            // AIによって決定済みの場合は、そのままActionコンポーネントに保存
-            action.targetId = targetId;
-            action.targetPartKey = targetPartKey;
-        }
-
-        // 3. プレイヤーの状態を「選択後チャージ中」へ変更
+        // 2. プレイヤーの状態を「選択後チャージ中」へ変更
         gameState.state = PlayerStateType.SELECTED_CHARGING;
         
-        // 4. ゲージをリセット
+        // 3. ゲージをリセット
         gauge.value = 0;
     }
 

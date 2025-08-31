@@ -54,7 +54,11 @@ export class UiSystem {
                 setupEvents: (container, data) => {
                     data.buttons.forEach((btn, index) => {
                         container.querySelector(`#modalBtnPart${index}`).onclick = () => {
-                            this.world.emit(GameEvents.ACTION_SELECTED, { entityId: data.entityId, partKey: btn.partKey });
+                            // ★変更: プレイヤーによるパーツ選択を通知する、より具体的なイベントを発行します。
+                            // これにより、UIの責務（入力の受付）とDecisionSystemの責務（ターゲット決定）を分離します。
+                            this.world.emit(GameEvents.PART_SELECTED, { entityId: data.entityId, partKey: btn.partKey });
+                            // ★追加: 選択後、即座にモーダルを閉じることで操作感を向上させます。
+                            this.hideModal();
                         };
                     });
                 }

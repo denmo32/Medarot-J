@@ -34,6 +34,8 @@ export class DecisionSystem {
     _bindEvents() {
         if (this.type === 'player') {
             this.world.on(GameEvents.PLAYER_INPUT_REQUIRED, this._handlePlayerInput.bind(this));
+            // ★追加: プレイヤーがUIでパーツを選択したときのイベントをリッスン
+            this.world.on(GameEvents.PART_SELECTED, this._handlePlayerAction.bind(this));
         } else {
             this.world.on(GameEvents.AI_ACTION_REQUIRED, this._handleAiAction.bind(this));
         }
@@ -56,7 +58,6 @@ export class DecisionSystem {
         const { entityId } = detail;
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         
-        // ★変更: battleUtilsの共通関数を利用して、重複コードを削減
         const availableParts = getAttackableParts(this.world, entityId);
         
         // UIシステムにモーダル表示を要求
@@ -67,10 +68,30 @@ export class DecisionSystem {
             buttons: availableParts.map(([partKey, part]) => ({
                 text: `${part.name} (${part.action})`,
                 partKey: partKey
-                // プレイヤーのターゲット選択は未実装のため、ここではpartKeyのみ
             }))
         };
         this.world.emit(GameEvents.SHOW_MODAL, { type: 'selection', data: modalData });
+    }
+
+    /**
+     * ★新規: プレイヤーが選択したパーツに基づき、ターゲットを決定して行動を確定します。
+     * @param {object} detail - イベントの詳細 ({ entityId, partKey })
+     * @private
+     */
+    _handlePlayerAction(detail) {
+        const { entityId, partKey } = detail;
+
+        // 1. ターゲットを決定
+        const target = determineTarget(this.world, entityId);
+        if (!target) {
+            // ターゲットが見つからない場合は行動をスキップ
+            this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey: null, targetId: null, targetPartKey: null });
+            return;
+        }
+        const { targetId, targetPartKey } = target;
+
+        // 2. 決定した完全な行動内容を通知する
+        this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey, targetId, targetPartKey });
     }
 
     /**

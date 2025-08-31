@@ -13,6 +13,7 @@ export const GameEvents = {
 
     // --- Player Input & AI Events ---
     PLAYER_INPUT_REQUIRED: 'PLAYER_INPUT_REQUIRED', // プレイヤーの行動選択が必要になった
+    PART_SELECTED: 'PART_SELECTED',                 // ★追加: プレイヤーが行動パーツを選択した
     AI_ACTION_REQUIRED: 'AI_ACTION_REQUIRED',       // AIの行動選択が必要になった
     ACTION_SELECTED: 'ACTION_SELECTED',             // プレイヤーまたはAIが行動を決定した
 
