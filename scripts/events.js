@@ -21,7 +21,11 @@ export const GameEvents = {
     ACTION_EXECUTION_CONFIRMED: 'ACTION_EXECUTION_CONFIRMED', // 攻撃モーダルのOKが押された
     ACTION_EXECUTED: 'ACTION_EXECUTED',                       // 行動が実行され、ダメージなどが計算された
 
-    // --- State Change Events ---
+    // --- State & Turn Management Events ---
+    // ★追加: 行動可能になったユニットがターンキューへの追加を要求する
+    ACTION_QUEUE_REQUEST: 'ACTION_QUEUE_REQUEST',
+    // ★追加: 無効なアクションを選択した等の理由で、ターンキューの先頭に再挿入を要求する
+    ACTION_REQUEUE_REQUEST: 'ACTION_REQUEUE_REQUEST',
     PART_BROKEN: 'PART_BROKEN',         // パーツが破壊された
     PLAYER_BROKEN: 'PLAYER_BROKEN',     // プレイヤー（頭部）が破壊された
     GAME_OVER: 'GAME_OVER',             // ゲームが終了した

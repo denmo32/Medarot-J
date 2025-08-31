@@ -30,11 +30,10 @@ export class StateSystem {
 
         if (!isActionValid) {
             // アクションが無効な場合、コンソールに警告を出し、処理を中断します。
-            // ★改善: アクションが無効な場合、再度行動選択キューに戻す
+            // ★改善: アクションが無効な場合、TurnSystemに再度行動選択キューに戻すよう要求する
             console.warn(`StateSystem: Invalid action for entity ${entityId} was aborted. Re-queueing.`, detail);
-            if (!this.context.actionQueue.includes(entityId)) {
-                this.context.actionQueue.unshift(entityId); // キューの先頭に戻して再試行を促す
-            }
+            // TurnSystemにキューの先頭に戻すよう要求
+            this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
             return;
         }
 
@@ -94,9 +93,9 @@ export class StateSystem {
     
 
     update(deltaTime) {
-        // ★変更: DecisionSystemの責務を一部移管。
-        // このシステムが状態遷移の管理と、それに伴う行動決定のトリガー（イベント発行）を担う。
-        const entities = this.world.getEntitiesWith(Gauge, GameState, Parts, PlayerInfo);
+        // ★変更: このシステムの責務は、各エンティティの状態遷移管理に特化。
+        // 行動順の決定（キュー管理）は新設されたTurnSystemに移譲。
+        const entities = this.world.getEntitiesWith(Gauge, GameState);
 
         for (const entityId of entities) {
             const gauge = this.world.getComponent(entityId, Gauge);
@@ -113,40 +112,17 @@ export class StateSystem {
                 }
             }
 
-            // 2. ★改善: 行動可能なエンティティを行動選択キューに追加する
+            // 2. ★改善: 行動可能なエンティティをTurnSystemに行動選択キューへの追加を要求する
             const selectableStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
             if (selectableStates.includes(gameState.state)) {
                 // 他のシステムが重複して処理しないよう、状態を統一しておく
                 gameState.state = PlayerStateType.READY_SELECT;
                 
-                // まだキューに入っていなければ追加する
-                if (!this.context.actionQueue.includes(entityId)) {
-                    this.context.actionQueue.push(entityId);
-                }
+                // TurnSystemに行動キューへの追加を要求するイベントを発行
+                this.world.emit(GameEvents.ACTION_QUEUE_REQUEST, { entityId });
             }
         }
         
-        // --- ★新規: 行動選択キューの処理 ---
-        // キューに待機者がいて、かつ誰もUI操作中でない場合に実行
-        if (this.context.actionQueue.length > 0 && this.context.activePlayer === null) {
-            // キューの先頭からエンティティを取り出す
-            const entityId = this.context.actionQueue.shift();
-
-            // 念のため、取り出したエンティティがまだ行動可能かチェック
-            const gameState = this.world.getComponent(entityId, GameState);
-            if (gameState.state !== PlayerStateType.READY_SELECT) {
-                // 行動できない状態になっていたら、キューの次の処理へ進む
-                return;
-            }
-            
-            const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-            
-            // チームIDに応じて、プレイヤー操作かAI操作かを判断し、適切なイベントを発行
-            const eventToEmit = playerInfo.teamId === TeamID.TEAM1 
-                ? GameEvents.PLAYER_INPUT_REQUIRED 
-                : GameEvents.AI_ACTION_REQUIRED;
-            
-            this.world.emit(eventToEmit, { entityId });
-        }
+        // ★削除: 行動選択キューの処理はTurnSystemに移譲されました。
     }
 }

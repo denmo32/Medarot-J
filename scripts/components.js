@@ -91,13 +91,13 @@ export class Team {
 export class GameContext {
     constructor() {
         this.phase = GamePhaseType.IDLE;
-        this.activePlayer = null; // 行動選択中または実行中のプレイヤー
+        // ★削除: activePlayerはUIの状態に依存するため、コアロジックから削除。
+        // this.activePlayer = null; // 行動選択中または実行中のプレイヤー
         this.isPausedByModal = false; // モーダル表示により、ゲームの進行が一時停止しているか
         this.winningTeam = null; // 勝利したチームID
 
-        // ★追加: 行動選択待ちのプレイヤーを管理するキュー
-        // これにより、複数のプレイヤーが同時に行動可能になった際の順番を制御します。
-        this.actionQueue = [];
+        // ★削除: 行動選択キューは、新設されたTurnSystemが責務を持つように変更。
+        // this.actionQueue = [];
 
         // --- 戦闘履歴 ---
         // 各チームの最後の攻撃情報を記録します (Assist性格用)

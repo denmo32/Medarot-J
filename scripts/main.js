@@ -6,11 +6,15 @@ import { UiSystem } from './systems/uiSystem.js';
 import { RenderSystem } from './systems/renderSystem.js';
 import { GaugeSystem } from './systems/gaugeSystem.js';
 import { StateSystem } from './systems/stateSystem.js';
-import { DecisionSystem } from './systems/decisionSystem.js';
+// ★変更: DecisionSystemを削除し、新しいシステムをインポート
+import { InputSystem } from './systems/inputSystem.js';
+import { AiSystem } from './systems/aiSystem.js';
 import { ActionSystem } from './systems/actionSystem.js';
 import { GameFlowSystem } from './systems/gameFlowSystem.js'; // 新しくインポート
 import { MovementSystem } from './systems/movementSystem.js';
 import { HistorySystem } from './systems/historySystem.js';
+// ★追加: 新しいTurnSystemをインポート
+import { TurnSystem } from './systems/turnSystem.js';
 import { GamePhaseType, PlayerStateType, TeamID, MedalPersonality } from './constants.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -63,25 +67,29 @@ document.addEventListener('DOMContentLoaded', () => {
         world.addComponent(contextEntity, new Components.GameContext());
 
         // --- システムの登録 ---
+        // ★変更: システムの登録順と構成を新しいアーキテクチャに合わせて見直し
+        
+        // --- イベント駆動システム (updateループ不要) ---
+        // これらのシステムはインスタンス化されると、コンストラクタでイベントリスナーを登録します。
+        new InputSystem(world);
+        new AiSystem(world);
+
+        // --- updateループで動作するシステム ---
         const gameFlowSystem = new GameFlowSystem(world);
         uiSystem = new UiSystem(world);
         const renderSystem = new RenderSystem(world);
         const gaugeSystem = new GaugeSystem(world);
         const stateSystem = new StateSystem(world);
-        const playerDecisionSystem = new DecisionSystem(world, TeamID.TEAM1, 'player');
-        const aiDecisionSystem = new DecisionSystem(world, TeamID.TEAM2, 'ai');
+        const turnSystem = new TurnSystem(world); // ★新規: TurnSystemを登録
         const actionSystem = new ActionSystem(world);
         const movementSystem = new MovementSystem(world);
         const historySystem = new HistorySystem(world);
 
         world.registerSystem(gameFlowSystem);
         world.registerSystem(historySystem);
-        world.registerSystem(gaugeSystem);
         world.registerSystem(stateSystem);
-        // ★削除: DecisionSystemはupdateメソッドを持たない純粋なイベント駆動システムに変更されたため、
-        // updateループへの登録は不要になりました。インスタンス化されると、コンストラクタでイベントリスナーが登録されます。
-        // world.registerSystem(playerDecisionSystem);
-        // world.registerSystem(aiDecisionSystem);
+        world.registerSystem(turnSystem); // ★新規: TurnSystemはupdateを持つ
+        world.registerSystem(gaugeSystem);
         world.registerSystem(actionSystem);
         world.registerSystem(movementSystem);
         world.registerSystem(uiSystem);

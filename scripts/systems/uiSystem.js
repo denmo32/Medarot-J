@@ -11,6 +11,9 @@ export class UiSystem {
         this.world = world;
         this.context = this.world.getSingletonComponent(GameContext);
 
+        // ★追加: モーダルで確認待ちのアクションを実行したエンティティIDを一時的に保持
+        this.confirmActionEntityId = null;
+
         this.dom = {
             gameStartButton: document.getElementById('gameStartButton'),
             battlefield: document.getElementById('battlefield'),
@@ -57,7 +60,7 @@ export class UiSystem {
                     data.buttons.forEach((btn, index) => {
                         container.querySelector(`#modalBtnPart${index}`).onclick = () => {
                             // ★変更: プレイヤーによるパーツ選択を通知する、より具体的なイベントを発行します。
-                            // これにより、UIの責務（入力の受付）とDecisionSystemの責務（ターゲット決定）を分離します。
+                            // これにより、UIの責務（入力の受付）とInputSystemの責務（ターゲット決定）を分離します。
                             this.world.emit(GameEvents.PART_SELECTED, { entityId: data.entityId, partKey: btn.partKey });
                             // ★追加: 選択後、即座にモーダルを閉じることで操作感を向上させます。
                             this.hideModal();
@@ -89,9 +92,10 @@ export class UiSystem {
         // ★変更: マジックストリングを定数に変更
         this.world.on(GameEvents.GAME_START_REQUESTED, () => this.showModal(ModalType.START_CONFIRM));
         
-        // ★追加: activePlayerの管理をUiSystemに集約するため、関連イベントを購読
+        // ★変更: activePlayerの管理を廃止したため、関連イベントの購読を整理
+        // モーダルを閉じるトリガーとなるイベントを購読
         this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, () => this.hideModal());
-        this.world.on(GameEvents.ACTION_SELECTED, () => this.hideModal());
+        // this.world.on(GameEvents.ACTION_SELECTED, () => this.hideModal()); // PART_SELECTEDで即座に閉じるので不要
     }
 
     // DOM要素のイベントリスナーを登録する
@@ -110,8 +114,9 @@ export class UiSystem {
                 return;
             }
             
-            if (this.context.activePlayer !== null) {
-                this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: this.context.activePlayer });
+            // ★変更: activePlayerを参照せず、一時保持していたIDを使ってイベントを発行
+            if (this.confirmActionEntityId !== null) {
+                this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: this.confirmActionEntityId });
             }
         });
     }
@@ -199,9 +204,13 @@ export class UiSystem {
             return;
         }
 
-        // ★追加: モーダル表示時にactivePlayerを設定する責務をここに集約
-        if (type === ModalType.SELECTION || type === ModalType.EXECUTION) {
-            this.context.activePlayer = data.entityId;
+        // ★変更: モーダル表示時にactivePlayerを設定する代わりに、
+        // ゲーム全体の進行を停止するフラグを立てる責務に限定。
+        this.context.isPausedByModal = true;
+        
+        // ★追加: 実行確認モーダルの場合、対象のエンティティIDを一時的に保持
+        if (type === ModalType.EXECUTION) {
+            this.confirmActionEntityId = data.entityId;
         }
 
         const { modalTitle, modalActorName, partSelectionContainer, modalConfirmButton, battleStartConfirmButton } = this.dom;
@@ -232,10 +241,11 @@ export class UiSystem {
     }
 
     hideModal() {
-        // ★追加: モーダル非表示時にactivePlayerを解除する責務をここに集約
-        if (this.context.activePlayer !== null) {
-            this.context.activePlayer = null;
-        }
+        // ★変更: モーダル非表示時にゲーム全体の停止フラグを解除する責務に限定。
+        this.context.isPausedByModal = false;
+        // ★追加: 一時保持していたエンティティIDをリセット
+        this.confirmActionEntityId = null;
+
         this.dom.modal.classList.add('hidden');
     }
 }
