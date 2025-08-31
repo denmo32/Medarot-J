@@ -18,39 +18,72 @@ document.addEventListener('DOMContentLoaded', () => {
     let uiSystem; // resetGameで参照するため、外で宣言
 
     /**
+     * プレイヤーエンティティを生成し、必要なコンポーネントをすべて追加するファクトリ関数
+     * @param {World} world - ワールドオブジェクト
+     * @param {string} teamId - チームID
+     * @param {object} teamConfig - チーム設定
+     * @param {number} index - チーム内でのインデックス
+     * @param {number} totalId - 全体での通し番号
+     * @returns {number} 生成されたエンティティID
+     */
+    function createPlayerEntity(world, teamId, teamConfig, index, totalId) {
+        const entityId = world.createEntity();
+        const name = `メダロット ${totalId}`;
+        const isLeader = index === 0;
+        const speed = teamConfig.baseSpeed + (Math.random() * 0.2);
+
+        // メダルの性格をランダムに決定
+        const personalityTypes = Object.values(MedalPersonality);
+        const personality = personalityTypes[Math.floor(Math.random() * personalityTypes.length)];
+
+        // 位置を計算
+        const initialX = teamId === TeamID.TEAM1 ? 0 : 1;
+        const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;
+
+        // コンポーネントを追加
+        world.addComponent(entityId, new Components.PlayerInfo(name, teamId, isLeader));
+        world.addComponent(entityId, new Components.Gauge(speed));
+        world.addComponent(entityId, new Components.GameState());
+        world.addComponent(entityId, new Components.Parts());
+        world.addComponent(entityId, new Components.DOMReference());
+        world.addComponent(entityId, new Components.Action());
+        world.addComponent(entityId, new Components.Medal(personality));
+        world.addComponent(entityId, new Components.BattleLog());
+        world.addComponent(entityId, new Components.Position(initialX, yPos));
+
+        return entityId;
+    }
+
+    /**
      * ゲームの初期化とシステムの登録を行う関数
      */
     function initializeSystems() {
         // --- シングルトンコンポーネントの作成 ---
-        // ゲーム全体のグローバルな状態を管理するエンティティを作成
         const contextEntity = world.createEntity();
         world.addComponent(contextEntity, new Components.GameContext());
 
         // --- システムの登録 ---
-        // GameFlowSystemは他のシステムより先に登録し、GameContextへの参照を渡す
         const gameFlowSystem = new GameFlowSystem(world);
         uiSystem = new UiSystem(world);
         const renderSystem = new RenderSystem(world);
         const gaugeSystem = new GaugeSystem(world);
         const stateSystem = new StateSystem(world);
-        // ★変更: InputSystemとAiSystemをDecisionSystemに統合
         const playerDecisionSystem = new DecisionSystem(world, TeamID.TEAM1, 'player');
         const aiDecisionSystem = new DecisionSystem(world, TeamID.TEAM2, 'ai');
         const actionSystem = new ActionSystem(world);
         const movementSystem = new MovementSystem(world);
         const historySystem = new HistorySystem(world);
 
-        world.registerSystem(gameFlowSystem); // ゲームフロー管理
-        world.registerSystem(historySystem);  // 戦闘履歴の更新
-        world.registerSystem(gaugeSystem);    // ゲージ更新
-        world.registerSystem(stateSystem);    // 状態遷移
-        // ★変更: 統合されたDecisionSystemを登録
-        world.registerSystem(playerDecisionSystem); // チーム1（プレイヤー）の行動決定
-        world.registerSystem(aiDecisionSystem);     // チーム2（AI）の行動決定
-        world.registerSystem(actionSystem);   // 行動実行
-        world.registerSystem(movementSystem); // 位置計算
-        world.registerSystem(uiSystem);       // UI更新（ボタン状態など）
-        world.registerSystem(renderSystem);   // 描画（最後）
+        world.registerSystem(gameFlowSystem);
+        world.registerSystem(historySystem);
+        world.registerSystem(gaugeSystem);
+        world.registerSystem(stateSystem);
+        world.registerSystem(playerDecisionSystem);
+        world.registerSystem(aiDecisionSystem);
+        world.registerSystem(actionSystem);
+        world.registerSystem(movementSystem);
+        world.registerSystem(uiSystem);
+        world.registerSystem(renderSystem);
     }
 
     /**
@@ -58,30 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function createPlayers() {
         let idCounter = 0;
-        // CONFIGからチーム設定を読み込み、プレイヤーを生成
         for (const [teamId, teamConfig] of Object.entries(CONFIG.TEAMS)) {
             for (let i = 0; i < CONFIG.PLAYERS_PER_TEAM; i++) {
-                const entityId = world.createEntity();
-                const name = `メダロット ${++idCounter}`;
-                const isLeader = i === 0;
-                const speed = teamConfig.baseSpeed + (Math.random() * 0.2);
-
-                // メダルの性格を、定義されている全ての性格の中からランダムで決定します。
-                const personalityTypes = Object.values(MedalPersonality);
-                const personality = personalityTypes[Math.floor(Math.random() * personalityTypes.length)];
-
-                // 各プレイヤーに必要なコンポーネントを追加
-                world.addComponent(entityId, new Components.PlayerInfo(name, teamId, isLeader));
-                world.addComponent(entityId, new Components.Gauge(speed));
-                world.addComponent(entityId, new Components.GameState());
-                world.addComponent(entityId, new Components.Parts());
-                world.addComponent(entityId, new Components.DOMReference());
-                world.addComponent(entityId, new Components.Action());
-                // world.addComponent(entityId, new Components.Attack()); // ★廃止: Actionコンポーネントに統合
-                world.addComponent(entityId, new Components.Medal(personality)); // ★追加: メダルコンポーネント
-                world.addComponent(entityId, new Components.BattleLog()); // ★追加: 戦闘ログコンポーネント
-                // Positionコンポーネントで初期位置を設定
-                world.addComponent(entityId, new Components.Position(teamId === TeamID.TEAM1 ? 0 : 1, 25 + i * 25));
+                createPlayerEntity(world, teamId, teamConfig, i, ++idCounter);
             }
         }
     }

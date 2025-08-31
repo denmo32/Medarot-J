@@ -13,6 +13,8 @@ export const CONFIG = {
         HOME_MARGIN_TEAM2: 0.95, // チーム2のホームポジションのX座標
         ACTION_LINE_TEAM1: 0.45, // チーム1のアクションライン
         ACTION_LINE_TEAM2: 0.55, // チーム2のアクションライン
+        PLAYER_INITIAL_Y: 25,    // プレイヤーの初期Y座標
+        PLAYER_Y_STEP: 25,       // プレイヤー間のY座標の間隔
     },
     TEAMS: {
         [TeamID.TEAM1]: { name: 'チーム 1', color: '#63b3ed', baseSpeed: 1.0, textColor: 'text-blue-300' },
