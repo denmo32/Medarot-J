@@ -1,5 +1,5 @@
 import { CONFIG } from './config.js';
-import { PlayerStateType, PartType, GamePhaseType } from './constants.js';
+import { PlayerStateType, PartType, GamePhaseType, TeamID } from './constants.js';
 
 // プレイヤーの基本情報
 export class PlayerInfo {
@@ -88,9 +88,20 @@ export class GameContext {
     constructor() {
         this.phase = GamePhaseType.IDLE;
         this.activePlayer = null; // 行動選択中または実行中のプレイヤー
-        // ★変更: isModalActiveからリネームし、役割を明確化
         this.isPausedByModal = false; // モーダル表示により、ゲームの進行が一時停止しているか
         this.winningTeam = null; // 勝利したチームID
+
+        // --- 戦闘履歴 ---
+        // 各チームの最後の攻撃情報を記録します (Assist性格用)
+        this.teamLastAttack = {
+            [TeamID.TEAM1]: { targetId: null, partKey: null },
+            [TeamID.TEAM2]: { targetId: null, partKey: null }
+        };
+        // 各チームのリーダーを最後に攻撃した敵を記録します (Guard性格用)
+        this.leaderLastAttackedBy = {
+            [TeamID.TEAM1]: null,
+            [TeamID.TEAM2]: null
+        };
     }
 
     /**
@@ -103,3 +114,29 @@ export class GameContext {
     }
 }
 
+/**
+ * メダルの情報を保持するコンポーネント
+ */
+export class Medal {
+    /**
+     * @param {string} personality - メダルの性格 (例: 'LEADER_FOCUS', 'RANDOM')
+     */
+    constructor(personality) {
+        this.personality = personality;
+    }
+}
+
+/**
+ * 個々のメダロットの戦闘履歴を記録するコンポーネント
+ */
+export class BattleLog {
+    constructor() {
+        // 最後に自分を攻撃してきた敵のID (Counter性格用)
+        this.lastAttackedBy = null;
+        // 自分が最後に行った攻撃の情報 (Focus性格用)
+        this.lastAttack = {
+            targetId: null,
+            partKey: null
+        };
+    }
+}

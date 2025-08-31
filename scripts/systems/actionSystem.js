@@ -2,8 +2,8 @@
 
 import { CONFIG } from '../config.js';
 import { GameEvents } from '../events.js';
-import { GameState, PlayerInfo, Parts, Action, Attack, GameContext } from '../components.js';
-import { PlayerStateType, PartType, TeamID } from '../constants.js';
+import { GameState, PlayerInfo, Parts, Action, Attack, GameContext, Medal, BattleLog } from '../components.js';
+import { PlayerStateType, PartType, TeamID, MedalPersonality } from '../constants.js';
 import { calculateDamage } from '../battleUtils.js';
 
 export class ActionSystem {
@@ -45,69 +45,192 @@ export class ActionSystem {
     }
 
     update(deltaTime) {
-        // ★変更: isPaused()で、他の処理が実行中でないかを確認
         if (this.context.isPaused()) return;
 
-        // 実行準備が完了しているプレイヤーを探す
         const executor = this.world.getEntitiesWith(GameState)
             .find(id => this.world.getComponent(id, GameState).state === PlayerStateType.READY_EXECUTE);
 
-        if (executor !== undefined && executor !== null) {
-            const action = this.world.getComponent(executor, Action);
-            const attack = this.world.getComponent(executor, Attack);
+        if (executor === undefined || executor === null) return;
 
-            // 1. 攻撃対象を見つける
-            const targetId = this.findEnemyTarget(executor);
-            if (targetId === null) {
-                // ターゲットがいない場合は行動をスキップして完了させる
-                this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: executor });
-                return;
+        const action = this.world.getComponent(executor, Action);
+        const attack = this.world.getComponent(executor, Attack);
+
+        // 1. メダルの性格に基づき、攻撃対象のエンティティとパーツを決定する
+        const target = this.determineTarget(executor);
+        if (!target) {
+            // ターゲットが見つからない場合は行動をスキップして完了させる
+            this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: executor });
+            return;
+        }
+        const { targetId, targetPartKey } = target;
+
+        // 2. ダメージを計算し、Attackコンポーネントに記録
+        const damage = calculateDamage(this.world, executor, targetId, action);
+        attack.target = targetId;
+        attack.partKey = targetPartKey;
+        attack.damage = damage;
+
+        // 3. 攻撃実行モーダルの表示を要求
+        const attackerInfo = this.world.getComponent(executor, PlayerInfo);
+        const targetInfo = this.world.getComponent(targetId, PlayerInfo);
+        const targetParts = this.world.getComponent(targetId, Parts);
+        this.world.emit(GameEvents.SHOW_MODAL, {
+            type: 'execution',
+            data: {
+                entityId: executor,
+                message: `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${targetParts[targetPartKey].name}に${damage}ダメージ！`
             }
+        });
+    }
 
-            // 2. 攻撃対象のパーツを決める
-            const targetParts = this.world.getComponent(targetId, Parts);
-            const availableTargetParts = Object.keys(targetParts).filter(key => !targetParts[key].isBroken && key !== PartType.LEGS);
+    /**
+     * 攻撃者のメダルの性格に基づき、ターゲット（敵エンティティとパーツ）を決定します。
+     * @param {number} attackerId - 攻撃者のエンティティID
+     * @returns {{targetId: number, targetPartKey: string} | null} ターゲット情報、またはnull
+     */
+    determineTarget(attackerId) {
+        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
+        const attackerMedal = this.world.getComponent(attackerId, Medal);
+        const attackerLog = this.world.getComponent(attackerId, BattleLog);
 
-            if (availableTargetParts.length === 0) {
-                // 攻撃可能なパーツがない場合も行動をスキップ
-                this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: executor });
-                return;
+        const enemies = this.getValidEnemies(attackerId);
+        if (enemies.length === 0) return null;
+
+        let targetId = null;
+        let targetPartKey = null;
+
+        // 性格に基づいてターゲットを決定
+        switch (attackerMedal.personality) {
+            case MedalPersonality.HUNTER:
+            case MedalPersonality.CRUSHER: {
+                const allParts = this.getAllEnemyParts(enemies);
+                if (allParts.length === 0) break;
+                allParts.sort((a, b) => a.part.hp - b.part.hp); // HPで昇順ソート
+                const targetPartInfo = attackerMedal.personality === MedalPersonality.HUNTER ? allParts[0] : allParts[allParts.length - 1];
+                targetId = targetPartInfo.entityId;
+                targetPartKey = targetPartInfo.partKey;
+                break;
             }
-            const targetPartKey = availableTargetParts[Math.floor(Math.random() * availableTargetParts.length)];
-            
-            // 3. ダメージを計算し、Attackコンポーネントに記録
-            const damage = calculateDamage(this.world, executor, targetId, action);
-            attack.target = targetId;
-            attack.partKey = targetPartKey;
-            attack.damage = damage;
+            case MedalPersonality.JOKER: {
+                 const allParts = this.getAllEnemyParts(enemies);
+                 if (allParts.length === 0) break;
+                 const randomPart = allParts[Math.floor(Math.random() * allParts.length)];
+                 targetId = randomPart.entityId;
+                 targetPartKey = randomPart.partKey;
+                 break;
+            }
+            case MedalPersonality.COUNTER: {
+                const lastAttackerId = attackerLog.lastAttackedBy;
+                if (this.isValidTarget(lastAttackerId)) {
+                    targetId = lastAttackerId;
+                }
+                break;
+            }
+            case MedalPersonality.GUARD: {
+                const leaderLastAttackerId = this.context.leaderLastAttackedBy[attackerInfo.teamId];
+                if (this.isValidTarget(leaderLastAttackerId)) {
+                    targetId = leaderLastAttackerId;
+                }
+                break;
+            }
+            case MedalPersonality.FOCUS: {
+                const lastAttack = attackerLog.lastAttack;
+                if (this.isValidTarget(lastAttack.targetId, lastAttack.partKey)) {
+                    targetId = lastAttack.targetId;
+                    targetPartKey = lastAttack.partKey;
+                }
+                break;
+            }
+            case MedalPersonality.ASSIST: {
+                const teamLastAttack = this.context.teamLastAttack[attackerInfo.teamId];
+                if (this.isValidTarget(teamLastAttack.targetId, teamLastAttack.partKey)) {
+                    targetId = teamLastAttack.targetId;
+                    targetPartKey = teamLastAttack.partKey;
+                }
+                break;
+            }
+            case MedalPersonality.LEADER_FOCUS: {
+                const leader = enemies.find(id => this.world.getComponent(id, PlayerInfo).isLeader);
+                if (this.isValidTarget(leader)) {
+                    targetId = leader;
+                }
+                break;
+            }
+            case MedalPersonality.RANDOM:
+            default:
+                // デフォルトの動作（ランダムな敵）
+                break;
+        }
 
-            // 4. 攻撃実行モーダルの表示を要求
-            const attackerInfo = this.world.getComponent(executor, PlayerInfo);
-            const targetInfo = this.world.getComponent(targetId, PlayerInfo);
-            this.world.emit(GameEvents.SHOW_MODAL, {
-                type: 'execution',
-                data: {
-                    entityId: executor, // 誰が実行したか
-                    message: `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${targetParts[targetPartKey].name}に${damage}ダメージ！`
+        // フォールバック処理: ターゲットエンティティが決まらなかった場合、ランダムな敵を選択します。
+        if (!this.isValidTarget(targetId)) {
+            targetId = enemies[Math.floor(Math.random() * enemies.length)];
+        }
+
+        // フォールバック処理: ターゲットパーツが決まっていない、または無効な場合、有効なパーツからランダムに選択します。
+        if (!targetPartKey || !this.isValidTarget(targetId, targetPartKey)) {
+            const availableParts = this.getAvailableParts(targetId);
+            if (availableParts.length > 0) {
+                targetPartKey = availableParts[Math.floor(Math.random() * availableParts.length)];
+            } else {
+                // 選択したターゲットに攻撃可能なパーツがない場合、ターゲット選択からやり直すか、行動をスキップします。
+                // ここでは簡単のため、一旦nullを返して行動をスキップさせます。
+                // TODO: 攻撃可能なパーツを持つ別の敵を探すロジックも検討可能です。
+                return null;
+            }
+        }
+        
+        return { targetId, targetPartKey };
+    }
+
+    // --- ターゲット選択のヘルパーメソッド群 ---
+
+    /** 生存している敵エンティティのリストを取得します */
+    getValidEnemies(attackerId) {
+        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
+        return this.world.getEntitiesWith(PlayerInfo, GameState)
+            .filter(id => {
+                const pInfo = this.world.getComponent(id, PlayerInfo);
+                const gState = this.world.getComponent(id, GameState);
+                return id !== attackerId && pInfo.teamId !== attackerInfo.teamId && gState.state !== PlayerStateType.BROKEN;
+            });
+    }
+
+    /** 指定された敵たちの、破壊されていない全パーツのリストを取得します */
+    getAllEnemyParts(enemyIds) {
+        let allParts = [];
+        for (const id of enemyIds) {
+            const parts = this.world.getComponent(id, Parts);
+            Object.entries(parts).forEach(([key, part]) => {
+                if (!part.isBroken && key !== PartType.LEGS) {
+                    allParts.push({ entityId: id, partKey: key, part: part });
                 }
             });
         }
+        return allParts;
     }
 
-    findEnemyTarget(attackerId) {
-        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
-        const enemies = this.world.getEntitiesWith(PlayerInfo, GameState)
-            .filter(id => {
-                if (id === attackerId) return false;
-                const pInfo = this.world.getComponent(id, PlayerInfo);
-                const gState = this.world.getComponent(id, GameState);
-                return pInfo.teamId !== attackerInfo.teamId && gState.state !== PlayerStateType.BROKEN;
-            });
+    /** 指定されたエンティティの、破壊されていないパーツキーのリストを取得します */
+    getAvailableParts(entityId) {
+        if (entityId === null || entityId === undefined) return [];
+        const parts = this.world.getComponent(entityId, Parts);
+        if (!parts) return [];
+        return Object.keys(parts).filter(key => !parts[key].isBroken && key !== PartType.LEGS);
+    }
 
-        if (enemies.length === 0) return null;
-        
-        // リーダーがいたら優先的に狙う
-        const leader = enemies.find(id => this.world.getComponent(id, PlayerInfo).isLeader);
-        return leader || enemies[0];
+    /** 指定されたターゲットIDやパーツキーが現在有効（生存・未破壊）か検証します */
+    isValidTarget(targetId, partKey = null) {
+        if (targetId === null || targetId === undefined) return false;
+
+        const gameState = this.world.getComponent(targetId, GameState);
+        if (!gameState || gameState.state === PlayerStateType.BROKEN) return false;
+
+        if (partKey) {
+            const parts = this.world.getComponent(targetId, Parts);
+            if (!parts || !parts[partKey] || parts[partKey].isBroken) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -1,6 +1,6 @@
 // scripts/systems/stateSystem.js:
 
-import { Gauge, GameState, Parts, PlayerInfo, Action, Attack, GameContext } from '../components.js';
+import { Gauge, GameState, Parts, PlayerInfo, Action, Attack, GameContext, BattleLog } from '../components.js';
 import { GameEvents } from '../events.js';
 import { PlayerStateType, GamePhaseType, PartType } from '../constants.js';
 
@@ -69,6 +69,43 @@ export class StateSystem {
         attackerAttack.target = null;
         attackerAttack.partKey = null;
         attackerAttack.damage = 0;
+
+        // 3. 戦闘履歴を更新
+        this.updateBattleLogs(attackerId, targetId, targetPartKey);
+    }
+
+    /**
+     * 攻撃の実行結果に基づき、戦闘履歴を更新します。
+     * @param {number} attackerId - 攻撃者のエンティティID
+     * @param {number} targetId - ターゲットのエンティティID
+     * @param {string} targetPartKey - ターゲットのパーツキー
+     */
+    updateBattleLogs(attackerId, targetId, targetPartKey) {
+        // 攻撃者とターゲットの情報を取得
+        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
+        const attackerLog = this.world.getComponent(attackerId, BattleLog);
+        const targetInfo = this.world.getComponent(targetId, PlayerInfo);
+        const targetLog = this.world.getComponent(targetId, BattleLog);
+
+        if (!attackerInfo || !attackerLog || !targetInfo || !targetLog) return;
+
+        // 攻撃者のログを更新 (Focus性格用)
+        attackerLog.lastAttack.targetId = targetId;
+        attackerLog.lastAttack.partKey = targetPartKey;
+
+        // ターゲットのログを更新 (Counter性格用)
+        targetLog.lastAttackedBy = attackerId;
+
+        // チームの最終攻撃情報を更新 (Assist性格用)
+        this.context.teamLastAttack[attackerInfo.teamId] = {
+            targetId: targetId,
+            partKey: targetPartKey
+        };
+
+        // ターゲットがリーダーの場合、リーダーへの最終攻撃情報を更新 (Guard性格用)
+        if (targetInfo.isLeader) {
+            this.context.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
+        }
     }
 
     update(deltaTime) {

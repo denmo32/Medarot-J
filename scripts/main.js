@@ -10,7 +10,7 @@ import { AiSystem } from './systems/aiSystem.js';
 import { InputSystem } from './systems/inputSystem.js';
 import { ActionSystem } from './systems/actionSystem.js';
 import { GameFlowSystem } from './systems/gameFlowSystem.js'; // 新しくインポート
-import { GamePhaseType, PlayerStateType, TeamID } from './constants.js';
+import { GamePhaseType, PlayerStateType, TeamID, MedalPersonality } from './constants.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     let world = new World();
@@ -59,6 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isLeader = i === 0;
                 const speed = teamConfig.baseSpeed + (Math.random() * 0.2);
 
+                // メダルの性格を、定義されている全ての性格の中からランダムで決定します。
+                const personalityTypes = Object.values(MedalPersonality);
+                const personality = personalityTypes[Math.floor(Math.random() * personalityTypes.length)];
+
                 // 各プレイヤーに必要なコンポーネントを追加
                 world.addComponent(entityId, new Components.PlayerInfo(name, teamId, isLeader));
                 world.addComponent(entityId, new Components.Gauge(speed));
@@ -67,6 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 world.addComponent(entityId, new Components.DOMReference());
                 world.addComponent(entityId, new Components.Action());
                 world.addComponent(entityId, new Components.Attack());
+                world.addComponent(entityId, new Components.Medal(personality)); // ★追加: メダルコンポーネント
+                world.addComponent(entityId, new Components.BattleLog()); // ★追加: 戦闘ログコンポーネント
                 // Positionコンポーネントで初期位置を設定
                 world.addComponent(entityId, new Components.Position(teamId === TeamID.TEAM1 ? 0 : 1, 25 + i * 25));
             }
