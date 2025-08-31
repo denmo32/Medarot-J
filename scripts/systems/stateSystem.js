@@ -8,26 +8,42 @@ export class StateSystem {
     constructor(world) {
         this.world = world;
         // GameContextへの参照を保持
-        const contextEntity = this.world.getEntitiesWith(GameContext)[0];
-        this.context = this.world.getComponent(contextEntity, GameContext);
+        this.context = this.world.getSingletonComponent(GameContext);
 
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
     }
 
     onActionSelected(detail) {
-        const { entityId, partKey } = detail;
+        // ★変更: AIによる行動決定の場合、ターゲット情報も含まれる
+        const { entityId, partKey, targetId, targetPartKey } = detail;
         const action = this.world.getComponent(entityId, Action);
+        const attack = this.world.getComponent(entityId, Attack);
         const parts = this.world.getComponent(entityId, Parts);
         const gameState = this.world.getComponent(entityId, GameState);
         const gauge = this.world.getComponent(entityId, Gauge);
 
-        // 1. 選択されたアクションとパーツを記録
+        // 念のため、行動不能なパーツが選択された場合は無視する
+        if (!partKey || !parts[partKey] || parts[partKey].isBroken) {
+            // 選択をキャンセルし、再度選択可能な状態に戻すなどの発展も考えられる
+            return;
+        }
+
+        // 1. 選択されたアクション（使用パーツ）を記録
         action.partKey = partKey;
         action.type = parts[partKey].action;
-        // 2. プレイヤーの状態を「選択後チャージ中」へ変更
+
+        // 2. ★追加: AIによってターゲットが決定済みの場合は、Attackコンポーネントに保存
+        // targetIdがnullの場合（ターゲットが見つからなかった）も考慮
+        if (targetId !== undefined && targetPartKey !== undefined) {
+            attack.target = targetId;
+            attack.partKey = targetPartKey;
+        }
+
+        // 3. プレイヤーの状態を「選択後チャージ中」へ変更
         gameState.state = PlayerStateType.SELECTED_CHARGING;
-        // 3. ゲージをリセット
+        
+        // 4. ゲージをリセット
         gauge.value = 0;
     }
 

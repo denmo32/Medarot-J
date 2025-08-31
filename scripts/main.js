@@ -6,8 +6,7 @@ import { UiSystem } from './systems/uiSystem.js';
 import { RenderSystem } from './systems/renderSystem.js';
 import { GaugeSystem } from './systems/gaugeSystem.js';
 import { StateSystem } from './systems/stateSystem.js';
-import { AiSystem } from './systems/aiSystem.js';
-import { InputSystem } from './systems/inputSystem.js';
+import { DecisionSystem } from './systems/decisionSystem.js';
 import { ActionSystem } from './systems/actionSystem.js';
 import { GameFlowSystem } from './systems/gameFlowSystem.js'; // 新しくインポート
 import { GamePhaseType, PlayerStateType, TeamID, MedalPersonality } from './constants.js';
@@ -32,15 +31,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderSystem = new RenderSystem(world);
         const gaugeSystem = new GaugeSystem(world);
         const stateSystem = new StateSystem(world);
-        const inputSystem = new InputSystem(world);
-        const aiSystem = new AiSystem(world);
+        // ★変更: InputSystemとAiSystemをDecisionSystemに統合
+        const playerDecisionSystem = new DecisionSystem(world, TeamID.TEAM1, 'player');
+        const aiDecisionSystem = new DecisionSystem(world, TeamID.TEAM2, 'ai');
         const actionSystem = new ActionSystem(world);
 
         world.registerSystem(gameFlowSystem); // ゲームフロー管理
         world.registerSystem(gaugeSystem);    // ゲージ更新
         world.registerSystem(stateSystem);    // 状態遷移
-        world.registerSystem(inputSystem);    // プレイヤー入力
-        world.registerSystem(aiSystem);       // AI思考
+        // ★変更: 統合されたDecisionSystemを登録
+        world.registerSystem(playerDecisionSystem); // チーム1（プレイヤー）の行動決定
+        world.registerSystem(aiDecisionSystem);     // チーム2（AI）の行動決定
         world.registerSystem(actionSystem);   // 行動実行
         world.registerSystem(uiSystem);       // UI更新（ボタン状態など）
         world.registerSystem(renderSystem);   // 描画（最後）

@@ -10,8 +10,7 @@ export class ActionSystem {
     constructor(world) {
         this.world = world;
         // GameContextへの参照を保持
-        const contextEntity = this.world.getEntitiesWith(GameContext)[0];
-        this.context = this.world.getComponent(contextEntity, GameContext);
+        this.context = this.world.getSingletonComponent(GameContext);
 
         this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
     }
@@ -55,30 +54,35 @@ export class ActionSystem {
         const action = this.world.getComponent(executor, Action);
         const attack = this.world.getComponent(executor, Attack);
 
-        // 1. メダルの性格に基づき、攻撃対象のエンティティとパーツを決定する
-        const target = this.determineTarget(executor);
-        if (!target) {
-            // ターゲットが見つからない場合は行動をスキップして完了させる
-            this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: executor });
-            return;
+        // --- ターゲット決定処理 ---
+        // ★変更: Attackコンポーネントにターゲットが未設定の場合（＝プレイヤーの行動）のみ、ここでターゲットを決定します。
+        // AIの場合はDecisionSystemで事前にターゲットが決定され、Attackコンポーネントに保存されています。
+        if (attack.target === null || attack.target === undefined) {
+            const target = this.determineTarget(executor);
+            if (!target) {
+                // ターゲットが見つからない場合は行動をスキップして完了させます。
+                this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: executor });
+                return;
+            }
+            // 決定したターゲットをAttackコンポーネントに設定します。
+            attack.target = target.targetId;
+            attack.partKey = target.targetPartKey;
         }
-        const { targetId, targetPartKey } = target;
 
-        // 2. ダメージを計算し、Attackコンポーネントに記録
-        const damage = calculateDamage(this.world, executor, targetId, action);
-        attack.target = targetId;
-        attack.partKey = targetPartKey;
+        // --- ダメージ計算 ---
+        // これで全実行者のターゲット情報が確定したので、ダメージを計算します。
+        const damage = calculateDamage(this.world, executor, attack.target, action);
         attack.damage = damage;
 
-        // 3. 攻撃実行モーダルの表示を要求
+        // --- 攻撃実行モーダルの表示要求 ---
         const attackerInfo = this.world.getComponent(executor, PlayerInfo);
-        const targetInfo = this.world.getComponent(targetId, PlayerInfo);
-        const targetParts = this.world.getComponent(targetId, Parts);
+        const targetInfo = this.world.getComponent(attack.target, PlayerInfo);
+        const targetParts = this.world.getComponent(attack.target, Parts);
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: 'execution',
             data: {
                 entityId: executor,
-                message: `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${targetParts[targetPartKey].name}に${damage}ダメージ！`
+                message: `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${targetParts[attack.partKey].name}に${damage}ダメージ！`
             }
         });
     }

@@ -13,8 +13,7 @@ export class GameFlowSystem {
         this.world = world;
         // ワールドに存在する唯一のGameContextコンポーネントへの参照を保持します。
         // これにより、毎フレーム検索する必要がなくなります。
-        const contextEntity = this.world.getEntitiesWith(GameContext)[0];
-        this.context = this.world.getComponent(contextEntity, GameContext);
+        this.context = this.world.getSingletonComponent(GameContext);
 
         this.bindWorldEvents();
     }

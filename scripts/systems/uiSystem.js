@@ -9,8 +9,7 @@ export class UiSystem {
     constructor(world) {
         this.world = world;
         // GameContextへの参照を保持
-        const contextEntity = this.world.getEntitiesWith(GameContext)[0];
-        this.context = this.world.getComponent(contextEntity, GameContext);
+        this.context = this.world.getSingletonComponent(GameContext);
 
         this.dom = {
             gameStartButton: document.getElementById('gameStartButton'), // ★変更: 新しい開始ボタン
@@ -145,55 +144,96 @@ export class UiSystem {
     // --- モーダル表示/非表示 ---
 
     /**
-     * ★変更: モーダル表示のメインロジック。
-     * 種類に応じて、それぞれのモーダルコンテンツを生成するプライベートメソッドを呼び出します。
-     * @param {string} type - モーダルの種類
+     * ★変更: モーダル表示のロジックを単一化。
+     * 種類とデータに応じて設定オブジェクトを構築し、それに基づいてDOMを生成します。
+     * @param {string} type - モーダルの種類 (e.g., 'start_confirm', 'selection')
      * @param {object} [data] - モーダルに渡すデータ
      */
     showModal(type, data) {
         const { modalTitle, modalActorName, partSelectionContainer, modalConfirmButton, battleStartConfirmButton } = this.dom;
         
-        // 全ての可変要素を一旦リセット
-        [partSelectionContainer, modalConfirmButton, battleStartConfirmButton].forEach(el => el.style.display = 'none');
-        partSelectionContainer.innerHTML = '';
-        modalActorName.textContent = '';
+        // --- 1. モーダル設定の定義 ---
+        let config = {
+            title: '',
+            actorName: '',
+            contentHTML: '',
+            confirmButton: null, // { text, onClick }
+            battleStartButton: false,
+        };
 
-        // ★追加: モーダルの種類に応じてコンテンツを生成・設定
-        let modalContent;
+        // モーダルの種類に応じて設定を構築
         switch (type) {
             case 'start_confirm':
-                modalContent = this._createStartConfirmModal();
+                config.title = 'ロボトル開始';
+                config.actorName = 'シミュレーションを開始しますか？';
+                config.contentHTML = `
+                    <div class="buttons-center">
+                        <button id="modalBtnYes" class="modal-button">はい</button>
+                        <button id="modalBtnNo" class="modal-button bg-red-500 hover:bg-red-600">いいえ</button>
+                    </div>`;
                 break;
+
             case 'selection':
-                modalContent = this._createSelectionModal(data);
+                config.title = data.title;
+                config.actorName = data.actorName;
+                config.contentHTML = data.buttons.map((btn, index) => 
+                    `<button id="modalBtnPart${index}" class="part-action-button">${btn.text}</button>`
+                ).join('');
                 break;
+
             case 'execution':
-                modalContent = this._createExecutionModal(data);
+                config.title = '攻撃実行！';
+                config.actorName = data.message;
+                config.confirmButton = { text: 'OK' };
                 break;
+
             case 'battle_start_confirm':
-                modalContent = this._createBattleStartConfirmModal();
+                config.title = '戦闘開始！';
+                config.battleStartButton = true;
                 break;
+
             case 'game_over':
-                modalContent = this._createGameOverModal(data);
+                config.title = `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`;
+                config.actorName = 'ロボトル終了！';
+                config.confirmButton = { text: 'リセット' };
                 break;
+
             default:
-                // 不明なモーダルタイプの場合は何も表示しない
                 this.hideModal();
                 return;
         }
 
-        // 生成されたコンテンツをモーダルに適用
-        modalTitle.textContent = modalContent.title;
-        if (modalContent.actorName) modalActorName.textContent = modalContent.actorName;
-        if (modalContent.contentElement) {
-            partSelectionContainer.appendChild(modalContent.contentElement);
-            partSelectionContainer.style.display = 'flex';
+        // --- 2. DOMの構築とイベント設定 ---
+
+        // 全ての可変要素を一旦リセット
+        modalTitle.textContent = config.title;
+        modalActorName.textContent = config.actorName;
+        partSelectionContainer.innerHTML = config.contentHTML;
+        modalConfirmButton.style.display = 'none';
+        battleStartConfirmButton.style.display = 'none';
+
+        // コンテンツ内のボタンにイベントリスナーを設定
+        if (type === 'start_confirm') {
+            partSelectionContainer.querySelector('#modalBtnYes').onclick = () => {
+                this.world.emit(GameEvents.GAME_START_CONFIRMED);
+                this.hideModal();
+            };
+            partSelectionContainer.querySelector('#modalBtnNo').onclick = () => this.hideModal();
         }
-        if (modalContent.confirmButton) {
-            modalConfirmButton.textContent = modalContent.confirmButton.text;
+        if (type === 'selection') {
+            data.buttons.forEach((btn, index) => {
+                partSelectionContainer.querySelector(`#modalBtnPart${index}`).onclick = () => {
+                    this.world.emit(GameEvents.ACTION_SELECTED, { entityId: data.entityId, partKey: btn.partKey });
+                };
+            });
+        }
+
+        // 固定ボタンの表示と設定
+        if (config.confirmButton) {
+            modalConfirmButton.textContent = config.confirmButton.text;
             modalConfirmButton.style.display = 'inline-block';
         }
-        if (modalContent.battleStartButton) {
+        if (config.battleStartButton) {
             battleStartConfirmButton.style.display = 'inline-block';
         }
 
@@ -204,105 +244,9 @@ export class UiSystem {
         this.dom.modal.classList.add('hidden');
     }
 
-    // --- モーダルコンテンツ生成メソッド群 ---
-
     /**
-     * ★追加: ゲーム開始確認モーダルのコンテンツを生成します。
-     * @returns {object} モーダルに表示するタイトルとDOM要素
+     * ★維持: このヘルパーメソッドは、動的にボタンを追加する必要がなくなったため、削除します。
+     * ボタンの生成はshowModal内のテンプレートリテラルで行われます。
      */
-    _createStartConfirmModal() {
-        const content = document.createElement('div');
-        content.className = 'buttons-center';
-
-        const yesButton = this._createButton('はい', 'modal-button', () => {
-            this.world.emit(GameEvents.GAME_START_CONFIRMED);
-            this.hideModal();
-        });
-
-        const noButton = this._createButton('いいえ', 'modal-button bg-red-500 hover:bg-red-600', () => this.hideModal());
-
-        content.appendChild(yesButton);
-        content.appendChild(noButton);
-
-        return {
-            title: 'ロボトル開始',
-            actorName: 'シミュレーションを開始しますか？',
-            contentElement: content
-        };
-    }
-
-    /**
-     * ★追加: 行動選択モーダルのコンテンツを生成します。
-     * @param {object} data - 選択肢ボタンの情報
-     * @returns {object} モーダルに表示するタイトル、アクタ名、DOM要素
-     */
-    _createSelectionModal(data) {
-        const content = document.createElement('div');
-        content.className = 'buttons-center gap-4 flex-col';
-
-        data.buttons.forEach(buttonInfo => {
-            const button = this._createButton(buttonInfo.text, 'part-action-button', () => {
-                this.world.emit(GameEvents.ACTION_SELECTED, { entityId: data.entityId, partKey: buttonInfo.partKey });
-            });
-            content.appendChild(button);
-        });
-
-        return {
-            title: data.title,
-            actorName: data.actorName,
-            contentElement: content
-        };
-    }
-
-    /**
-     * ★追加: 攻撃実行モーダルのコンテンツを生成します。
-     * @param {object} data - 表示するメッセージ
-     * @returns {object} モーダルに表示するタイトル、メッセージ、確認ボタンの情報
-     */
-    _createExecutionModal(data) {
-        return {
-            title: '攻撃実行！',
-            actorName: data.message,
-            confirmButton: { text: 'OK' }
-        };
-    }
-
-    /**
-     * ★追加: 戦闘開始確認モーダルのコンテンツを生成します。
-     * @returns {object} モーダルに表示するタイトルと戦闘開始ボタンの情報
-     */
-    _createBattleStartConfirmModal() {
-        return {
-            title: '戦闘開始！',
-            battleStartButton: true
-        };
-    }
-
-    /**
-     * ★追加: ゲームオーバーモーダルのコンテンツを生成します。
-     * @param {object} data - 勝者チームの情報
-     * @returns {object} モーダルに表示するタイトル、メッセージ、確認ボタンの情報
-     */
-    _createGameOverModal(data) {
-        return {
-            title: `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`,
-            actorName: 'ロボトル終了！',
-            confirmButton: { text: 'リセット' }
-        };
-    }
-
-    /**
-     * ★追加: ボタン要素を生成するヘルパーメソッド。
-     * @param {string} text - ボタンのテキスト
-     * @param {string} className - ボタンに適用するCSSクラス
-     * @param {function} onClick - クリック時のコールバック関数
-     * @returns {HTMLButtonElement} 生成されたボタン要素
-     */
-    _createButton(text, className, onClick) {
-        const button = document.createElement('button');
-        button.textContent = text;
-        button.className = className;
-        button.onclick = onClick;
-        return button;
-    }
+    // _createButton(...) は不要になったため削除
 }

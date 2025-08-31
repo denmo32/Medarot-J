@@ -49,6 +49,21 @@ export class World {
         return this.components.get(componentClass)?.get(entityId);
     }
 
+    /**
+     * ワールドに一つしか存在しないシングルトンコンポーネントを取得します。
+     * @param {Function} componentClass - 取得するコンポーネントのクラス
+     * @returns {object|null} コンポーネントのインスタンス、またはnull
+     */
+    getSingletonComponent(componentClass) {
+        // このクラスを持つエンティティをすべて取得し、最初のもの（唯一のはず）を使います。
+        const entityId = this.getEntitiesWith(componentClass)[0];
+        // エンティティが見つからなければnullを返します。
+        if (entityId === undefined) {
+            return null;
+        }
+        return this.getComponent(entityId, componentClass);
+    }
+
     getEntitiesWith(...componentClasses) {
         const entities = [];
         for (const [entityId, components] of this.entities.entries()) {

@@ -8,8 +8,7 @@ export class GaugeSystem {
     constructor(world) {
         this.world = world;
         // GameContextへの参照を保持
-        const contextEntity = this.world.getEntitiesWith(GameContext)[0];
-        this.context = this.world.getComponent(contextEntity, GameContext);
+        this.context = this.world.getSingletonComponent(GameContext);
     }
 
     update(deltaTime) {
