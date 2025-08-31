@@ -27,9 +27,30 @@ export class ViewSystem {
             battleStartConfirmButton: document.getElementById('battleStartConfirmButton')
         };
 
+        // --- ★追加: イベントハンドラを保持するプロパティ ---
+        this.handlers = {
+            gameStart: null,
+            battleStart: null,
+            modalConfirm: null
+        };
+
         this.initializeModalConfigs();
         this.bindWorldEvents();
         this.bindDOMEvents();
+    }
+
+    // ★追加: クリーンアップメソッド
+    destroy() {
+        // 登録したDOMイベントリスナーを削除
+        if (this.handlers.gameStart) {
+            this.dom.gameStartButton.removeEventListener('click', this.handlers.gameStart);
+        }
+        if (this.handlers.battleStart) {
+            this.dom.battleStartConfirmButton.removeEventListener('click', this.handlers.battleStart);
+        }
+        if (this.handlers.modalConfirm) {
+            this.dom.modalConfirmButton.removeEventListener('click', this.handlers.modalConfirm);
+        }
     }
 
     // モーダルの設定を初期化する
@@ -97,15 +118,18 @@ export class ViewSystem {
 
     // DOM要素のイベントリスナーを登録する
     bindDOMEvents() {
-        this.dom.gameStartButton.addEventListener('click', () => {
+        // ★変更: ハンドラをプロパティに保存してから登録
+        this.handlers.gameStart = () => {
             this.world.emit(GameEvents.GAME_START_REQUESTED);
-        });
+        };
+        this.dom.gameStartButton.addEventListener('click', this.handlers.gameStart);
 
-        this.dom.battleStartConfirmButton.addEventListener('click', () => {
+        this.handlers.battleStart = () => {
             this.world.emit(GameEvents.BATTLE_START_CONFIRMED);
-        });
+        };
+        this.dom.battleStartConfirmButton.addEventListener('click', this.handlers.battleStart);
 
-        this.dom.modalConfirmButton.addEventListener('click', () => {
+        this.handlers.modalConfirm = () => {
             if (this.context.phase === GamePhaseType.GAME_OVER) {
                 this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
                 return;
@@ -114,7 +138,8 @@ export class ViewSystem {
             if (this.confirmActionEntityId !== null) {
                 this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: this.confirmActionEntityId });
             }
-        });
+        };
+        this.dom.modalConfirmButton.addEventListener('click', this.handlers.modalConfirm);
     }
 
     // ★削除: createPlayerDOMメソッドはDomFactorySystemに移管されました。

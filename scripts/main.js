@@ -125,11 +125,21 @@ document.addEventListener('DOMContentLoaded', () => {
             world.emit(GameEvents.GAME_WILL_RESET);
         }
 
+        // ★追加: 古いシステムのクリーンアップ処理を呼び出す
+        for (const system of world.systems) {
+            if (system.destroy) {
+                system.destroy();
+            }
+        }
+
         // 既存のワールドを破棄して、新しいインスタンスを作成
         world = new World();
         
         // システムを再初期化（イベントリスナーも再登録される）
         initializeSystems();
+
+        // ★追加: 新しいworldインスタンスにリセットイベントを紐付ける
+        setupGameEvents();
 
         // プレイヤーエンティティを再生成
         createPlayers();
