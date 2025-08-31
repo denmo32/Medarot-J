@@ -1,7 +1,8 @@
 // scripts/systems/decisionSystem.js:
 
 import { PlayerInfo, GameState, Parts, GameContext, Medal, BattleLog } from '../components.js';
-import { PlayerStateType, PartType, GamePhaseType, TeamID, MedalPersonality } from '../constants.js';
+// ★変更: ModalTypeを追加でインポート
+import { PlayerStateType, PartType, GamePhaseType, TeamID, MedalPersonality, ModalType } from '../constants.js';
 import { GameEvents } from '../events.js';
 // ★追加: 汎用的なターゲット決定ロジックをインポート
 import { determineTarget, getAttackableParts } from '../battleUtils.js';
@@ -70,7 +71,8 @@ export class DecisionSystem {
                 partKey: partKey
             }))
         };
-        this.world.emit(GameEvents.SHOW_MODAL, { type: 'selection', data: modalData });
+        // ★変更: マジックストリングを定数に変更
+        this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.SELECTION, data: modalData });
     }
 
     /**

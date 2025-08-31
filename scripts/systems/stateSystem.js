@@ -30,8 +30,11 @@ export class StateSystem {
 
         if (!isActionValid) {
             // アクションが無効な場合、コンソールに警告を出し、処理を中断します。
-            // これにより、エンティティは現在の選択待ち状態に留まり、次の機会に行動を再試行します。
-            console.warn(`StateSystem: Invalid action for entity ${entityId} was aborted.`, detail);
+            // ★改善: アクションが無効な場合、再度行動選択キューに戻す
+            console.warn(`StateSystem: Invalid action for entity ${entityId} was aborted. Re-queueing.`, detail);
+            if (!this.context.actionQueue.includes(entityId)) {
+                this.context.actionQueue.unshift(entityId); // キューの先頭に戻して再試行を促す
+            }
             return;
         }
 
@@ -110,23 +113,40 @@ export class StateSystem {
                 }
             }
 
-            // 2. ★新規: 行動決定が必要なエンティティを検知し、イベントを発行する
-            // 行動選択可能状態であり、かつ、まだ他のプレイヤーが行動選択中でない場合に実行
+            // 2. ★改善: 行動可能なエンティティを行動選択キューに追加する
             const selectableStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
-            if (selectableStates.includes(gameState.state) && this.context.activePlayer === null) {
-                
-                // 他のシステムが重複して処理しないよう、状態を更新しておく
+            if (selectableStates.includes(gameState.state)) {
+                // 他のシステムが重複して処理しないよう、状態を統一しておく
                 gameState.state = PlayerStateType.READY_SELECT;
-
-                const playerInfo = this.world.getComponent(entityId, PlayerInfo);
                 
-                // チームIDに応じて、プレイヤー操作かAI操作かを判断し、適切なイベントを発行
-                const eventToEmit = playerInfo.teamId === TeamID.TEAM1 
-                    ? GameEvents.PLAYER_INPUT_REQUIRED 
-                    : GameEvents.AI_ACTION_REQUIRED;
-                
-                this.world.emit(eventToEmit, { entityId });
+                // まだキューに入っていなければ追加する
+                if (!this.context.actionQueue.includes(entityId)) {
+                    this.context.actionQueue.push(entityId);
+                }
             }
+        }
+        
+        // --- ★新規: 行動選択キューの処理 ---
+        // キューに待機者がいて、かつ誰もUI操作中でない場合に実行
+        if (this.context.actionQueue.length > 0 && this.context.activePlayer === null) {
+            // キューの先頭からエンティティを取り出す
+            const entityId = this.context.actionQueue.shift();
+
+            // 念のため、取り出したエンティティがまだ行動可能かチェック
+            const gameState = this.world.getComponent(entityId, GameState);
+            if (gameState.state !== PlayerStateType.READY_SELECT) {
+                // 行動できない状態になっていたら、キューの次の処理へ進む
+                return;
+            }
+            
+            const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+            
+            // チームIDに応じて、プレイヤー操作かAI操作かを判断し、適切なイベントを発行
+            const eventToEmit = playerInfo.teamId === TeamID.TEAM1 
+                ? GameEvents.PLAYER_INPUT_REQUIRED 
+                : GameEvents.AI_ACTION_REQUIRED;
+            
+            this.world.emit(eventToEmit, { entityId });
         }
     }
 }

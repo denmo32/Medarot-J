@@ -3,7 +3,8 @@
 import { CONFIG } from '../config.js';
 import { GameEvents } from '../events.js';
 import { PlayerInfo, DOMReference, Parts, GameContext, Position } from '../components.js'; // ★変更: Positionコンポーネントをインポート
-import { TeamID, GamePhaseType } from '../constants.js';
+// ★変更: ModalTypeを追加でインポート
+import { TeamID, GamePhaseType, ModalType } from '../constants.js';
 
 export class UiSystem {
     constructor(world) {
@@ -28,8 +29,9 @@ export class UiSystem {
 
     // モーダルの設定を初期化する
     initializeModalConfigs() {
+        // ★変更: モーダル設定のキーをマジックストリングからModalType定数に変更
         this.modalConfigs = {
-            'start_confirm': {
+            [ModalType.START_CONFIRM]: {
                 title: 'ロボトル開始',
                 actorName: 'シミュレーションを開始しますか？',
                 contentHTML: `
@@ -45,7 +47,7 @@ export class UiSystem {
                     container.querySelector('#modalBtnNo').onclick = () => this.hideModal();
                 }
             },
-            'selection': {
+            [ModalType.SELECTION]: {
                 title: (data) => data.title,
                 actorName: (data) => data.actorName,
                 contentHTML: (data) => data.buttons.map((btn, index) => 
@@ -63,16 +65,16 @@ export class UiSystem {
                     });
                 }
             },
-            'execution': {
+            [ModalType.EXECUTION]: {
                 title: '攻撃実行！',
                 actorName: (data) => data.message,
                 confirmButton: { text: 'OK' }
             },
-            'battle_start_confirm': {
+            [ModalType.BATTLE_START_CONFIRM]: {
                 title: '戦闘開始！',
                 battleStartButton: true
             },
-            'game_over': {
+            [ModalType.GAME_OVER]: {
                 title: (data) => `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`,
                 actorName: 'ロボトル終了！',
                 confirmButton: { text: 'リセット' }
@@ -84,7 +86,12 @@ export class UiSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showModal(detail.type, detail.data));
         this.world.on(GameEvents.HIDE_MODAL, () => this.hideModal());
-        this.world.on(GameEvents.GAME_START_REQUESTED, () => this.showModal('start_confirm'));
+        // ★変更: マジックストリングを定数に変更
+        this.world.on(GameEvents.GAME_START_REQUESTED, () => this.showModal(ModalType.START_CONFIRM));
+        
+        // ★追加: activePlayerの管理をUiSystemに集約するため、関連イベントを購読
+        this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, () => this.hideModal());
+        this.world.on(GameEvents.ACTION_SELECTED, () => this.hideModal());
     }
 
     // DOM要素のイベントリスナーを登録する
@@ -192,6 +199,11 @@ export class UiSystem {
             return;
         }
 
+        // ★追加: モーダル表示時にactivePlayerを設定する責務をここに集約
+        if (type === ModalType.SELECTION || type === ModalType.EXECUTION) {
+            this.context.activePlayer = data.entityId;
+        }
+
         const { modalTitle, modalActorName, partSelectionContainer, modalConfirmButton, battleStartConfirmButton } = this.dom;
 
         // --- DOMの構築とイベント設定 ---
@@ -220,6 +232,10 @@ export class UiSystem {
     }
 
     hideModal() {
+        // ★追加: モーダル非表示時にactivePlayerを解除する責務をここに集約
+        if (this.context.activePlayer !== null) {
+            this.context.activePlayer = null;
+        }
         this.dom.modal.classList.add('hidden');
     }
 }

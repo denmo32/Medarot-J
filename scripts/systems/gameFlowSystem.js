@@ -2,7 +2,8 @@
 
 import { GameContext, GameState, Gauge, PlayerInfo } from '../components.js';
 import { GameEvents } from '../events.js';
-import { GamePhaseType, PlayerStateType, TeamID } from '../constants.js';
+// ★変更: ModalTypeを追加でインポート
+import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../constants.js';
 
 /**
  * ゲーム全体のフロー（開始、戦闘、終了、リセット）を管理するシステム。
@@ -22,10 +23,12 @@ export class GameFlowSystem {
         // ★変更: ゲーム開始のトリガーを、確認モーダルで「はい」が押されたイベントに変更
         this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
-        this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
-        this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
-        this.world.on(GameEvents.SHOW_MODAL, this.onShowModal.bind(this));
-        this.world.on(GameEvents.HIDE_MODAL, this.onHideModal.bind(this));
+        // ★削除: activePlayerの管理をUiSystemに移譲するため、このシステムでは不要
+        // this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
+        // this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
+        // ★削除: activePlayerの管理をUiSystemに移譲するため、このシステムでは不要
+        // this.world.on(GameEvents.SHOW_MODAL, this.onShowModal.bind(this));
+        // this.world.on(GameEvents.HIDE_MODAL, this.onHideModal.bind(this));
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
     }
 
@@ -60,38 +63,17 @@ export class GameFlowSystem {
         this.world.emit(GameEvents.HIDE_MODAL);
     }
     
-    onActionExecutionConfirmed(detail) {
-        // 攻撃実行が確定したら、アクティブプレイヤーを解除
-        this.context.activePlayer = null;
-        // モーダルを閉じるイベントを発行
-        this.world.emit(GameEvents.HIDE_MODAL);
-    }
+    // ★削除: activePlayerの管理はUiSystemに一元化されました。
+    // onActionExecutionConfirmed(detail) { ... }
 
-    onActionSelected(detail) {
-        // 行動が選択されたら、アクティブプレイヤーを解除
-        if (this.context.activePlayer === detail.entityId) {
-            this.context.activePlayer = null;
-        }
-        // モーダルを閉じるイベントを発行
-        this.world.emit(GameEvents.HIDE_MODAL);
-    }
+    // ★削除: activePlayerの管理はUiSystemに一元化されました。
+    // onActionSelected(detail) { ... }
 
-    onShowModal(detail) {
-        // ★変更: isPausedByModalフラグの操作を削除。
-        // ゲームの進行停止はGameContext.phaseで一元管理するため、UI起因の停止フラグは不要になりました。
+    // ★削除: activePlayerの管理はUiSystemに一元化されました。
+    // onShowModal(detail) { ... }
 
-        // 行動選択または実行のモーダルの場合、誰がアクティブかを記録
-        if (detail.type === 'selection') {
-            this.context.activePlayer = detail.data.entityId;
-        } else if (detail.type === 'execution') {
-            // ActionSystemから渡された攻撃実行者をactivePlayerとして設定
-            this.context.activePlayer = detail.data.entityId;
-        }
-    }
-
-    onHideModal() {
-        // ★変更: isPausedByModalフラグの操作を削除。
-    }
+    // ★削除: activePlayerの管理はUiSystemに一元化されました。
+    // onHideModal() { ... }
 
     onPlayerBroken(detail) {
         // リーダーが破壊されたかどうかをチェックし、ゲームオーバー判定を行う
@@ -108,7 +90,8 @@ export class GameFlowSystem {
             this.context.winningTeam = winningTeam;
 
             // 2. ゲームオーバーモーダルの表示を要求
-            this.world.emit(GameEvents.SHOW_MODAL, { type: 'game_over', data: { winningTeam } });
+            // ★変更: マジックストリングを定数に変更
+            this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.GAME_OVER, data: { winningTeam } });
         }
     }
 
@@ -128,7 +111,8 @@ export class GameFlowSystem {
         // 全員が選択し終わったら、戦闘開始確認フェーズに移行
         if (allSelected) {
             this.context.phase = GamePhaseType.BATTLE_START_CONFIRM;
-            this.world.emit(GameEvents.SHOW_MODAL, { type: 'battle_start_confirm' });
+            // ★変更: マジックストリングを定数に変更
+            this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.BATTLE_START_CONFIRM });
         }
     }
 }

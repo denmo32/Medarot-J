@@ -4,7 +4,8 @@ import { CONFIG } from '../config.js';
 import { GameEvents } from '../events.js';
 // ★変更: Attackを削除し、Actionのみ使用
 import { GameState, PlayerInfo, Parts, Action, GameContext, Medal, BattleLog } from '../components.js';
-import { PlayerStateType, PartType, TeamID, MedalPersonality } from '../constants.js';
+// ★変更: ModalTypeを追加でインポート
+import { PlayerStateType, PartType, TeamID, MedalPersonality, ModalType } from '../constants.js';
 // ★変更: 汎用的なcalculateDamageとdetermineTargetをインポート
 import { calculateDamage } from '../battleUtils.js';
 
@@ -74,7 +75,8 @@ export class ActionSystem {
         const targetInfo = this.world.getComponent(action.targetId, PlayerInfo);
         const targetParts = this.world.getComponent(action.targetId, Parts);
         this.world.emit(GameEvents.SHOW_MODAL, {
-            type: 'execution',
+            // ★変更: マジックストリングを定数に変更
+            type: ModalType.EXECUTION,
             data: {
                 entityId: executor,
                 message: `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${targetParts[action.targetPartKey].name}に${damage}ダメージ！`

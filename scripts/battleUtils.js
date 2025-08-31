@@ -45,7 +45,9 @@ export function determineTarget(world, attackerId) {
     // ★変更: 戦略が見つけられなかった場合のフォールバック処理を簡素化。
     // 各戦略関数は、ターゲットが見つからない場合に、内部でRANDOM戦略を呼び出すかnullを返す責務を負います。
     // ここでは、最終的にターゲットが見つからなかった場合のみ、安全策としてRANDOM戦略を呼び出します。
+    // ★改善: フォールバック処理をここに集約。各戦略はターゲットが見つからない場合nullを返すことに専念する。
     if (!target || !isValidTarget(world, target.targetId, target.targetPartKey)) {
+        // ターゲットが見つからない、または無効な場合は、デフォルトのRANDOM戦略で再決定する
         target = targetingStrategies.RANDOM(world, attackerId, enemies);
     }
     
@@ -83,57 +85,62 @@ const targetingStrategies = {
         return { targetId: randomPart.entityId, targetPartKey: randomPart.partKey };
     },
 
-    // [COUNTER]: 自分を最後に攻撃した敵を狙う。いなければランダム。
+    // [COUNTER]: 自分を最後に攻撃した敵を狙う。いなければnull。
     [MedalPersonality.COUNTER]: (world, attackerId, enemies) => {
         const attackerLog = world.getComponent(attackerId, BattleLog);
         const targetId = attackerLog.lastAttackedBy;
+        // ★改善: ターゲットが有効な場合のみパーツを選択。無効ならフォールバックせずnullを返す。
         if (isValidTarget(world, targetId)) {
             return selectRandomPart(world, targetId);
         }
-        return targetingStrategies.RANDOM(world, attackerId, enemies);
+        return null;
     },
 
-    // [GUARD]: 味方リーダーを最後に攻撃した敵を狙う。いなければランダム。
+    // [GUARD]: 味方リーダーを最後に攻撃した敵を狙う。いなければnull。
     [MedalPersonality.GUARD]: (world, attackerId, enemies) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
         const context = world.getSingletonComponent(GameContext);
         const targetId = context.leaderLastAttackedBy[attackerInfo.teamId];
+        // ★改善: ターゲットが有効な場合のみパーツを選択。無効ならフォールバックせずnullを返す。
         if (isValidTarget(world, targetId)) {
             return selectRandomPart(world, targetId);
         }
-        return targetingStrategies.RANDOM(world, attackerId, enemies);
+        return null;
     },
 
-    // [FOCUS]: 自分が最後に攻撃したパーツを狙う。なければランダム。
+    // [FOCUS]: 自分が最後に攻撃したパーツを狙う。なければnull。
     [MedalPersonality.FOCUS]: (world, attackerId, enemies) => {
         const attackerLog = world.getComponent(attackerId, BattleLog);
         const lastAttack = attackerLog.lastAttack;
+        // ★改善: ターゲットが有効な場合のみパーツを選択。無効ならフォールバックせずnullを返す。
         if (isValidTarget(world, lastAttack.targetId, lastAttack.partKey)) {
             // ★修正: プロパティ名を `targetPartKey` に統一して返す
             return { targetId: lastAttack.targetId, targetPartKey: lastAttack.partKey };
         }
-        return targetingStrategies.RANDOM(world, attackerId, enemies);
+        return null;
     },
 
-    // [ASSIST]: 味方が最後に攻撃したパーツを狙う。なければランダム。
+    // [ASSIST]: 味方が最後に攻撃したパーツを狙う。なければnull。
     [MedalPersonality.ASSIST]: (world, attackerId, enemies) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
         const context = world.getSingletonComponent(GameContext);
         const teamLastAttack = context.teamLastAttack[attackerInfo.teamId];
+        // ★改善: ターゲットが有効な場合のみパーツを選択。無効ならフォールバックせずnullを返す。
         if (isValidTarget(world, teamLastAttack.targetId, teamLastAttack.partKey)) {
             // ★修正: プロパティ名を `targetPartKey` に統一して返す
             return { targetId: teamLastAttack.targetId, targetPartKey: teamLastAttack.partKey };
         }
-        return targetingStrategies.RANDOM(world, attackerId, enemies);
+        return null;
     },
 
-    // [LEADER_FOCUS]: 敵リーダーを狙う。いなければランダム。
+    // [LEADER_FOCUS]: 敵リーダーを狙う。いなければnull。
     [MedalPersonality.LEADER_FOCUS]: (world, attackerId, enemies) => {
         const leader = enemies.find(id => world.getComponent(id, PlayerInfo).isLeader);
+        // ★改善: ターゲットが有効な場合のみパーツを選択。無効ならフォールバックせずnullを返す。
         if (isValidTarget(world, leader)) {
             return selectRandomPart(world, leader);
         }
-        return targetingStrategies.RANDOM(world, attackerId, enemies);
+        return null;
     },
 
     // [RANDOM]: 敵1体をランダムに選び、そのパーツをランダムに狙う

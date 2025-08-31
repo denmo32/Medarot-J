@@ -56,3 +56,15 @@ export const MedalPersonality = {
     FOCUS: 'FOCUS',               // 前回攻撃したパーツを集中攻撃
     ASSIST: 'ASSIST',             // 味方が最後に攻撃した敵のパーツを狙う
 };
+
+/**
+ * ★新規: モーダルの種類を定義する定数
+ * これにより、コード内のマジックストリングを排除し、タイプミスによるバグを防ぎます。
+ */
+export const ModalType = {
+    START_CONFIRM: 'start_confirm',
+    SELECTION: 'selection',
+    EXECUTION: 'execution',
+    BATTLE_START_CONFIRM: 'battle_start_confirm',
+    GAME_OVER: 'game_over'
+};

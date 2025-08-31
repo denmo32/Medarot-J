@@ -95,6 +95,10 @@ export class GameContext {
         this.isPausedByModal = false; // モーダル表示により、ゲームの進行が一時停止しているか
         this.winningTeam = null; // 勝利したチームID
 
+        // ★追加: 行動選択待ちのプレイヤーを管理するキュー
+        // これにより、複数のプレイヤーが同時に行動可能になった際の順番を制御します。
+        this.actionQueue = [];
+
         // --- 戦闘履歴 ---
         // 各チームの最後の攻撃情報を記録します (Assist性格用)
         this.teamLastAttack = {
