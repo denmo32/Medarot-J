@@ -2,24 +2,24 @@ import { CONFIG } from './config.js';
 import { World } from './ecs.js';
 import * as Components from './components.js';
 import { GameEvents } from './events.js';
-import { UiSystem } from './systems/uiSystem.js';
+// ★変更: UiSystemをViewSystemにリネームし、DomFactorySystemをインポート
+import { ViewSystem } from './systems/viewSystem.js';
+import { DomFactorySystem } from './systems/domFactorySystem.js';
 import { RenderSystem } from './systems/renderSystem.js';
 import { GaugeSystem } from './systems/gaugeSystem.js';
 import { StateSystem } from './systems/stateSystem.js';
-// ★変更: DecisionSystemを削除し、新しいシステムをインポート
 import { InputSystem } from './systems/inputSystem.js';
 import { AiSystem } from './systems/aiSystem.js';
 import { ActionSystem } from './systems/actionSystem.js';
-import { GameFlowSystem } from './systems/gameFlowSystem.js'; // 新しくインポート
+import { GameFlowSystem } from './systems/gameFlowSystem.js';
 import { MovementSystem } from './systems/movementSystem.js';
 import { HistorySystem } from './systems/historySystem.js';
-// ★追加: 新しいTurnSystemをインポート
 import { TurnSystem } from './systems/turnSystem.js';
 import { GamePhaseType, PlayerStateType, TeamID, MedalPersonality } from './constants.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     let world = new World();
-    let uiSystem; // resetGameで参照するため、外で宣言
+    // ★削除: uiSystemの参照は不要になりました
 
     /**
      * プレイヤーエンティティを生成し、必要なコンポーネントをすべて追加するファクトリ関数
@@ -67,20 +67,22 @@ document.addEventListener('DOMContentLoaded', () => {
         world.addComponent(contextEntity, new Components.GameContext());
 
         // --- システムの登録 ---
-        // ★変更: システムの登録順と構成を新しいアーキテクチャに合わせて見直し
+        // ★変更: システムの構成を新しいアーキテクチャに合わせて見直し
         
         // --- イベント駆動システム (updateループ不要) ---
-        // これらのシステムはインスタンス化されると、コンストラクタでイベントリスナーを登録します。
         new InputSystem(world);
         new AiSystem(world);
+        // ★新規: DomFactorySystemはイベント駆動なので、インスタンス化するだけでよい
+        new DomFactorySystem(world);
 
         // --- updateループで動作するシステム ---
         const gameFlowSystem = new GameFlowSystem(world);
-        uiSystem = new UiSystem(world);
+        // ★変更: UiSystemをViewSystemに変更
+        const viewSystem = new ViewSystem(world);
         const renderSystem = new RenderSystem(world);
         const gaugeSystem = new GaugeSystem(world);
         const stateSystem = new StateSystem(world);
-        const turnSystem = new TurnSystem(world); // ★新規: TurnSystemを登録
+        const turnSystem = new TurnSystem(world);
         const actionSystem = new ActionSystem(world);
         const movementSystem = new MovementSystem(world);
         const historySystem = new HistorySystem(world);
@@ -88,11 +90,12 @@ document.addEventListener('DOMContentLoaded', () => {
         world.registerSystem(gameFlowSystem);
         world.registerSystem(historySystem);
         world.registerSystem(stateSystem);
-        world.registerSystem(turnSystem); // ★新規: TurnSystemはupdateを持つ
+        world.registerSystem(turnSystem);
         world.registerSystem(gaugeSystem);
         world.registerSystem(actionSystem);
         world.registerSystem(movementSystem);
-        world.registerSystem(uiSystem);
+        // ★変更: UiSystemをViewSystemに変更
+        world.registerSystem(viewSystem);
         world.registerSystem(renderSystem);
     }
 
@@ -108,37 +111,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /**
-     * 生成されたプレイヤーのDOM要素を作成・配置する関数
-     */
-    function setupUI() {
-        const playerEntities = world.getEntitiesWith(Components.PlayerInfo);
-        for (const entityId of playerEntities) {
-            uiSystem.createPlayerDOM(entityId);
-            // RenderSystemのメソッドを直接呼ぶのではなく、最初の描画更新に任せる
-            // renderSystem.updatePosition(entityId);
-            // renderSystem.updateInfoPanel(entityId);
-        }
-    }
-    
+    // ★削除: setupUI関数は不要になりました。
+    // DOMの生成はDomFactorySystemがイベントを購読して実行します。
+
     /**
      * ゲームの状態を完全にリセットする関数
      */
     function resetGame() {
+        // ★追加: リセットが開始されることを各システムに通知
+        // これにより、リスナー(DomFactorySystem, ViewSystem)がUIのクリア処理を実行します。
+        // worldインスタンスがまだ存在する場合のみemitする
+        if (world.listeners.size > 0) {
+            world.emit(GameEvents.GAME_WILL_RESET);
+        }
+
         // 既存のワールドを破棄して、新しいインスタンスを作成
         world = new World();
         
-        // ★修正: 処理順を変更
-        // システムを再初期化し、uiSystemを生成する
+        // システムを再初期化（イベントリスナーも再登録される）
         initializeSystems();
 
-        // UIをリセットする。initializeSystemsの後なのでuiSystemは必ず存在する
-        uiSystem.resetUI();
-
-        // プレイヤーを再生成
+        // プレイヤーエンティティを再生成
         createPlayers();
-        // UIを再セットアップ
-        setupUI();
+        
+        // ★変更: setupUIの直接呼び出しの代わりに、UI構築を要求するイベントを発行
+        // DomFactorySystemがこのイベントを購読してUIを構築します。
+        world.emit(GameEvents.SETUP_UI_REQUESTED);
     }
 
     /**

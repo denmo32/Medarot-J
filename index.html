@@ -19,9 +19,13 @@
         <div class="info-panels">
             <div id="team1InfoPanel" class="team-info-panel">
                 <h2 class="text-xl font-bold mb-3 text-blue-300">チーム 1</h2>
+                <!-- ★変更: プレイヤー情報はDomFactorySystemによって動的に生成される -->
+                <div class="team-players-container"></div>
             </div>
             <div id="team2InfoPanel" class="team-info-panel">
                 <h2 class="text-xl font-bold mb-3 text-red-300">チーム 2</h2>
+                <!-- ★変更: プレイヤー情報はDomFactorySystemによって動的に生成される -->
+                <div class="team-players-container"></div>
             </div>
         </div>
 
@@ -44,6 +48,29 @@
             <button id="battleStartConfirmButton" class="modal-button" style="display: none;">ロボトルファイト！</button>
         </div>
     </div>
+    
+    <!-- ★新規: プレイヤー情報パネルのテンプレート -->
+    <template id="player-info-template">
+        <div class="player-info">
+            <div class="player-name"></div>
+            <div class="part-hp" data-part-key="head">
+                <span class="part-name"></span>
+                <div class="part-hp-bar-container"><div class="part-hp-bar"></div></div>
+            </div>
+            <div class="part-hp" data-part-key="rightArm">
+                <span class="part-name"></span>
+                <div class="part-hp-bar-container"><div class="part-hp-bar"></div></div>
+            </div>
+            <div class="part-hp" data-part-key="leftArm">
+                <span class="part-name"></span>
+                <div class="part-hp-bar-container"><div class="part-hp-bar"></div></div>
+            </div>
+            <div class="part-hp" data-part-key="legs">
+                <span class="part-name"></span>
+                <div class="part-hp-bar-container"><div class="part-hp-bar"></div></div>
+            </div>
+        </div>
+    </template>
 
     <script type="module" src="scripts/main.js"></script>
 </body>

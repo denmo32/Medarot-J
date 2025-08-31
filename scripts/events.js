@@ -9,6 +9,7 @@ export const GameEvents = {
     GAME_START_REQUESTED: 'GAME_START_REQUESTED',       // ★変更: 開始アイコンがクリックされた
     GAME_START_CONFIRMED: 'GAME_START_CONFIRMED',       // ★追加: 開始確認モーダルで「はい」が押された
     RESET_BUTTON_CLICKED: 'RESET_BUTTON_CLICKED', // リセットボタンがクリックされた
+    GAME_WILL_RESET: 'GAME_WILL_RESET',           // ★追加: ゲームのリセット処理が開始される直前
     BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED', // 「ロボトルファイト！」がクリックされた
 
     // --- Player Input & AI Events ---
@@ -33,4 +34,5 @@ export const GameEvents = {
     // --- UI Events ---
     SHOW_MODAL: 'SHOW_MODAL', // モーダル表示を要求
     HIDE_MODAL: 'HIDE_MODAL', // モーダル非表示を要求
+    SETUP_UI_REQUESTED: 'SETUP_UI_REQUESTED', // ★追加: UIの初期構築を要求
 };

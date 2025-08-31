@@ -1,22 +1,24 @@
-// scripts/systems/uiSystem.js:
+// scripts/systems/viewSystem.js:
 
 import { CONFIG } from '../config.js';
 import { GameEvents } from '../events.js';
-import { PlayerInfo, DOMReference, Parts, GameContext, Position } from '../components.js'; // ★変更: Positionコンポーネントをインポート
-// ★変更: ModalTypeを追加でインポート
+import { PlayerInfo, GameContext } from '../components.js';
 import { TeamID, GamePhaseType, ModalType } from '../constants.js';
 
-export class UiSystem {
+/**
+ * ★クラス名変更: UiSystem -> ViewSystem
+ * ユーザーインタラクション（モーダル表示、ボタンイベントなど）とUIの状態管理に責務を特化させたシステム。
+ * DOM要素の生成はDomFactorySystemに分離されました。
+ */
+export class ViewSystem {
     constructor(world) {
         this.world = world;
         this.context = this.world.getSingletonComponent(GameContext);
 
-        // ★追加: モーダルで確認待ちのアクションを実行したエンティティIDを一時的に保持
         this.confirmActionEntityId = null;
 
         this.dom = {
             gameStartButton: document.getElementById('gameStartButton'),
-            battlefield: document.getElementById('battlefield'),
             modal: document.getElementById('actionModal'),
             modalTitle: document.getElementById('modalTitle'),
             modalActorName: document.getElementById('modalActorName'),
@@ -32,7 +34,6 @@ export class UiSystem {
 
     // モーダルの設定を初期化する
     initializeModalConfigs() {
-        // ★変更: モーダル設定のキーをマジックストリングからModalType定数に変更
         this.modalConfigs = {
             [ModalType.START_CONFIRM]: {
                 title: 'ロボトル開始',
@@ -59,10 +60,7 @@ export class UiSystem {
                 setupEvents: (container, data) => {
                     data.buttons.forEach((btn, index) => {
                         container.querySelector(`#modalBtnPart${index}`).onclick = () => {
-                            // ★変更: プレイヤーによるパーツ選択を通知する、より具体的なイベントを発行します。
-                            // これにより、UIの責務（入力の受付）とInputSystemの責務（ターゲット決定）を分離します。
                             this.world.emit(GameEvents.PART_SELECTED, { entityId: data.entityId, partKey: btn.partKey });
-                            // ★追加: 選択後、即座にモーダルを閉じることで操作感を向上させます。
                             this.hideModal();
                         };
                     });
@@ -89,13 +87,12 @@ export class UiSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showModal(detail.type, detail.data));
         this.world.on(GameEvents.HIDE_MODAL, () => this.hideModal());
-        // ★変更: マジックストリングを定数に変更
         this.world.on(GameEvents.GAME_START_REQUESTED, () => this.showModal(ModalType.START_CONFIRM));
         
-        // ★変更: activePlayerの管理を廃止したため、関連イベントの購読を整理
-        // モーダルを閉じるトリガーとなるイベントを購読
+        // ★追加: ゲームリセット時にUIの状態（モーダルなど）をリセットする
+        this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
+
         this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, () => this.hideModal());
-        // this.world.on(GameEvents.ACTION_SELECTED, () => this.hideModal()); // PART_SELECTEDで即座に閉じるので不要
     }
 
     // DOM要素のイベントリスナーを登録する
@@ -114,85 +111,26 @@ export class UiSystem {
                 return;
             }
             
-            // ★変更: activePlayerを参照せず、一時保持していたIDを使ってイベントを発行
             if (this.confirmActionEntityId !== null) {
                 this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: this.confirmActionEntityId });
             }
         });
     }
 
-    createPlayerDOM(entityId) {
-        const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        const domRef = this.world.getComponent(entityId, DOMReference);
-        const parts = this.world.getComponent(entityId, Parts);
-        const position = this.world.getComponent(entityId, Position); // Y座標の取得に必要
+    // ★削除: createPlayerDOMメソッドはDomFactorySystemに移管されました。
 
-        const homeX = playerInfo.teamId === TeamID.TEAM1
-            ? CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM1
-            : CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM2;
-
-        const marker = document.createElement('div');
-        marker.className = 'home-marker';
-        marker.style.left = `${homeX * 100}%`;
-        marker.style.top = `${position.y}%`;
-        domRef.homeMarkerElement = marker;
-        this.dom.battlefield.appendChild(marker);
-
-        const icon = document.createElement('div');
-        icon.id = `player-${entityId}-icon`;
-        icon.className = 'player-icon';
-        icon.style.backgroundColor = playerInfo.color;
-        icon.textContent = playerInfo.name.substring(playerInfo.name.length - 1);
-        domRef.iconElement = icon;
-        this.dom.battlefield.appendChild(icon);
-
-        const info = document.createElement('div');
-        info.className = 'player-info';
-        const teamConfig = CONFIG.TEAMS[playerInfo.teamId];
-
-        let partsHTML = '';
-        Object.keys(parts).forEach(key => {
-            partsHTML += `<div id="player-${entityId}-${key}-part" class="part-hp"></div>`;
-        });
-
-        info.innerHTML = `
-            <div class="player-name ${teamConfig.textColor}">${playerInfo.name} ${playerInfo.isLeader ? '(L)' : ''}</div>
-            ${partsHTML}
-        `;
-        
-        Object.entries(parts).forEach(([key, part]) => {
-            const partEl = info.querySelector(`#player-${entityId}-${key}-part`);
-            partEl.innerHTML = `
-                <span class="part-name">${part.name.substring(0,1)}</span>
-                <div class="part-hp-bar-container"><div class="part-hp-bar"></div></div>
-            `;
-            domRef.partDOMElements[key] = {
-                container: partEl,
-                name: partEl.querySelector('.part-name'),
-                bar: partEl.querySelector('.part-hp-bar')
-            };
-        });
-        
-        const panel = document.querySelector(`#${playerInfo.teamId}InfoPanel .team-players-container`);
-        panel.appendChild(info);
-        domRef.infoPanel = info;
-    }
-
-    resetUI() {
-        this.dom.battlefield.innerHTML = '<div class="action-line-1"></div><div class="action-line-2"></div>';
-        Object.entries(CONFIG.TEAMS).forEach(([teamId, teamConfig]) => {
-            const panel = document.getElementById(`${teamId}InfoPanel`);
-            panel.innerHTML = `
-                <h2 class="text-xl font-bold mb-3 ${teamConfig.textColor}">${teamConfig.name}</h2>
-                <div class="team-players-container"></div>
-            `;
-        });
+    /**
+     * ★変更: メソッド名をresetUIからresetViewに変更し、責務をUIの状態リセットに限定。
+     * DOM要素のクリアはDomFactorySystemが担当します。
+     */
+    resetView() {
         this.dom.gameStartButton.style.display = "flex";
         this.hideModal();
     }
 
     update(deltaTime) {
-        this.dom.gameStartButton.style.display = this.context.phase === 'IDLE' ? "flex" : "none";
+        // ゲーム開始ボタンの表示/非表示を管理
+        this.dom.gameStartButton.style.display = this.context.phase === GamePhaseType.IDLE ? "flex" : "none";
     }
 
     // --- モーダル表示/非表示 ---
@@ -204,18 +142,14 @@ export class UiSystem {
             return;
         }
 
-        // ★変更: モーダル表示時にactivePlayerを設定する代わりに、
-        // ゲーム全体の進行を停止するフラグを立てる責務に限定。
         this.context.isPausedByModal = true;
         
-        // ★追加: 実行確認モーダルの場合、対象のエンティティIDを一時的に保持
         if (type === ModalType.EXECUTION) {
             this.confirmActionEntityId = data.entityId;
         }
 
         const { modalTitle, modalActorName, partSelectionContainer, modalConfirmButton, battleStartConfirmButton } = this.dom;
 
-        // --- DOMの構築とイベント設定 ---
         const getValue = (value) => typeof value === 'function' ? value(data) : value;
 
         modalTitle.textContent = getValue(config.title) || '';
@@ -241,9 +175,7 @@ export class UiSystem {
     }
 
     hideModal() {
-        // ★変更: モーダル非表示時にゲーム全体の停止フラグを解除する責務に限定。
         this.context.isPausedByModal = false;
-        // ★追加: 一時保持していたエンティティIDをリセット
         this.confirmActionEntityId = null;
 
         this.dom.modal.classList.add('hidden');
