@@ -25,109 +25,138 @@ export function calculateDamage(world, attackerId, targetId, action) {
 }
 
 // --- ターゲット決定ロジックとヘルパー関数群 ---
-// 複数のシステムから利用されるため、汎用的なユーティリティとしてここに集約します。
 
 /**
  * 攻撃者のメダルの性格に基づき、ターゲット（敵エンティティとパーツ）を決定します。
+ * 性格ごとの戦略関数を呼び出すファサードとして機能します。
  * @param {World} world - ワールドオブジェクト
  * @param {number} attackerId - 攻撃者のエンティティID
  * @returns {{targetId: number, targetPartKey: string} | null} ターゲット情報、またはnull
  */
 export function determineTarget(world, attackerId) {
-    const attackerInfo = world.getComponent(attackerId, PlayerInfo);
     const attackerMedal = world.getComponent(attackerId, Medal);
-    const attackerLog = world.getComponent(attackerId, BattleLog);
-    // GameContextはシングルトンなので、world経由で取得します
-    const context = world.getSingletonComponent(GameContext);
-
     const enemies = getValidEnemies(world, attackerId);
     if (enemies.length === 0) return null;
 
-    let targetId = null;
-    let targetPartKey = null;
+    let target = null;
 
-    // 性格に基づいてターゲットを決定
+    // 性格に基づいて戦略を選択
     switch (attackerMedal.personality) {
         case MedalPersonality.HUNTER:
-        case MedalPersonality.CRUSHER: {
-            const allParts = getAllEnemyParts(world, enemies);
-            if (allParts.length === 0) break;
-            allParts.sort((a, b) => a.part.hp - b.part.hp); // HPで昇順ソート
-            const targetPartInfo = attackerMedal.personality === MedalPersonality.HUNTER ? allParts[0] : allParts[allParts.length - 1];
-            targetId = targetPartInfo.entityId;
-            targetPartKey = targetPartInfo.partKey;
+            target = _getTargetForHunter(world, enemies);
             break;
-        }
-        case MedalPersonality.JOKER: {
-             const allParts = getAllEnemyParts(world, enemies);
-             if (allParts.length === 0) break;
-             const randomPart = allParts[Math.floor(Math.random() * allParts.length)];
-             targetId = randomPart.entityId;
-             targetPartKey = randomPart.partKey;
-             break;
-        }
-        case MedalPersonality.COUNTER: {
-            const lastAttackerId = attackerLog.lastAttackedBy;
-            if (isValidTarget(world, lastAttackerId)) {
-                targetId = lastAttackerId;
-            }
+        case MedalPersonality.CRUSHER:
+            target = _getTargetForCrusher(world, enemies);
             break;
-        }
-        case MedalPersonality.GUARD: {
-            const leaderLastAttackerId = context.leaderLastAttackedBy[attackerInfo.teamId];
-            if (isValidTarget(world, leaderLastAttackerId)) {
-                targetId = leaderLastAttackerId;
-            }
+        case MedalPersonality.JOKER:
+            target = _getTargetForJoker(world, enemies);
             break;
-        }
-        case MedalPersonality.FOCUS: {
-            const lastAttack = attackerLog.lastAttack;
-            if (isValidTarget(world, lastAttack.targetId, lastAttack.partKey)) {
-                targetId = lastAttack.targetId;
-                targetPartKey = lastAttack.partKey;
-            }
+        case MedalPersonality.COUNTER:
+            target = _getTargetForCounter(world, attackerId);
             break;
-        }
-        case MedalPersonality.ASSIST: {
-            const teamLastAttack = context.teamLastAttack[attackerInfo.teamId];
-            if (isValidTarget(world, teamLastAttack.targetId, teamLastAttack.partKey)) {
-                targetId = teamLastAttack.targetId;
-                targetPartKey = teamLastAttack.partKey;
-            }
+        case MedalPersonality.GUARD:
+            target = _getTargetForGuard(world, attackerId);
             break;
-        }
-        case MedalPersonality.LEADER_FOCUS: {
-            const leader = enemies.find(id => world.getComponent(id, PlayerInfo).isLeader);
-            if (isValidTarget(world, leader)) {
-                targetId = leader;
-            }
+        case MedalPersonality.FOCUS:
+            target = _getTargetForFocus(world, attackerId);
             break;
-        }
+        case MedalPersonality.ASSIST:
+            target = _getTargetForAssist(world, attackerId);
+            break;
+        case MedalPersonality.LEADER_FOCUS:
+            target = _getTargetForLeaderFocus(world, enemies);
+            break;
         case MedalPersonality.RANDOM:
         default:
-            // デフォルトの動作（ランダムな敵）
+            // デフォルトの動作はランダム
+            target = _getTargetRandomly(world, enemies);
             break;
     }
 
-    // フォールバック処理: ターゲットエンティティが決まらなかった場合、ランダムな敵を選択します。
-    if (!isValidTarget(world, targetId)) {
-        targetId = enemies[Math.floor(Math.random() * enemies.length)];
+    // 戦略によってターゲットが見つからなかった場合、または無効な場合のフォールバック
+    if (!target || !isValidTarget(world, target.targetId, target.targetPartKey)) {
+        target = _getTargetRandomly(world, enemies);
     }
+    
+    // それでも見つからなければ諦める
+    if (!target) return null;
 
-    // フォールバック処理: ターゲットパーツが決まっていない、または無効な場合、有効なパーツからランダムに選択します。
-    if (!targetPartKey || !isValidTarget(world, targetId, targetPartKey)) {
-        const availableParts = getAvailableParts(world, targetId);
+    // ターゲットエンティティは決まったが、パーツが決まっていない場合のフォールバック
+    if (!target.targetPartKey) {
+        const availableParts = getAvailableParts(world, target.targetId);
         if (availableParts.length > 0) {
-            targetPartKey = availableParts[Math.floor(Math.random() * availableParts.length)];
+            target.targetPartKey = availableParts[Math.floor(Math.random() * availableParts.length)];
         } else {
-            // 選択したターゲットに攻撃可能なパーツがない場合、ターゲット選択からやり直すか、行動をスキップします。
-            // ここでは簡単のため、一旦nullを返して行動をスキップさせます。
-            // TODO: 攻撃可能なパーツを持つ別の敵を探すロジックも検討可能です。
+            // 攻撃可能なパーツがない場合は行動不可
             return null;
         }
     }
-    
-    return { targetId, targetPartKey };
+
+    return target;
+}
+
+// --- 性格別ターゲット決定戦略 ---
+// determineTargetから呼び出される、より具体的な戦略関数群です。
+
+function _getTargetForHunter(world, enemies) {
+    const allParts = getAllEnemyParts(world, enemies);
+    if (allParts.length === 0) return null;
+    allParts.sort((a, b) => a.part.hp - b.part.hp); // HPで昇順ソート
+    const targetPartInfo = allParts[0];
+    return { entityId: targetPartInfo.entityId, targetPartKey: targetPartInfo.partKey };
+}
+
+function _getTargetForCrusher(world, enemies) {
+    const allParts = getAllEnemyParts(world, enemies);
+    if (allParts.length === 0) return null;
+    allParts.sort((a, b) => b.part.hp - a.part.hp); // HPで降順ソート
+    const targetPartInfo = allParts[0];
+    return { entityId: targetPartInfo.entityId, targetPartKey: targetPartInfo.partKey };
+}
+
+function _getTargetForJoker(world, enemies) {
+    const allParts = getAllEnemyParts(world, enemies);
+    if (allParts.length === 0) return null;
+    const randomPart = allParts[Math.floor(Math.random() * allParts.length)];
+    return { entityId: randomPart.entityId, targetPartKey: randomPart.partKey };
+}
+
+function _getTargetForCounter(world, attackerId) {
+    const attackerLog = world.getComponent(attackerId, BattleLog);
+    const lastAttackerId = attackerLog.lastAttackedBy;
+    return isValidTarget(world, lastAttackerId) ? { targetId: lastAttackerId, targetPartKey: null } : null;
+}
+
+function _getTargetForGuard(world, attackerId) {
+    const attackerInfo = world.getComponent(attackerId, PlayerInfo);
+    const context = world.getSingletonComponent(GameContext);
+    const leaderLastAttackerId = context.leaderLastAttackedBy[attackerInfo.teamId];
+    return isValidTarget(world, leaderLastAttackerId) ? { targetId: leaderLastAttackerId, targetPartKey: null } : null;
+}
+
+function _getTargetForFocus(world, attackerId) {
+    const attackerLog = world.getComponent(attackerId, BattleLog);
+    const lastAttack = attackerLog.lastAttack;
+    return isValidTarget(world, lastAttack.targetId, lastAttack.partKey) ? { ...lastAttack } : null;
+}
+
+function _getTargetForAssist(world, attackerId) {
+    const attackerInfo = world.getComponent(attackerId, PlayerInfo);
+    const context = world.getSingletonComponent(GameContext);
+    const teamLastAttack = context.teamLastAttack[attackerInfo.teamId];
+    return isValidTarget(world, teamLastAttack.targetId, teamLastAttack.partKey) ? { ...teamLastAttack } : null;
+}
+
+function _getTargetForLeaderFocus(world, enemies) {
+    const leader = enemies.find(id => world.getComponent(id, PlayerInfo).isLeader);
+    return isValidTarget(world, leader) ? { targetId: leader, targetPartKey: null } : null;
+}
+
+function _getTargetRandomly(world, enemies) {
+    if (enemies.length === 0) return null;
+    const targetId = enemies[Math.floor(Math.random() * enemies.length)];
+    // パーツは後続のフォールバックで決定されるため、ここではnullを返す
+    return { targetId, targetPartKey: null };
 }
 
 /** 

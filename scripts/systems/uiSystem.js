@@ -62,10 +62,10 @@ export class UiSystem {
         const parts = this.world.getComponent(entityId, Parts);
         const position = this.world.getComponent(entityId, Position); // Y座標の取得に必要
 
-        // ホームポジションのX座標を計算
+        // ホームポジションのX座標をconfigから取得
         const homeX = playerInfo.teamId === TeamID.TEAM1
-            ? CONFIG.HOME_MARGIN
-            : 1 - CONFIG.HOME_MARGIN;
+            ? CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM1
+            : CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM2;
 
         // ホームポジションを示すマーカーを生成
         const marker = document.createElement('div');

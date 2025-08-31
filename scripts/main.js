@@ -9,6 +9,8 @@ import { StateSystem } from './systems/stateSystem.js';
 import { DecisionSystem } from './systems/decisionSystem.js';
 import { ActionSystem } from './systems/actionSystem.js';
 import { GameFlowSystem } from './systems/gameFlowSystem.js'; // 新しくインポート
+import { MovementSystem } from './systems/movementSystem.js';
+import { HistorySystem } from './systems/historySystem.js';
 import { GamePhaseType, PlayerStateType, TeamID, MedalPersonality } from './constants.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -35,14 +37,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const playerDecisionSystem = new DecisionSystem(world, TeamID.TEAM1, 'player');
         const aiDecisionSystem = new DecisionSystem(world, TeamID.TEAM2, 'ai');
         const actionSystem = new ActionSystem(world);
+        const movementSystem = new MovementSystem(world);
+        const historySystem = new HistorySystem(world);
 
         world.registerSystem(gameFlowSystem); // ゲームフロー管理
+        world.registerSystem(historySystem);  // 戦闘履歴の更新
         world.registerSystem(gaugeSystem);    // ゲージ更新
         world.registerSystem(stateSystem);    // 状態遷移
         // ★変更: 統合されたDecisionSystemを登録
         world.registerSystem(playerDecisionSystem); // チーム1（プレイヤー）の行動決定
         world.registerSystem(aiDecisionSystem);     // チーム2（AI）の行動決定
         world.registerSystem(actionSystem);   // 行動実行
+        world.registerSystem(movementSystem); // 位置計算
         world.registerSystem(uiSystem);       // UI更新（ボタン状態など）
         world.registerSystem(renderSystem);   // 描画（最後）
     }
