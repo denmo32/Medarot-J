@@ -3,6 +3,8 @@
 import { PlayerInfo, GameState, Parts, GameContext, Medal, BattleLog } from '../components.js';
 import { PlayerStateType, PartType, GamePhaseType, TeamID, MedalPersonality } from '../constants.js';
 import { GameEvents } from '../events.js';
+// ★追加: 汎用的なターゲット決定ロジックをインポート
+import { determineTarget } from '../battleUtils.js';
 
 /**
  * プレイヤーまたはAIの行動選択を管理し、ターゲットを決定するシステム。
@@ -114,8 +116,8 @@ export class DecisionSystem {
             // 1. どのパーツで攻撃するかを選択
             const [partKey, part] = this._chooseActionPart(entityId, availableParts);
             
-            // 2. 誰のどのパーツを攻撃するかを決定
-            const target = this._determineTarget(entityId);
+            // 2. ★変更: battleUtilsに集約されたロジックを呼び出して、誰のどのパーツを攻撃するかを決定
+            const target = determineTarget(this.world, entityId);
             if (!target) {
                 // ターゲットが見つからない場合は行動をスキップ
                  this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey: null, targetId: null, targetPartKey: null });
@@ -123,7 +125,7 @@ export class DecisionSystem {
             }
             const { targetId, targetPartKey } = target;
 
-            // 3. 決定した行動内容を通知する
+            // 3. ★変更: 決定した行動内容（ターゲット情報も含む）を通知する
             this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey, targetId, targetPartKey });
 
         } else {
@@ -150,136 +152,5 @@ export class DecisionSystem {
         return sortedParts[0];
     }
 
-    /**
-     * 攻撃者のメダルの性格に基づき、ターゲットを決定します。（旧ActionSystem.determineTarget）
-     * @param {number} attackerId - 攻撃者のエンティティID
-     * @returns {{targetId: number, targetPartKey: string} | null} ターゲット情報
-     * @private
-     */
-    _determineTarget(attackerId) {
-        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
-        const attackerMedal = this.world.getComponent(attackerId, Medal);
-        const attackerLog = this.world.getComponent(attackerId, BattleLog);
-
-        const enemies = this._getValidEnemies(attackerId);
-        if (enemies.length === 0) return null;
-
-        let targetId = null;
-        let targetPartKey = null;
-
-        switch (attackerMedal.personality) {
-            case MedalPersonality.HUNTER:
-            case MedalPersonality.CRUSHER: {
-                const allParts = this._getAllEnemyParts(enemies);
-                if (allParts.length === 0) break;
-                allParts.sort((a, b) => a.part.hp - b.part.hp);
-                const targetPartInfo = attackerMedal.personality === MedalPersonality.HUNTER ? allParts[0] : allParts[allParts.length - 1];
-                targetId = targetPartInfo.entityId;
-                targetPartKey = targetPartInfo.partKey;
-                break;
-            }
-            case MedalPersonality.JOKER: {
-                 const allParts = this._getAllEnemyParts(enemies);
-                 if (allParts.length === 0) break;
-                 const randomPart = allParts[Math.floor(Math.random() * allParts.length)];
-                 targetId = randomPart.entityId;
-                 targetPartKey = randomPart.partKey;
-                 break;
-            }
-            case MedalPersonality.COUNTER:
-                if (this._isValidTarget(attackerLog.lastAttackedBy)) {
-                    targetId = attackerLog.lastAttackedBy;
-                }
-                break;
-            case MedalPersonality.GUARD:
-                const leaderLastAttackerId = this.context.leaderLastAttackedBy[attackerInfo.teamId];
-                if (this._isValidTarget(leaderLastAttackerId)) {
-                    targetId = leaderLastAttackerId;
-                }
-                break;
-            case MedalPersonality.FOCUS:
-                const lastAttack = attackerLog.lastAttack;
-                if (this._isValidTarget(lastAttack.targetId, lastAttack.partKey)) {
-                    targetId = lastAttack.targetId;
-                    targetPartKey = lastAttack.partKey;
-                }
-                break;
-            case MedalPersonality.ASSIST:
-                const teamLastAttack = this.context.teamLastAttack[attackerInfo.teamId];
-                if (this._isValidTarget(teamLastAttack.targetId, teamLastAttack.partKey)) {
-                    targetId = teamLastAttack.targetId;
-                    targetPartKey = teamLastAttack.partKey;
-                }
-                break;
-            case MedalPersonality.LEADER_FOCUS:
-                const leader = enemies.find(id => this.world.getComponent(id, PlayerInfo).isLeader);
-                if (this._isValidTarget(leader)) {
-                    targetId = leader;
-                }
-                break;
-            case MedalPersonality.RANDOM:
-            default:
-                break;
-        }
-
-        if (!this._isValidTarget(targetId)) {
-            targetId = enemies[Math.floor(Math.random() * enemies.length)];
-        }
-
-        if (!targetPartKey || !this._isValidTarget(targetId, targetPartKey)) {
-            const availableParts = this._getAvailableParts(targetId);
-            if (availableParts.length > 0) {
-                targetPartKey = availableParts[Math.floor(Math.random() * availableParts.length)];
-            } else {
-                return null;
-            }
-        }
-        
-        return { targetId, targetPartKey };
-    }
-
-    // --- ターゲット選択のヘルパーメソッド群 ---
-
-    _getValidEnemies(attackerId) {
-        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
-        return this.world.getEntitiesWith(PlayerInfo, GameState)
-            .filter(id => {
-                const pInfo = this.world.getComponent(id, PlayerInfo);
-                const gState = this.world.getComponent(id, GameState);
-                return id !== attackerId && pInfo.teamId !== attackerInfo.teamId && gState.state !== PlayerStateType.BROKEN;
-            });
-    }
-
-    _getAllEnemyParts(enemyIds) {
-        let allParts = [];
-        for (const id of enemyIds) {
-            const parts = this.world.getComponent(id, Parts);
-            Object.entries(parts).forEach(([key, part]) => {
-                if (!part.isBroken && key !== PartType.LEGS) {
-                    allParts.push({ entityId: id, partKey: key, part: part });
-                }
-            });
-        }
-        return allParts;
-    }
-
-    _getAvailableParts(entityId) {
-        if (entityId === null || entityId === undefined) return [];
-        const parts = this.world.getComponent(entityId, Parts);
-        if (!parts) return [];
-        return Object.keys(parts).filter(key => !parts[key].isBroken && key !== PartType.LEGS);
-    }
-
-    _isValidTarget(targetId, partKey = null) {
-        if (targetId === null || targetId === undefined) return false;
-        const gameState = this.world.getComponent(targetId, GameState);
-        if (!gameState || gameState.state === PlayerStateType.BROKEN) return false;
-        if (partKey) {
-            const parts = this.world.getComponent(targetId, Parts);
-            if (!parts || !parts[partKey] || parts[partKey].isBroken) {
-                return false;
-            }
-        }
-        return true;
-    }
+    
 }

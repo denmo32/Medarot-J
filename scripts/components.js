@@ -50,22 +50,26 @@ export class DOMReference {
         }
 }
 
-// 選択されたアクション
+// 選択されたアクション。★Attackコンポーネントを統合し、ターゲットやダメージ情報もここに含める
 export class Action {
     constructor() {
-        this.type = null;
-        this.partKey = null;
+        this.type = null;       // '格闘', '射撃'など
+        this.partKey = null;    // 'head', 'rightArm'など
+        this.targetId = null;   // ★追加: ターゲットのエンティティID
+        this.targetPartKey = null; // ★追加: ターゲットのパーツキー
+        this.damage = 0;        // ★追加: 計算後のダメージ
     }
 }
 
 // 準備された攻撃
-export class Attack {
-    constructor() {
-        this.target = null;
-        this.partKey = null;
-        this.damage = 0;
-    }
-}
+// ★廃止: Actionコンポーネントに統合されたため、このコンポーネントは不要になりました。
+// export class Attack {
+//     constructor() {
+//         this.target = null;
+//         this.partKey = null;
+//         this.damage = 0;
+//     }
+// }
 
 // バトルフィールド上の位置
 export class Position {

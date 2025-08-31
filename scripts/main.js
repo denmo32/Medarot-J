@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 world.addComponent(entityId, new Components.Parts());
                 world.addComponent(entityId, new Components.DOMReference());
                 world.addComponent(entityId, new Components.Action());
-                world.addComponent(entityId, new Components.Attack());
+                // world.addComponent(entityId, new Components.Attack()); // ★廃止: Actionコンポーネントに統合
                 world.addComponent(entityId, new Components.Medal(personality)); // ★追加: メダルコンポーネント
                 world.addComponent(entityId, new Components.BattleLog()); // ★追加: 戦闘ログコンポーネント
                 // Positionコンポーネントで初期位置を設定

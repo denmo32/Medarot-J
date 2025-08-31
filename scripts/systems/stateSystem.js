@@ -1,6 +1,6 @@
 // scripts/systems/stateSystem.js:
 
-import { Gauge, GameState, Parts, PlayerInfo, Action, Attack, GameContext, BattleLog } from '../components.js';
+import { Gauge, GameState, Parts, PlayerInfo, Action, GameContext, BattleLog } from '../components.js'; // ★Attackを削除
 import { GameEvents } from '../events.js';
 import { PlayerStateType, GamePhaseType, PartType } from '../constants.js';
 
@@ -15,10 +15,9 @@ export class StateSystem {
     }
 
     onActionSelected(detail) {
-        // ★変更: AIによる行動決定の場合、ターゲット情報も含まれる
+        // ★変更: AIによる行動決定の場合、ターゲット情報もペイロードに含まれる
         const { entityId, partKey, targetId, targetPartKey } = detail;
         const action = this.world.getComponent(entityId, Action);
-        const attack = this.world.getComponent(entityId, Attack);
         const parts = this.world.getComponent(entityId, Parts);
         const gameState = this.world.getComponent(entityId, GameState);
         const gauge = this.world.getComponent(entityId, Gauge);
@@ -33,11 +32,11 @@ export class StateSystem {
         action.partKey = partKey;
         action.type = parts[partKey].action;
 
-        // 2. ★追加: AIによってターゲットが決定済みの場合は、Attackコンポーネントに保存
+        // 2. ★変更: AIによってターゲットが決定済みの場合は、Actionコンポーネントに保存
         // targetIdがnullの場合（ターゲットが見つからなかった）も考慮
         if (targetId !== undefined && targetPartKey !== undefined) {
-            attack.target = targetId;
-            attack.partKey = targetPartKey;
+            action.targetId = targetId;
+            action.targetPartKey = targetPartKey;
         }
 
         // 3. プレイヤーの状態を「選択後チャージ中」へ変更
@@ -76,15 +75,15 @@ export class StateSystem {
         const attackerGameState = this.world.getComponent(attackerId, GameState);
         const attackerGauge = this.world.getComponent(attackerId, Gauge);
         const attackerAction = this.world.getComponent(attackerId, Action);
-        const attackerAttack = this.world.getComponent(attackerId, Attack);
 
         attackerGameState.state = PlayerStateType.CHARGING;
         attackerGauge.value = 0;
+        // ★変更: Actionコンポーネントを完全にリセット
         attackerAction.partKey = null;
         attackerAction.type = null;
-        attackerAttack.target = null;
-        attackerAttack.partKey = null;
-        attackerAttack.damage = 0;
+        attackerAction.targetId = null;
+        attackerAction.targetPartKey = null;
+        attackerAction.damage = 0;
 
         // 3. 戦闘履歴を更新
         this.updateBattleLogs(attackerId, targetId, targetPartKey);
