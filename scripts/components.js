@@ -47,6 +47,7 @@ export class DOMReference {
             this.homeMarkerElement = null; // ホームポジションのマーカー要素
             this.infoPanel = null;
             this.partDOMElements = {};
+            this.targetIndicatorElement = null; // ターゲット表示用アニメーション要素
         }
 }
 

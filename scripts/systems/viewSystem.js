@@ -2,7 +2,7 @@
 
 import { CONFIG } from '../config.js';
 import { GameEvents } from '../events.js';
-import { PlayerInfo, GameContext } from '../components.js';
+import * as Components from '../components.js';
 import { TeamID, GamePhaseType, ModalType } from '../constants.js';
 
 /**
@@ -13,7 +13,7 @@ import { TeamID, GamePhaseType, ModalType } from '../constants.js';
 export class ViewSystem {
     constructor(world) {
         this.world = world;
-        this.context = this.world.getSingletonComponent(GameContext);
+        this.context = this.world.getSingletonComponent(Components.GameContext);
 
         this.confirmActionEntityId = null;
 
@@ -37,6 +37,7 @@ export class ViewSystem {
         this.initializeModalConfigs();
         this.bindWorldEvents();
         this.bindDOMEvents();
+        this.injectAnimationStyles();
     }
 
     // ★追加: クリーンアップメソッド
@@ -51,6 +52,58 @@ export class ViewSystem {
         if (this.handlers.modalConfirm) {
             this.dom.modalConfirmButton.removeEventListener('click', this.handlers.modalConfirm);
         }
+        // 動的に追加したスタイルシートを削除
+        if (this.animationStyleElement) {
+            document.head.removeChild(this.animationStyleElement);
+            this.animationStyleElement = null;
+        }
+    }
+
+    /**
+     * ターゲット表示用アニメーションのCSSを動的に<head>へ注入します。
+     * resetGame時に重複して注入されるのを防ぎます。
+     */
+    injectAnimationStyles() {
+        const styleId = 'gemini-animation-styles';
+        if (document.getElementById(styleId)) return;
+
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            .target-indicator {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 40px;
+                height: 40px;
+                border: 3px solid cyan;
+                border-radius: 50%;
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 0;
+                pointer-events: none; /* クリックイベントを透過させる */
+                transition: opacity 0.2s ease-in-out;
+            }
+            .target-indicator.active {
+                opacity: 1;
+                animation: pulse 1.5s infinite ease-in-out;
+            }
+            @keyframes pulse {
+                0% {
+                    transform: translate(-50%, -50%) scale(0.9);
+                    opacity: 0.7;
+                }
+                70% {
+                    transform: translate(-50%, -50%) scale(1.5);
+                    opacity: 0;
+                }
+                100% {
+                    transform: translate(-50%, -50%) scale(0.9);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+        this.animationStyleElement = style; // クリーンアップ用に参照を保持
     }
 
     // モーダルの設定を初期化する
@@ -79,11 +132,33 @@ export class ViewSystem {
                     `<button id="modalBtnPart${index}" class="part-action-button">${btn.text}</button>`
                 ).join(''),
                 setupEvents: (container, data) => {
+                    // 事前計算されたターゲットのDOM参照を取得
+                    const targetDomRef = data.targetId !== null ? this.world.getComponent(data.targetId, Components.DOMReference) : null;
+
                     data.buttons.forEach((btn, index) => {
-                        container.querySelector(`#modalBtnPart${index}`).onclick = () => {
-                            this.world.emit(GameEvents.PART_SELECTED, { entityId: data.entityId, partKey: btn.partKey });
+                        const buttonEl = container.querySelector(`#modalBtnPart${index}`);
+                        if (!buttonEl) return;
+
+                        // クリック時に、事前に計算したターゲット情報も一緒にイベント発行する
+                        buttonEl.onclick = () => {
+                            this.world.emit(GameEvents.PART_SELECTED, { 
+                                entityId: data.entityId, 
+                                partKey: btn.partKey,
+                                targetId: data.targetId,
+                                targetPartKey: data.targetPartKey
+                            });
                             this.hideModal();
                         };
+
+                        // ホバー時にターゲットのインジケーターをアニメーションさせる
+                        if (targetDomRef && targetDomRef.targetIndicatorElement) {
+                            buttonEl.onmouseover = () => {
+                                targetDomRef.targetIndicatorElement.classList.add('active');
+                            };
+                            buttonEl.onmouseout = () => {
+                                targetDomRef.targetIndicatorElement.classList.remove('active');
+                            };
+                        }
                     });
                 }
             },
@@ -202,6 +277,12 @@ export class ViewSystem {
     hideModal() {
         this.context.isPausedByModal = false;
         this.confirmActionEntityId = null;
+
+        // 表示されている可能性のあるインジケーターを非表示にする
+        const activeIndicator = document.querySelector('.target-indicator.active');
+        if (activeIndicator) {
+            activeIndicator.classList.remove('active');
+        }
 
         this.dom.modal.classList.add('hidden');
     }

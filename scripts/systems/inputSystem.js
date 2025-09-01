@@ -31,6 +31,9 @@ export class InputSystem {
         // 攻撃可能なパーツを取得
         const availableParts = getAttackableParts(this.world, entityId);
         
+        // ターゲットを事前に決定
+        const target = determineTarget(this.world, entityId);
+
         // UIシステムにモーダル表示を要求
         const modalData = {
             entityId: entityId,
@@ -39,7 +42,10 @@ export class InputSystem {
             buttons: availableParts.map(([partKey, part]) => ({
                 text: `${part.name} (${part.action})`,
                 partKey: partKey
-            }))
+            })),
+            // 決定したターゲット情報をモーダルデータに含める
+            targetId: target ? target.targetId : null,
+            targetPartKey: target ? target.targetPartKey : null
         };
         this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.SELECTION, data: modalData });
     }
@@ -50,18 +56,16 @@ export class InputSystem {
      * @param {object} detail - イベントの詳細 ({ entityId, partKey })
      */
     onPartSelected(detail) {
-        const { entityId, partKey } = detail;
+        // ViewSystemから渡された、事前に決定済みのターゲット情報を含む詳細を受け取る
+        const { entityId, partKey, targetId, targetPartKey } = detail;
 
-        // 1. ターゲットを決定 (battleUtilsの汎用関数を利用)
-        const target = determineTarget(this.world, entityId);
-        if (!target) {
-            // ターゲットが見つからない場合は行動をスキップ
+        // ターゲットが見つからない場合は行動をスキップ
+        if (!targetId) {
             this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey: null, targetId: null, targetPartKey: null });
             return;
         }
-        const { targetId, targetPartKey } = target;
 
-        // 2. 決定した完全な行動内容をStateSystemに通知する
+        // 決定した完全な行動内容をStateSystemに通知する
         this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey, targetId, targetPartKey });
     }
 

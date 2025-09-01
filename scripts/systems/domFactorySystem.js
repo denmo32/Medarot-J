@@ -84,6 +84,12 @@ export class DomFactorySystem {
         domRef.iconElement = icon;
         this.battlefield.appendChild(icon);
 
+        // ターゲット表示用インジケーターをアイコンの子要素として生成
+        const indicator = document.createElement('div');
+        indicator.className = 'target-indicator';
+        domRef.targetIndicatorElement = indicator;
+        icon.appendChild(indicator);
+
         // --- 2. プレイヤー情報パネルをテンプレートから生成 ---
         const templateClone = this.playerInfoTemplate.content.cloneNode(true);
         const infoPanel = templateClone.querySelector('.player-info');

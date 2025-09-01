@@ -36,8 +36,6 @@ export class RenderSystem {
         domRef.iconElement.style.transform = 'translate(-50%, -50%)';
 
         // 状態に応じたCSSクラスの切り替え
-        const isReadyForSelection = gameState.state === PlayerStateType.READY_SELECT || gameState.state === PlayerStateType.COOLDOWN_COMPLETE;
-        domRef.iconElement.classList.toggle('ready-select', isReadyForSelection);
         domRef.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
         domRef.iconElement.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
     }
