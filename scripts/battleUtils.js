@@ -158,11 +158,16 @@ const targetingStrategies = {
  * @returns {{targetId: number, targetPartKey: string} | null}
  */
 function selectRandomPart(world, entityId) {
-    // ★変更: getAttackableParts を使用するように統一
-    const attackableParts = getAttackableParts(world, entityId);
-    if (attackableParts.length > 0) {
-        // getAttackablePartsは [[key, part], ...] の形式で返すため、[0]でキーを取得
-        const partKey = attackableParts[Math.floor(Math.random() * attackableParts.length)][0];
+    // ★変更: 脚部もターゲットに含めるため、getAttackablePartsの使用をやめ、全パーツを対象にする
+    if (entityId === null || entityId === undefined) return null;
+    const parts = world.getComponent(entityId, Parts);
+    if (!parts) return null;
+
+    // 破壊されていない全てのパーツキーを取得する
+    const hittablePartKeys = Object.keys(parts).filter(key => !parts[key].isBroken);
+
+    if (hittablePartKeys.length > 0) {
+        const partKey = hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
         return { targetId: entityId, targetPartKey: partKey };
     }
     return null; // 攻撃可能なパーツがない
