@@ -68,7 +68,7 @@ export class ActionSystem {
         // Actionコンポーネントに保存された情報に基づき、ダメージを計算します。
         const damage = calculateDamage(this.world, executor, action.targetId, action);
 
-        // --- ★修正: 防御判定とメッセージ生成 ---
+        // --- ★修正: 回避・防御判定とメッセージ生成 ---
         let message = '';
         const targetParts = this.world.getComponent(action.targetId, Parts);
         const attackerInfo = this.world.getComponent(executor, PlayerInfo);
@@ -76,28 +76,37 @@ export class ActionSystem {
         
         let defenseSuccess = false;
         let finalTargetPartKey = action.targetPartKey; // 元のターゲットを保持
+        let finalDamage = damage; // 最終的なダメージを保持する変数
 
-        // 50%の確率で防御を試みる
-        if (Math.random() < 0.5) {
-            const defensePartKey = findBestDefensePart(this.world, action.targetId);
-            if (defensePartKey) {
-                defenseSuccess = true;
-                finalTargetPartKey = defensePartKey; // 最終的なターゲットを更新
+        // 25%の確率で回避を試みる
+        if (Math.random() < 0.25) {
+            // 回避成功
+            finalDamage = 0;
+            message = `${attackerInfo.name}の${action.type}！ ${targetInfo.name}は攻撃を回避！`;
+        } else {
+            // 回避失敗 -> 防御判定へ
+            // 50%の確率で防御を試みる
+            if (Math.random() < 0.5) {
+                const defensePartKey = findBestDefensePart(this.world, action.targetId);
+                if (defensePartKey) {
+                    defenseSuccess = true;
+                    finalTargetPartKey = defensePartKey; // 最終的なターゲットを更新
+                }
+            }
+    
+            const finalTargetPartName = targetParts[finalTargetPartKey].name;
+    
+            // メッセージを条件分岐で生成
+            if (defenseSuccess) {
+                message = `${attackerInfo.name}の${action.type}！ ${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
+            } else {
+                message = `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
             }
         }
 
-        // 最終的なターゲット情報をActionコンポーネントに保存
+        // 最終的なターゲットとダメージ情報をActionコンポーネントに保存
         action.targetPartKey = finalTargetPartKey;
-        action.damage = damage;
-        
-        const finalTargetPartName = targetParts[finalTargetPartKey].name;
-
-        // メッセージを条件分岐で生成
-        if (defenseSuccess) {
-            message = `${attackerInfo.name}の${action.type}！ ${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${damage}ダメージ！`;
-        } else {
-            message = `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${finalTargetPartName}に${damage}ダメージ！`;
-        }
+        action.damage = finalDamage;
 
         // --- 攻撃実行モーダルの表示要求 ---
         this.world.emit(GameEvents.SHOW_MODAL, {
