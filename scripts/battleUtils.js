@@ -254,3 +254,24 @@ export function isValidTarget(world, targetId, partKey = null) {
     }
     return true;
 }
+
+/**
+ * ★新規: 防御に最適なパーツ（頭部以外で最もHPが高い）を見つけます。
+ * @param {World} world
+ * @param {number} entityId - 防御側のエンティティID
+ * @returns {string | null} - 最適な防御パーツのキー、またはnull
+ */
+export function findBestDefensePart(world, entityId) {
+    const parts = world.getComponent(entityId, Parts);
+    if (!parts) return null;
+
+    const defendableParts = Object.entries(parts)
+        .filter(([key, part]) => key !== PartType.HEAD && !part.isBroken);
+
+    if (defendableParts.length === 0) return null;
+
+    // HPで降順ソートして、最もHPが高いパーツを返す
+    defendableParts.sort(([, a], [, b]) => b.hp - a.hp);
+    
+    return defendableParts[0][0]; // [key, part] の key を返す
+}

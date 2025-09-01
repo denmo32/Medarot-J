@@ -7,13 +7,12 @@ import { GameState, PlayerInfo, Parts, Action, GameContext, Medal, BattleLog } f
 // ★変更: ModalTypeを追加でインポート
 import { PlayerStateType, PartType, TeamID, MedalPersonality, ModalType } from '../constants.js';
 // ★変更: 汎用的なcalculateDamageとdetermineTargetをインポート
-import { calculateDamage } from '../battleUtils.js';
+import { calculateDamage, findBestDefensePart } from '../battleUtils.js';
 
 export class ActionSystem {
     constructor(world) {
         this.world = world;
-        // ★変更: GameContextへの参照を削除。isPaused()がなくなったため不要。
-        // this.context = this.world.getSingletonComponent(GameContext);
+        this.context = this.world.getSingletonComponent(GameContext);
 
         this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
     }
@@ -50,8 +49,8 @@ export class ActionSystem {
     }
 
     update(deltaTime) {
-        // ★変更: isPaused()のチェックを削除。システムは自身の責務に集中し、
-        // ゲーム全体の進行管理はGameFlowSystemとStateSystemに委ねる。
+        // モーダル表示中は処理を中断
+        if (this.context.isPausedByModal) return;
 
         const executor = this.world.getEntitiesWith(GameState)
             .find(id => this.world.getComponent(id, GameState).state === PlayerStateType.READY_EXECUTE);
@@ -68,18 +67,45 @@ export class ActionSystem {
         // --- ダメージ計算 ---
         // Actionコンポーネントに保存された情報に基づき、ダメージを計算します。
         const damage = calculateDamage(this.world, executor, action.targetId, action);
-        action.damage = damage;
 
-        // --- 攻撃実行モーダルの表示要求 ---
+        // --- ★修正: 防御判定とメッセージ生成 ---
+        let message = '';
+        const targetParts = this.world.getComponent(action.targetId, Parts);
         const attackerInfo = this.world.getComponent(executor, PlayerInfo);
         const targetInfo = this.world.getComponent(action.targetId, PlayerInfo);
-        const targetParts = this.world.getComponent(action.targetId, Parts);
+        
+        let defenseSuccess = false;
+        let finalTargetPartKey = action.targetPartKey; // 元のターゲットを保持
+
+        // 50%の確率で防御を試みる
+        if (Math.random() < 0.5) {
+            const defensePartKey = findBestDefensePart(this.world, action.targetId);
+            if (defensePartKey) {
+                defenseSuccess = true;
+                finalTargetPartKey = defensePartKey; // 最終的なターゲットを更新
+            }
+        }
+
+        // 最終的なターゲット情報をActionコンポーネントに保存
+        action.targetPartKey = finalTargetPartKey;
+        action.damage = damage;
+        
+        const finalTargetPartName = targetParts[finalTargetPartKey].name;
+
+        // メッセージを条件分岐で生成
+        if (defenseSuccess) {
+            message = `${attackerInfo.name}の${action.type}！ ${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${damage}ダメージ！`;
+        } else {
+            message = `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${finalTargetPartName}に${damage}ダメージ！`;
+        }
+
+        // --- 攻撃実行モーダルの表示要求 ---
         this.world.emit(GameEvents.SHOW_MODAL, {
             // ★変更: マジックストリングを定数に変更
             type: ModalType.EXECUTION,
             data: {
                 entityId: executor,
-                message: `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${targetParts[action.targetPartKey].name}に${damage}ダメージ！`
+                message: message
             }
         });
     }
