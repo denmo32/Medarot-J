@@ -33,7 +33,7 @@ export class Parts {
     constructor() {
         const hp = CONFIG.PART_HP_BASE;
         const legsHp = hp + CONFIG.LEGS_HP_BONUS;
-        this.head = { name: '頭部', hp, maxHp: hp, action: 'スキャン', power: 10, isBroken: false };
+        this.head = { name: '頭部', hp, maxHp: hp, action: '射撃', power: 10, isBroken: false };
         this.rightArm = { name: '右腕', hp, maxHp: hp, action: '射撃', power: 20, isBroken: false };
         this.leftArm = { name: '左腕', hp, maxHp: hp, action: '格闘', power: 25, isBroken: false };
         this.legs = { name: '脚部', hp: legsHp, maxHp: legsHp, action: '移動', power: 0, isBroken: false };
