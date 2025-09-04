@@ -37,7 +37,7 @@ export class InputSystem {
         // UIシステムにパネル表示を要求
         const panelData = {
             entityId: entityId,
-            title: '行動選択', // 中央のタイトル
+                        title: '', // ★変更: ユーザーの指示によりタイトルを削除
             ownerName: playerInfo.name, // ★新規: 左上に表示する名前
             buttons: allActionParts.map(([partKey, part]) => ({
                 text: `${part.name} (${part.action})`,

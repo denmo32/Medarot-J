@@ -136,24 +136,44 @@ export class ViewSystem {
             },
             [ModalType.SELECTION]: {
                 title: (data) => data.title,
-                // ★変更: actorNameは左上のownerNameに置き換わるため、ここでは空にする
                 actorName: '', 
-                // ★変更: isBrokenフラグを見て、ボタンにdisabled属性を追加する
-                contentHTML: (data) => data.buttons.map((btn, index) => 
-                    `<button id="panelBtnPart${index}" class="part-action-button" ${btn.isBroken ? 'disabled' : ''}>${btn.text}</button>`
-                ).join(''),
+                // ★変更: 三角レイアウトのHTMLを生成する
+                contentHTML: (data) => {
+                    const buttons = data.buttons;
+                    const headBtn = buttons.find(b => b.partKey === 'head');
+                    const rArmBtn = buttons.find(b => b.partKey === 'rightArm');
+                    const lArmBtn = buttons.find(b => b.partKey === 'leftArm');
+
+                    // ボタンをレンダリングするヘルパー関数
+                    const renderButton = (btn) => {
+                        if (!btn) return '<div style="width: 100px; height: 35px;"></div>'; // レイアウト維持のためのプレースホルダー
+                        // IDにpartKeyを使い、ユニークで特定可能にする
+                        return `<button id="panelBtn-${btn.partKey}" class="part-action-button" ${btn.isBroken ? 'disabled' : ''}>${btn.text}</button>`;
+                    };
+
+                    // 三角レイアウトのHTMLを返す
+                    return `
+                        <div class="triangle-layout">
+                            <div class="top-row">
+                                ${renderButton(headBtn)}
+                            </div>
+                            <div class="bottom-row">
+                                ${renderButton(rArmBtn)}
+                                ${renderButton(lArmBtn)}
+                            </div>
+                        </div>
+                    `;
+                },
+                // ★変更: イベントリスナーの設定を新しいボタンIDに対応させる
                 setupEvents: (container, data) => {
-                    // 事前計算されたターゲットのDOM参照を取得
                     const targetDomRef = data.targetId !== null ? this.world.getComponent(data.targetId, Components.DOMReference) : null;
 
-                    data.buttons.forEach((btn, index) => {
-                        const buttonEl = container.querySelector(`#panelBtnPart${index}`);
+                    data.buttons.forEach(btn => {
+                        if (btn.isBroken) return; // 破壊されたパーツにはリスナーを登録しない
+
+                        const buttonEl = container.querySelector(`#panelBtn-${btn.partKey}`);
                         if (!buttonEl) return;
 
-                        // ★変更: 破壊されたパーツのボタンにはイベントリスナーを登録しない
-                        if (btn.isBroken) return;
-
-                        // クリック時に、事前に計算したターゲット情報も一緒にイベント発行する
                         buttonEl.onclick = () => {
                             this.world.emit(GameEvents.PART_SELECTED, { 
                                 entityId: data.entityId, 
@@ -164,7 +184,6 @@ export class ViewSystem {
                             this.hideActionPanel();
                         };
 
-                        // ホバー時にターゲットのインジケーターをアニメーションさせる
                         if (targetDomRef && targetDomRef.targetIndicatorElement) {
                             buttonEl.onmouseover = () => {
                                 targetDomRef.targetIndicatorElement.classList.add('active');

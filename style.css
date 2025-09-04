@@ -167,13 +167,13 @@ body {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start; /* ★変更: 上揃えに変更 */
             overflow-y: auto; /* 内容が多い場合はスクロールバーを表示 */
         }
         .action-panel-title {
             font-size: 1.5em; /* モーダルより少し小さく調整 */
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 5px; /* ★変更: マージンを縮小 */
         }
         .action-panel-actor {
             font-size: 1.1em; /* モーダルより少し小さく調整 */
@@ -195,7 +195,7 @@ body {
         }
 
         /* 汎用パーツアクションボタンのスタイル (モーダルから流用) */
-        .part-action-button { background: #4299e1; color: white; padding: 8px 15px; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background-color 0.2s ease; border:none; }
+        .part-action-button { background: #4299e1; color: white; padding: 4px 15px; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background-color 0.2s ease; border:none; } /* ★変更: 上下パディングを縮小 */
         .part-action-button:hover:not(:disabled) { background: #3182ce; }
         .part-action-button:disabled { background: #718096; cursor: not-allowed; opacity: 0.6; }
         
@@ -203,7 +203,22 @@ body {
         .hidden { display: none !important; }
         
         /* ボタン */
-        .buttons-center { display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap; } /* ★新規: flex-wrapを追加してボタンの折り返しを許可 */
+        .buttons-center { display: flex; justify-content: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; } /* ★変更: マージンを縮小 */
         button { background-color: #4299e1; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; transition: background-color 0.3s; }
         button:hover { background-color: #3182ce; }
         button:disabled { background-color: #a0aec0; cursor: not-allowed; }
+
+/* ★新規: ボタンの三角配置用スタイル */
+.triangle-layout {
+    width: 100%;
+    max-width: 250px; /* レイアウトの最大幅を制限 */
+    margin: 0 auto;
+}
+.top-row, .bottom-row {
+    display: flex;
+    justify-content: center;
+}
+.bottom-row {
+    justify-content: space-between; /* 両端に寄せる */
+    margin-top: 5px; /* ★変更: マージンを縮小 */
+}
