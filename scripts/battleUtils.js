@@ -275,3 +275,23 @@ export function findBestDefensePart(world, entityId) {
     
     return defendableParts[0][0]; // [key, part] の key を返す
 }
+
+/**
+ * ★新規: 指定されたエンティティの、破壊状態に関わらず全ての「攻撃用」パーツのリストを取得します。
+ * 行動選択UIで、破壊されたパーツを無効状態で表示するために使用します。
+ * @param {World} world - ワールドオブジェクト
+ * @param {number} entityId - エンティティID
+ * @returns {[string, object][]} - [パーツキー, パーツオブジェクト]の配列
+ */
+export function getAllActionParts(world, entityId) {
+    // ★追加: ターゲットが存在しない場合に空配列を返すガード節
+    if (entityId === null || entityId === undefined) return [];
+    const parts = world.getComponent(entityId, Parts);
+    if (!parts) return [];
+
+    // 攻撃に使用できるパーツ種別
+    const attackablePartTypes = [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM];
+
+    return Object.entries(parts)
+        .filter(([key, part]) => attackablePartTypes.includes(key));
+}

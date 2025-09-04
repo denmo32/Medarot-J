@@ -148,7 +148,16 @@ body {
             padding: 15px; /* パディングを少し調整 */
             box-sizing: border-box;
             transition: opacity 0.3s ease;
-            /* ★変更: flexbox関連のプロパティを削除 */
+            position: relative; /* ★新規: 子要素の絶対配置のため */
+        }
+        /* ★新規: アクションパネル左上の所有者表示 */
+        .action-panel-owner {
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #a0aec0; /* 少し薄い色に */
         }
         .action-panel-content {
             width: 100%;

@@ -21,6 +21,7 @@ export class ViewSystem {
         this.dom = {
             gameStartButton: document.getElementById('gameStartButton'),
             actionPanel: document.getElementById('action-panel'),
+            actionPanelOwner: document.getElementById('action-panel-owner'), // ★新規: owner要素への参照を追加
             actionPanelTitle: document.getElementById('action-panel-title'),
             actionPanelActor: document.getElementById('action-panel-actor'),
             actionPanelButtons: document.getElementById('action-panel-buttons'),
@@ -135,9 +136,11 @@ export class ViewSystem {
             },
             [ModalType.SELECTION]: {
                 title: (data) => data.title,
-                actorName: (data) => data.actorName,
+                // ★変更: actorNameは左上のownerNameに置き換わるため、ここでは空にする
+                actorName: '', 
+                // ★変更: isBrokenフラグを見て、ボタンにdisabled属性を追加する
                 contentHTML: (data) => data.buttons.map((btn, index) => 
-                    `<button id="panelBtnPart${index}" class="part-action-button">${btn.text}</button>`
+                    `<button id="panelBtnPart${index}" class="part-action-button" ${btn.isBroken ? 'disabled' : ''}>${btn.text}</button>`
                 ).join(''),
                 setupEvents: (container, data) => {
                     // 事前計算されたターゲットのDOM参照を取得
@@ -146,6 +149,9 @@ export class ViewSystem {
                     data.buttons.forEach((btn, index) => {
                         const buttonEl = container.querySelector(`#panelBtnPart${index}`);
                         if (!buttonEl) return;
+
+                        // ★変更: 破壊されたパーツのボタンにはイベントリスナーを登録しない
+                        if (btn.isBroken) return;
 
                         // クリック時に、事前に計算したターゲット情報も一緒にイベント発行する
                         buttonEl.onclick = () => {
@@ -262,6 +268,11 @@ export class ViewSystem {
             this.confirmActionEntityId = data.entityId;
         }
 
+        // ★変更: ownerNameをSELECTIONの場合のみ設定
+        if (type === ModalType.SELECTION) {
+            this.dom.actionPanelOwner.textContent = data.ownerName || '';
+        }
+
         // ★変更: DOM参照をアクションパネルのものに更新
         const { actionPanelTitle, actionPanelActor, actionPanelButtons, actionPanelConfirmButton, actionPanelBattleStartButton } = this.dom;
 
@@ -302,6 +313,7 @@ export class ViewSystem {
         }
 
         // ★変更: actionPanelを非表示にする代わりに、内容をクリアする
+        this.dom.actionPanelOwner.textContent = ''; // ★新規: ownerもクリア
         this.dom.actionPanelTitle.textContent = '';
         this.dom.actionPanelActor.textContent = '待機中...'; // デフォルトメッセージ
         this.dom.actionPanelButtons.innerHTML = '';
