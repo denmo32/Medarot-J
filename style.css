@@ -138,20 +138,63 @@ body {
         .part-hp-bar { height: 100%; transition: width 0.3s ease; }
         .part-hp.broken .part-name { text-decoration: line-through; color: #a0aec0; }
 
-        /* モーダル */
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .modal-content { background: #2d3748; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 300px; }
-        .modal-title { font-size: 1.8em; font-weight: bold; margin-bottom: 15px; }
-        .modal-actor { font-size: 1.2em; margin-bottom: 25px; }
-        .modal-button { background: #68d391; color: #1a202c; padding: 12px 25px; border-radius: 8px; font-size: 1.1em; cursor: pointer; transition: background-color 0.2s; border:none; }
-        .modal-button:hover { background: #48bb78; }
+        /* ★新規: アクションパネル */
+        .action-panel {
+            width: 100%;
+            height: 160px; /* パネルの高さを固定 */
+            background-color: #4a5568;
+            border-radius: 8px;
+            margin-top: 20px; /* 上の要素とのマージン */
+            padding: 15px; /* パディングを少し調整 */
+            box-sizing: border-box;
+            transition: opacity 0.3s ease;
+            /* ★変更: flexbox関連のプロパティを削除 */
+        }
+        .action-panel-content {
+            width: 100%;
+            height: 100%; /* 親要素の高さ全体を使う */
+            text-align: center;
+            /* ★新規: flexboxで内部要素を中央揃えにし、はみ出しを防ぐ */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto; /* 内容が多い場合はスクロールバーを表示 */
+        }
+        .action-panel-title {
+            font-size: 1.5em; /* モーダルより少し小さく調整 */
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .action-panel-actor {
+            font-size: 1.1em; /* モーダルより少し小さく調整 */
+            margin-bottom: 15px;
+            min-height: 1.2em; /* メッセージがない時も高さを保つ */
+        }
+        .action-panel-button {
+            background: #68d391;
+            color: #1a202c;
+            padding: 10px 20px; /* 少し小さく調整 */
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border: none;
+        }
+        .action-panel-button:hover {
+            background: #48bb78;
+        }
+
+        /* 汎用パーツアクションボタンのスタイル (モーダルから流用) */
         .part-action-button { background: #4299e1; color: white; padding: 8px 15px; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background-color 0.2s ease; border:none; }
         .part-action-button:hover:not(:disabled) { background: #3182ce; }
         .part-action-button:disabled { background: #718096; cursor: not-allowed; opacity: 0.6; }
+        
+        /* 汎用hiddenクラス */
         .hidden { display: none !important; }
         
         /* ボタン */
-        .buttons-center { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+        .buttons-center { display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap; } /* ★新規: flex-wrapを追加してボタンの折り返しを許可 */
         button { background-color: #4299e1; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; transition: background-color 0.3s; }
         button:hover { background-color: #3182ce; }
         button:disabled { background-color: #a0aec0; cursor: not-allowed; }

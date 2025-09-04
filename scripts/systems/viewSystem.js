@@ -7,7 +7,7 @@ import { TeamID, GamePhaseType, ModalType } from '../constants.js';
 
 /**
  * ★クラス名変更: UiSystem -> ViewSystem
- * ユーザーインタラクション（モーダル表示、ボタンイベントなど）とUIの状態管理に責務を特化させたシステム。
+ * ユーザーインタラクション（アクションパネル表示、ボタンイベントなど）とUIの状態管理に責務を特化させたシステム。
  * DOM要素の生成はDomFactorySystemに分離されました。
  */
 export class ViewSystem {
@@ -17,40 +17,47 @@ export class ViewSystem {
 
         this.confirmActionEntityId = null;
 
+        // ★変更: DOM参照を新しいアクションパネルの要素に更新
         this.dom = {
             gameStartButton: document.getElementById('gameStartButton'),
-            modal: document.getElementById('actionModal'),
-            modalTitle: document.getElementById('modalTitle'),
-            modalActorName: document.getElementById('modalActorName'),
-            partSelectionContainer: document.getElementById('partSelectionContainer'),
-            modalConfirmButton: document.getElementById('modalConfirmButton'),
-            battleStartConfirmButton: document.getElementById('battleStartConfirmButton')
+            actionPanel: document.getElementById('action-panel'),
+            actionPanelTitle: document.getElementById('action-panel-title'),
+            actionPanelActor: document.getElementById('action-panel-actor'),
+            actionPanelButtons: document.getElementById('action-panel-buttons'),
+            actionPanelConfirmButton: document.getElementById('action-panel-confirm-button'),
+            actionPanelBattleStartButton: document.getElementById('action-panel-battle-start-button')
         };
 
-        // --- ★追加: イベントハンドラを保持するプロパティ ---
+        // --- ★変更: イベントハンドラを保持するプロパティ (モーダルからパネル用に変更) ---
         this.handlers = {
             gameStart: null,
             battleStart: null,
-            modalConfirm: null
+            panelConfirm: null // modalConfirm -> panelConfirm
         };
 
-        this.initializeModalConfigs();
+        // ★変更: 設定初期化メソッド名を変更
+        this.initializePanelConfigs();
         this.bindWorldEvents();
         this.bindDOMEvents();
         this.injectAnimationStyles();
+
+        // ★新規: 初期化時にアクションパネルを常に表示状態にする
+        this.dom.actionPanel.classList.remove('hidden');
+        // ★新規: 初期状態ではパネルの内容をクリアしておく
+        this.hideActionPanel();
     }
 
-    // ★追加: クリーンアップメソッド
+    // ★変更: クリーンアップメソッドを新しいDOM構造とハンドラに適応
     destroy() {
         // 登録したDOMイベントリスナーを削除
         if (this.handlers.gameStart) {
             this.dom.gameStartButton.removeEventListener('click', this.handlers.gameStart);
         }
         if (this.handlers.battleStart) {
-            this.dom.battleStartConfirmButton.removeEventListener('click', this.handlers.battleStart);
+            this.dom.actionPanelBattleStartButton.removeEventListener('click', this.handlers.battleStart);
         }
-        if (this.handlers.modalConfirm) {
-            this.dom.modalConfirmButton.removeEventListener('click', this.handlers.modalConfirm);
+        if (this.handlers.panelConfirm) {
+            this.dom.actionPanelConfirmButton.removeEventListener('click', this.handlers.panelConfirm);
         }
         // 動的に追加したスタイルシートを削除
         if (this.animationStyleElement) {
@@ -106,37 +113,38 @@ export class ViewSystem {
         this.animationStyleElement = style; // クリーンアップ用に参照を保持
     }
 
-    // モーダルの設定を初期化する
-    initializeModalConfigs() {
-        this.modalConfigs = {
+    // ★変更: アクションパネルの設定を初期化する (旧initializeModalConfigs)
+    initializePanelConfigs() {
+        // ★変更: プロパティ名を modalConfigs から panelConfigs に変更
+        this.panelConfigs = {
             [ModalType.START_CONFIRM]: {
-                title: 'ロボトル開始',
-                actorName: 'シミュレーションを開始しますか？',
+                title: '', // ★変更: ユーザーの指示によりタイトルを削除
+                actorName: 'ロボトルを開始しますか？', // ★変更: メッセージを修正
                 contentHTML: `
                     <div class="buttons-center">
-                        <button id="modalBtnYes" class="modal-button">はい</button>
-                        <button id="modalBtnNo" class="modal-button bg-red-500 hover:bg-red-600">いいえ</button>
-                    </div>`,
+                        <button id="panelBtnYes" class="action-panel-button">OK</button>
+                        <button id="panelBtnNo" class="action-panel-button bg-red-500 hover:bg-red-600">キャンセル</button>
+                    </div>`, // ★変更: ボタンのテキストを修正
                 setupEvents: (container) => {
-                    container.querySelector('#modalBtnYes').onclick = () => {
+                    container.querySelector('#panelBtnYes').onclick = () => {
                         this.world.emit(GameEvents.GAME_START_CONFIRMED);
-                        this.hideModal();
+                        this.hideActionPanel();
                     };
-                    container.querySelector('#modalBtnNo').onclick = () => this.hideModal();
+                    container.querySelector('#panelBtnNo').onclick = () => this.hideActionPanel();
                 }
             },
             [ModalType.SELECTION]: {
                 title: (data) => data.title,
                 actorName: (data) => data.actorName,
                 contentHTML: (data) => data.buttons.map((btn, index) => 
-                    `<button id="modalBtnPart${index}" class="part-action-button">${btn.text}</button>`
+                    `<button id="panelBtnPart${index}" class="part-action-button">${btn.text}</button>`
                 ).join(''),
                 setupEvents: (container, data) => {
                     // 事前計算されたターゲットのDOM参照を取得
                     const targetDomRef = data.targetId !== null ? this.world.getComponent(data.targetId, Components.DOMReference) : null;
 
                     data.buttons.forEach((btn, index) => {
-                        const buttonEl = container.querySelector(`#modalBtnPart${index}`);
+                        const buttonEl = container.querySelector(`#panelBtnPart${index}`);
                         if (!buttonEl) return;
 
                         // クリック時に、事前に計算したターゲット情報も一緒にイベント発行する
@@ -147,7 +155,7 @@ export class ViewSystem {
                                 targetId: data.targetId,
                                 targetPartKey: data.targetPartKey
                             });
-                            this.hideModal();
+                            this.hideActionPanel();
                         };
 
                         // ホバー時にターゲットのインジケーターをアニメーションさせる
@@ -163,12 +171,13 @@ export class ViewSystem {
                 }
             },
             [ModalType.EXECUTION]: {
-                title: '攻撃実行！',
+                title: '', // ★変更: ユーザーの指示によりタイトルを削除
                 actorName: (data) => data.message,
                 confirmButton: { text: 'OK' }
             },
             [ModalType.BATTLE_START_CONFIRM]: {
-                title: '戦闘開始！',
+                title: '合意と見てよろしいですね！？', // ★変更: ユーザーの指示によりテキストを変更
+                actorName: '', // ★追加: actorNameを空にすることで、タイトルとボタンの間の余白を詰める
                 battleStartButton: true
             },
             [ModalType.GAME_OVER]: {
@@ -181,14 +190,15 @@ export class ViewSystem {
 
     // Worldからのイベントを購読する
     bindWorldEvents() {
-        this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showModal(detail.type, detail.data));
-        this.world.on(GameEvents.HIDE_MODAL, () => this.hideModal());
-        this.world.on(GameEvents.GAME_START_REQUESTED, () => this.showModal(ModalType.START_CONFIRM));
+        // ★変更: SHOW_MODAL/HIDE_MODALを新しいアクションパネル用のイベントに置き換え
+        this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showActionPanel(detail.type, detail.data));
+        this.world.on(GameEvents.HIDE_MODAL, () => this.hideActionPanel());
+        this.world.on(GameEvents.GAME_START_REQUESTED, () => this.showActionPanel(ModalType.START_CONFIRM));
         
-        // ★追加: ゲームリセット時にUIの状態（モーダルなど）をリセットする
+        // ★追加: ゲームリセット時にUIの状態（パネルなど）をリセットする
         this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
 
-        this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, () => this.hideModal());
+        this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, () => this.hideActionPanel());
     }
 
     // DOM要素のイベントリスナーを登録する
@@ -199,12 +209,14 @@ export class ViewSystem {
         };
         this.dom.gameStartButton.addEventListener('click', this.handlers.gameStart);
 
+        // ★変更: バトル開始ボタンの参照をアクションパネル内のものに更新
         this.handlers.battleStart = () => {
             this.world.emit(GameEvents.BATTLE_START_CONFIRMED);
         };
-        this.dom.battleStartConfirmButton.addEventListener('click', this.handlers.battleStart);
+        this.dom.actionPanelBattleStartButton.addEventListener('click', this.handlers.battleStart);
 
-        this.handlers.modalConfirm = () => {
+        // ★変更: 確認ボタンの参照とハンドラ名を更新
+        this.handlers.panelConfirm = () => {
             if (this.context.phase === GamePhaseType.GAME_OVER) {
                 this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
                 return;
@@ -214,7 +226,7 @@ export class ViewSystem {
                 this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: this.confirmActionEntityId });
             }
         };
-        this.dom.modalConfirmButton.addEventListener('click', this.handlers.modalConfirm);
+        this.dom.actionPanelConfirmButton.addEventListener('click', this.handlers.panelConfirm);
     }
 
     // ★削除: createPlayerDOMメソッドはDomFactorySystemに移管されました。
@@ -225,7 +237,7 @@ export class ViewSystem {
      */
     resetView() {
         this.dom.gameStartButton.style.display = "flex";
-        this.hideModal();
+        this.hideActionPanel();
     }
 
     update(deltaTime) {
@@ -233,48 +245,53 @@ export class ViewSystem {
         this.dom.gameStartButton.style.display = this.context.phase === GamePhaseType.IDLE ? "flex" : "none";
     }
 
-    // --- モーダル表示/非表示 ---
+    // --- ★変更: アクションパネル表示/非表示 (旧モーダル) ---
 
-    showModal(type, data) {
-        const config = this.modalConfigs[type];
+    showActionPanel(type, data) {
+        // ★変更: panelConfigs を参照
+        const config = this.panelConfigs[type];
         if (!config) {
-            this.hideModal();
+            this.hideActionPanel();
             return;
         }
 
+        // ★変更: isPausedByModal は isPausedByPanel のような意味で引き続き利用
         this.context.isPausedByModal = true;
         
         if (type === ModalType.EXECUTION) {
             this.confirmActionEntityId = data.entityId;
         }
 
-        const { modalTitle, modalActorName, partSelectionContainer, modalConfirmButton, battleStartConfirmButton } = this.dom;
+        // ★変更: DOM参照をアクションパネルのものに更新
+        const { actionPanelTitle, actionPanelActor, actionPanelButtons, actionPanelConfirmButton, actionPanelBattleStartButton } = this.dom;
 
         const getValue = (value) => typeof value === 'function' ? value(data) : value;
 
-        modalTitle.textContent = getValue(config.title) || '';
-        modalActorName.textContent = getValue(config.actorName) || '';
-        partSelectionContainer.innerHTML = getValue(config.contentHTML) || '';
+        actionPanelTitle.textContent = getValue(config.title) || '';
+        actionPanelActor.textContent = getValue(config.actorName) || '';
+        actionPanelButtons.innerHTML = getValue(config.contentHTML) || '';
         
-        modalConfirmButton.style.display = 'none';
-        battleStartConfirmButton.style.display = 'none';
+        actionPanelConfirmButton.style.display = 'none';
+        actionPanelBattleStartButton.style.display = 'none';
 
         if (config.setupEvents) {
-            config.setupEvents(partSelectionContainer, data);
+            // ★変更: ボタンコンテナとして actionPanelButtons を渡す
+            config.setupEvents(actionPanelButtons, data);
         }
 
         if (config.confirmButton) {
-            modalConfirmButton.textContent = getValue(config.confirmButton.text);
-            modalConfirmButton.style.display = 'inline-block';
+            actionPanelConfirmButton.textContent = getValue(config.confirmButton.text);
+            actionPanelConfirmButton.style.display = 'inline-block';
         }
         if (config.battleStartButton) {
-            battleStartConfirmButton.style.display = 'inline-block';
+            actionPanelBattleStartButton.style.display = 'inline-block';
         }
 
-        this.dom.modal.classList.remove('hidden');
+        // ★削除: パネルは常に表示されているため、hiddenクラスの操作は不要
     }
 
-    hideModal() {
+    hideActionPanel() {
+        // ★変更: isPausedByModal を解除
         this.context.isPausedByModal = false;
         this.confirmActionEntityId = null;
 
@@ -284,6 +301,11 @@ export class ViewSystem {
             activeIndicator.classList.remove('active');
         }
 
-        this.dom.modal.classList.add('hidden');
+        // ★変更: actionPanelを非表示にする代わりに、内容をクリアする
+        this.dom.actionPanelTitle.textContent = '';
+        this.dom.actionPanelActor.textContent = '待機中...'; // デフォルトメッセージ
+        this.dom.actionPanelButtons.innerHTML = '';
+        this.dom.actionPanelConfirmButton.style.display = 'none';
+        this.dom.actionPanelBattleStartButton.style.display = 'none';
     }
 }

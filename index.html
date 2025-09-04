@@ -29,6 +29,17 @@
             </div>
         </div>
 
+        <!-- ★新規: モーダルに代わる、新しいアクションパネル -->
+        <div id="action-panel" class="action-panel hidden">
+            <div id="action-panel-content" class="action-panel-content">
+                <h3 id="action-panel-title" class="action-panel-title"></h3>
+                <p id="action-panel-actor" class="action-panel-actor"></p>
+                <div id="action-panel-buttons" class="buttons-center gap-4 flex-col"></div>
+                <button id="action-panel-confirm-button" class="action-panel-button" style="display: none;"></button>
+                <button id="action-panel-battle-start-button" class="action-panel-button" style="display: none;">ロボトルファイト！</button>
+            </div>
+        </div>
+
         </div>
     </div>
 
@@ -38,16 +49,6 @@
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
         </svg>
     </button>
-
-    <div id="actionModal" class="modal hidden">
-        <div class="modal-content">
-            <h3 id="modalTitle" class="modal-title"></h3>
-            <p id="modalActorName" class="modal-actor"></p>
-            <div id="partSelectionContainer" class="buttons-center gap-4 flex-col"></div>
-            <button id="modalConfirmButton" class="modal-button" style="display: none;"></button>
-            <button id="battleStartConfirmButton" class="modal-button" style="display: none;">ロボトルファイト！</button>
-        </div>
-    </div>
     
     <!-- ★新規: プレイヤー情報パネルのテンプレート -->
     <template id="player-info-template">
