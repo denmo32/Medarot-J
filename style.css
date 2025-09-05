@@ -84,11 +84,7 @@ body {
         }
         
         /* プレイヤーアイコンの状態 */
-        .player-icon.ready-select,
-        .player-icon.ready-execute {
-            transform: translate(-50%, -50%) scale(1.2); /* 行動可能な時に少し大きく */
-            animation: pulse 1.5s infinite;
-        }
+        
         .player-icon.broken {
             background-color: #718096 !important;
             color: #a0aec0;
@@ -96,11 +92,7 @@ body {
             filter: grayscale(1);
         }
 
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
-        }
+        
 
         /* 情報表示エリア */
         .info-panels {
