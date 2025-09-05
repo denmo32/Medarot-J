@@ -82,30 +82,43 @@ export class ViewSystem {
                 position: absolute;
                 top: 50%;
                 left: 50%;
-                width: 40px;
-                height: 40px;
-                border: 3px solid cyan;
-                border-radius: 50%;
-                transform: translate(-50%, -50%) scale(1);
+                width: 70px; /* アイコンより広めのサイズに */
+                height: 70px;
+                transform: translate(-50%, -50%) scale(1); /* 初期スケールを追加 */
                 opacity: 0;
-                pointer-events: none; /* クリックイベントを透過させる */
+                pointer-events: none;
                 transition: opacity 0.2s ease-in-out;
             }
             .target-indicator.active {
                 opacity: 1;
-                animation: pulse 1.5s infinite ease-in-out;
+                /* 回転をなくし、新しい縮小アニメーションを適用 */
+                animation: radar-zoom-in 1.3s infinite ease-out;
             }
-            @keyframes pulse {
+            .corner {
+                position: absolute;
+                width: 15px; /* 矢印のサイズを少し大きく */
+                height: 15px;
+                border-color: cyan;
+                border-style: solid;
+            }
+
+            /* ↖ */
+            .corner-1 { top: 0; left: 0; border-width: 4px 0 0 4px; }
+            /* ↗ */
+            .corner-2 { top: 0; right: 0; border-width: 4px 4px 0 0; }
+            /* ↙ */
+            .corner-3 { bottom: 0; left: 0; border-width: 0 0 4px 4px; }
+            /* ↘ */
+            .corner-4 { bottom: 0; right: 0; border-width: 0 4px 4px 0; }
+
+            /* 新しい縮小アニメーション */
+            @keyframes radar-zoom-in {
                 0% {
-                    transform: translate(-50%, -50%) scale(0.9);
-                    opacity: 0.7;
+                    transform: translate(-50%, -50%) scale(1);
+                    opacity: 1;
                 }
-                70% {
-                    transform: translate(-50%, -50%) scale(1.5);
-                    opacity: 0;
-                }
-                100% {
-                    transform: translate(-50%, -50%) scale(0.9);
+                80%, 100% {
+                    transform: translate(-50%, -50%) scale(0.6);
                     opacity: 0;
                 }
             }

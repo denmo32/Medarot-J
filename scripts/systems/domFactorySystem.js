@@ -87,6 +87,12 @@ export class DomFactorySystem {
         // ターゲット表示用インジケーターをアイコンの子要素として生成
         const indicator = document.createElement('div');
         indicator.className = 'target-indicator';
+        // ★新規: レーダー風アニメーションのために4つの角要素を追加
+        for (let i = 0; i < 4; i++) {
+            const corner = document.createElement('div');
+            corner.className = `corner corner-${i + 1}`;
+            indicator.appendChild(corner);
+        }
         domRef.targetIndicatorElement = indicator;
         icon.appendChild(indicator);
 
