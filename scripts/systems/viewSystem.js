@@ -92,7 +92,7 @@ export class ViewSystem {
             .target-indicator.active {
                 opacity: 1;
                 /* 回転をなくし、新しい縮小アニメーションを適用 */
-                animation: radar-zoom-in 1.3s infinite ease-out;
+                animation: radar-zoom-in 0.8s infinite ease-out;
             }
             .corner {
                 position: absolute;

@@ -3,10 +3,11 @@
 import { Gauge, GameState, GameContext } from '../components.js';
 import { CONFIG } from '../config.js';
 import { PlayerStateType, GamePhaseType } from '../constants.js';
+import { BaseSystem } from './baseSystem.js';
 
-export class GaugeSystem {
+export class GaugeSystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
+        super(world);
         // GameContextへの参照を保持
         this.context = this.world.getSingletonComponent(GameContext);
     }

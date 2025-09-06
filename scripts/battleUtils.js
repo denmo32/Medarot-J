@@ -159,7 +159,7 @@ const targetingStrategies = {
  */
 function selectRandomPart(world, entityId) {
     // ★変更: 脚部もターゲットに含めるため、getAttackablePartsの使用をやめ、全パーツを対象にする
-    if (entityId === null || entityId === undefined) return null;
+    if (!world || entityId === null || entityId === undefined) return null;
     const parts = world.getComponent(entityId, Parts);
     if (!parts) return null;
 
@@ -213,24 +213,33 @@ export function getAllEnemyParts(world, enemyIds) {
  */
 
 /**
+ * 指定されたエンティティのパーツを取得します。
+ * フィルタリングオプションにより、攻撃用パーツのみ、または全てのパーツを取得可能。
+ * @param {World} world - ワールドオブジェクト
+ * @param {number} entityId - エンティティID
+ * @param {boolean} includeBroken - 破壊されたパーツも含めるか（デフォルト: false）
+ * @param {boolean} attackableOnly - 攻撃用パーツのみ取得するか（デフォルト: true）
+ * @returns {[string, object][]} - [パーツキー, パーツオブジェクト]の配列
+ */
+export function getParts(world, entityId, includeBroken = false, attackableOnly = true) {
+    if (!world || entityId === null || entityId === undefined) return [];
+    const parts = world.getComponent(entityId, Parts);
+    if (!parts) return [];
+
+    let partTypes = attackableOnly ? [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM] : Object.keys(parts);
+
+    return Object.entries(parts)
+        .filter(([key, part]) => partTypes.includes(key) && (includeBroken || !part.isBroken));
+}
+
+/**
  * 指定されたエンティティの、破壊されていない「攻撃用」パーツのリストを取得します。
- * DecisionSystemの重複コードを共通化するために作成されました。
- * ★変更: プロジェクト全体でこの関数に統一されました。
  * @param {World} world - ワールドオブジェクト
  * @param {number} entityId - エンティティID
  * @returns {[string, object][]} - [パーツキー, パーツオブジェクト]の配列
  */
 export function getAttackableParts(world, entityId) {
-    // ★追加: ターゲットが存在しない場合に空配列を返すガード節
-    if (entityId === null || entityId === undefined) return [];
-    const parts = world.getComponent(entityId, Parts);
-    if (!parts) return [];
-
-    // 攻撃に使用できるパーツ種別
-    const attackablePartTypes = [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM];
-
-    return Object.entries(parts)
-        .filter(([key, part]) => !part.isBroken && attackablePartTypes.includes(key));
+    return getParts(world, entityId, false, true);
 }
 
 /** 
@@ -277,21 +286,12 @@ export function findBestDefensePart(world, entityId) {
 }
 
 /**
- * ★新規: 指定されたエンティティの、破壊状態に関わらず全ての「攻撃用」パーツのリストを取得します。
+ * 指定されたエンティティの、破壊状態に関わらず全ての「攻撃用」パーツのリストを取得します。
  * 行動選択UIで、破壊されたパーツを無効状態で表示するために使用します。
  * @param {World} world - ワールドオブジェクト
  * @param {number} entityId - エンティティID
  * @returns {[string, object][]} - [パーツキー, パーツオブジェクト]の配列
  */
 export function getAllActionParts(world, entityId) {
-    // ★追加: ターゲットが存在しない場合に空配列を返すガード節
-    if (entityId === null || entityId === undefined) return [];
-    const parts = world.getComponent(entityId, Parts);
-    if (!parts) return [];
-
-    // 攻撃に使用できるパーツ種別
-    const attackablePartTypes = [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM];
-
-    return Object.entries(parts)
-        .filter(([key, part]) => attackablePartTypes.includes(key));
+    return getParts(world, entityId, true, true);
 }

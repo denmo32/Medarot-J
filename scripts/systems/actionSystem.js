@@ -8,10 +8,11 @@ import { GameState, PlayerInfo, Parts, Action, GameContext, Medal, BattleLog } f
 import { PlayerStateType, PartType, TeamID, MedalPersonality, ModalType } from '../constants.js';
 // ★変更: 汎用的なcalculateDamageとdetermineTargetをインポート
 import { calculateDamage, findBestDefensePart } from '../battleUtils.js';
+import { BaseSystem } from './baseSystem.js';
 
-export class ActionSystem {
+export class ActionSystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
+        super(world);
         this.context = this.world.getSingletonComponent(GameContext);
 
         this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));

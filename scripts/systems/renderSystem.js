@@ -2,10 +2,11 @@
 
 import { PlayerInfo, Position, Gauge, GameState, Parts, DOMReference } from '../components.js';
 import { PlayerStateType, TeamID } from '../constants.js'; // TeamIDをインポート
+import { BaseSystem } from './baseSystem.js';
 
-export class RenderSystem {
+export class RenderSystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
+        super(world);
     }
 
     update(deltaTime) {
