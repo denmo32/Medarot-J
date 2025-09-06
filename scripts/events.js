@@ -11,6 +11,9 @@ export const GameEvents = {
     RESET_BUTTON_CLICKED: 'RESET_BUTTON_CLICKED', // リセットボタンがクリックされた
     GAME_WILL_RESET: 'GAME_WILL_RESET',           // ★追加: ゲームのリセット処理が開始される直前
     BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED', // 「ロボトルファイト！」がクリックされた
+    // ★新規: UIによるゲームの一時停止/再開イベント
+    GAME_PAUSED: 'GAME_PAUSED',
+    GAME_RESUMED: 'GAME_RESUMED',
 
     // --- Player Input & AI Events ---
     PLAYER_INPUT_REQUIRED: 'PLAYER_INPUT_REQUIRED', // プレイヤーの行動選択が必要になった

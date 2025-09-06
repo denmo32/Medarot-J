@@ -272,7 +272,9 @@ export class ViewSystem {
             return;
         }
 
-        this.context.isPausedByModal = true;
+        // ★変更: isPausedByModalフラグを直接操作せず、イベントを発行してGameFlowSystemに通知します。
+        // this.context.isPausedByModal = true;
+        this.world.emit(GameEvents.GAME_PAUSED);
         
         if (type === ModalType.EXECUTION) {
             this.confirmActionEntityId = data.entityId;
@@ -307,7 +309,10 @@ export class ViewSystem {
     }
 
     hideActionPanel() {
-        this.context.isPausedByModal = false;
+        // ★変更: isPausedByModalフラグを直接操作せず、イベントを発行してGameFlowSystemに通知します。
+        // this.context.isPausedByModal = false;
+        this.world.emit(GameEvents.GAME_RESUMED);
+
         this.confirmActionEntityId = null;
 
         // 表示されている可能性のあるインジケーターを非表示にする

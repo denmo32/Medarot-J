@@ -22,6 +22,27 @@ export class GameFlowSystem {
         this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
+        // ★新規: UIからのゲーム一時停止/再開イベントを購読し、ゲーム全体のポーズ状態を一元管理します。
+        this.world.on(GameEvents.GAME_PAUSED, this.onGamePaused.bind(this));
+        this.world.on(GameEvents.GAME_RESUMED, this.onGameResumed.bind(this));
+    }
+
+    /**
+     * ★新規: ゲームの一時停止を処理するハンドラ。
+     * ViewSystemから発行されたイベントを受け、GameContextのフラグを更新します。
+     * これにより、UIの都合によるゲーム停止が、コアロジックに直接影響するのを防ぎます。
+     */
+    onGamePaused() {
+        // GameContextのフラグを更新し、GaugeSystemやTurnSystemなどの進行を停止させます。
+        this.context.isPausedByModal = true;
+    }
+
+    /**
+     * ★新規: ゲームの再開を処理するハンドラ。
+     */
+    onGameResumed() {
+        // GameContextのフラグを更新し、ゲームの進行を再開させます。
+        this.context.isPausedByModal = false;
     }
 
     onGameStartConfirmed() {
