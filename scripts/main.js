@@ -19,7 +19,8 @@ import { GamePhaseType, PlayerStateType, TeamID, MedalPersonality } from './cons
 
 document.addEventListener('DOMContentLoaded', () => {
     let world = new World();
-    // ★削除: uiSystemの参照は不要になりました
+
+    // === エンティティ生成関数群 ===
 
     /**
      * プレイヤーエンティティを生成し、必要なコンポーネントをすべて追加するファクトリ関数
@@ -59,6 +60,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
+     * チームのプレイヤーエンティティを生成する関数
+     */
+    function createPlayers() {
+        let idCounter = 0;
+        for (const [teamId, teamConfig] of Object.entries(CONFIG.TEAMS)) {
+            for (let i = 0; i < CONFIG.PLAYERS_PER_TEAM; i++) {
+                createPlayerEntity(world, teamId, teamConfig, i, ++idCounter);
+            }
+        }
+    }
+
+    // === システム初期化関数群 ===
+
+    /**
      * ゲームの初期化とシステムの登録を行う関数
      */
     function initializeSystems() {
@@ -67,17 +82,13 @@ document.addEventListener('DOMContentLoaded', () => {
         world.addComponent(contextEntity, new Components.GameContext());
 
         // --- システムの登録 ---
-        // ★変更: システムの構成を新しいアーキテクチャに合わせて見直し
-        
-        // --- イベント駆動システム (updateループ不要) ---
+        // イベント駆動システム (updateループ不要)
         new InputSystem(world);
         new AiSystem(world);
-        // ★新規: DomFactorySystemはイベント駆動なので、インスタンス化するだけでよい
         new DomFactorySystem(world);
 
-        // --- updateループで動作するシステム ---
+        // updateループで動作するシステム
         const gameFlowSystem = new GameFlowSystem(world);
-        // ★変更: UiSystemをViewSystemに変更
         const viewSystem = new ViewSystem(world);
         const renderSystem = new RenderSystem(world);
         const gaugeSystem = new GaugeSystem(world);
@@ -94,58 +105,39 @@ document.addEventListener('DOMContentLoaded', () => {
         world.registerSystem(gaugeSystem);
         world.registerSystem(actionSystem);
         world.registerSystem(movementSystem);
-        // ★変更: UiSystemをViewSystemに変更
         world.registerSystem(viewSystem);
         world.registerSystem(renderSystem);
     }
 
-    /**
-     * チームのプレイヤーエンティティを生成する関数
-     */
-    function createPlayers() {
-        let idCounter = 0;
-        for (const [teamId, teamConfig] of Object.entries(CONFIG.TEAMS)) {
-            for (let i = 0; i < CONFIG.PLAYERS_PER_TEAM; i++) {
-                createPlayerEntity(world, teamId, teamConfig, i, ++idCounter);
-            }
-        }
-    }
-
-    // ★削除: setupUI関数は不要になりました。
-    // DOMの生成はDomFactorySystemがイベントを購読して実行します。
+    // === ゲーム管理関数群 ===
 
     /**
      * ゲームの状態を完全にリセットする関数
      */
     function resetGame() {
-        // ★追加: リセットが開始されることを各システムに通知
-        // これにより、リスナー(DomFactorySystem, ViewSystem)がUIのクリア処理を実行します。
-        // worldインスタンスがまだ存在する場合のみemitする
+        // リセット開始を通知
         if (world.listeners.size > 0) {
             world.emit(GameEvents.GAME_WILL_RESET);
         }
 
-        // ★追加: 古いシステムのクリーンアップ処理を呼び出す
+        // 古いシステムのクリーンアップ
         for (const system of world.systems) {
             if (system.destroy) {
                 system.destroy();
             }
         }
 
-        // 既存のワールドを破棄して、新しいインスタンスを作成
+        // ワールドを再作成
         world = new World();
-        
-        // システムを再初期化（イベントリスナーも再登録される）
-        initializeSystems();
 
-        // ★追加: 新しいworldインスタンスにリセットイベントを紐付ける
+        // システムを再初期化
+        initializeSystems();
         setupGameEvents();
 
         // プレイヤーエンティティを再生成
         createPlayers();
-        
-        // ★変更: setupUIの直接呼び出しの代わりに、UI構築を要求するイベントを発行
-        // DomFactorySystemがこのイベントを購読してUIを構築します。
+
+        // UI構築を要求
         world.emit(GameEvents.SETUP_UI_REQUESTED);
     }
 
@@ -156,7 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
         world.on(GameEvents.RESET_BUTTON_CLICKED, resetGame);
     }
 
-    // --- ゲームループ ---
+    // === ゲームループ関数群 ===
+
     let animationFrameId = null;
     let lastTime = 0;
 
@@ -167,13 +160,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const deltaTime = timestamp - lastTime;
         lastTime = timestamp;
 
-        // ワールドの状態を更新（全システムのupdateが呼ばれる）
+        // ワールドの状態を更新
         world.update(deltaTime);
 
         animationFrameId = requestAnimationFrame(gameLoop);
     }
 
-    // --- 初期化とゲーム開始 ---
+    // === 初期化とゲーム開始 ===
     resetGame(); // 初回起動時にゲームをセットアップ
     setupGameEvents(); // リセットイベントを購読
     requestAnimationFrame(gameLoop); // ゲームループを開始
