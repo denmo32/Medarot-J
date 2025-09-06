@@ -21,14 +21,14 @@ export class ActionSystem extends BaseSystem {
     onActionExecutionConfirmed(detail) {
         const { entityId } = detail;
         // ★変更: Attackの代わりにActionコンポーネントを取得
-        const action = this.world.getComponent(entityId, Action);
+        const action = this.getCachedComponent(entityId, Action);
 
         if (!action || action.targetId === null || action.targetId === undefined) {
             console.warn(`ActionSystem: ターゲット未定のまま実行が確認されました。Entity: ${entityId}`);
             return;
         }
-        
-        const target = this.world.getComponent(action.targetId, Parts);
+
+        const target = this.getCachedComponent(action.targetId, Parts);
         if (!target) {
             console.warn(`ActionSystem: ターゲットエンティティが見つかりません。TargetID: ${action.targetId}`);
             return;
@@ -54,11 +54,12 @@ export class ActionSystem extends BaseSystem {
         if (this.context.isPausedByModal) return;
 
         const executor = this.world.getEntitiesWith(GameState)
-            .find(id => this.world.getComponent(id, GameState).state === PlayerStateType.READY_EXECUTE);
+            .find(id => this.getCachedComponent(id, GameState)?.state === PlayerStateType.READY_EXECUTE);
 
         if (executor === undefined || executor === null) return;
 
-        const action = this.world.getComponent(executor, Action);
+        const action = this.getCachedComponent(executor, Action);
+        if (!action) return;
 
         // ★削除: ターゲット決定処理を削除。
         // ターゲットは、AIの場合はDecisionSystem、プレイヤーの場合はStateSystemで、
@@ -71,9 +72,11 @@ export class ActionSystem extends BaseSystem {
 
         // --- ★修正: 回避・防御判定とメッセージ生成 ---
         let message = '';
-        const targetParts = this.world.getComponent(action.targetId, Parts);
-        const attackerInfo = this.world.getComponent(executor, PlayerInfo);
-        const targetInfo = this.world.getComponent(action.targetId, PlayerInfo);
+        const targetParts = this.getCachedComponent(action.targetId, Parts);
+        const attackerInfo = this.getCachedComponent(executor, PlayerInfo);
+        const targetInfo = this.getCachedComponent(action.targetId, PlayerInfo);
+
+        if (!targetParts || !attackerInfo || !targetInfo) return;
         
         let defenseSuccess = false;
         let finalTargetPartKey = action.targetPartKey; // 元のターゲットを保持

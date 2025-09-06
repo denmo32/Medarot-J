@@ -24,12 +24,14 @@ export class RenderSystem extends BaseSystem {
      * @param {number} entityId 
      */
     updatePosition(entityId) {
-        const domRef = this.world.getComponent(entityId, DOMReference);
-        if (!domRef.iconElement) return;
+        const domRef = this.getCachedComponent(entityId, DOMReference);
+        if (!domRef || !domRef.iconElement) return;
 
         // 位置と状態のコンポーネントを取得
-        const position = this.world.getComponent(entityId, Position);
-        const gameState = this.world.getComponent(entityId, GameState);
+        const position = this.getCachedComponent(entityId, Position);
+        const gameState = this.getCachedComponent(entityId, GameState);
+
+        if (!position || !gameState) return;
 
         // Positionコンポーネントのx座標をDOMのleftスタイルに適用
         domRef.iconElement.style.left = `${position.x * 100}%`;
@@ -42,8 +44,10 @@ export class RenderSystem extends BaseSystem {
     }
 
     updateInfoPanel(entityId) {
-        const domRef = this.world.getComponent(entityId, DOMReference);
-        const parts = this.world.getComponent(entityId, Parts);
+        const domRef = this.getCachedComponent(entityId, DOMReference);
+        const parts = this.getCachedComponent(entityId, Parts);
+
+        if (!domRef || !parts) return;
 
         Object.entries(parts).forEach(([key, part]) => {
             const elements = domRef.partDOMElements[key];

@@ -39,4 +39,13 @@ export class BaseSystem {
         }
         return component;
     }
+
+    /**
+     * イベントを発行するユーティリティ
+     * @param {string} eventName - イベント名
+     * @param {Object} detail - イベント詳細
+     */
+    emitEvent(eventName, detail = {}) {
+        this.world.emit(eventName, detail);
+    }
 }

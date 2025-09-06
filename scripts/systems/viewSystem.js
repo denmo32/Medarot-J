@@ -132,90 +132,32 @@ export class ViewSystem {
         // ★変更: プロパティ名を modalConfigs から panelConfigs に変更
         this.panelConfigs = {
             [ModalType.START_CONFIRM]: {
-                title: '', // ★変更: ユーザーの指示によりタイトルを削除
-                actorName: 'ロボトルを開始しますか？', // ★変更: メッセージを修正
+                title: '',
+                actorName: 'ロボトルを開始しますか？',
                 contentHTML: `
                     <div class="buttons-center">
                         <button id="panelBtnYes" class="action-panel-button">OK</button>
                         <button id="panelBtnNo" class="action-panel-button bg-red-500 hover:bg-red-600">キャンセル</button>
-                    </div>`, // ★変更: ボタンのテキストを修正
-                setupEvents: (container) => {
-                    container.querySelector('#panelBtnYes').onclick = () => {
-                        this.world.emit(GameEvents.GAME_START_CONFIRMED);
-                        this.hideActionPanel();
-                    };
-                    container.querySelector('#panelBtnNo').onclick = () => this.hideActionPanel();
-                }
+                    </div>`,
+                setupEvents: this.createSimpleEventHandler([
+                    { id: 'panelBtnYes', action: () => { this.world.emit(GameEvents.GAME_START_CONFIRMED); this.hideActionPanel(); } },
+                    { id: 'panelBtnNo', action: () => this.hideActionPanel() }
+                ])
             },
             [ModalType.SELECTION]: {
                 title: (data) => data.title,
-                actorName: '', 
-                // ★変更: 三角レイアウトのHTMLを生成する
-                contentHTML: (data) => {
-                    const buttons = data.buttons;
-                    const headBtn = buttons.find(b => b.partKey === 'head');
-                    const rArmBtn = buttons.find(b => b.partKey === 'rightArm');
-                    const lArmBtn = buttons.find(b => b.partKey === 'leftArm');
-
-                    // ボタンをレンダリングするヘルパー関数
-                    const renderButton = (btn) => {
-                        if (!btn) return '<div style="width: 100px; height: 35px;"></div>'; // レイアウト維持のためのプレースホルダー
-                        // IDにpartKeyを使い、ユニークで特定可能にする
-                        return `<button id="panelBtn-${btn.partKey}" class="part-action-button" ${btn.isBroken ? 'disabled' : ''}>${btn.text}</button>`;
-                    };
-
-                    // 三角レイアウトのHTMLを返す
-                    return `
-                        <div class="triangle-layout">
-                            <div class="top-row">
-                                ${renderButton(headBtn)}
-                            </div>
-                            <div class="bottom-row">
-                                ${renderButton(rArmBtn)}
-                                ${renderButton(lArmBtn)}
-                            </div>
-                        </div>
-                    `;
-                },
-                // ★変更: イベントリスナーの設定を新しいボタンIDに対応させる
-                setupEvents: (container, data) => {
-                    const targetDomRef = data.targetId !== null ? this.world.getComponent(data.targetId, Components.DOMReference) : null;
-
-                    data.buttons.forEach(btn => {
-                        if (btn.isBroken) return; // 破壊されたパーツにはリスナーを登録しない
-
-                        const buttonEl = container.querySelector(`#panelBtn-${btn.partKey}`);
-                        if (!buttonEl) return;
-
-                        buttonEl.onclick = () => {
-                            this.world.emit(GameEvents.PART_SELECTED, { 
-                                entityId: data.entityId, 
-                                partKey: btn.partKey,
-                                targetId: data.targetId,
-                                targetPartKey: data.targetPartKey
-                            });
-                            this.hideActionPanel();
-                        };
-
-                        if (targetDomRef && targetDomRef.targetIndicatorElement) {
-                            buttonEl.onmouseover = () => {
-                                targetDomRef.targetIndicatorElement.classList.add('active');
-                            };
-                            buttonEl.onmouseout = () => {
-                                targetDomRef.targetIndicatorElement.classList.remove('active');
-                            };
-                        }
-                    });
-                }
+                actorName: '',
+                contentHTML: (data) => this.generateTriangleLayoutHTML(data.buttons),
+                setupEvents: (container, data) => this.setupSelectionEvents(container, data)
             },
             [ModalType.EXECUTION]: {
-                title: '', // ★変更: ユーザーの指示によりタイトルを削除
+                title: '',
                 actorName: (data) => data.message,
                 confirmButton: { text: 'OK' }
             },
             [ModalType.BATTLE_START_CONFIRM]: {
-                title: '合意と見てよろしいですね！？', // ★変更: ユーザーの指示によりテキストを変更
-                actorName: '', // ★追加: actorNameを空にすることで、タイトルとボタンの間の余白を詰める
+                title: '合意と見てよろしいですね！？',
+                actorName: '',
                 battleStartButton: true
             },
             [ModalType.GAME_OVER]: {
@@ -224,6 +166,62 @@ export class ViewSystem {
                 confirmButton: { text: 'リセット' }
             }
         };
+    }
+
+    // ヘルパー: 三角レイアウトのHTMLを生成
+    generateTriangleLayoutHTML(buttons) {
+        const headBtn = buttons.find(b => b.partKey === 'head');
+        const rArmBtn = buttons.find(b => b.partKey === 'rightArm');
+        const lArmBtn = buttons.find(b => b.partKey === 'leftArm');
+
+        const renderButton = (btn) => {
+            if (!btn) return '<div style="width: 100px; height: 35px;"></div>';
+            return `<button id="panelBtn-${btn.partKey}" class="part-action-button" ${btn.isBroken ? 'disabled' : ''}>${btn.text}</button>`;
+        };
+
+        return `
+            <div class="triangle-layout">
+                <div class="top-row">${renderButton(headBtn)}</div>
+                <div class="bottom-row">${renderButton(rArmBtn)}${renderButton(lArmBtn)}</div>
+            </div>
+        `;
+    }
+
+    // ヘルパー: シンプルなイベントハンドラを作成
+    createSimpleEventHandler(buttonConfigs) {
+        return (container) => {
+            buttonConfigs.forEach(({ id, action }) => {
+                const btn = container.querySelector(`#${id}`);
+                if (btn) btn.onclick = action;
+            });
+        };
+    }
+
+    // ヘルパー: 選択イベントの設定
+    setupSelectionEvents(container, data) {
+        const targetDomRef = data.targetId !== null ? this.world.getComponent(data.targetId, Components.DOMReference) : null;
+
+        data.buttons.forEach(btn => {
+            if (btn.isBroken) return;
+
+            const buttonEl = container.querySelector(`#panelBtn-${btn.partKey}`);
+            if (!buttonEl) return;
+
+            buttonEl.onclick = () => {
+                this.world.emit(GameEvents.PART_SELECTED, {
+                    entityId: data.entityId,
+                    partKey: btn.partKey,
+                    targetId: data.targetId,
+                    targetPartKey: data.targetPartKey
+                });
+                this.hideActionPanel();
+            };
+
+            if (targetDomRef && targetDomRef.targetIndicatorElement) {
+                buttonEl.onmouseover = () => targetDomRef.targetIndicatorElement.classList.add('active');
+                buttonEl.onmouseout = () => targetDomRef.targetIndicatorElement.classList.remove('active');
+            }
+        });
     }
 
     // Worldからのイベントを購読する

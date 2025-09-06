@@ -61,28 +61,20 @@ export function determineTarget(world, attackerId) {
 const targetingStrategies = {
     // [HUNTER]: 最もHPが低いパーツを狙う
     [MedalPersonality.HUNTER]: (world, attackerId, enemies) => {
-        const allParts = getAllEnemyParts(world, enemies);
-        if (allParts.length === 0) return null;
-        allParts.sort((a, b) => a.part.hp - b.part.hp); // HPで昇順ソート
-        const targetPartInfo = allParts[0];
-        return { targetId: targetPartInfo.entityId, targetPartKey: targetPartInfo.partKey };
+        return selectPartByCondition(world, enemies, (a, b) => a.part.hp - b.part.hp);
     },
 
     // [CRUSHER]: 最もHPが高いパーツを狙う
     [MedalPersonality.CRUSHER]: (world, attackerId, enemies) => {
-        const allParts = getAllEnemyParts(world, enemies);
-        if (allParts.length === 0) return null;
-        allParts.sort((a, b) => b.part.hp - a.part.hp); // HPで降順ソート
-        const targetPartInfo = allParts[0];
-        return { targetId: targetPartInfo.entityId, targetPartKey: targetPartInfo.partKey };
+        return selectPartByCondition(world, enemies, (a, b) => b.part.hp - a.part.hp);
     },
 
     // [JOKER]: 敵全体のパーツからランダムに1つを狙う
     [MedalPersonality.JOKER]: (world, attackerId, enemies) => {
         const allParts = getAllEnemyParts(world, enemies);
         if (allParts.length === 0) return null;
-        const randomPart = allParts[Math.floor(Math.random() * allParts.length)];
-        return { targetId: randomPart.entityId, targetPartKey: randomPart.partKey };
+        const randomIndex = Math.floor(Math.random() * allParts.length);
+        return { targetId: allParts[randomIndex].entityId, targetPartKey: allParts[randomIndex].partKey };
     },
 
     // [COUNTER]: 自分を最後に攻撃した敵を狙う。いなければnull。
@@ -151,7 +143,33 @@ const targetingStrategies = {
     }
 };
 
-/** 
+/**
+ * 共通ヘルパー: 条件に基づいて敵パーツを選択する
+ * @param {World} world
+ * @param {number[]} enemies - 敵エンティティIDの配列
+ * @param {function} sortFn - パーツソート関数 (オプション)
+ * @param {function} filterFn - パーツフィルタ関数 (オプション)
+ * @returns {{targetId: number, targetPartKey: string} | null}
+ */
+function selectPartByCondition(world, enemies, sortFn = null, filterFn = null) {
+    const allParts = getAllEnemyParts(world, enemies);
+    if (allParts.length === 0) return null;
+
+    let filteredParts = allParts;
+    if (filterFn) {
+        filteredParts = allParts.filter(filterFn);
+    }
+    if (filteredParts.length === 0) return null;
+
+    if (sortFn) {
+        filteredParts.sort(sortFn);
+    }
+
+    const selectedPart = filteredParts[0];
+    return { targetId: selectedPart.entityId, targetPartKey: selectedPart.partKey };
+}
+
+/**
  * ★新規: 指定されたエンティティから攻撃可能なパーツをランダムに1つ選択するヘルパー関数
  * @param {World} world
  * @param {number} entityId - ターゲットのエンティティID
