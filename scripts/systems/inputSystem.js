@@ -3,10 +3,11 @@
 import { GameEvents } from '../events.js';
 import { PlayerInfo } from '../components.js';
 import { ModalType } from '../constants.js';
-import { determineTarget, getAllActionParts } from '../battleUtils.js';
+import { getAllActionParts } from '../utils/battleUtils.js';
+import { determineTarget } from '../ai/targetingUtils.js';
 
 /**
- * ★新規: プレイヤーからの入力を処理し、行動を決定するシステム。
+ * プレイヤーからの入力を処理し、行動を決定するシステム。
  * UiSystemからのUIイベントを受け取り、ゲームロジックで扱えるACTION_SELECTEDイベントに変換します。
  * 旧DecisionSystemのプレイヤー担当部分の責務を継承しています。
  */
@@ -28,7 +29,7 @@ export class InputSystem {
         const { entityId } = detail;
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         
-        // ★変更: 破壊状態に関わらず、全ての攻撃パーツを取得する
+        // 破壊状態に関わらず、全ての攻撃パーツを取得する
         const allActionParts = getAllActionParts(this.world, entityId);
         
         // ターゲットを事前に決定
@@ -37,18 +38,17 @@ export class InputSystem {
         // UIシステムにパネル表示を要求
         const panelData = {
             entityId: entityId,
-                        title: '', // ★変更: ユーザーの指示によりタイトルを削除
-            ownerName: playerInfo.name, // ★新規: 左上に表示する名前
+            title: '',
+            ownerName: playerInfo.name,
             buttons: allActionParts.map(([partKey, part]) => ({
                 text: `${part.name} (${part.action})`,
                 partKey: partKey,
-                isBroken: part.isBroken // ★新規: パーツの破壊状態を渡す
+                isBroken: part.isBroken
             })),
             // 決定したターゲット情報をパネルデータに含める
             targetId: target ? target.targetId : null,
             targetPartKey: target ? target.targetPartKey : null
         };
-        // ★変更: modalData -> panelData
         this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.SELECTION, data: panelData });
     }
 

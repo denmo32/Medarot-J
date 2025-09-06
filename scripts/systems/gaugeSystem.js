@@ -13,9 +13,8 @@ export class GaugeSystem extends BaseSystem {
     }
 
     update(deltaTime) {
-        // ★変更: ゲームの進行停止条件を修正。
         // バトルフェーズでない場合、またはモーダル表示によりゲーム全体が一時停止している場合は、
-        // ゲージの進行を停止するように修正しました。UIの状態(activePlayer)への依存をなくしました。
+        // ゲージの進行を停止する
         if (this.context.phase !== GamePhaseType.BATTLE || this.context.isPausedByModal) {
             return;
         }

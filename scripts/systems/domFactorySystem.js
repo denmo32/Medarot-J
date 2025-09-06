@@ -6,7 +6,7 @@ import * as Components from '../components.js';
 import { TeamID } from '../constants.js';
 
 /**
- * ★新規: DOM要素の生成、配置、削除に特化したシステム。
+ * DOM要素の生成、配置、削除に特化したシステム。
  * HTMLテンプレートを利用して、JavaScriptコードからHTML構造を分離します。
  * このシステムはイベント駆動であり、updateループを持ちません。
  */
@@ -87,7 +87,7 @@ export class DomFactorySystem {
         // ターゲット表示用インジケーターをアイコンの子要素として生成
         const indicator = document.createElement('div');
         indicator.className = 'target-indicator';
-        // ★新規: レーダー風アニメーションのために4つの角要素を追加
+        // レーダー風アニメーションのために4つの角要素を追加
         for (let i = 0; i < 4; i++) {
             const corner = document.createElement('div');
             corner.className = `corner corner-${i + 1}`;

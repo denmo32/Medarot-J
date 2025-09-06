@@ -2,7 +2,6 @@
 
 import { GameContext, GameState, Gauge, PlayerInfo } from '../components.js';
 import { GameEvents } from '../events.js';
-// ★変更: ModalTypeを追加でインポート
 import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../constants.js';
 
 /**
@@ -20,19 +19,11 @@ export class GameFlowSystem {
     }
 
     bindWorldEvents() {
-        // ★変更: ゲーム開始のトリガーを、確認モーダルで「はい」が押されたイベントに変更
         this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
-        // ★削除: activePlayerの管理をUiSystemに移譲するため、このシステムでは不要
-        // this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
-        // this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
-        // ★削除: activePlayerの管理をUiSystemに移譲するため、このシステムでは不要
-        // this.world.on(GameEvents.SHOW_MODAL, this.onShowModal.bind(this));
-        // this.world.on(GameEvents.HIDE_MODAL, this.onHideModal.bind(this));
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
     }
 
-    // ★変更: メソッド名をイベントに合わせて変更
     onGameStartConfirmed() {
         if (this.context.phase !== GamePhaseType.IDLE) return;
 
@@ -62,18 +53,6 @@ export class GameFlowSystem {
         // 3. モーダルを閉じるイベントを発行
         this.world.emit(GameEvents.HIDE_MODAL);
     }
-    
-    // ★削除: activePlayerの管理はUiSystemに一元化されました。
-    // onActionExecutionConfirmed(detail) { ... }
-
-    // ★削除: activePlayerの管理はUiSystemに一元化されました。
-    // onActionSelected(detail) { ... }
-
-    // ★削除: activePlayerの管理はUiSystemに一元化されました。
-    // onShowModal(detail) { ... }
-
-    // ★削除: activePlayerの管理はUiSystemに一元化されました。
-    // onHideModal() { ... }
 
     onPlayerBroken(detail) {
         // リーダーが破壊されたかどうかをチェックし、ゲームオーバー判定を行う
@@ -90,7 +69,6 @@ export class GameFlowSystem {
             this.context.winningTeam = winningTeam;
 
             // 2. ゲームオーバーモーダルの表示を要求
-            // ★変更: マジックストリングを定数に変更
             this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.GAME_OVER, data: { winningTeam } });
         }
     }
@@ -111,7 +89,6 @@ export class GameFlowSystem {
         // 全員が選択し終わったら、戦闘開始確認フェーズに移行
         if (allSelected) {
             this.context.phase = GamePhaseType.BATTLE_START_CONFIRM;
-            // ★変更: マジックストリングを定数に変更
             this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.BATTLE_START_CONFIRM });
         }
     }
