@@ -1,7 +1,7 @@
 // scripts/systems/historySystem.js:
 
-import { PlayerInfo, BattleLog, GameContext } from '../components.js';
-import { GameEvents } from '../events.js';
+import { PlayerInfo, BattleLog, GameContext } from '../core/components.js';
+import { GameEvents } from '../common/events.js';
 
 /**
  * 戦闘結果に基づき、戦闘履歴（BattleLog, GameContext）を更新するシステム。

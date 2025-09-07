@@ -3,9 +3,9 @@
  * このファイルは、ゲーム内でのエンティティ（キャラクター）の行動順を管理する責務を持ちます。
  */
 
-import { GameContext, GameState, PlayerInfo } from '../components.js';
-import { GameEvents } from '../events.js';
-import { PlayerStateType, TeamID } from '../constants.js';
+import { GameContext, GameState, PlayerInfo } from '../core/components.js';
+import { GameEvents } from '../common/events.js';
+import { PlayerStateType, TeamID } from '../common/constants.js';
 
 /**
  * ゲームの「ターン」や行動順を管理するシステム。

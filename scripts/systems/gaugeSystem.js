@@ -1,9 +1,9 @@
 // scripts/systems/gaugeSystem.js:
 
-import { Gauge, GameState, GameContext } from '../components.js';
-import { CONFIG } from '../config.js';
-import { PlayerStateType, GamePhaseType } from '../constants.js';
-import { BaseSystem } from './baseSystem.js';
+import { Gauge, GameState, GameContext } from '../core/components.js';
+import { CONFIG } from '../common/config.js';
+import { PlayerStateType, GamePhaseType } from '../common/constants.js';
+import { BaseSystem } from '../core/baseSystem.js';
 
 export class GaugeSystem extends BaseSystem {
     constructor(world) {

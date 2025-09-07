@@ -4,23 +4,23 @@
  * ECS (Entity-Component-System) アーキテクチャのセットアップはここから始まります。
  */
 
-import { CONFIG } from './config.js';
-import { World } from './ecs.js';
-import * as Components from './components.js';
-import { GameEvents } from './events.js';
-import { ViewSystem } from './systems/viewSystem.js';
-import { DomFactorySystem } from './systems/domFactorySystem.js';
-import { RenderSystem } from './systems/renderSystem.js';
+import { CONFIG } from './common/config.js';
+import { World } from './core/world.js';
+import * as Components from './core/components.js';
+import { GameEvents } from './common/events.js';
+import { ViewSystem } from './ui/viewSystem.js';
+import { DomFactorySystem } from './ui/domFactorySystem.js';
+import { RenderSystem } from './ui/renderSystem.js';
 import { GaugeSystem } from './systems/gaugeSystem.js';
 import { StateSystem } from './systems/stateSystem.js';
-import { InputSystem } from './systems/inputSystem.js';
+import { InputSystem } from './ui/inputSystem.js';
 import { AiSystem } from './systems/aiSystem.js';
 import { ActionSystem } from './systems/actionSystem.js';
 import { GameFlowSystem } from './systems/gameFlowSystem.js';
 import { MovementSystem } from './systems/movementSystem.js';
 import { HistorySystem } from './systems/historySystem.js';
 import { TurnSystem } from './systems/turnSystem.js';
-import { TeamID, MedalPersonality } from './constants.js';
+import { TeamID, MedalPersonality } from './common/constants.js';
 
 // DOMの解析と準備が完了してからゲームの初期化を開始します。
 // これにより、DOM要素に依存するシステム(ViewSystemなど)が、対象要素を見つけられないというエラーを防ぎます。

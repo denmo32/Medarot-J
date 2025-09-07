@@ -1,8 +1,8 @@
 // scripts/systems/renderSystem.js:
-import { PlayerInfo, Position, Gauge, GameState, Parts, DOMReference } from '../components.js';
-import { PlayerStateType, TeamID } from '../constants.js'; // TeamIDをインポート
-import { BaseSystem } from './baseSystem.js';
-import { GameEvents } from '../events.js';
+import { PlayerInfo, Position, Gauge, GameState, Parts, DOMReference } from '../core/components.js';
+import { PlayerStateType, TeamID } from '../common/constants.js'; // TeamIDをインポート
+import { BaseSystem } from '../core/baseSystem.js';
+import { GameEvents } from '../common/events.js';
 export class RenderSystem extends BaseSystem {
     constructor(world) {
         super(world);

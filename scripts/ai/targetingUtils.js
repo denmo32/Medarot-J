@@ -1,7 +1,7 @@
 // scripts/ai/targetingUtils.js
 
-import { PlayerInfo, GameState, Medal } from '../components.js';
-import { PlayerStateType } from '../constants.js';
+import { PlayerInfo, GameState, Medal } from '../core/components.js';
+import { PlayerStateType } from '../common/constants.js';
 import { targetingStrategies, isValidTarget } from './targetingStrategies.js';
 
 /**

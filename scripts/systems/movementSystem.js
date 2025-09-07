@@ -1,8 +1,8 @@
 // scripts/systems/movementSystem.js:
 
-import { Position, Gauge, GameState, PlayerInfo } from '../components.js';
-import { PlayerStateType, TeamID } from '../constants.js';
-import { CONFIG } from '../config.js';
+import { Position, Gauge, GameState, PlayerInfo } from '../core/components.js';
+import { PlayerStateType, TeamID } from '../common/constants.js';
+import { CONFIG } from '../common/config.js';
 
 /**
  * エンティティの位置（Positionコンポーネント）を、ゲームの状態に基づいて更新するシステム。

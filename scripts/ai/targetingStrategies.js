@@ -3,8 +3,8 @@
  * このファイルは、AIの「メダルの性格」に基づいた多様なターゲティング戦略（アルゴリズム）を定義します。
  */
 
-import { Parts, PlayerInfo, GameState, BattleLog, GameContext } from '../components.js';
-import { PartType, PlayerStateType, MedalPersonality } from '../constants.js';
+import { Parts, PlayerInfo, GameState, BattleLog, GameContext } from '../core/components.js';
+import { PartType, PlayerStateType, MedalPersonality } from '../common/constants.js';
 
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。

@@ -7,31 +7,33 @@
 ```
 scripts/
 ├── main.js              # エントリーポイント、ゲーム初期化
-├── ecs.js               # ECSコア実装（World, Entity, Component, System）
-├── components.js        # ゲームコンポーネント定義
-├── constants.js         # 定数定義
-├── config.js            # 設定値
-├── events.js            # イベント定義
-├── battleUtils.js       # バトル関連ユーティリティ（再エクスポート）
+├── core/                # ECSとアーキテクチャのコア機能
+│   ├── world.js         # ECSコア実装 (旧ecs.js)
+│   ├── components.js    # ゲームコンポーネント定義
+│   └── baseSystem.js    # 基底システムクラス
+├── common/              # ゲーム全体で共有される設定・定数
+│   ├── config.js        # 設定値
+│   ├── constants.js     # 定数定義
+│   └── events.js        # イベント定義
+├── systems/             # ゲームロジックシステム
+│   ├── actionSystem.js
+│   ├── aiSystem.js
+│   ├── gameFlowSystem.js
+│   ├── gaugeSystem.js
+│   ├── historySystem.js
+│   ├── movementSystem.js
+│   ├── stateSystem.js
+│   └── turnSystem.js
+├── ui/                  # UI関連システム
+│   ├── domFactorySystem.js
+│   ├── inputSystem.js
+│   ├── renderSystem.js
+│   └── viewSystem.js
 ├── ai/                  # AI関連モジュール
-│   ├── targetingStrategies.js  # ターゲット決定戦略
-│   └── targetingUtils.js       # ターゲット決定ユーティリティ
-├── utils/               # 汎用ユーティリティ
-│   └── battleUtils.js          # バトル計算ユーティリティ
-└── systems/             # ゲームシステム
-    ├── actionSystem.js         # 行動実行システム
-    ├── aiSystem.js             # AIシステム
-    ├── baseSystem.js           # 基底システムクラス
-    ├── domFactorySystem.js     # DOM生成システム
-    ├── gameFlowSystem.js       # ゲームフロー管理
-    ├── gaugeSystem.js          # ゲージ管理システム
-    ├── historySystem.js        # 履歴管理システム
-    ├── inputSystem.js          # 入力システム
-    ├── movementSystem.js       # 移動システム
-    ├── renderSystem.js         # レンダリングシステム
-    ├── stateSystem.js          # 状態管理システム
-    ├── turnSystem.js           # ターン管理システム
-    └── viewSystem.js           # ビューシステム
+│   ├── targetingStrategies.js
+│   └── targetingUtils.js
+└── utils/               # 汎用ユーティリティ
+    └── battleUtils.js
 ```
 
 ## 主な機能

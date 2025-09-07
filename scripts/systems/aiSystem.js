@@ -3,7 +3,7 @@
  * このファイルは、AIキャラクターの行動と思考ロジックを管理する責務を持ちます。
  */
 
-import { GameEvents } from '../events.js';
+import { GameEvents } from '../common/events.js';
 import { getAttackableParts } from '../utils/battleUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
 

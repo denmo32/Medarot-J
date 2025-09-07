@@ -1,8 +1,8 @@
 // scripts/systems/viewSystem.js:
-import { CONFIG } from '../config.js';
-import { GameEvents } from '../events.js';
-import * as Components from '../components.js';
-import { TeamID, GamePhaseType, ModalType } from '../constants.js';
+import { CONFIG } from '../common/config.js';
+import { GameEvents } from '../common/events.js';
+import * as Components from '../core/components.js';
+import { TeamID, GamePhaseType, ModalType } from '../common/constants.js';
 /**
  * ユーザーインタラクション（アクションパネル表示、ボタンイベントなど）とUIの状態管理に責務を特化させたシステム。
  * DOM要素の生成はDomFactorySystemに分離されました。

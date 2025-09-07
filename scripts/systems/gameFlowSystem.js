@@ -1,8 +1,8 @@
 // scripts/systems/gameFlowSystem.js:
 
-import { GameContext, GameState, Gauge, PlayerInfo } from '../components.js';
-import { GameEvents } from '../events.js';
-import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../constants.js';
+import { GameContext, GameState, Gauge, PlayerInfo } from '../core/components.js';
+import { GameEvents } from '../common/events.js';
+import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../common/constants.js';
 
 /**
  * ゲーム全体のフロー（開始、戦闘、終了、リセット）を管理するシステム。

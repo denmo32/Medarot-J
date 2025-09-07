@@ -1,8 +1,8 @@
 // scripts/systems/inputSystem.js:
 
-import { GameEvents } from '../events.js';
-import { PlayerInfo } from '../components.js';
-import { ModalType } from '../constants.js';
+import { GameEvents } from '../common/events.js';
+import { PlayerInfo } from '../core/components.js';
+import { ModalType } from '../common/constants.js';
 import { getAllActionParts } from '../utils/battleUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
 

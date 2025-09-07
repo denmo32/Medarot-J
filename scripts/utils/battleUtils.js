@@ -1,8 +1,8 @@
 // scripts/utils/battleUtils.js
 
-import { CONFIG } from '../config.js';
-import { Parts } from '../components.js';
-import { PartType } from '../constants.js';
+import { CONFIG } from '../common/config.js';
+import { Parts } from '../core/components.js';
+import { PartType } from '../common/constants.js';
 
 /**
  * ダメージ計算を行う関数

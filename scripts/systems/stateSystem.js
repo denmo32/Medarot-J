@@ -3,9 +3,9 @@
  * このファイルは、ゲーム内のすべてのエンティティの状態（GameState）を管理・更新する責務を持ちます。
  */
 
-import { Gauge, GameState, Parts, PlayerInfo, Action, GameContext } from '../components.js';
-import { GameEvents } from '../events.js';
-import { PlayerStateType } from '../constants.js';
+import { Gauge, GameState, Parts, PlayerInfo, Action, GameContext } from '../core/components.js';
+import { GameEvents } from '../common/events.js';
+import { PlayerStateType } from '../common/constants.js';
 
 /**
  * エンティティの「状態」を管理するステートマシン（状態遷移機械）としての役割を担うシステム。

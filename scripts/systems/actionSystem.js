@@ -3,12 +3,12 @@
  * このファイルは、エンティティによって選択されたアクションを実際に実行する責務を持ちます。
  */
 
-import { CONFIG } from '../config.js';
-import { GameEvents } from '../events.js';
-import { GameState, PlayerInfo, Parts, Action, GameContext } from '../components.js';
-import { PlayerStateType, PartType, ModalType } from '../constants.js';
+import { CONFIG } from '../common/config.js';
+import { GameEvents } from '../common/events.js';
+import { GameState, PlayerInfo, Parts, Action, GameContext } from '../core/components.js';
+import { PlayerStateType, PartType, ModalType } from '../common/constants.js';
 import { calculateDamage, findBestDefensePart } from '../utils/battleUtils.js';
-import { BaseSystem } from './baseSystem.js';
+import { BaseSystem } from '../core/baseSystem.js';
 
 /**
  * 「行動の実行」に特化したシステム。

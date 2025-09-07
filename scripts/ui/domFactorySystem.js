@@ -1,9 +1,9 @@
 // scripts/systems/domFactorySystem.js:
 
-import { CONFIG } from '../config.js';
-import { GameEvents } from '../events.js';
-import * as Components from '../components.js';
-import { TeamID } from '../constants.js';
+import { CONFIG } from '../common/config.js';
+import { GameEvents } from '../common/events.js';
+import * as Components from '../core/components.js';
+import { TeamID } from '../common/constants.js';
 
 /**
  * DOM要素の生成、配置、削除に特化したシステム。
