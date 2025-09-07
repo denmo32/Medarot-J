@@ -19,6 +19,7 @@ export const PlayerStateType = {
     READY_SELECT: 'ready_select',
     SELECTED_CHARGING: 'selected_charging',
     READY_EXECUTE: 'ready_execute',
+    AWAITING_ANIMATION: 'awaiting_animation', // ★追加: 実行アニメーション待ち
     COOLDOWN_COMPLETE: 'cooldown_complete',
     BROKEN: 'broken'
 };

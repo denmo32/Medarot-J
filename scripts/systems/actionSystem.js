@@ -24,6 +24,8 @@ export class ActionSystem extends BaseSystem {
 
         // プレイヤーがUIで攻撃実行を確認した時に、最終的な結果を適用するためにイベントを購読します。
         this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
+        // ViewSystemからのアニメーション完了通知を購読します。
+        this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
     }
 
     /**
@@ -74,15 +76,32 @@ export class ActionSystem extends BaseSystem {
         if (executor === undefined || executor === null) return;
 
         const action = this.getCachedComponent(executor, Action);
+        const gameState = this.getCachedComponent(executor, GameState);
+        if (!action || !gameState) return;
+
+        // 状態をアニメーション待ちに変更し、ViewSystemにアニメーションを要求します。
+        // ダメージ計算などのロジックは、アニメーション完了後に onExecutionAnimationCompleted で実行されます。
+        gameState.state = PlayerStateType.AWAITING_ANIMATION;
+        this.world.emit(GameEvents.EXECUTION_ANIMATION_REQUESTED, {
+            attackerId: executor,
+            targetId: action.targetId
+        });
+    }
+
+    /**
+     * ViewSystemでの実行アニメーションが完了した際に呼び出されます。
+     * ダメージ計算や命中判定を行い、結果をモーダルで表示するよう要求します。
+     * @param {object} detail - イベント詳細 ({ entityId })
+     */
+    onExecutionAnimationCompleted(detail) {
+        const { entityId: executor } = detail;
+        const action = this.getCachedComponent(executor, Action);
         if (!action) return;
 
         // --- 1. ダメージの基本値を計算 ---
         const damage = calculateDamage(this.world, executor, action.targetId, action);
 
         // --- 2. 命中判定（回避・防御）と最終ダメージの決定 ---
-        // なぜここで確率計算を行うのか？
-        // 常に同じ結果になるのを防ぎ、戦闘に偶発性や緊張感（ハラハラ感）を持たせるという
-        // ゲームデザイン上の意図です。プレイヤーは運も味方につける必要があります。
         let message = '';
         const targetParts = this.getCachedComponent(action.targetId, Parts);
         const attackerInfo = this.getCachedComponent(executor, PlayerInfo);
@@ -118,16 +137,10 @@ export class ActionSystem extends BaseSystem {
         }
 
         // --- 3. 結果をActionコンポーネントに一時保存 ---
-        // なぜ一度コンポーネントに書き戻すのか？
-        // この後のUI表示と、最終的な結果適用の両方で、この確定した情報（最終的な対象パーツやダメージ）を
-        // 正確に使う必要があるため、一時的な保管場所としてコンポーネントを利用します。
         action.targetPartKey = finalTargetPartKey;
         action.damage = finalDamage;
 
         // --- 4. UIに行動結果の表示を要求 ---
-        // なぜ即座に結果を適用しないのか？
-        // プレイヤーに「何が起こったか」を明確に伝えるためです。いきなりHPが減るのではなく、
-        // 「攻撃！→回避！」「防御！→ダメージ！」という演出を見せることで、プレイヤーは戦況を理解しやすくなります。
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.EXECUTION,
             data: {

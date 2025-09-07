@@ -22,6 +22,8 @@ export const GameEvents = {
     ACTION_SELECTED: 'ACTION_SELECTED',             // プレイヤーまたはAIが行動を決定した
 
     // --- Action Execution Events ---
+    EXECUTION_ANIMATION_REQUESTED: 'EXECUTION_ANIMATION_REQUESTED', // ★追加: 行動実行アニメーションの開始を要求
+    EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED', // ★追加: 行動実行アニメーションの完了を通知
     ACTION_EXECUTION_CONFIRMED: 'ACTION_EXECUTION_CONFIRMED', // 攻撃モーダルのOKが押された
     ACTION_EXECUTED: 'ACTION_EXECUTED',                       // 行動が実行され、ダメージなどが計算された
 

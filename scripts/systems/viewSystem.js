@@ -85,7 +85,7 @@ export class ViewSystem {
             .target-indicator.active {
                 opacity: 1;
                 /* 回転をなくし、新しい縮小アニメーションを適用 */
-                animation: radar-zoom-in 0.8s infinite ease-out;
+                /* animation: radar-zoom-in 0.8s infinite ease-out; */
             }
             .corner {
                 position: absolute;
@@ -222,6 +222,7 @@ export class ViewSystem {
         this.world.on(GameEvents.GAME_START_REQUESTED, () => this.showActionPanel(ModalType.START_CONFIRM));
         this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
         this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, () => this.hideActionPanel());
+        this.world.on(GameEvents.EXECUTION_ANIMATION_REQUESTED, this.onExecutionAnimationRequested.bind(this));
     }
 
     // DOM要素のイベントリスナーを登録する
@@ -328,5 +329,96 @@ export class ViewSystem {
         this.dom.actionPanelButtons.innerHTML = '';
         this.dom.actionPanelConfirmButton.style.display = 'none';
         this.dom.actionPanelBattleStartButton.style.display = 'none';
+    }
+
+    /**
+     * ActionSystemからの要求を受け、実行アニメーションを再生します。
+     * @param {object} detail - { attackerId, targetId }
+     */
+    onExecutionAnimationRequested(detail) {
+        const { attackerId, targetId } = detail;
+
+        const attackerDomRef = this.world.getComponent(attackerId, Components.DOMReference);
+        const targetDomRef = this.world.getComponent(targetId, Components.DOMReference);
+
+        if (!attackerDomRef || !targetDomRef || !attackerDomRef.iconElement || !targetDomRef.iconElement || !attackerDomRef.targetIndicatorElement) {
+            console.warn('ViewSystem: Missing DOM elements for animation. Skipping.', detail);
+            this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
+            return;
+        }
+
+        // ゲージ進行などを停止
+        this.world.emit(GameEvents.GAME_PAUSED);
+
+        const indicator = attackerDomRef.targetIndicatorElement;
+        const attackerIcon = attackerDomRef.iconElement;
+        const targetIcon = targetDomRef.iconElement;
+
+        // ★根本原因の修正: 親要素のtransformから逃れるため、アニメーション中だけインジケーターをbody直下に移動
+        const originalParent = indicator.parentNode;
+        document.body.appendChild(indicator);
+
+        // ★タイミング問題の修正: ターゲットアイコンのCSS transition完了を待つため、少し遅延させる
+        setTimeout(() => {
+            // 座標計算
+            const attackerRect = attackerIcon.getBoundingClientRect();
+            const targetRect = targetIcon.getBoundingClientRect();
+            
+            // インジケーターを一時的に fixed ポジションにして、ページ全体でアニメーションさせる
+            const originalStyle = {
+                position: indicator.style.position,
+                top: indicator.style.top,
+                left: indicator.style.left,
+                transform: indicator.style.transform,
+                transition: indicator.style.transition,
+                zIndex: indicator.style.zIndex
+            };
+
+            indicator.style.transition = 'none'; // JSアニメーション中はCSSのtransitionを無効化
+            indicator.style.position = 'fixed';
+            indicator.style.zIndex = '100';
+            
+            // アニメーション開始時にactiveクラスを追加して表示状態にする
+            indicator.classList.add('active');
+
+            // 攻撃者アイコンの中心座標を初期位置とする
+            const startX = attackerRect.left + attackerRect.width / 2;
+            const startY = attackerRect.top + attackerRect.height / 2;
+
+            // ターゲットアイコンの中心座標を最終位置とする
+            const endX = targetRect.left + targetRect.width / 2;
+            const endY = targetRect.top + targetRect.height / 2;
+
+            // インジケーターの初期位置を設定 (fixedなのでビューポート基準)
+            indicator.style.left = `${startX}px`;
+            indicator.style.top = `${startY}px`;
+            
+            const animation = indicator.animate([
+                { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1, offset: 0 }, // 初期スケールと不透明度
+                { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 1, offset: 0.2 }, // 拡大
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(1.5)`, opacity: 1, offset: 0.8 }, // 移動と維持
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0, offset: 1 } // 縮小とフェードアウト
+            ], {
+                duration: 800, // 0.8秒
+                easing: 'ease-in-out'
+            });
+
+            animation.finished.then(() => {
+                // ★修正: インジケーターを元の親要素に戻す
+                if(originalParent) originalParent.appendChild(indicator);
+
+                // アニメーション後にインジケーターのスタイルを元に戻す
+                indicator.style.position = originalStyle.position;
+                indicator.style.top = originalStyle.top;
+                indicator.style.left = originalStyle.left;
+                indicator.style.transform = originalStyle.transform;
+                indicator.style.transition = originalStyle.transition;
+                indicator.style.zIndex = originalStyle.zIndex;
+                indicator.classList.remove('active');
+
+                // ActionSystemにアニメーション完了を通知
+                this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
+            });
+        }, 150); // 150msの遅延 (CSS transitionが0.1sのため)
     }
 }
