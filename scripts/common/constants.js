@@ -65,7 +65,8 @@ export const MedalPersonality = {
 export const ModalType = {
     START_CONFIRM: 'start_confirm',
     SELECTION: 'selection',
-    EXECUTION: 'execution',
+    ATTACK_DECLARATION: 'attack_declaration', // ★変更
+    EXECUTION_RESULT: 'execution_result',     // ★追加
     BATTLE_START_CONFIRM: 'battle_start_confirm',
     GAME_OVER: 'game_over'
 };

@@ -22,10 +22,30 @@ export class ActionSystem extends BaseSystem {
         super(world);
         this.context = this.world.getSingletonComponent(GameContext);
 
-        // プレイヤーがUIで攻撃実行を確認した時に、最終的な結果を適用するためにイベントを購読します。
+        // ★変更: イベント購読を更新
+        this.world.on(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.onAttackDeclarationConfirmed.bind(this));
         this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
         // ViewSystemからのアニメーション完了通知を購読します。
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
+    }
+
+    /**
+     * ★新規: 攻撃宣言モーダルが確認された際に呼び出されます。
+     * @param {object} detail - イベント詳細 ({ entityId })
+     */
+    onAttackDeclarationConfirmed(detail) {
+        const { entityId } = detail;
+        const action = this.getCachedComponent(entityId, Action);
+        if (!action) return;
+
+        // 2段階目の結果メッセージモーダルを表示するよう要求
+        this.world.emit(GameEvents.SHOW_MODAL, {
+            type: ModalType.EXECUTION_RESULT,
+            data: {
+                entityId: entityId,
+                message: action.resultMessage
+            }
+        });
     }
 
     /**
@@ -102,13 +122,16 @@ export class ActionSystem extends BaseSystem {
         const damage = calculateDamage(this.world, executor, action.targetId, action);
 
         // --- 2. 命中判定（回避・防御）と最終ダメージの決定 ---
-        let message = '';
+        let declarationMessage = ''; // ★変更: 宣言メッセージ
+        let resultMessage = '';      // ★変更: 結果メッセージ
         const targetParts = this.getCachedComponent(action.targetId, Parts);
         const attackerInfo = this.getCachedComponent(executor, PlayerInfo);
         const targetInfo = this.getCachedComponent(action.targetId, PlayerInfo);
 
         if (!targetParts || !attackerInfo || !targetInfo) return;
         
+        declarationMessage = `${attackerInfo.name}の${action.type}！`; // ★追加: 宣言メッセージを生成
+
         let defenseSuccess = false;
         let finalTargetPartKey = action.targetPartKey; // 元のターゲットを保持
         let finalDamage = damage; // 最終的なダメージを保持する変数
@@ -116,7 +139,7 @@ export class ActionSystem extends BaseSystem {
         // 回避判定
         if (Math.random() < CONFIG.EVASION_CHANCE) {
             finalDamage = 0;
-            message = `${attackerInfo.name}の${action.type}！ ${targetInfo.name}は攻撃を回避！`;
+            resultMessage = `${targetInfo.name}は攻撃を回避！`;
         } else {
             // 防御判定
             if (Math.random() < CONFIG.DEFENSE_CHANCE) {
@@ -130,22 +153,23 @@ export class ActionSystem extends BaseSystem {
             const finalTargetPartName = targetParts[finalTargetPartKey].name;
     
             if (defenseSuccess) {
-                message = `${attackerInfo.name}の${action.type}！ ${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
+                resultMessage = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
             } else {
-                message = `${attackerInfo.name}の${action.type}！ ${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
+                resultMessage = `${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
             }
         }
 
         // --- 3. 結果をActionコンポーネントに一時保存 ---
         action.targetPartKey = finalTargetPartKey;
         action.damage = finalDamage;
+        action.resultMessage = resultMessage; // ★追加: 結果メッセージを保存
 
-        // --- 4. UIに行動結果の表示を要求 ---
+        // --- 4. UIに行動結果の表示を要求 (1段階目) ---
         this.world.emit(GameEvents.SHOW_MODAL, {
-            type: ModalType.EXECUTION,
+            type: ModalType.ATTACK_DECLARATION,
             data: {
                 entityId: executor,
-                message: message
+                message: declarationMessage
             }
         });
     }

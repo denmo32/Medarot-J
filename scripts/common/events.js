@@ -24,6 +24,7 @@ export const GameEvents = {
     // --- Action Execution Events ---
     EXECUTION_ANIMATION_REQUESTED: 'EXECUTION_ANIMATION_REQUESTED', // ★追加: 行動実行アニメーションの開始を要求
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED', // ★追加: 行動実行アニメーションの完了を通知
+    ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED', // ★追加: 攻撃宣言モーダルのOKが押された
     ACTION_EXECUTION_CONFIRMED: 'ACTION_EXECUTION_CONFIRMED', // 攻撃モーダルのOKが押された
     ACTION_EXECUTED: 'ACTION_EXECUTED',                       // 行動が実行され、ダメージなどが計算された
 

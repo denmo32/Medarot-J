@@ -12,6 +12,7 @@ export class ViewSystem {
         this.world = world;
         this.context = this.world.getSingletonComponent(Components.GameContext);
         this.confirmActionEntityId = null;
+        this.currentModalType = null; // ★追加: 現在表示中のモーダルタイプを追跡
         this.dom = {
             gameStartButton: document.getElementById('gameStartButton'),
             actionPanel: document.getElementById('action-panel'),
@@ -128,7 +129,12 @@ export class ViewSystem {
                 contentHTML: (data) => this.generateTriangleLayoutHTML(data.buttons),
                 setupEvents: (container, data) => this.setupSelectionEvents(container, data)
             },
-            [ModalType.EXECUTION]: {
+            [ModalType.ATTACK_DECLARATION]: {
+                title: '',
+                actorName: (data) => data.message,
+                confirmButton: { text: 'OK' }
+            },
+            [ModalType.EXECUTION_RESULT]: {
                 title: '',
                 actorName: (data) => data.message,
                 confirmButton: { text: 'OK' }
@@ -217,7 +223,15 @@ export class ViewSystem {
                 return;
             }
             if (this.confirmActionEntityId !== null) {
-                this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: this.confirmActionEntityId });
+                // 現在のモーダルタイプに応じて発行するイベントを切り替える
+                switch (this.currentModalType) {
+                    case ModalType.ATTACK_DECLARATION:
+                        this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { entityId: this.confirmActionEntityId });
+                        break;
+                    case ModalType.EXECUTION_RESULT:
+                        this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: this.confirmActionEntityId });
+                        break;
+                }
             }
         };
         this.dom.actionPanelConfirmButton.addEventListener('click', this.handlers.panelConfirm);
@@ -245,7 +259,10 @@ export class ViewSystem {
         // これにより、UIの状態変化がゲームのコアロジックに直接影響を与えることを防ぎ、
         // 責務の分離をより明確にします。
         this.world.emit(GameEvents.GAME_PAUSED);
-        if (type === ModalType.EXECUTION) {
+        // ★追加: 現在のモーダルタイプを保存
+        this.currentModalType = type;
+
+        if (type === ModalType.ATTACK_DECLARATION || type === ModalType.EXECUTION_RESULT) {
             this.confirmActionEntityId = data.entityId;
         }
         if (type === ModalType.SELECTION) {
@@ -275,6 +292,7 @@ export class ViewSystem {
         // 責務の分離をより明確にします。
         this.world.emit(GameEvents.GAME_RESUMED);
         this.confirmActionEntityId = null;
+        this.currentModalType = null; // ★追加: モーダルタイプをリセット
         // 表示されている可能性のあるインジケーターを非表示にする
         const activeIndicator = document.querySelector('.target-indicator.active');
         if (activeIndicator) {
