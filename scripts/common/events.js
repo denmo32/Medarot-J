@@ -27,6 +27,7 @@ export const GameEvents = {
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED', // ★追加: 攻撃宣言モーダルのOKが押された
     ACTION_EXECUTION_CONFIRMED: 'ACTION_EXECUTION_CONFIRMED', // 攻撃モーダルのOKが押された
     ACTION_EXECUTED: 'ACTION_EXECUTED',                       // 行動が実行され、ダメージなどが計算された
+    ATTACK_SEQUENCE_COMPLETED: 'ATTACK_SEQUENCE_COMPLETED', // ★追加: 攻撃シーケンス全体が完了した
 
     // --- State & Turn Management Events ---
     // ★追加: 行動可能になったユニットがターンキューへの追加を要求する

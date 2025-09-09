@@ -22,6 +22,7 @@ export class StateSystem {
         // 他のシステムから発行される、状態遷移のきっかけとなるイベントを購読します。
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
+        this.world.on(GameEvents.ATTACK_SEQUENCE_COMPLETED, this.onAttackSequenceCompleted.bind(this));
     }
 
     /**
@@ -78,6 +79,12 @@ export class StateSystem {
     onActionExecuted(detail) {
         const { attackerId, targetId, targetPartKey, damage, isPartBroken, isPlayerBroken } = detail;
 
+        // ★追加: ターゲットがいない場合（格闘の空振りなど）は攻撃者の状態をリセットして終了
+        if (!targetId) {
+            this.resetAttackerState(attackerId);
+            return;
+        }
+
         // 1. ダメージをターゲットのパーツHPに反映させます。
         const targetParts = this.world.getComponent(targetId, Parts);
         const part = targetParts[targetPartKey];
@@ -101,21 +108,43 @@ export class StateSystem {
             this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId });
         }
 
-        // 4. 攻撃者の状態をリセットします。
+        // 4. 攻撃者の状態リセットは onAttackSequenceCompleted に移動
+    }
+
+    /**
+     * ★新規: 攻撃シーケンス完了後、攻撃者の状態をリセットします。
+     * @param {object} detail - { entityId }
+     */
+    onAttackSequenceCompleted(detail) {
+        const { entityId } = detail;
+        this.resetAttackerState(entityId);
+    }
+
+    /**
+     * ★新規: 攻撃者の状態をチャージ中にリセットし、Actionコンポーネントをクリアします。
+     * @param {number} attackerId 
+     */
+    resetAttackerState(attackerId) {
         const attackerGameState = this.world.getComponent(attackerId, GameState);
         const attackerGauge = this.world.getComponent(attackerId, Gauge);
         const attackerAction = this.world.getComponent(attackerId, Action);
 
-        // 状態を「チャージ中」（クールダウン）に戻し、次の行動に備えさせます。
-        attackerGameState.state = PlayerStateType.CHARGING;
-        attackerGauge.value = 0;
+        // 破壊されている場合は何もしない
+        if (attackerGameState && attackerGameState.state === PlayerStateType.BROKEN) {
+            return;
+        }
+
+        if (attackerGameState) attackerGameState.state = PlayerStateType.CHARGING;
+        if (attackerGauge) attackerGauge.value = 0;
         
-        // Actionコンポーネントをクリアし、前回の行動が残らないようにします。
-        attackerAction.partKey = null;
-        attackerAction.type = null;
-        attackerAction.targetId = null;
-        attackerAction.targetPartKey = null;
-        attackerAction.damage = 0;
+        if (attackerAction) {
+            attackerAction.partKey = null;
+            attackerAction.type = null;
+            attackerAction.targetId = null;
+            attackerAction.targetPartKey = null;
+            attackerAction.damage = 0;
+            attackerAction.resultMessage = '';
+        }
     }
 
     /**

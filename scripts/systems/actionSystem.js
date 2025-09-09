@@ -44,7 +44,11 @@ export class ActionSystem extends BaseSystem {
             type: ModalType.EXECUTION_RESULT,
             data: {
                 entityId: entityId,
-                message: action.resultMessage
+                message: action.resultMessage,
+                // ★追加: アニメーション連携用の情報を渡す
+                targetId: action.targetId,
+                targetPartKey: action.targetPartKey,
+                damage: action.damage
             }
         });
     }

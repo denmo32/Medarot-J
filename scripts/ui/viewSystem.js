@@ -137,7 +137,9 @@ export class ViewSystem {
             [ModalType.EXECUTION_RESULT]: {
                 title: '',
                 actorName: (data) => data.message,
-                confirmButton: { text: 'OK' }
+                // ★変更: confirmButtonを削除し、setupEventsで動的に制御
+                contentHTML: '',
+                setupEvents: (container, data) => this.setupExecutionResultEvents(container, data)
             },
             [ModalType.BATTLE_START_CONFIRM]: {
                 title: '合意と見てよろしいですね！？',
@@ -207,7 +209,6 @@ export class ViewSystem {
         this.world.on(GameEvents.HIDE_MODAL, () => this.hideActionPanel());
         this.world.on(GameEvents.GAME_START_REQUESTED, () => this.showActionPanel(ModalType.START_CONFIRM));
         this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
-        this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, () => this.hideActionPanel());
         this.world.on(GameEvents.EXECUTION_ANIMATION_REQUESTED, this.onExecutionAnimationRequested.bind(this));
     }
     // DOM要素のイベントリスナーを登録する
@@ -232,13 +233,66 @@ export class ViewSystem {
                         this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { entityId: this.confirmActionEntityId });
                         break;
                     case ModalType.EXECUTION_RESULT:
-                        this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: this.confirmActionEntityId });
+                        // ★変更: 攻撃シーケンス完了イベントを発行し、パネルを閉じる
+                        this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: this.confirmActionEntityId });
+                        this.hideActionPanel();
                         break;
                 }
             }
         };
         this.dom.actionPanelConfirmButton.addEventListener('click', this.handlers.panelConfirm);
     }
+
+    /**
+     * ★新規: 実行結果モーダルのイベントを設定します。
+     * HPバーのアニメーション完了を待って確認ボタンを表示します。
+     * @param {HTMLElement} container 
+     * @param {object} data 
+     */
+    setupExecutionResultEvents(container, data) {
+        const confirmButton = this.dom.actionPanelConfirmButton;
+        confirmButton.textContent = 'OK';
+        confirmButton.style.display = 'none'; // 最初は非表示
+
+        const showButton = () => {
+            confirmButton.style.display = 'inline-block';
+        };
+
+        // HP更新をトリガー
+        this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: data.entityId });
+
+        // ダメージがない、またはターゲット情報がない場合は即座にボタンを表示
+        if (!data.damage || data.damage === 0 || !data.targetId || !data.targetPartKey) {
+            showButton();
+            return;
+        }
+
+        const targetDomRef = this.world.getComponent(data.targetId, Components.DOMReference);
+        if (!targetDomRef || !targetDomRef.partDOMElements[data.targetPartKey]) {
+            showButton();
+            return;
+        }
+
+        const hpBarElement = targetDomRef.partDOMElements[data.targetPartKey].bar;
+
+        const onTransitionEnd = (event) => {
+            // widthプロパティのトランジションのみを対象とする
+            if (event.propertyName === 'width') {
+                showButton();
+                clearTimeout(fallbackTimeout);
+                hpBarElement.removeEventListener('transitionend', onTransitionEnd);
+            }
+        };
+
+        hpBarElement.addEventListener('transitionend', onTransitionEnd);
+
+        // フォールバックタイマー: CSSのtransition(0.8s)より少し長く設定
+        const fallbackTimeout = setTimeout(() => {
+            hpBarElement.removeEventListener('transitionend', onTransitionEnd);
+            showButton();
+        }, 1000);
+    }
+
     /**
      * UIの状態をリセットします。
      * DOM要素のクリアはDomFactorySystemが担当します。
