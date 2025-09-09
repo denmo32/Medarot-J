@@ -105,12 +105,17 @@ export class RenderSystem extends BaseSystem {
             indicator.style.left = `${startX}px`;
             indicator.style.top = `${startY}px`;
             const animation = indicator.animate([
-                { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1, offset: 0 }, // 初期スケールと不透明度
-                { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 1, offset: 0.2 }, // 拡大
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(1.5)`, opacity: 1, offset: 0.8 }, // 移動と維持
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0, offset: 1 } // 縮小とフェードアウト
+                // 1. 攻撃者の位置で出現し、拡大する
+                { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1, offset: 0 },
+                { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 1, offset: 0.2 },
+                // 2. ターゲットの位置まで移動する
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(1.5)`, opacity: 1, offset: 0.5 },
+                // 3. ターゲットの位置で脈動（縮小→拡大→縮小）し、最後に消える
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 1, offset: 0.65 }, // ★変更: 1回目の縮小スケールを0.5に
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(2.0)`, opacity: 1, offset: 0.8 },
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0, offset: 1 }
             ], {
-                duration: 800, // 0.8秒
+                duration: 1200, // アニメーション時間は1.2秒
                 easing: 'ease-in-out'
             });
             animation.finished.then(() => {
