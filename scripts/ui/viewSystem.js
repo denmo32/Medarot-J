@@ -183,6 +183,7 @@ export class ViewSystem {
             if (btn.isBroken) return;
             const buttonEl = container.querySelector(`#panelBtn-${btn.partKey}`);
             if (!buttonEl) return;
+
             buttonEl.onclick = () => {
                 this.world.emit(GameEvents.PART_SELECTED, {
                     entityId: data.entityId,
@@ -192,7 +193,9 @@ export class ViewSystem {
                 });
                 this.hideActionPanel();
             };
-            if (targetDomRef && targetDomRef.targetIndicatorElement) {
+
+            // ★変更: アクションタイプが「射撃」の場合のみ、インジケーター表示イベントを付与
+            if (btn.action === '射撃' && targetDomRef && targetDomRef.targetIndicatorElement) {
                 buttonEl.onmouseover = () => targetDomRef.targetIndicatorElement.classList.add('active');
                 buttonEl.onmouseout = () => targetDomRef.targetIndicatorElement.classList.remove('active');
             }

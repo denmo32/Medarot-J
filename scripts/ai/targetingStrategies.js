@@ -5,6 +5,8 @@
 
 import { Parts, PlayerInfo, GameState, BattleLog, GameContext } from '../core/components.js';
 import { PartType, PlayerStateType, MedalPersonality } from '../common/constants.js';
+// ★追加: battleUtilsから関数をインポート
+import { isValidTarget, selectRandomPart } from '../utils/battleUtils.js';
 
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。
@@ -136,26 +138,7 @@ function selectPartByCondition(world, enemies, sortFn) {
     return { targetId: selectedPart.entityId, targetPartKey: selectedPart.partKey };
 }
 
-/**
- * 指定されたエンティティから攻撃可能なパーツをランダムに1つ選択するヘルパー関数。
- * @param {World} world
- * @param {number} entityId - ターゲットのエンティティID
- * @returns {{targetId: number, targetPartKey: string} | null}
- */
-function selectRandomPart(world, entityId) {
-    if (!world || entityId === null || entityId === undefined) return null;
-    const parts = world.getComponent(entityId, Parts);
-    if (!parts) return null;
 
-    // 破壊されていない攻撃可能なパーツのみを候補とします。
-    const hittablePartKeys = Object.keys(parts).filter(key => !parts[key].isBroken && key !== PartType.LEGS);
-
-    if (hittablePartKeys.length > 0) {
-        const partKey = hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
-        return { targetId: entityId, targetPartKey: partKey };
-    }
-    return null; // 攻撃可能なパーツがない場合
-}
 
 /**
  * 指定された敵たちの、破壊されていない全攻撃可能パーツのリストを取得します。
@@ -177,27 +160,3 @@ function getAllEnemyParts(world, enemyIds) {
     return allParts;
 }
 
-/**
- * 指定されたターゲットIDやパーツキーが現在有効（生存・未破壊）か検証します。
- * なぜこの検証が必要か？
- * AIがターゲットを決定してから実際に行動するまでの間に、ターゲットが味方によって破壊される可能性があります。
- * そのような無効なターゲットへの攻撃を防ぎ、AIの行動の妥当性を保証するために、この関数で最終チェックを行います。
- * @param {World} world
- * @param {number} targetId
- * @param {string | null} partKey
- * @returns {boolean}
- */
-export function isValidTarget(world, targetId, partKey = null) {
-    if (targetId === null || targetId === undefined) return false;
-
-    const gameState = world.getComponent(targetId, GameState);
-    if (!gameState || gameState.state === PlayerStateType.BROKEN) return false;
-
-    if (partKey) {
-        const parts = world.getComponent(targetId, Parts);
-        if (!parts || !parts[partKey] || parts[partKey].isBroken) {
-            return false;
-        }
-    }
-    return true;
-}

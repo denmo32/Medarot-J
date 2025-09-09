@@ -4,6 +4,8 @@
  */
 
 import { GameEvents } from '../common/events.js';
+// ★追加: Partsコンポーネントをインポート
+import { Parts } from '../core/components.js';
 import { getAttackableParts } from '../utils/battleUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
 
@@ -34,20 +36,32 @@ export class AiSystem {
             // 2. どのパーツで攻撃するかを決定します。
             const [partKey, part] = this._chooseActionPart(entityId, availableParts);
             
-            // 3. 誰のどのパーツを攻撃するかを決定します。
-            //    この最も複雑なロジックは、専用のヘルパー関数に委譲されています。
-            const target = determineTarget(this.world, entityId);
+            // ★追加: 選択したパーツのアクションタイプ（'格闘' or '射撃'）を取得
+            const selectedPartAction = this.world.getComponent(entityId, Parts)[partKey].action;
 
-            // ターゲットが見つからない（例：有効な敵がいない）場合は、行動をスキップします。
-            if (!target) {
-                 this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey: null, targetId: null, targetPartKey: null });
-                return;
+            // 3. アクションタイプに応じてターゲット決定戦略を分岐
+            if (selectedPartAction === '格闘') {
+                // 格闘の場合、ターゲットは未定のまま行動を決定
+                this.world.emit(GameEvents.ACTION_SELECTED, { 
+                    entityId, 
+                    partKey, 
+                    targetId: null, 
+                    targetPartKey: null 
+                });
+            } else {
+                // 射撃の場合、従来通りターゲットを決定
+                const target = determineTarget(this.world, entityId);
+
+                // ターゲットが見つからない場合は行動をスキップ
+                if (!target) {
+                    this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey: null, targetId: null, targetPartKey: null });
+                    return;
+                }
+                const { targetId, targetPartKey } = target;
+
+                // 4. 決定した行動内容をStateSystemに通知します。
+                this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey, targetId, targetPartKey });
             }
-            const { targetId, targetPartKey } = target;
-
-            // 4. 決定した行動内容をStateSystemに通知します。
-            //    このシステムは「決定」するだけで、実際の状態変更は行いません（責務の分離）。
-            this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey, targetId, targetPartKey });
 
         } else {
             // 攻撃可能なパーツが残っていない場合、自身が破壊されたものとしてイベントを発行します。

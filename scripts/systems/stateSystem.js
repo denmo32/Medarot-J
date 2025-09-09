@@ -35,31 +35,39 @@ export class StateSystem {
         const gameState = this.world.getComponent(entityId, GameState);
         const gauge = this.world.getComponent(entityId, Gauge);
 
-        // なぜここでアクションの有効性を検証するのか？
-        // 状態を遷移させる前の最終防衛ラインだからです。例えば、UIの不具合やAIの判断ミスで
-        // 破壊されたパーツでの攻撃が選択された場合、この検証でブロックし、ゲームの不正な進行を防ぎます。
-        const isActionValid = partKey && parts[partKey] && !parts[partKey].isBroken && 
-                              targetId !== null && targetId !== undefined && 
-                              targetPartKey !== null && targetPartKey !== undefined;
+        // ★変更: アクションの有効性を、パーツの存在とアクションタイプに基づいて多段階で検証します。
 
-        if (!isActionValid) {
-            console.warn(`StateSystem: Invalid action for entity ${entityId} was aborted. Re-queueing.`, detail);
-            // アクションが無効だった場合、ペナルティなしで再選択させるため、TurnSystemに通知します。
+        // 1. 基本的な検証: パーツが選択されているか、壊れていないかを確認します。
+        if (!partKey || !parts[partKey] || parts[partKey].isBroken) {
+            console.warn(`StateSystem: Invalid or broken part selected for entity ${entityId}. Re-queueing.`, detail);
             this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
             return;
         }
 
-        // 1. 選択されたアクションの内容をActionコンポーネントに記録します。
-        //    これにより、後のActionSystemが「何を実行すべきか」を知ることができます。
-        action.partKey = partKey;
-        action.type = parts[partKey].action;
-        action.targetId = targetId;
-        action.targetPartKey = targetPartKey;
+        const actionType = parts[partKey].action;
 
-        // 2. エンティティの状態を「行動選択済みチャージ中」へ遷移させます。
+        // 2. ターゲットの検証: アクションタイプに応じてターゲットの要件を確認します。
+        if (actionType === '射撃') {
+            // 射撃の場合、ターゲットが必須です。
+            const isTargetValid = targetId !== null && targetId !== undefined && targetPartKey !== null && targetPartKey !== undefined;
+            if (!isTargetValid) {
+                console.warn(`StateSystem: Shooting action for entity ${entityId} lacks a valid target. Re-queueing.`, detail);
+                this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
+                return;
+            }
+        } 
+        // 格闘の場合は、この時点ではターゲットがnullでも許容されます。
+
+        // 3. 選択されたアクションの内容をActionコンポーネントに記録します。
+        action.partKey = partKey;
+        action.type = actionType;
+        action.targetId = targetId; // 格闘の場合はnullが設定される
+        action.targetPartKey = targetPartKey; // 格闘の場合はnullが設定される
+
+        // 4. エンティティの状態を「行動選択済みチャージ中」へ遷移させます。
         gameState.state = PlayerStateType.SELECTED_CHARGING;
         
-        // 3. ゲージをリセットし、行動実行までのチャージを開始させます。
+        // 5. ゲージをリセットし、行動実行までのチャージを開始させます。
         gauge.value = 0;
     }
 

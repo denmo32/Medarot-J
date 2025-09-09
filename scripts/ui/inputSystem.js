@@ -1,7 +1,8 @@
 // scripts/systems/inputSystem.js:
 
 import { GameEvents } from '../common/events.js';
-import { PlayerInfo } from '../core/components.js';
+// ★追加: Partsコンポーネントをインポート
+import { PlayerInfo, Parts } from '../core/components.js';
 import { ModalType } from '../common/constants.js';
 import { getAllActionParts } from '../utils/battleUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
@@ -43,7 +44,8 @@ export class InputSystem {
             buttons: allActionParts.map(([partKey, part]) => ({
                 text: `${part.name} (${part.action})`,
                 partKey: partKey,
-                isBroken: part.isBroken
+                isBroken: part.isBroken,
+                action: part.action // ★追加: ViewSystemが参照するためにアクションタイプを渡す
             })),
             // 決定したターゲット情報をパネルデータに含める
             targetId: target ? target.targetId : null,
@@ -61,14 +63,28 @@ export class InputSystem {
         // ViewSystemから渡された、事前に決定済みのターゲット情報を含む詳細を受け取る
         const { entityId, partKey, targetId, targetPartKey } = detail;
 
-        // ターゲットが見つからない場合は行動をスキップ
-        if (!targetId) {
-            this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey: null, targetId: null, targetPartKey: null });
-            return;
-        }
+        // ★追加: 選択されたパーツのアクションタイプ（'格闘' or '射撃'）を取得
+        const selectedPartAction = this.world.getComponent(entityId, Parts)[partKey].action;
 
-        // 決定した完全な行動内容をStateSystemに通知する
-        this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey, targetId, targetPartKey });
+        // ★変更: アクションタイプに応じて処理を分岐
+        if (selectedPartAction === '格闘') {
+            // 格闘の場合、ターゲットは未定で行動を決定
+            this.world.emit(GameEvents.ACTION_SELECTED, { 
+                entityId, 
+                partKey, 
+                targetId: null, 
+                targetPartKey: null 
+            });
+        } else {
+            // 射撃の場合、従来通り事前に決定したターゲットを使用
+            // ターゲットが見つからない場合は行動をスキップ
+            if (!targetId) {
+                this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey: null, targetId: null, targetPartKey: null });
+                return;
+            }
+            // 決定した完全な行動内容をStateSystemに通知する
+            this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey, targetId, targetPartKey });
+        }
     }
 
     // このシステムはイベント駆動なので、updateループでの処理は不要

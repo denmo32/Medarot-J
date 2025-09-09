@@ -2,7 +2,9 @@
 
 import { PlayerInfo, GameState, Medal } from '../core/components.js';
 import { PlayerStateType } from '../common/constants.js';
-import { targetingStrategies, isValidTarget } from './targetingStrategies.js';
+import { targetingStrategies } from './targetingStrategies.js';
+// ★変更: battleUtilsから関数をインポート
+import { getValidEnemies, isValidTarget } from '../utils/battleUtils.js';
 
 /**
  * 攻撃者のメダルの性格に基づき、ターゲット（敵エンティティとパーツ）を決定します。
@@ -31,18 +33,4 @@ export function determineTarget(world, attackerId) {
     return target;
 }
 
-/**
- * 生存している敵エンティティのリストを取得します
- * @param {World} world
- * @param {number} attackerId
- * @returns {number[]}
- */
-export function getValidEnemies(world, attackerId) {
-    const attackerInfo = world.getComponent(attackerId, PlayerInfo);
-    return world.getEntitiesWith(PlayerInfo, GameState)
-        .filter(id => {
-            const pInfo = world.getComponent(id, PlayerInfo);
-            const gState = world.getComponent(id, GameState);
-            return id !== attackerId && pInfo.teamId !== attackerInfo.teamId && gState.state !== PlayerStateType.BROKEN;
-        });
-}
+

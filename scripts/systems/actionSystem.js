@@ -7,7 +7,8 @@ import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action, GameContext } from '../core/components.js';
 import { PlayerStateType, PartType, ModalType } from '../common/constants.js';
-import { calculateDamage, findBestDefensePart } from '../utils/battleUtils.js';
+// ★変更: battleUtilsから追加の関数をインポート
+import { calculateDamage, findBestDefensePart, findNearestEnemy, selectRandomPart } from '../utils/battleUtils.js';
 import { BaseSystem } from '../core/baseSystem.js';
 
 /**
@@ -56,8 +57,13 @@ export class ActionSystem extends BaseSystem {
         const { entityId } = detail;
         const action = this.getCachedComponent(entityId, Action);
 
+        // ★変更: 格闘攻撃がターゲットを見つけられずスキップした場合を考慮
         if (!action || action.targetId === null || action.targetId === undefined) {
-            console.warn(`ActionSystem: ターゲット未定のまま実行が確認されました。Entity: ${entityId}`);
+            // この場合、updateループで既にACTION_EXECUTEDが発行されているはずなので、ここでは何もしない
+            // ただし、UIフローの都合でここに到達した場合は警告を出す
+            if (action && action.type !== '格闘') {
+                console.warn(`ActionSystem: A non-melee action was confirmed without a target. Entity: ${entityId}`);
+            }
             return;
         }
 
@@ -89,7 +95,6 @@ export class ActionSystem extends BaseSystem {
     update(deltaTime) {
         if (this.context.isPausedByModal) return;
 
-        // 行動を実行すべきエンティティを探します。
         const executor = this.world.getEntitiesWith(GameState)
             .find(id => this.getCachedComponent(id, GameState)?.state === PlayerStateType.READY_EXECUTE);
 
@@ -99,8 +104,33 @@ export class ActionSystem extends BaseSystem {
         const gameState = this.getCachedComponent(executor, GameState);
         if (!action || !gameState) return;
 
+        // ★追加: 格闘攻撃の場合、実行直前にターゲットを決定する
+        if (action.type === '格闘' && action.targetId === null) {
+            const nearestEnemyId = findNearestEnemy(this.world, executor);
+            
+            if (nearestEnemyId !== null) {
+                // 最も近い敵にターゲットを設定
+                const targetData = selectRandomPart(this.world, nearestEnemyId);
+                if (targetData) {
+                    action.targetId = targetData.targetId;
+                    action.targetPartKey = targetData.targetPartKey;
+                } else {
+                    // ターゲットはいるが、攻撃可能なパーツがない場合
+                    console.warn(`ActionSystem: No valid parts to attack on nearest enemy ${nearestEnemyId}.`);
+                    // ★暫定対応: 行動をスキップしてクールダウンに戻す
+                    this.world.emit(GameEvents.ACTION_EXECUTED, { attackerId: executor, damage: 0 });
+                    return;
+                }
+            } else {
+                // 有効な敵がいない場合
+                console.warn(`ActionSystem: No valid enemies for melee attack by ${executor}.`);
+                // ★暫定対応: 行動をスキップしてクールダウンに戻す
+                this.world.emit(GameEvents.ACTION_EXECUTED, { attackerId: executor, damage: 0 });
+                return;
+            }
+        }
+
         // 状態をアニメーション待ちに変更し、ViewSystemにアニメーションを要求します。
-        // ダメージ計算などのロジックは、アニメーション完了後に onExecutionAnimationCompleted で実行されます。
         gameState.state = PlayerStateType.AWAITING_ANIMATION;
         this.world.emit(GameEvents.EXECUTION_ANIMATION_REQUESTED, {
             attackerId: executor,

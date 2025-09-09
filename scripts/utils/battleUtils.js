@@ -1,8 +1,10 @@
 // scripts/utils/battleUtils.js
 
 import { CONFIG } from '../common/config.js';
-import { Parts } from '../core/components.js';
-import { PartType } from '../common/constants.js';
+// ★追加: Position, PlayerInfo, GameStateをインポート
+import { Parts, Position, PlayerInfo, GameState } from '../core/components.js';
+// ★追加: PlayerStateTypeをインポート
+import { PartType, PlayerStateType } from '../common/constants.js';
 
 /**
  * ダメージ計算を行う関数
@@ -83,4 +85,96 @@ export function findBestDefensePart(world, entityId) {
     defendableParts.sort(([, a], [, b]) => b.hp - a.hp);
 
     return defendableParts[0][0]; // [key, part] の key を返す
+}
+
+// --- ★ここから新規/移動した関数 ---
+
+/**
+ * ★新規(targetingUtils.jsから移動): 生存している敵エンティティのリストを取得します
+ * @param {World} world
+ * @param {number} attackerId
+ * @returns {number[]}
+ */
+export function getValidEnemies(world, attackerId) {
+    const attackerInfo = world.getComponent(attackerId, PlayerInfo);
+    return world.getEntitiesWith(PlayerInfo, GameState)
+        .filter(id => {
+            const pInfo = world.getComponent(id, PlayerInfo);
+            const gState = world.getComponent(id, GameState);
+            return id !== attackerId && pInfo.teamId !== attackerInfo.teamId && gState.state !== PlayerStateType.BROKEN;
+        });
+}
+
+/**
+ * ★新規(targetingStrategies.jsから移動): 指定されたターゲットIDやパーツキーが現在有効（生存・未破壊）か検証します。
+ * @param {World} world
+ * @param {number} targetId
+ * @param {string | null} partKey
+ * @returns {boolean}
+ */
+export function isValidTarget(world, targetId, partKey = null) {
+    if (targetId === null || targetId === undefined) return false;
+
+    const gameState = world.getComponent(targetId, GameState);
+    if (!gameState || gameState.state === PlayerStateType.BROKEN) return false;
+
+    if (partKey) {
+        const parts = world.getComponent(targetId, Parts);
+        if (!parts || !parts[partKey] || parts[partKey].isBroken) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * ★新規(targetingStrategies.jsから移動): 指定されたエンティティから攻撃可能なパーツをランダムに1つ選択します。
+ * ActionSystemが格闘攻撃のターゲットパーツを決定するために使用します。
+ * @param {World} world
+ * @param {number} entityId - ターゲットのエンティティID
+ * @returns {{targetId: number, targetPartKey: string} | null}
+ */
+export function selectRandomPart(world, entityId) {
+    if (!world || entityId === null || entityId === undefined) return null;
+    const parts = world.getComponent(entityId, Parts);
+    if (!parts) return null;
+
+    // 破壊されていない攻撃可能なパーツのみを候補とします。
+    const hittablePartKeys = Object.keys(parts).filter(key => !parts[key].isBroken && key !== PartType.LEGS);
+
+    if (hittablePartKeys.length > 0) {
+        const partKey = hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
+        return { targetId: entityId, targetPartKey: partKey };
+    }
+    return null; // 攻撃可能なパーツがない場合
+}
+
+/**
+ * ★新規: 格闘攻撃用に、最もX軸距離の近い敵を見つけます。
+ * @param {World} world
+ * @param {number} attackerId - 攻撃者のエンティティID
+ * @returns {number | null} - 最も近い敵のエンティティID、またはnull
+ */
+export function findNearestEnemy(world, attackerId) {
+    const attackerPos = world.getComponent(attackerId, Position);
+    if (!attackerPos) return null;
+
+    const enemies = getValidEnemies(world, attackerId);
+    if (enemies.length === 0) return null;
+
+    let closestEnemyId = null;
+    let minDistance = Infinity;
+
+    for (const enemyId of enemies) {
+        const enemyPos = world.getComponent(enemyId, Position);
+        if (enemyPos) {
+            const distance = Math.abs(attackerPos.x - enemyPos.x);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestEnemyId = enemyId;
+            }
+        }
+    }
+
+    return closestEnemyId;
 }
