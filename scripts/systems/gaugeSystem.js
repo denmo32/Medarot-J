@@ -40,8 +40,9 @@ export class GaugeSystem extends BaseSystem {
             // 脚部パーツの推進力を取得。見つからなければデフォルト値1を代入
             const propulsion = parts.legs?.propulsion || 1;
 
-            // ゲージを増加させる (推進20を基準速度1.0とする)
-            const increment = (propulsion / 20.0) * (deltaTime / CONFIG.UPDATE_INTERVAL);
+            // ★変更: speedMultiplierを考慮してゲージを増加させる
+            const speedMultiplier = gauge.speedMultiplier || 1.0;
+            const increment = (propulsion / 20.0) * (deltaTime / CONFIG.UPDATE_INTERVAL) / speedMultiplier;
             gauge.value += increment;
 
             // ゲージが最大値を超えないようにする

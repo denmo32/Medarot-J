@@ -4,6 +4,7 @@
  */
 
 import { Gauge, GameState, Parts, PlayerInfo, Action, GameContext } from '../core/components.js';
+import { CONFIG } from '../common/config.js'; // ★追加
 import { GameEvents } from '../common/events.js';
 import { PlayerStateType } from '../common/constants.js';
 
@@ -70,6 +71,10 @@ export class StateSystem {
         
         // 5. ゲージをリセットし、行動実行までのチャージを開始させます。
         gauge.value = 0;
+
+        // ★新規: 選択されたパーツに応じて、チャージ速度の補正率を計算・設定します。
+        const selectedPart = parts[partKey];
+        gauge.speedMultiplier = this._calculateSpeedMultiplier(selectedPart, 'charge');
     }
 
     /**
@@ -121,6 +126,33 @@ export class StateSystem {
     }
 
     /**
+     * ★新規: パーツ性能に基づき、速度補正率を計算するヘルパー関数
+     * @param {object} part - パーツオブジェクト
+     * @param {'charge' | 'cooldown'} factorType - 計算する係数の種類
+     * @returns {number} 速度補正率 (1.0が基準)
+     */
+    _calculateSpeedMultiplier(part, factorType) {
+        if (!part) return 1.0;
+
+        const config = CONFIG.TIME_ADJUSTMENT;
+        const factor = factorType === 'charge' ? config.CHARGE_IMPACT_FACTOR : config.COOLDOWN_IMPACT_FACTOR;
+
+        const might = part.might || 0;
+        const success = part.success || 0;
+
+        // 性能スコア = (威力 / 最大威力) + (成功 / 最大成功)
+        // 基準値が0の場合のゼロ除算を避ける
+        const mightScore = config.MAX_MIGHT > 0 ? might / config.MAX_MIGHT : 0;
+        const successScore = config.MAX_SUCCESS > 0 ? success / config.MAX_SUCCESS : 0;
+        const performanceScore = mightScore + successScore;
+
+        // 時間補正率 = 1.0 + (性能スコア * 影響係数)
+        const multiplier = 1.0 + (performanceScore * factor);
+
+        return multiplier;
+    }
+
+    /**
      * ★新規: 攻撃者の状態をチャージ中にリセットし、Actionコンポーネントをクリアします。
      * @param {number} attackerId 
      */
@@ -128,10 +160,20 @@ export class StateSystem {
         const attackerGameState = this.world.getComponent(attackerId, GameState);
         const attackerGauge = this.world.getComponent(attackerId, Gauge);
         const attackerAction = this.world.getComponent(attackerId, Action);
+        const attackerParts = this.world.getComponent(attackerId, Parts);
 
         // 破壊されている場合は何もしない
         if (attackerGameState && attackerGameState.state === PlayerStateType.BROKEN) {
             return;
+        }
+
+        // ★新規: Actionコンポーネントがクリアされる前にパーツ情報を取得し、クールダウンの速度補正率を計算します。
+        if (attackerAction && attackerAction.partKey && attackerParts && attackerGauge) {
+            const usedPart = attackerParts[attackerAction.partKey];
+            attackerGauge.speedMultiplier = this._calculateSpeedMultiplier(usedPart, 'cooldown');
+        } else if (attackerGauge) {
+            // パーツ情報がない場合（格闘の空振りなど）はデフォルト値に戻す
+            attackerGauge.speedMultiplier = 1.0;
         }
 
         if (attackerGameState) attackerGameState.state = PlayerStateType.CHARGING;

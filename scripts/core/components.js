@@ -15,6 +15,7 @@ export class PlayerInfo {
 export class Gauge {
     constructor() {
         this.value = 0;
+        this.speedMultiplier = 1.0; // ★新規: パーツ性能に応じた速度補正率
         // speedプロパティは廃止され、GaugeSystemが直接脚部の推進力を参照する
         this.max = CONFIG.MAX_GAUGE;
     }

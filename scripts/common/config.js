@@ -7,6 +7,13 @@ export const CONFIG = {
     PART_HP_BASE: 50,
             LEGS_HP_BONUS: 10,
         BASE_DAMAGE: 20,
+    // ★新規: 時間調整関連の定数
+    TIME_ADJUSTMENT: {
+        MAX_MIGHT: 40, // ゲーム内の最大威力（基準値）
+        MAX_SUCCESS: 80, // ゲーム内の最大成功（基準値）
+        CHARGE_IMPACT_FACTOR: 0.8, // チャージ時間への影響係数
+        COOLDOWN_IMPACT_FACTOR: 0.5 // クールダウン時間への影響係数
+    },
     // バトルフィールド関連の定数を集約
     BATTLEFIELD: {
         HOME_MARGIN_TEAM1: 0.05, // チーム1のホームポジションのX座標
