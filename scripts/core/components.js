@@ -13,9 +13,9 @@ export class PlayerInfo {
 
 // ゲージ
 export class Gauge {
-    constructor(speed) {
+    constructor() {
         this.value = 0;
-        this.speed = speed;
+        // speedプロパティは廃止され、GaugeSystemが直接脚部の推進力を参照する
         this.max = CONFIG.MAX_GAUGE;
     }
 }
@@ -38,8 +38,8 @@ export class Parts {
         this.head =     { name: '頭部', hp, maxHp: hp, action: '射撃', success: 50, might: 10, isBroken: false };
         this.rightArm = { name: '右腕', hp, maxHp: hp, action: '射撃', success: 50, might: 20, isBroken: false };
         this.leftArm =  { name: '左腕', hp, maxHp: hp, action: '格闘', success: 50, might: 25, isBroken: false };
-        // 機動: 攻撃の避けやすさ, 防御: ダメージの軽減しやすさ
-        this.legs =     { name: '脚部', hp: legsHp, maxHp: legsHp, action: '移動', mobility: 20, armor: 20, isBroken: false };
+        // 機動: 攻撃の避けやすさ, 防御: ダメージの軽減しやすさ, 推進: ゲージの溜まる速さ
+        this.legs =     { name: '脚部', hp: legsHp, maxHp: legsHp, action: '移動', mobility: 20, armor: 20, propulsion: 20, isBroken: false };
     }
 }
 
