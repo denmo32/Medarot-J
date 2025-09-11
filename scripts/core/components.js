@@ -33,10 +33,13 @@ export class Parts {
     constructor() {
         const hp = CONFIG.PART_HP_BASE;
         const legsHp = hp + CONFIG.LEGS_HP_BONUS;
-        this.head = { name: '頭部', hp, maxHp: hp, action: '射撃', power: 10, isBroken: false };
-        this.rightArm = { name: '右腕', hp, maxHp: hp, action: '射撃', power: 20, isBroken: false };
-        this.leftArm = { name: '左腕', hp, maxHp: hp, action: '格闘', power: 25, isBroken: false };
-        this.legs = { name: '脚部', hp: legsHp, maxHp: legsHp, action: '移動', power: 0, isBroken: false };
+        // ★変更: パーツに新しいパラメータ(success, might, mobility, armor)を追加。powerをmightにリネーム。
+        // 成功: 攻撃の当たりやすさ, 威力: ダメージの基本値
+        this.head =     { name: '頭部', hp, maxHp: hp, action: '射撃', success: 50, might: 10, isBroken: false };
+        this.rightArm = { name: '右腕', hp, maxHp: hp, action: '射撃', success: 50, might: 20, isBroken: false };
+        this.leftArm =  { name: '左腕', hp, maxHp: hp, action: '格闘', success: 50, might: 25, isBroken: false };
+        // 機動: 攻撃の避けやすさ, 防御: ダメージの軽減しやすさ
+        this.legs =     { name: '脚部', hp: legsHp, maxHp: legsHp, action: '移動', mobility: 20, armor: 20, isBroken: false };
     }
 }
 

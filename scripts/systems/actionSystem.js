@@ -152,38 +152,69 @@ export class ActionSystem extends BaseSystem {
         const action = this.getCachedComponent(executor, Action);
         if (!action) return;
 
-        // --- 1. ダメージの基本値を計算 ---
-        const damage = calculateDamage(this.world, executor, action.targetId, action);
-
-        // --- 2. 命中判定（回避・防御）と最終ダメージの決定 ---
-        let declarationMessage = ''; // ★変更: 宣言メッセージ
-        let resultMessage = '';      // ★変更: 結果メッセージ
-        const targetParts = this.getCachedComponent(action.targetId, Parts);
         const attackerInfo = this.getCachedComponent(executor, PlayerInfo);
         const targetInfo = this.getCachedComponent(action.targetId, PlayerInfo);
+        const attackerParts = this.getCachedComponent(executor, Parts);
+        const targetParts = this.getCachedComponent(action.targetId, Parts);
 
-        if (!targetParts || !attackerInfo || !targetInfo) return;
-        
-        declarationMessage = `${attackerInfo.name}の${action.type}！`; // ★追加: 宣言メッセージを生成
+        if (!attackerInfo || !targetInfo || !attackerParts || !targetParts) return;
 
-        let defenseSuccess = false;
-        let finalTargetPartKey = action.targetPartKey; // 元のターゲットを保持
-        let finalDamage = damage; // 最終的なダメージを保持する変数
+        const attackingPart = attackerParts[action.partKey];
+        const targetLegs = targetParts.legs;
 
-        // 回避判定
-        if (Math.random() < CONFIG.EVASION_CHANCE) {
+        let finalDamage = 0;
+        let finalTargetPartKey = action.targetPartKey;
+        let resultMessage = '';
+        const declarationMessage = `${attackerInfo.name}の${action.type}！`;
+
+        console.log(`=================================================`);
+        console.log(`攻撃シーケンス開始: ${attackerInfo.name} -> ${targetInfo.name}`);
+
+        // --- 1. 回避判定 ---
+        const evasionChance = Math.max(0, Math.min(0.95, (targetLegs.mobility - attackingPart.success) / 200 + 0.10));
+        const evasionRoll = Math.random();
+
+        console.log(`--- 回避判定 (Target: ${action.targetId}) ---`);
+        console.log(`  - ターゲット機動: ${targetLegs.mobility}, 攻撃側成功: ${attackingPart.success}`);
+        console.log(`  - 回避成功率: ${Math.round(evasionChance * 100)}%`);
+        console.log(`  - 乱数: ${evasionRoll.toFixed(2)}`);
+
+        if (evasionRoll < evasionChance) {
+            // 回避成功
             finalDamage = 0;
             resultMessage = `${targetInfo.name}は攻撃を回避！`;
+            console.log(`  - 結果: 回避成功`);
+
         } else {
-            // 防御判定
-            if (Math.random() < CONFIG.DEFENSE_CHANCE) {
+            // 回避失敗
+            console.log(`  - 結果: 回避失敗`);
+
+            // --- 2. 防御判定 ---
+            const defenseChance = Math.max(0, Math.min(0.95, targetLegs.armor / 400 + 0.10));
+            const defenseRoll = Math.random();
+
+            console.log(`--- 防御判定 (Target: ${action.targetId}) ---`);
+            console.log(`  - ターゲット防御: ${targetLegs.armor}`);
+            console.log(`  - 防御成功率: ${Math.round(defenseChance * 100)}%`);
+            console.log(`  - 乱数: ${defenseRoll.toFixed(2)}`);
+
+            let defenseSuccess = false;
+            if (defenseRoll < defenseChance) {
                 const defensePartKey = findBestDefensePart(this.world, action.targetId);
                 if (defensePartKey) {
                     defenseSuccess = true;
-                    finalTargetPartKey = defensePartKey; // ターゲットを防御パーツに変更
+                    finalTargetPartKey = defensePartKey;
+                    console.log(`  - 結果: 防御成功 (防御パーツ: ${defensePartKey})`);
+                } else {
+                    console.log(`  - 結果: 防御失敗 (防御可能パーツなし)`);
                 }
+            } else {
+                console.log(`  - 結果: 防御失敗`);
             }
-    
+
+            // --- 3. ダメージ計算 ---
+            finalDamage = calculateDamage(this.world, executor, action.targetId, action);
+            
             const finalTargetPartName = targetParts[finalTargetPartKey].name;
     
             if (defenseSuccess) {
@@ -192,13 +223,14 @@ export class ActionSystem extends BaseSystem {
                 resultMessage = `${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
             }
         }
+        console.log(`=================================================`);
 
-        // --- 3. 結果をActionコンポーネントに一時保存 ---
+        // --- 4. 結果をActionコンポーネントに一時保存 ---
         action.targetPartKey = finalTargetPartKey;
         action.damage = finalDamage;
-        action.resultMessage = resultMessage; // ★追加: 結果メッセージを保存
+        action.resultMessage = resultMessage;
 
-        // --- 4. UIに行動結果の表示を要求 (1段階目) ---
+        // --- 5. UIに行動結果の表示を要求 (1段階目) ---
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.ATTACK_DECLARATION,
             data: {

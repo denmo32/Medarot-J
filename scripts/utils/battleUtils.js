@@ -17,12 +17,34 @@ import { PartType, PlayerStateType } from '../common/constants.js';
 export function calculateDamage(world, attackerId, targetId, action) {
     const attackerParts = world.getComponent(attackerId, Parts);
     const attackingPart = attackerParts[action.partKey];
+    const targetParts = world.getComponent(targetId, Parts);
 
-    // 将来的には、防御力や相性も考慮できます
-    // const targetParts = world.getComponent(targetId, Parts);
+    // 攻撃パーツまたはターゲットパーツが見つからない場合は0ダメージ
+    if (!attackingPart || !targetParts) {
+        return 0;
+    }
 
-    // パーツのpowerをダメージの基本値とします
-    return attackingPart.power || 0;
+    // ★新規: 新しいダメージ計算式に必要なパラメータを取得
+    const success = attackingPart.success || 0; // 攻撃側成功度
+    const might = attackingPart.might || 0;       // 攻撃側威力度
+    const mobility = targetParts.legs.mobility || 0; // ターゲット回避度
+    const armor = targetParts.legs.armor || 0;       // ターゲット防御度
+
+    // ★新規: 新しいダメージ計算式を適用
+    // ダメージ = (攻撃側成功度 - ターゲット回避度 - ターゲット防御度) / 4 + 攻撃側威力度
+    // ※括弧内の最低値は0とする
+    const baseDamage = Math.max(0, success - mobility - armor);
+    const finalDamage = Math.floor(baseDamage / 4) + might;
+
+    // ★デバッグログ追加: 計算過程をコンソールに出力
+    console.log(`--- ダメージ計算 (Attacker: ${attackerId}, Target: ${targetId}) ---`);
+    console.log(`  攻撃側: 成功=${success}, 威力=${might}`);
+    console.log(`  ターゲット側: 機動=${mobility}, 防御=${armor}`);
+    console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - ${armor}) / 4) + ${might} = ${finalDamage}`);
+    console.log(`  - ベースダメージ(括弧内): ${baseDamage}`);
+    console.log(`  - 最終ダメージ: ${finalDamage}`);
+
+    return finalDamage;
 }
 
 /**

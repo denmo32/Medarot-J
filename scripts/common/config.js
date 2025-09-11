@@ -20,6 +20,5 @@ export const CONFIG = {
         [TeamID.TEAM1]: { name: 'チーム 1', color: '#63b3ed', baseSpeed: 1.0, textColor: 'text-blue-300' },
         [TeamID.TEAM2]: { name: 'チーム 2', color: '#f56565', baseSpeed: 1.0, textColor: 'text-red-300' }
     },
-    EVASION_CHANCE: 0.25, // 攻撃の回避率
-    DEFENSE_CHANCE: 0.5,  // 防御の成功率
+    
 };
