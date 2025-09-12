@@ -116,6 +116,9 @@ export class GameContext {
             [TeamID.TEAM1]: null,
             [TeamID.TEAM2]: null
         };
+
+        // ★新規: モーダルの競合を避けるためのメッセージキュー
+        this.messageQueue = [];
     }
 
     // ★削除: isPausedメソッドは削除されました。

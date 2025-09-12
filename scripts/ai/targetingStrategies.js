@@ -30,7 +30,8 @@ export const targetingStrategies = {
     },
     /**
      * [JOKER]: 行動が予測不能で、戦況をかき乱す、トリックスターのような性格。
-     * 敵全体の全パーツの中から、完全にランダムで1つをターゲットとします。
+     * 敵全体の「攻撃可能な全パーツ」を一つの大きなリストとみなし、その中から完全にランダムで1つをターゲットとします。
+     * 結果として、健在なパーツを多く持つ敵が狙われやすくなります。
      */
     [MedalPersonality.JOKER]: (world, attackerId, enemies) => {
         const allParts = getAllEnemyParts(world, enemies);
@@ -111,7 +112,8 @@ export const targetingStrategies = {
     },
     /**
      * [RANDOM]: 基本的な性格であり、他の戦略が条件を満たさず実行できない場合の安全策（フォールバック）としての役割も持ちます。
-     * 敵1体をランダムに選び、そのパーツをランダムに狙います。
+     * まず「敵1体」をランダムに選び、次にその敵のパーツをランダムに狙います。
+     * どの敵機体も等しい確率で選ばれます。
      */
     [MedalPersonality.RANDOM]: (world, attackerId, enemies) => {
         if (enemies.length === 0) return null;

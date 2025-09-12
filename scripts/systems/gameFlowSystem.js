@@ -95,6 +95,15 @@ export class GameFlowSystem {
     }
 
     update(deltaTime) {
+        // ★新規: メッセージキューの処理
+        // ゲームがポーズされておらず、かつキューに表示待ちのメッセージがある場合にモーダルを表示します。
+        // これにより、モーダル表示の競合を防ぎ、安全なタイミングでメッセージを処理します。
+        if (!this.context.isPausedByModal && this.context.messageQueue && this.context.messageQueue.length > 0) {
+            const message = this.context.messageQueue.shift();
+            this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.MESSAGE, data: { message } });
+            return; // メッセージ表示を要求したら、このフレームの他の処理はスキップ
+        }
+
         // 初期選択フェーズでのみ実行
         if (this.context.phase !== GamePhaseType.INITIAL_SELECTION) return;
 
