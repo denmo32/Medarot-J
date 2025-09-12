@@ -1,8 +1,6 @@
 // scripts/utils/battleUtils.js
 import { CONFIG } from '../common/config.js';
-// ★追加: Position, PlayerInfo, GameStateをインポート
 import { Parts, Position, PlayerInfo, GameState } from '../core/components.js';
-// ★追加: PlayerStateTypeをインポート
 import { PartType, PlayerStateType } from '../common/constants.js';
 
 /**
@@ -74,7 +72,6 @@ export function calculateDamage(world, attackerId, targetId, action) {
     // ※括弧内の最低値は0とする
     const baseDamage = Math.max(0, success - mobility - armor);
     const finalDamage = Math.floor(baseDamage / 4) + might;
-    
     // デバッグモードが有効な場合のみログを出力
     if (CONFIG.DEBUG) {
         console.log(`--- ダメージ計算 (Attacker: ${attackerId}, Target: ${targetId}) ---`);
@@ -84,7 +81,6 @@ export function calculateDamage(world, attackerId, targetId, action) {
         console.log(`  - ベースダメージ(括弧内): ${baseDamage}`);
         console.log(`  - 最終ダメージ: ${finalDamage}`);
     }
-    
     return finalDamage;
 }
 
@@ -101,7 +97,7 @@ export function getParts(world, entityId, includeBroken = false, attackableOnly 
     if (!world || entityId === null || entityId === undefined) return [];
     const parts = world.getComponent(entityId, Parts);
     if (!parts) return [];
-    let partTypes = attackableOnly ? [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM] : Object.keys(parts);
+    let partTypes = attackableOnly ? [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM, PartType.LEGS] : Object.keys(parts);
     return Object.entries(parts)
         .filter(([key, part]) => partTypes.includes(key) && (includeBroken || !part.isBroken));
 }
@@ -192,7 +188,7 @@ export function selectRandomPart(world, entityId) {
     const parts = world.getComponent(entityId, Parts);
     if (!parts) return null;
     // 破壊されていない攻撃可能なパーツのみを候補とします。
-    const hittablePartKeys = Object.keys(parts).filter(key => !parts[key].isBroken && key !== PartType.LEGS);
+    const hittablePartKeys = Object.keys(parts).filter(key => !parts[key].isBroken);
     if (hittablePartKeys.length > 0) {
         const partKey = hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
         return { targetId: entityId, targetPartKey: partKey };
@@ -237,8 +233,7 @@ export function getAllEnemyParts(world, enemyIds) {
     for (const id of enemyIds) {
         const parts = world.getComponent(id, Parts);
         Object.entries(parts).forEach(([key, part]) => {
-            // 脚部パーツは攻撃対象外とするため、除外します。
-            if (!part.isBroken && key !== PartType.LEGS) {
+            if (!part.isBroken) {
                 allParts.push({ entityId: id, partKey: key, part: part });
             }
         });
