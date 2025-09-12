@@ -6,7 +6,6 @@ import { Parts, PlayerInfo, GameState, BattleLog, GameContext } from '../core/co
 import { PartType, PlayerStateType, MedalPersonality } from '../common/constants.js';
 // ★追加: battleUtilsから関数をインポート
 import { isValidTarget, selectRandomPart, getAllEnemyParts, selectPartByCondition } from '../utils/battleUtils.js';
-
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。
  * なぜこの形式なのか？
@@ -42,63 +41,73 @@ export const targetingStrategies = {
     /**
      * [COUNTER]: 受けた攻撃に即座にやり返す、短期的な性格。
      * 自分を最後に攻撃してきた敵を狙います。いなければ、フォールバックとして別の戦略が選択されます。
+     * 
+     * ★変更: 以前はtargetIdの有効性をチェックしていましたが、
+     * そのチェックはdetermineTarget関数で一元管理するよう変更しました。
+     * これにより、各戦略関数は単にターゲットを返すだけになり、
+     * 有効性のチェックはdetermineTargetで一括処理されるようになります。
      */
     [MedalPersonality.COUNTER]: (world, attackerId, enemies) => {
         const attackerLog = world.getComponent(attackerId, BattleLog);
         const targetId = attackerLog.lastAttackedBy;
-        if (isValidTarget(world, targetId)) {
-            return selectRandomPart(world, targetId);
-        }
-        return null;
+        return targetId ? selectRandomPart(world, targetId) : null;
     },
     /**
      * [GUARD]: リーダーを守ることを最優先する、護衛のような性格。
      * 味方チームのリーダーを最後に攻撃した敵を狙います。
+     * 
+     * ★変更: 以前はtargetIdの有効性をチェックしていましたが、
+     * そのチェックはdetermineTarget関数で一元管理するよう変更しました。
+     * これにより、各戦略関数は単にターゲットを返すだけになり、
+     * 有効性のチェックはdetermineTargetで一括処理されるようになります。
      */
-    [MedalPersonality.GUARD]: (world, attackerId, enemies) => { // 修正: GARD -> GUARD
+    [MedalPersonality.GUARD]: (world, attackerId, enemies) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
         const context = world.getSingletonComponent(GameContext);
         const targetId = context.leaderLastAttackedBy[attackerInfo.teamId];
-        if (isValidTarget(world, targetId)) {
-            return selectRandomPart(world, targetId);
-        }
-        return null;
+        return targetId ? selectRandomPart(world, targetId) : null;
     },
     /**
      * [FOCUS]: 一度狙った獲物は逃さない、執拗な性格。
      * 自分が前回攻撃したのと同じパーツを、執拗に狙い続けます。
+     * 
+     * ★変更: 以前はtargetIdとpartKeyの有効性をチェックしていましたが、
+     * そのチェックはdetermineTarget関数で一元管理するよう変更しました。
+     * これにより、各戦略関数は単にターゲットを返すだけになり、
+     * 有効性のチェックはdetermineTargetで一括処理されるようになります。
      */
     [MedalPersonality.FOCUS]: (world, attackerId, enemies) => {
         const attackerLog = world.getComponent(attackerId, BattleLog);
         const lastAttack = attackerLog.lastAttack;
-        if (isValidTarget(world, lastAttack.targetId, lastAttack.partKey)) {
-            return { targetId: lastAttack.targetId, targetPartKey: lastAttack.partKey };
-        }
-        return null;
+        return { targetId: lastAttack.targetId, targetPartKey: lastAttack.partKey };
     },
     /**
      * [ASSIST]: 味方と連携して同じ敵を攻撃する、協調的な性格。
      * 味方が最後に攻撃した敵のパーツを狙い、集中攻撃を仕掛けます。
+     * 
+     * ★変更: 以前はtargetIdとpartKeyの有効性をチェックしていましたが、
+     * そのチェックはdetermineTarget関数で一元管理するよう変更しました。
+     * これにより、各戦略関数は単にターゲットを返すだけになり、
+     * 有効性のチェックはdetermineTargetで一括処理されるようになります。
      */
     [MedalPersonality.ASSIST]: (world, attackerId, enemies) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
         const context = world.getSingletonComponent(GameContext);
         const teamLastAttack = context.teamLastAttack[attackerInfo.teamId];
-        if (isValidTarget(world, teamLastAttack.targetId, teamLastAttack.partKey)) {
-            return { targetId: teamLastAttack.targetId, targetPartKey: teamLastAttack.partKey };
-        }
-        return null;
+        return { targetId: teamLastAttack.targetId, targetPartKey: teamLastAttack.partKey };
     },
     /**
      * [LEADER_FOCUS]: リーダーを集中攻撃し、早期決着を狙う、極めて攻撃的な性格。
      * 戦略の基本として、敵チームのリーダーを最優先で狙います。
+     * 
+     * ★変更: 以前はleaderの有効性をチェックしていましたが、
+     * そのチェックはdetermineTarget関数で一元管理するよう変更しました。
+     * これにより、各戦略関数は単にターゲットを返すだけになり、
+     * 有効性のチェックはdetermineTargetで一括処理されるようになります。
      */
     [MedalPersonality.LEADER_FOCUS]: (world, attackerId, enemies) => {
         const leader = enemies.find(id => world.getComponent(id, PlayerInfo).isLeader);
-        if (isValidTarget(world, leader)) {
-            return selectRandomPart(world, leader);
-        }
-        return null;
+        return leader ? selectRandomPart(world, leader) : null;
     },
     /**
      * [RANDOM]: 基本的な性格であり、他の戦略が条件を満たさず実行できない場合の安全策（フォールバック）としての役割も持ちます。
