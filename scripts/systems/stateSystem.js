@@ -223,16 +223,16 @@ export class StateSystem {
                 
                 // ② & ③ 射撃のターゲットが破壊された場合
                 if (action.type === '射撃' && action.targetId !== null) {
-                    // ターゲットの有効性をチェック
+                    // ターゲットの有効性をチェックします。
+                    // これにより、チャージ中に他の攻撃でターゲットパーツが破壊された場合を検知します。
                     if (!isValidTarget(this.world, action.targetId, action.targetPartKey)) {
                         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-                        const targetInfo = this.world.getComponent(action.targetId, PlayerInfo);
-                        const targetName = targetInfo ? targetInfo.name : '対象';
                         const message = `ターゲットロスト！ ${playerInfo.name}は放熱に移行！`;
-                        // ★修正: モーダルの競合を避けるため、直接表示せずにメッセージキューに追加する
+                        // メッセージをキューに追加し、モーダルでの表示を要求します。
                         this.context.messageQueue.push(message);
+                        // 状態をリセットし、その地点からのクールダウンを開始させます。
                         this.resetAttackerState(entityId, { interrupted: true });
-                        continue;
+                        continue; // このエンティティの以降の処理をスキップ
                     }
                 }
             }
