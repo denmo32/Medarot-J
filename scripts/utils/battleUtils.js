@@ -6,11 +6,54 @@ import { Parts, Position, PlayerInfo, GameState } from '../core/components.js';
 import { PartType, PlayerStateType } from '../common/constants.js';
 
 /**
- * ダメージ計算を行う関数
+ * 回避確率を計算する
+ * 
+ * 公式: (mobility - success) / 200 + 0.10 を 0-0.95 の範囲にクリップ
+ * - mobility: ターゲットの機動値
+ * - success: 攻撃側の成功値
+ * - 計算結果は0から0.95の間の確率を返す
+ * 
+ * @param {number} mobility - ターゲットの機動値
+ * @param {number} success - 攻撃側の成功値
+ * @returns {number} 0-0.95の範囲で確率を返す
+ */
+export function calculateEvasionChance(mobility, success) {
+    // 公式: (mobility - success) / 200 + 0.10 を 0-0.95 にクリップ
+    const base = (mobility - success) / 200 + 0.10;
+    return Math.max(0, Math.min(0.95, base));
+}
+
+/**
+ * 防御確率を計算する
+ * 
+ * 公式: armor / 400 + 0.10 を 0-0.95 の範囲にクリップ
+ * - armor: ターゲットの防御値
+ * - 計算結果は0から0.95の間の確率を返す
+ * 
+ * @param {number} armor - ターゲットの防御値
+ * @returns {number} 0-0.95の範囲で確率を返す
+ */
+export function calculateDefenseChance(armor) {
+    // 公式: armor / 400 + 0.10 を 0-0.95 にクリップ
+    const base = armor / 400 + 0.10;
+    return Math.max(0, Math.min(0.95, base));
+}
+
+/**
+ * ダメージを計算する
+ * 
+ * ダメージ計算式の意味:
+ * 1. baseDamage = max(0, 攻撃成功値 - ターゲット機動値 - ターゲット防御値)
+ *    - 攻撃側の成功値が高ければ、よりダメージが入りやすくなる
+ *    - ターゲットの機動/防御値が高いほど、ダメージが軽減される
+ * 2. finalDamage = floor(baseDamage / 4) + 攻撃威力
+ *    - baseDamage は4で割ってスケーリングされ、攻撃威力が直接加算される
+ *    - これにより、高威力の攻撃がより大きなダメージを与えるようになる
+ * 
  * @param {World} world - ワールドオブジェクト
  * @param {number} attackerId - 攻撃者のエンティティID
  * @param {number} targetId - ターゲットのエンティティID
- * @param {object} action - 攻撃者が選択したアクション
+ * @param {object} action - 攻撃アクション情報
  * @returns {number} 計算されたダメージ値
  */
 export function calculateDamage(world, attackerId, targetId, action) {
@@ -21,23 +64,27 @@ export function calculateDamage(world, attackerId, targetId, action) {
     if (!attackingPart || !targetParts) {
         return 0;
     }
-    // ★新規: 新しいダメージ計算式に必要なパラメータを取得
+    // 新しいダメージ計算式に必要なパラメータを取得
     const success = attackingPart.success || 0; // 攻撃側成功度
     const might = attackingPart.might || 0;       // 攻撃側威力度
     const mobility = targetParts.legs.mobility || 0; // ターゲット回避度
     const armor = targetParts.legs.armor || 0;       // ターゲット防御度
-    // ★新規: 新しいダメージ計算式を適用
+    // 新しいダメージ計算式を適用
     // ダメージ = (攻撃側成功度 - ターゲット回避度 - ターゲット防御度) / 4 + 攻撃側威力度
     // ※括弧内の最低値は0とする
     const baseDamage = Math.max(0, success - mobility - armor);
     const finalDamage = Math.floor(baseDamage / 4) + might;
-    // ★デバッグログ追加: 計算過程をコンソールに出力
-    console.log(`--- ダメージ計算 (Attacker: ${attackerId}, Target: ${targetId}) ---`);
-    console.log(`  攻撃側: 成功=${success}, 威力=${might}`);
-    console.log(`  ターゲット側: 機動=${mobility}, 防御=${armor}`);
-    console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - ${armor}) / 4) + ${might} = ${finalDamage}`);
-    console.log(`  - ベースダメージ(括弧内): ${baseDamage}`);
-    console.log(`  - 最終ダメージ: ${finalDamage}`);
+    
+    // デバッグモードが有効な場合のみログを出力
+    if (CONFIG.DEBUG) {
+        console.log(`--- ダメージ計算 (Attacker: ${attackerId}, Target: ${targetId}) ---`);
+        console.log(`  攻撃側: 成功=${success}, 威力=${might}`);
+        console.log(`  ターゲット側: 機動=${mobility}, 防御=${armor}`);
+        console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - ${armor}) / 4) + ${might} = ${finalDamage}`);
+        console.log(`  - ベースダメージ(括弧内): ${baseDamage}`);
+        console.log(`  - 最終ダメージ: ${finalDamage}`);
+    }
+    
     return finalDamage;
 }
 
@@ -98,7 +145,7 @@ export function findBestDefensePart(world, entityId) {
 }
 
 /**
- * ★新規: 生存している敵エンティティのリストを取得します
+ * 生存している敵エンティティのリストを取得します
  * @param {World} world
  * @param {number} attackerId
  * @returns {number[]}
@@ -114,7 +161,7 @@ export function getValidEnemies(world, attackerId) {
 }
 
 /**
- * ★新規: 指定されたターゲットIDやパーツキーが現在有効（生存・未破壊）か検証します。
+ * 指定されたターゲットIDやパーツキーが現在有効（生存・未破壊）か検証します。
  * @param {World} world
  * @param {number} targetId
  * @param {string | null} partKey
@@ -134,7 +181,7 @@ export function isValidTarget(world, targetId, partKey = null) {
 }
 
 /**
- * ★新規: 指定されたエンティティから攻撃可能なパーツをランダムに1つ選択します。
+ * 指定されたエンティティから攻撃可能なパーツをランダムに1つ選択します。
  * ActionSystemが格闘攻撃のターゲットパーツを決定するために使用します。
  * @param {World} world
  * @param {number} entityId - ターゲットのエンティティID
@@ -154,7 +201,7 @@ export function selectRandomPart(world, entityId) {
 }
 
 /**
- * ★新規: 格闘攻撃用に、最もX軸距離の近い敵を見つけます。
+ * 格闘攻撃用に、最もX軸距離の近い敵を見つけます。
  * @param {World} world
  * @param {number} attackerId - 攻撃者のエンティティID
  * @returns {number | null} - 最も近い敵のエンティティID、またはnull
@@ -180,7 +227,7 @@ export function findNearestEnemy(world, attackerId) {
 }
 
 /**
- * ★新規: 全ての敵パーツを取得する
+ * 全ての敵パーツを取得する
  * @param {World} world
  * @param {number[]} enemyIds
  * @returns {{entityId: number, partKey: string, part: object}[]}
@@ -200,7 +247,7 @@ export function getAllEnemyParts(world, enemyIds) {
 }
 
 /**
- * ★新規: 条件に基づいて最適なパーツを選択するための汎用関数
+ * 条件に基づいて最適なパーツを選択するための汎用関数
  * @param {World} world
  * @param {number[]} enemies - 敵エンティティIDの配列
  * @param {function} sortFn - パーツを評価・ソートするための比較関数
