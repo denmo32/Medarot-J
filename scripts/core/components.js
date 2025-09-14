@@ -13,9 +13,10 @@ export class PlayerInfo {
 
 // ゲージ
 export class Gauge {
-    constructor(speed) {
+    constructor() {
         this.value = 0;
-        this.speed = speed;
+        this.speedMultiplier = 1.0; // ★新規: パーツ性能に応じた速度補正率
+        // speedプロパティは廃止され、GaugeSystemが直接脚部の推進力を参照する
         this.max = CONFIG.MAX_GAUGE;
     }
 }
@@ -33,10 +34,13 @@ export class Parts {
     constructor() {
         const hp = CONFIG.PART_HP_BASE;
         const legsHp = hp + CONFIG.LEGS_HP_BONUS;
-        this.head = { name: '頭部', hp, maxHp: hp, action: '射撃', power: 10, isBroken: false };
-        this.rightArm = { name: '右腕', hp, maxHp: hp, action: '射撃', power: 20, isBroken: false };
-        this.leftArm = { name: '左腕', hp, maxHp: hp, action: '格闘', power: 25, isBroken: false };
-        this.legs = { name: '脚部', hp: legsHp, maxHp: legsHp, action: '移動', power: 0, isBroken: false };
+        // ★変更: パーツに新しいパラメータ(success, might, mobility, armor)を追加。powerをmightにリネーム。
+        // 成功: 攻撃の当たりやすさ, 威力: ダメージの基本値
+        this.head =     { name: '頭部', hp, maxHp: hp, action: '射撃', success: 50, might: 10, isBroken: false };
+        this.rightArm = { name: '右腕', hp, maxHp: hp, action: '射撃', success: 50, might: 20, isBroken: false };
+        this.leftArm =  { name: '左腕', hp, maxHp: hp, action: '格闘', success: 50, might: 25, isBroken: false };
+        // 機動: 攻撃の避けやすさ, 防御: ダメージの軽減しやすさ, 推進: ゲージの溜まる速さ
+        this.legs =     { name: '脚部', hp: legsHp, maxHp: legsHp, action: '移動', mobility: 20, armor: 20, propulsion: 20, isBroken: false };
     }
 }
 
@@ -112,6 +116,9 @@ export class GameContext {
             [TeamID.TEAM1]: null,
             [TeamID.TEAM2]: null
         };
+
+        // ★新規: モーダルの競合を避けるためのメッセージキュー
+        this.messageQueue = [];
     }
 
     // ★削除: isPausedメソッドは削除されました。

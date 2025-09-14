@@ -4,8 +4,10 @@
  */
 
 import { Gauge, GameState, Parts, PlayerInfo, Action, GameContext } from '../core/components.js';
+import { CONFIG } from '../common/config.js'; // ★追加
 import { GameEvents } from '../common/events.js';
-import { PlayerStateType } from '../common/constants.js';
+import { PlayerStateType, ModalType } from '../common/constants.js';
+import { isValidTarget } from '../utils/battleUtils.js';
 
 /**
  * エンティティの「状態」を管理するステートマシン（状態遷移機械）としての役割を担うシステム。
@@ -70,6 +72,10 @@ export class StateSystem {
         
         // 5. ゲージをリセットし、行動実行までのチャージを開始させます。
         gauge.value = 0;
+
+        // ★新規: 選択されたパーツに応じて、チャージ速度の補正率を計算・設定します。
+        const selectedPart = parts[partKey];
+        gauge.speedMultiplier = this._calculateSpeedMultiplier(selectedPart, 'charge');
     }
 
     /**
@@ -121,22 +127,67 @@ export class StateSystem {
     }
 
     /**
-     * ★新規: 攻撃者の状態をチャージ中にリセットし、Actionコンポーネントをクリアします。
-     * @param {number} attackerId 
+     * ★新規: パーツ性能に基づき、速度補正率を計算するヘルパー関数
+     * @param {object} part - パーツオブジェクト
+     * @param {'charge' | 'cooldown'} factorType - 計算する係数の種類
+     * @returns {number} 速度補正率 (1.0が基準)
      */
-    resetAttackerState(attackerId) {
+    _calculateSpeedMultiplier(part, factorType) {
+        if (!part) return 1.0;
+
+        const config = CONFIG.TIME_ADJUSTMENT;
+        const factor = factorType === 'charge' ? config.CHARGE_IMPACT_FACTOR : config.COOLDOWN_IMPACT_FACTOR;
+
+        const might = part.might || 0;
+        const success = part.success || 0;
+
+        // 性能スコア = (威力 / 最大威力) + (成功 / 最大成功)
+        // 基準値が0の場合のゼロ除算を避ける
+        const mightScore = config.MAX_MIGHT > 0 ? might / config.MAX_MIGHT : 0;
+        const successScore = config.MAX_SUCCESS > 0 ? success / config.MAX_SUCCESS : 0;
+        const performanceScore = mightScore + successScore;
+
+        // 時間補正率 = 1.0 + (性能スコア * 影響係数)
+        const multiplier = 1.0 + (performanceScore * factor);
+
+        return multiplier;
+    }
+
+    /**
+     * ★新規: 攻撃者の状態をチャージ中にリセットし、Actionコンポーネントをクリアします。
+     * @param {number} attackerId - 攻撃者のエンティティID
+     * @param {object} options - 挙動を制御するオプション
+     * @param {boolean} options.interrupted - 行動が中断されたかどうかのフラグ
+     */
+    resetAttackerState(attackerId, options = {}) {
+        const { interrupted = false } = options; // ★修正: 中断フラグを受け取る
         const attackerGameState = this.world.getComponent(attackerId, GameState);
         const attackerGauge = this.world.getComponent(attackerId, Gauge);
         const attackerAction = this.world.getComponent(attackerId, Action);
-
+        const attackerParts = this.world.getComponent(attackerId, Parts);
         // 破壊されている場合は何もしない
         if (attackerGameState && attackerGameState.state === PlayerStateType.BROKEN) {
             return;
         }
-
+        // ★新規: Actionコンポーネントがクリアされる前にパーツ情報を取得し、クールダウンの速度補正率を計算します。
+        if (attackerAction && attackerAction.partKey && attackerParts && attackerGauge) {
+            const usedPart = attackerParts[attackerAction.partKey];
+            attackerGauge.speedMultiplier = this._calculateSpeedMultiplier(usedPart, 'cooldown');
+        } else if (attackerGauge) {
+            // パーツ情報がない場合（格闘の空振りなど）はデフォルト値に戻す
+            attackerGauge.speedMultiplier = 1.0;
+        }
         if (attackerGameState) attackerGameState.state = PlayerStateType.CHARGING;
-        if (attackerGauge) attackerGauge.value = 0;
-        
+        if (attackerGauge) {
+            // ★修正: 中断された場合と、正常完了した場合でゲージの扱いを分ける
+            if (interrupted) {
+                // 中断時は、現在位置から後退を開始するためにゲージの値を反転させる
+                attackerGauge.value = attackerGauge.max - attackerGauge.value;
+            } else {
+                // 正常完了時は、ゲージを0にリセットしてアクションラインから後退を開始
+                attackerGauge.value = 0;
+            }
+        }
         if (attackerAction) {
             attackerAction.partKey = null;
             attackerAction.type = null;
@@ -152,11 +203,40 @@ export class StateSystem {
      */
     update(deltaTime) {
         const entities = this.world.getEntitiesWith(Gauge, GameState);
-
         for (const entityId of entities) {
             const gauge = this.world.getComponent(entityId, Gauge);
             const gameState = this.world.getComponent(entityId, GameState);
-
+            
+            // ★追加: SELECTED_CHARGING状態のエンティティをチェック
+            if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
+                const action = this.world.getComponent(entityId, Action);
+                const parts = this.world.getComponent(entityId, Parts);
+                
+                // ① 攻撃パーツが破壊された場合
+                if (action.partKey && parts[action.partKey] && parts[action.partKey].isBroken) {
+                    const message = "行動予約パーツが破壊されたため、放熱に移行！";
+                    // ★修正: モーダルの競合を避けるため、直接表示せずにメッセージキューに追加する
+                    this.context.messageQueue.push(message);
+                    this.resetAttackerState(entityId, { interrupted: true });
+                    continue;
+                }
+                
+                // ② & ③ 射撃のターゲットが破壊された場合
+                if (action.type === '射撃' && action.targetId !== null) {
+                    // ターゲットの有効性をチェックします。
+                    // これにより、チャージ中に他の攻撃でターゲットパーツが破壊された場合を検知します。
+                    if (!isValidTarget(this.world, action.targetId, action.targetPartKey)) {
+                        const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+                        const message = `ターゲットロスト！ ${playerInfo.name}は放熱に移行！`;
+                        // メッセージをキューに追加し、モーダルでの表示を要求します。
+                        this.context.messageQueue.push(message);
+                        // 状態をリセットし、その地点からのクールダウンを開始させます。
+                        this.resetAttackerState(entityId, { interrupted: true });
+                        continue; // このエンティティの以降の処理をスキップ
+                    }
+                }
+            }
+            
             // ゲージが満タンになった時が、状態遷移のトリガーです。
             if (gauge.value >= gauge.max) {
                 if (gameState.state === PlayerStateType.CHARGING) {
@@ -167,7 +247,7 @@ export class StateSystem {
                     gameState.state = PlayerStateType.READY_EXECUTE;
                 }
             }
-
+            
             // 行動選択が可能になったエンティティを検出します。
             const selectableStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
             if (selectableStates.includes(gameState.state)) {

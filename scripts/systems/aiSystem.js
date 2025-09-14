@@ -83,7 +83,8 @@ export class AiSystem {
         if (!availableParts || availableParts.length === 0) {
             return [null, null];
         }
-        const sortedParts = [...availableParts].sort(([, partA], [, partB]) => partB.power - partA.power);
+        // ★変更: ソート基準をpowerからmight(威力)に変更
+        const sortedParts = [...availableParts].sort(([, partA], [, partB]) => partB.might - partA.might);
         return sortedParts[0];
     }
     

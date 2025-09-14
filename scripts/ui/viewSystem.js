@@ -146,6 +146,11 @@ export class ViewSystem {
                 actorName: '',
                 battleStartButton: true
             },
+            [ModalType.MESSAGE]: {
+                title: '',
+                actorName: (data) => data.message,
+                confirmButton: { text: 'OK' }
+            },
             [ModalType.GAME_OVER]: {
                 title: (data) => `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`,
                 actorName: 'ロボトル終了！',
@@ -222,22 +227,28 @@ export class ViewSystem {
         };
         this.dom.actionPanelBattleStartButton.addEventListener('click', this.handlers.battleStart);
         this.handlers.panelConfirm = () => {
-            if (this.context.phase === GamePhaseType.GAME_OVER) {
-                this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
-                return;
-            }
-            if (this.confirmActionEntityId !== null) {
-                // 現在のモーダルタイプに応じて発行するイベントを切り替える
-                switch (this.currentModalType) {
-                    case ModalType.ATTACK_DECLARATION:
+            // モーダルタイプに応じて処理を分岐
+            switch (this.currentModalType) {
+                case ModalType.GAME_OVER:
+                    this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
+                    break;
+
+                case ModalType.MESSAGE:
+                    this.hideActionPanel();
+                    break;
+
+                case ModalType.ATTACK_DECLARATION:
+                    if (this.confirmActionEntityId !== null) {
                         this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { entityId: this.confirmActionEntityId });
-                        break;
-                    case ModalType.EXECUTION_RESULT:
-                        // ★変更: 攻撃シーケンス完了イベントを発行し、パネルを閉じる
+                    }
+                    break;
+
+                case ModalType.EXECUTION_RESULT:
+                    if (this.confirmActionEntityId !== null) {
                         this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: this.confirmActionEntityId });
                         this.hideActionPanel();
-                        break;
-                }
+                    }
+                    break;
             }
         };
         this.dom.actionPanelConfirmButton.addEventListener('click', this.handlers.panelConfirm);

@@ -48,7 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const entityId = world.createEntity();
         const name = `メダロット ${totalId}`;
         const isLeader = index === 0;
-        const speed = teamConfig.baseSpeed + (Math.random() * 0.2);
 
         // メダルの性格をランダムに決定します。
         // これにより、同じチームでもAIの挙動が異なり、ゲームに多様性が生まれます。
@@ -62,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // エンティティにコンポーネントを追加することで、その「状態」や「能力」を定義します。
         // 例えば、`Gauge`コンポーネントは速度ゲージを持ち、`Parts`はHPや攻撃力を持ちます。
         world.addComponent(entityId, new Components.PlayerInfo(name, teamId, isLeader));
-        world.addComponent(entityId, new Components.Gauge(speed));
+        world.addComponent(entityId, new Components.Gauge());
         world.addComponent(entityId, new Components.GameState());
         world.addComponent(entityId, new Components.Parts());
         world.addComponent(entityId, new Components.DOMReference());

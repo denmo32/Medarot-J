@@ -1,6 +1,6 @@
 // scripts/systems/gaugeSystem.js:
 
-import { Gauge, GameState, GameContext } from '../core/components.js';
+import { Gauge, GameState, GameContext, Parts } from '../core/components.js';
 import { CONFIG } from '../common/config.js';
 import { PlayerStateType, GamePhaseType } from '../common/constants.js';
 import { BaseSystem } from '../core/baseSystem.js';
@@ -19,11 +19,12 @@ export class GaugeSystem extends BaseSystem {
             return;
         }
 
-        const entities = this.world.getEntitiesWith(Gauge, GameState);
+        const entities = this.world.getEntitiesWith(Gauge, GameState, Parts);
 
         for (const entityId of entities) {
             const gauge = this.world.getComponent(entityId, Gauge);
             const gameState = this.world.getComponent(entityId, GameState);
+            const parts = this.world.getComponent(entityId, Parts);
 
             // ゲージの進行を止めるべき状態かを判定
             const statesToPause = [
@@ -36,8 +37,12 @@ export class GaugeSystem extends BaseSystem {
                 continue;
             }
 
-            // ゲージを増加させる
-            const increment = gauge.speed * (deltaTime / CONFIG.UPDATE_INTERVAL);
+            // 脚部パーツの推進力を取得。見つからなければデフォルト値1を代入
+            const propulsion = parts.legs?.propulsion || 1;
+
+            // ★変更: speedMultiplierを考慮してゲージを増加させる
+            const speedMultiplier = gauge.speedMultiplier || 1.0;
+            const increment = (propulsion / 20.0) * (deltaTime / CONFIG.UPDATE_INTERVAL) / speedMultiplier;
             gauge.value += increment;
 
             // ゲージが最大値を超えないようにする
