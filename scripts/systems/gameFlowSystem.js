@@ -104,6 +104,19 @@ export class GameFlowSystem {
             return; // メッセージ表示を要求したら、このフレームの他の処理はスキップ
         }
 
+        // ★修正: BATTLE_START_CONFIRMフェーズの処理を追加
+        if (this.context.phase === GamePhaseType.BATTLE_START_CONFIRM) {
+            // 全てのモーダルが閉じられたことを確認してから、バトル開始確認モーダルを表示
+            if (!this.context.isPausedByModal) {
+                this.world.emit(GameEvents.SHOW_MODAL, { 
+                    type: ModalType.BATTLE_START_CONFIRM,
+                    data: {},
+                    priority: 'high' // ★追加: 高優先度で表示
+                });
+            }
+            return;
+        }
+
         // 初期選択フェーズでのみ実行
         if (this.context.phase !== GamePhaseType.INITIAL_SELECTION) return;
 
@@ -119,7 +132,8 @@ export class GameFlowSystem {
         // 全員が選択し終わったら、戦闘開始確認フェーズに移行
         if (allSelected) {
             this.context.phase = GamePhaseType.BATTLE_START_CONFIRM;
-            this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.BATTLE_START_CONFIRM });
+            // ★修正: 即座にモーダルを表示するのではなく、次のフレームで処理
+            // これにより、他のモーダルが閉じられるのを待つ
         }
     }
 }

@@ -64,6 +64,7 @@ export class Action {
         this.targetPartKey = null; // ★追加: ターゲットのパーツキー
         this.damage = 0;        // ★追加: 計算後のダメージ
         this.resultMessage = ''; // ★追加: 実行結果のメッセージ
+        this.declarationMessage = ''; // ★追加: 攻撃宣言メッセージ
     }
 }
 

@@ -24,6 +24,7 @@ export const GameEvents = {
     // --- Action Execution Events ---
     EXECUTION_ANIMATION_REQUESTED: 'EXECUTION_ANIMATION_REQUESTED', // ★追加: 行動実行アニメーションの開始を要求
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED', // ★追加: 行動実行アニメーションの完了を通知
+    EXECUTE_ATTACK_ANIMATION: 'EXECUTE_ATTACK_ANIMATION', // ★追加: 実際のアニメーション実行を要求
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED', // ★追加: 攻撃宣言モーダルのOKが押された
     ACTION_EXECUTION_CONFIRMED: 'ACTION_EXECUTION_CONFIRMED', // 攻撃モーダルのOKが押された
     ACTION_EXECUTED: 'ACTION_EXECUTED',                       // 行動が実行され、ダメージなどが計算された
@@ -41,5 +42,6 @@ export const GameEvents = {
     // --- UI Events ---
     SHOW_MODAL: 'SHOW_MODAL', // モーダル表示を要求
     HIDE_MODAL: 'HIDE_MODAL', // モーダル非表示を要求
+    MODAL_CLOSED: 'MODAL_CLOSED', // ★追加: モーダルが閉じられたことを通知
     SETUP_UI_REQUESTED: 'SETUP_UI_REQUESTED', // ★追加: UIの初期構築を要求
 };

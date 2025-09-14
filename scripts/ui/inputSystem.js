@@ -39,7 +39,7 @@ export class InputSystem {
         // UIシステムにパネル表示を要求
         const panelData = {
             entityId: entityId,
-            title: '',
+            title: '', // ★修正: タイトルは空文字にして、所有者名を別途表示
             ownerName: playerInfo.name,
             buttons: allActionParts.map(([partKey, part]) => ({
                 text: `${part.name} (${part.action})`,
@@ -51,7 +51,13 @@ export class InputSystem {
             targetId: target ? target.targetId : null,
             targetPartKey: target ? target.targetPartKey : null
         };
-        this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.SELECTION, data: panelData });
+        
+        // ★修正: 即座にモーダルを表示（シーケンス管理をスキップ）
+        this.world.emit(GameEvents.SHOW_MODAL, { 
+            type: ModalType.SELECTION, 
+            data: panelData,
+            immediate: true // ★追加: 即座表示フラグ
+        });
     }
 
     /**

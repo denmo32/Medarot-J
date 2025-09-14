@@ -13,6 +13,11 @@ export class ViewSystem {
         this.context = this.world.getSingletonComponent(Components.GameContext);
         this.confirmActionEntityId = null;
         this.currentModalType = null; // ★追加: 現在表示中のモーダルタイプを追跡
+        
+        // ★新規: モーダルシーケンス管理用
+        this.modalSequence = [];
+        this.isProcessingModalSequence = false;
+        
         this.dom = {
             gameStartButton: document.getElementById('gameStartButton'),
             actionPanel: document.getElementById('action-panel'),
@@ -108,6 +113,7 @@ export class ViewSystem {
         document.head.appendChild(style);
         this.animationStyleElement = style; // クリーンアップ用に参照を保持
     }
+	
     initializePanelConfigs() {
         this.panelConfigs = {
             [ModalType.START_CONFIRM]: {
@@ -143,8 +149,18 @@ export class ViewSystem {
             },
             [ModalType.BATTLE_START_CONFIRM]: {
                 title: '合意と見てよろしいですね！？',
-                actorName: '',
-                battleStartButton: true
+                actorName: '', // ★修正: メッセージはタイトルに表示
+                battleStartButton: true,
+                contentHTML: '<div class="buttons-center"><button id="panelBtnBattleStart" class="action-panel-button">ロボトルファイト！</button></div>', // ★追加: 専用ボタン
+                setupEvents: (container) => { // ★追加: イベント設定
+                    const btn = container.querySelector('#panelBtnBattleStart');
+                    if (btn) {
+                        btn.onclick = () => {
+                            this.world.emit(GameEvents.BATTLE_START_CONFIRMED);
+                            this.hideActionPanel();
+                        };
+                    }
+                }
             },
             [ModalType.MESSAGE]: {
                 title: '',
@@ -158,6 +174,7 @@ export class ViewSystem {
             }
         };
     }
+
     // ヘルパー: 三角レイアウトのHTMLを生成
     generateTriangleLayoutHTML(buttons) {
         const headBtn = buttons.find(b => b.partKey === 'head');
@@ -210,9 +227,9 @@ export class ViewSystem {
     }
     // Worldからのイベントを購読する
     bindWorldEvents() {
-        this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showActionPanel(detail.type, detail.data));
+        this.world.on(GameEvents.SHOW_MODAL, (detail) => this.handleShowModal(detail.type, detail.data));
         this.world.on(GameEvents.HIDE_MODAL, () => this.hideActionPanel());
-        this.world.on(GameEvents.GAME_START_REQUESTED, () => this.showActionPanel(ModalType.START_CONFIRM));
+        this.world.on(GameEvents.GAME_START_REQUESTED, () => this.queueModal(ModalType.START_CONFIRM));
         this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
         this.world.on(GameEvents.EXECUTION_ANIMATION_REQUESTED, this.onExecutionAnimationRequested.bind(this));
     }
@@ -255,6 +272,60 @@ export class ViewSystem {
     }
 
     /**
+     * ★新規: モーダル表示要求をシーケンスとして管理
+     */
+    handleShowModal(type, data) {
+        // ★修正: 攻撃関連モーダルも即座に表示する（高優先度）
+        if (type === ModalType.SELECTION || 
+            type === ModalType.BATTLE_START_CONFIRM ||
+            type === ModalType.ATTACK_DECLARATION ||
+            type === ModalType.EXECUTION_RESULT) {
+            this.showActionPanel(type, data);
+            return;
+        }
+        this.queueModal(type, data);
+    }
+    
+    /**
+     * ★新規: モーダルをシーケンスに追加
+     */
+    queueModal(type, data) {
+        this.modalSequence.push({ type, data });
+        if (!this.isProcessingModalSequence) {
+            this.processModalSequence();
+        }
+    }
+    
+    /**
+     * ★新規: モーダルシーケンスを順番に処理
+     */
+    async processModalSequence() {
+        this.isProcessingModalSequence = true;
+        while (this.modalSequence.length > 0) {
+            const { type, data } = this.modalSequence.shift();
+            await this.showModalAndWait(type, data);
+        }
+        this.isProcessingModalSequence = false;
+    }
+    
+    /**
+     * ★新規: モーダルを表示して待機
+     */
+    showModalAndWait(type, data) {
+        return new Promise(resolve => {
+            // モーダル完了イベントを待機
+            const completeHandler = (event) => {
+                if (event.detail?.modalType === type) { // ★修正: entityIdのチェックを削除（汎用化）
+                    this.world.off(GameEvents.MODAL_CLOSED, completeHandler);
+                    resolve();
+                }
+            };
+            this.world.on(GameEvents.MODAL_CLOSED, completeHandler);
+            this.showActionPanel(type, data);
+        });
+    }
+
+    /**
      * ★新規: 実行結果モーダルのイベントを設定します。
      * HPバーのアニメーション完了を待って確認ボタンを表示します。
      * @param {HTMLElement} container 
@@ -267,6 +338,11 @@ export class ViewSystem {
 
         const showButton = () => {
             confirmButton.style.display = 'inline-block';
+            // アニメーション完了を通知
+            this.world.emit(GameEvents.MODAL_CLOSED, { 
+                entityId: data.entityId, 
+                modalType: ModalType.EXECUTION_RESULT 
+            });
         };
 
         // HP更新をトリガー
@@ -305,6 +381,17 @@ export class ViewSystem {
     }
 
     /**
+     * ★新規: HPバー要素を取得
+     */
+    getHPBarElement(targetId, targetPartKey) {
+        const targetDomRef = this.world.getComponent(targetId, Components.DOMReference);
+        if (!targetDomRef || !targetDomRef.partDOMElements[targetPartKey]) {
+            return null;
+        }
+        return targetDomRef.partDOMElements[targetPartKey].bar;
+    }
+
+    /**
      * UIの状態をリセットします。
      * DOM要素のクリアはDomFactorySystemが担当します。
      */
@@ -316,6 +403,7 @@ export class ViewSystem {
         // ゲーム開始ボタンの表示/非表示を管理
         this.dom.gameStartButton.style.display = this.context.phase === GamePhaseType.IDLE ? "flex" : "none";
     }
+
     // --- アクションパネル表示/非表示 ---
     showActionPanel(type, data) {
         const config = this.panelConfigs[type];
@@ -323,6 +411,27 @@ export class ViewSystem {
             this.hideActionPanel();
             return;
         }
+        // ★修正: バトル開始確認モーダルの場合は特別な処理
+        if (type === ModalType.BATTLE_START_CONFIRM) {
+            this.world.emit(GameEvents.GAME_PAUSED);
+            this.currentModalType = type;
+            
+            // タイトルとアクター名を設定
+            this.dom.actionPanelTitle.textContent = config.title;
+            this.dom.actionPanelActor.textContent = ''; // メッセージはタイトルに含まれる
+            
+            // コンテンツとイベントを設定
+            this.dom.actionPanelButtons.innerHTML = config.contentHTML || '';
+            if (config.setupEvents) {
+                config.setupEvents(this.dom.actionPanelButtons, data);
+            }
+            
+            // 他のボタンは非表示
+            this.dom.actionPanelConfirmButton.style.display = 'none';
+            this.dom.actionPanelBattleStartButton.style.display = 'none';
+            return;
+        }
+        
         // ★修正: isPausedByModalフラグを直接操作せず、イベントを発行してGameFlowSystemに通知します。
         // これにより、UIの状態変化がゲームのコアロジックに直接影響を与えることを防ぎ、
         // 責務の分離をより明確にします。
@@ -354,7 +463,15 @@ export class ViewSystem {
             actionPanelBattleStartButton.style.display = 'inline-block';
         }
     }
+
     hideActionPanel() {
+        // ★修正: モーダルクローズイベントを発行
+        if (this.currentModalType) {
+            this.world.emit(GameEvents.MODAL_CLOSED, { 
+                modalType: this.currentModalType 
+            });
+        }
+        
         // ★修正: isPausedByModalフラグを直接操作せず、イベントを発行してGameFlowSystemに通知します。
         // これにより、UIの状態変化がゲームのコアロジックに直接影響を与えることを防ぎ、
         // 責務の分離をより明確にします。
@@ -374,6 +491,7 @@ export class ViewSystem {
         this.dom.actionPanelConfirmButton.style.display = 'none';
         this.dom.actionPanelBattleStartButton.style.display = 'none';
     }
+
     /**
      * ActionSystemからの要求を受け、実行アニメーションを再生します。
      * @param {object} detail - { attackerId, targetId }

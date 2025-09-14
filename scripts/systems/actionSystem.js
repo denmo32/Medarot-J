@@ -36,17 +36,19 @@ export class ActionSystem extends BaseSystem {
         const { entityId } = detail;
         const action = this.getCachedComponent(entityId, Action);
         if (!action) return;
-        // 2段階目の結果メッセージモーダルを表示するよう要求
+        
+        // ★修正: 即座に実行結果モーダルを表示（シーケンス管理をスキップ）
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.EXECUTION_RESULT,
             data: {
                 entityId: entityId,
                 message: action.resultMessage,
-                // ★追加: アニメーション連携用の情報を渡す
+                // アニメーション連携用の情報を渡す
                 targetId: action.targetId,
                 targetPartKey: action.targetPartKey,
                 damage: action.damage
-            }
+            },
+            immediate: true // ★追加: 即座表示フラグ
         });
     }
 
@@ -118,7 +120,7 @@ export class ActionSystem extends BaseSystem {
                 console.warn(`ActionSystem: No valid enemies for melee attack by ${executor}.`);
                 // ★暫定対応: 行動をスキップしてクールダウンに戻す
                 this.world.emit(GameEvents.ACTION_EXECUTED, { attackerId: executor, damage: 0 });
-                return;
+                    return;
             }
         }
         // 状態をアニメーション待ちに変更し、ViewSystemにアニメーションを要求します。
@@ -203,13 +205,16 @@ export class ActionSystem extends BaseSystem {
         action.targetPartKey = finalTargetPartKey;
         action.damage = finalDamage;
         action.resultMessage = resultMessage;
-        // --- 5. UIに行動結果の表示を要求 (1段階目) ---
+        action.declarationMessage = declarationMessage; // ★追加: 宣言メッセージも保存
+        
+        // ★修正: 即座に攻撃宣言モーダルを表示（シーケンス管理をスキップ）
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.ATTACK_DECLARATION,
             data: {
                 entityId: executor,
                 message: declarationMessage
-            }
+            },
+            immediate: true // ★追加: 即座表示フラグ
         });
     }
 }
