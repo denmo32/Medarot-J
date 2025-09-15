@@ -23,7 +23,6 @@ export class ActionSystem extends BaseSystem {
         this.context = this.world.getSingletonComponent(GameContext);
         // ★変更: イベント購読を更新
         this.world.on(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.onAttackDeclarationConfirmed.bind(this));
-        this.world.on(GameEvents.ACTION_EXECUTION_CONFIRMED, this.onActionExecutionConfirmed.bind(this));
         // ViewSystemからのアニメーション完了通知を購読します。
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
     }
@@ -35,58 +34,49 @@ export class ActionSystem extends BaseSystem {
     onAttackDeclarationConfirmed(detail) {
         const { entityId } = detail;
         const action = this.getCachedComponent(entityId, Action);
-        if (!action) return;
-        
-        // ★修正: 即座に実行結果モーダルを表示（シーケンス管理をスキップ）
-        this.world.emit(GameEvents.SHOW_MODAL, {
-            type: ModalType.EXECUTION_RESULT,
-            data: {
-                entityId: entityId,
-                message: action.resultMessage,
-                // アニメーション連携用の情報を渡す
-                targetId: action.targetId,
-                targetPartKey: action.targetPartKey,
-                damage: action.damage
-            },
-            immediate: true // ★追加: 即座表示フラグ
-        });
-    }
+        // 格闘攻撃が空振りした場合など、ターゲットが存在しない場合はシーケンスを完了させる
+        if (!action || !action.targetId) {
+            this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId });
+            return;
+        };
 
-    /**
-     * プレイヤーがモーダルで「OK」を押し、アクションの実行が確定した際に呼び出されます。
-     * @param {object} detail - イベント詳細 ({ entityId })
-     */
-    onActionExecutionConfirmed(detail) {
-        const { entityId } = detail;
-        const action = this.getCachedComponent(entityId, Action);
-        // ★変更: 格闘攻撃がターゲットを見つけられずスキップした場合を考慮
-        if (!action || action.targetId === null || action.targetId === undefined) {
-            // この場合、updateループで既にACTION_EXECUTEDが発行されているはずなので、ここでは何もしない
-            // ただし、UIフローの都合でここに到達した場合は警告を出す
-            if (action && action.type !== '格闘') {
-                console.warn(`ActionSystem: A non-melee action was confirmed without a target. Entity: ${entityId}`);
-            }
-            return;
-        }
-        const target = this.getCachedComponent(action.targetId, Parts);
-        if (!target) {
-            console.warn(`ActionSystem: ターゲットエンティティが見つかりません。TargetID: ${action.targetId}`);
-            return;
-        }
-        // updateで計算済みの最終的なダメージを基に、ターゲットのHPを計算します。
-        const targetPart = target[action.targetPartKey];
+        const targetParts = this.getCachedComponent(action.targetId, Parts);
+        if (!targetParts) return;
+
+        const targetPart = targetParts[action.targetPartKey];
         const newHp = Math.max(0, targetPart.hp - action.damage);
-        // StateSystemに「アクションが完了した」ことを、最終結果と共に通知します。
-        // これを受けてStateSystemが、攻撃者とターゲットの状態を更新します。
+        
+        const isPartBroken = newHp === 0 && !targetPart.isBroken;
+        const isPlayerBroken = action.targetPartKey === PartType.HEAD && newHp === 0;
+
+        // 1. 先にゲームロジックを確定させるイベント(ACTION_EXECUTED)を発行します。
         this.world.emit(GameEvents.ACTION_EXECUTED, {
             attackerId: entityId,
             targetId: action.targetId,
             targetPartKey: action.targetPartKey,
             damage: action.damage,
-            isPartBroken: newHp === 0,
-            isPlayerBroken: action.targetPartKey === PartType.HEAD && newHp === 0,
+            isPartBroken: isPartBroken,
+            isPlayerBroken: isPlayerBroken,
+        });
+
+        // 2. 次に、UIに結果を表示するためのモーダル表示を要求します。
+        this.world.emit(GameEvents.SHOW_MODAL, {
+            type: ModalType.EXECUTION_RESULT,
+            data: {
+                entityId: entityId,
+                message: action.resultMessage,
+                targetId: action.targetId,
+                targetPartKey: action.targetPartKey,
+                damage: action.damage
+            },
+            immediate: true
         });
     }
+
+    /**
+     * ★廃止: このメソッドの責務はonAttackDeclarationConfirmedに統合されました。
+     */
+    // onActionExecutionConfirmed(detail) { ... }
 
     /**
      * 毎フレーム実行され、「行動実行準備完了」状態のエンティティを探して処理します。

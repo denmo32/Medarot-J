@@ -331,6 +331,12 @@ export class ViewSystem {
      * @param {HTMLElement} container 
      * @param {object} data 
      */
+    /**
+     * ★変更: 実行結果モーダルのイベントを設定します。
+     * HPバーの更新アニメーション(CSS Transition)の完了を待って確認ボタンを表示します。
+     * @param {HTMLElement} container 
+     * @param {object} data 
+     */
     setupExecutionResultEvents(container, data) {
         const confirmButton = this.dom.actionPanelConfirmButton;
         confirmButton.textContent = 'OK';
@@ -338,15 +344,14 @@ export class ViewSystem {
 
         const showButton = () => {
             confirmButton.style.display = 'inline-block';
-            // アニメーション完了を通知
             this.world.emit(GameEvents.MODAL_CLOSED, { 
                 entityId: data.entityId, 
                 modalType: ModalType.EXECUTION_RESULT 
             });
         };
 
-        // HP更新をトリガー
-        this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: data.entityId });
+        // ★廃止: HP更新のトリガーはActionSystemが発行するACTION_EXECUTEDに変わったため、ここでのイベント発行は不要
+        // this.world.emit(GameEvents.ACTION_EXECUTION_CONFIRMED, { entityId: data.entityId });
 
         // ダメージがない、またはターゲット情報がない場合は即座にボタンを表示
         if (!data.damage || data.damage === 0 || !data.targetId || !data.targetPartKey) {
@@ -362,22 +367,28 @@ export class ViewSystem {
 
         const hpBarElement = targetDomRef.partDOMElements[data.targetPartKey].bar;
 
-        const onTransitionEnd = (event) => {
-            // widthプロパティのトランジションのみを対象とする
-            if (event.propertyName === 'width') {
-                showButton();
-                clearTimeout(fallbackTimeout);
+        // ★変更: requestAnimationFrameを追加
+        // ACTION_EXECUTED発行からこのメソッド呼び出しまでの間にDOM更新(HPバーのwidth変更)がキューに入ります。
+        // requestAnimationFrameを挟むことで、ブラウザの次の描画タイミングを待ち、
+        // 更新されたwidthに対するCSSトランジションが確実に開始されるようにします。
+        requestAnimationFrame(() => {
+            const onTransitionEnd = (event) => {
+                // widthプロパティのトランジションのみを対象とする
+                if (event.propertyName === 'width') {
+                    showButton();
+                    clearTimeout(fallbackTimeout);
+                    hpBarElement.removeEventListener('transitionend', onTransitionEnd);
+                }
+            };
+    
+            hpBarElement.addEventListener('transitionend', onTransitionEnd);
+    
+            // フォールバックタイマー: CSSのtransition(0.8s)より少し長く設定
+            const fallbackTimeout = setTimeout(() => {
                 hpBarElement.removeEventListener('transitionend', onTransitionEnd);
-            }
-        };
-
-        hpBarElement.addEventListener('transitionend', onTransitionEnd);
-
-        // フォールバックタイマー: CSSのtransition(0.8s)より少し長く設定
-        const fallbackTimeout = setTimeout(() => {
-            hpBarElement.removeEventListener('transitionend', onTransitionEnd);
-            showButton();
-        }, 1000);
+                showButton();
+            }, 1000);
+        });
     }
 
     /**
