@@ -5,7 +5,8 @@
 
 import { GameContext, GameState, PlayerInfo } from '../core/components.js';
 import { GameEvents } from '../common/events.js';
-import { PlayerStateType, TeamID } from '../common/constants.js';
+// ★変更: GamePhaseTypeをインポート
+import { PlayerStateType, TeamID, GamePhaseType } from '../common/constants.js';
 
 /**
  * ゲームの「ターン」や行動順を管理するシステム。
@@ -61,6 +62,13 @@ export class TurnSystem {
      * 毎フレーム実行され、行動キューを処理します。
      */
     update(deltaTime) {
+        // ★変更: 初期行動選択フェーズとバトル中の両方で動作するように修正
+        // これにより、ゲーム開始直後の行動選択が正しく開始され、かつゲームオーバー後には停止します。
+        const activePhases = [GamePhaseType.BATTLE, GamePhaseType.INITIAL_SELECTION];
+        if (!activePhases.includes(this.context.phase)) {
+            return;
+        }
+
         // キューに誰もいない、またはモーダル表示などでゲームが一時停止中の場合は、何も行いません。
         // isPausedByModalのチェックは、プレイヤーがUI操作中にターンが進行してしまうことを防ぐために重要です。
         if (this.actionQueue.length === 0 || this.context.isPausedByModal) {

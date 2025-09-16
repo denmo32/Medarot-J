@@ -229,7 +229,13 @@ export class ViewSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.SHOW_MODAL, (detail) => this.handleShowModal(detail.type, detail.data));
         this.world.on(GameEvents.HIDE_MODAL, () => this.hideActionPanel());
-        this.world.on(GameEvents.GAME_START_REQUESTED, () => this.queueModal(ModalType.START_CONFIRM));
+        // ★変更: GAME_START_REQUESTEDイベントの処理を修正
+        // 内部的なメソッド(queueModal)を直接呼ぶのではなく、他のUIイベントと同様に
+        // SHOW_MODALイベントを発行する形に統一します。これにより、すべてのモーダル表示が
+        // handleShowModalによって一元管理され、意図しない挙動を防ぎます。
+        this.world.on(GameEvents.GAME_START_REQUESTED, () => {
+            this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.START_CONFIRM });
+        });
         this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
         this.world.on(GameEvents.EXECUTION_ANIMATION_REQUESTED, this.onExecutionAnimationRequested.bind(this));
     }
@@ -275,14 +281,23 @@ export class ViewSystem {
      * ★新規: モーダル表示要求をシーケンスとして管理
      */
     handleShowModal(type, data) {
-        // ★修正: 攻撃関連モーダルも即座に表示する（高優先度）
-        if (type === ModalType.SELECTION || 
-            type === ModalType.BATTLE_START_CONFIRM ||
-            type === ModalType.ATTACK_DECLARATION ||
-            type === ModalType.EXECUTION_RESULT) {
+        // ★変更: ゲーム開始やゲームオーバーなど、即時表示すべきモーダルを定義
+        // これにより、重要な通知が他のUI（行動選択など）に上書きされるのを防ぎます。
+        const immediateTypes = [
+            ModalType.START_CONFIRM, // ★追加: ゲーム開始確認を即時表示に
+            ModalType.SELECTION,
+            ModalType.BATTLE_START_CONFIRM,
+            ModalType.ATTACK_DECLARATION,
+            ModalType.EXECUTION_RESULT,
+            ModalType.GAME_OVER
+        ];
+
+        if (immediateTypes.includes(type)) {
             this.showActionPanel(type, data);
             return;
         }
+        
+        // 上記以外のモーダルはキューに入れて順番に表示する
         this.queueModal(type, data);
     }
     

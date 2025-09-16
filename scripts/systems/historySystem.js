@@ -1,7 +1,10 @@
 // scripts/systems/historySystem.js:
 
-import { PlayerInfo, BattleLog, GameContext } from '../core/components.js';
+// ★変更: 必要なコンポーネントと定数をインポート
+import { PlayerInfo, BattleLog, GameContext, GameState, Gauge } from '../core/components.js';
 import { GameEvents } from '../common/events.js';
+import { PlayerStateType } from '../common/constants.js';
+
 
 /**
  * 戦闘結果に基づき、戦闘履歴（BattleLog, GameContext）を更新するシステム。
@@ -16,9 +19,30 @@ export class HistorySystem {
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
     }
 
+    /**
+     * ★新規: プレイヤー破壊処理を責務として追加
+     * 戦闘の最も重要な結果であるプレイヤー破壊をこのシステムで処理することで、
+     * StateSystemを状態遷移に集中させ、責務を明確にします。
+     * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
+     */
     onActionExecuted(detail) {
-        const { attackerId, targetId, targetPartKey } = detail;
+        const { attackerId, targetId, targetPartKey, isPlayerBroken } = detail;
+
+        // 履歴ログを更新
         this.updateBattleLogs(attackerId, targetId, targetPartKey);
+
+        // プレイヤー自体が機能停止（頭部破壊）した場合の処理
+        if (isPlayerBroken) {
+            const gameState = this.world.getComponent(targetId, GameState);
+            const gauge = this.world.getComponent(targetId, Gauge);
+            
+            // 状態を「破壊」に即時変更し、以降の行動をすべて不能にします。
+            if (gameState) gameState.state = PlayerStateType.BROKEN;
+            if (gauge) gauge.value = 0; 
+            
+            // GameFlowSystemにプレイヤー破壊を通知し、ゲームオーバー判定を促します。
+            this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId });
+        }
     }
 
     /**
@@ -29,6 +53,9 @@ export class HistorySystem {
      * @param {string} targetPartKey - ターゲットのパーツキー
      */
     updateBattleLogs(attackerId, targetId, targetPartKey) {
+        // ターゲットがいない場合（格闘の空振りなど）は何もしない
+        if (!targetId) return;
+
         // 攻撃者とターゲットの情報を取得
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         const attackerLog = this.world.getComponent(attackerId, BattleLog);

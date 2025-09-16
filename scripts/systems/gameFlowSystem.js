@@ -81,7 +81,7 @@ export class GameFlowSystem {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
 
         // リーダー破壊、かつ、まだゲームオーバーになっていなければ処理
-        if (playerInfo.isLeader && this.context.phase !== GamePhaseType.GAME_OVER) {
+        if (playerInfo && playerInfo.isLeader && this.context.phase !== GamePhaseType.GAME_OVER) {
             // 敵チームを勝者とする
             const winningTeam = playerInfo.teamId === TeamID.TEAM1 ? TeamID.TEAM2 : TeamID.TEAM1;
             

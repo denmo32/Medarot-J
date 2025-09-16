@@ -5,7 +5,8 @@
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action, GameContext } from '../core/components.js';
-import { PlayerStateType, PartType, ModalType } from '../common/constants.js';
+// ★変更: GamePhaseTypeを追加インポート
+import { PlayerStateType, PartType, ModalType, GamePhaseType } from '../common/constants.js';
 // ★変更: battleUtilsから追加の関数をインポート
 import { calculateDamage, findBestDefensePart, findNearestEnemy, selectRandomPart, calculateEvasionChance, calculateDefenseChance } from '../utils/battleUtils.js';
 import { BaseSystem } from '../core/baseSystem.js';
@@ -50,6 +51,8 @@ export class ActionSystem extends BaseSystem {
         const isPlayerBroken = action.targetPartKey === PartType.HEAD && newHp === 0;
 
         // 1. 先にゲームロジックを確定させるイベント(ACTION_EXECUTED)を発行します。
+        // このイベントは同期的であり、これを受け取った各システム（HistorySystemなど）の処理が
+        // この場で実行され、ゲームの状態（phaseなど）が即座に更新されます。
         this.world.emit(GameEvents.ACTION_EXECUTED, {
             attackerId: entityId,
             targetId: action.targetId,
@@ -58,6 +61,15 @@ export class ActionSystem extends BaseSystem {
             isPartBroken: isPartBroken,
             isPlayerBroken: isPlayerBroken,
         });
+
+        // ★追加: ゲームオーバーチェック
+        // 上記のACTION_EXECUTEDイベントの結果、ゲームのフェーズがGAME_OVERに移行した場合、
+        // 後続の「攻撃結果モーダル」は表示せず、処理をここで終了します。
+        // これにより、「ゲームオーバー画面」と「攻撃結果画面」の表示が競合するのを防ぎます。
+        if (this.context.phase === GamePhaseType.GAME_OVER) {
+            // デバッグログは不要になったため削除します。
+            return;
+        }
 
         // 2. 次に、UIに結果を表示するためのモーダル表示を要求します。
         this.world.emit(GameEvents.SHOW_MODAL, {
@@ -141,45 +153,45 @@ export class ActionSystem extends BaseSystem {
         let finalTargetPartKey = action.targetPartKey;
         let resultMessage = '';
         const declarationMessage = `${attackerInfo.name}の${action.type}！`;
-        console.log(`=================================================`);
-        console.log(`攻撃シーケンス開始: ${attackerInfo.name} -> ${targetInfo.name}`);
+        // console.log(`=================================================`);
+        // console.log(`攻撃シーケンス開始: ${attackerInfo.name} -> ${targetInfo.name}`);
         
         // --- 1. 回避判定 ---
         // ★変更: calculateEvasionChanceヘルパー関数を使用
         const evasionChance = calculateEvasionChance(targetLegs.mobility, attackingPart.success);
         const evasionRoll = Math.random();
-        console.log(`--- 回避判定 (Target: ${action.targetId}) ---`);
-        console.log(`  - ターゲット機動: ${targetLegs.mobility}, 攻撃側成功: ${attackingPart.success}`);
-        console.log(`  - 回避成功率: ${Math.round(evasionChance * 100)}%`);
-        console.log(`  - 乱数: ${evasionRoll.toFixed(2)}`);
+        // console.log(`--- 回避判定 (Target: ${action.targetId}) ---`);
+        // console.log(`  - ターゲット機動: ${targetLegs.mobility}, 攻撃側成功: ${attackingPart.success}`);
+        // console.log(`  - 回避成功率: ${Math.round(evasionChance * 100)}%`);
+        // console.log(`  - 乱数: ${evasionRoll.toFixed(2)}`);
         if (evasionRoll < evasionChance) {
             // 回避成功
             finalDamage = 0;
             resultMessage = `${targetInfo.name}は攻撃を回避！`;
-            console.log(`  - 結果: 回避成功`);
+            // console.log(`  - 結果: 回避成功`);
         } else {
             // 回避失敗
-            console.log(`  - 結果: 回避失敗`);
+            // console.log(`  - 結果: 回避失敗`);
             // --- 2. 防御判定 ---
             // ★変更: calculateDefenseChanceヘルパー関数を使用
             const defenseChance = calculateDefenseChance(targetLegs.armor);
             const defenseRoll = Math.random();
-            console.log(`--- 防御判定 (Target: ${action.targetId}) ---`);
-            console.log(`  - ターゲット防御: ${targetLegs.armor}`);
-            console.log(`  - 防御成功率: ${Math.round(defenseChance * 100)}%`);
-            console.log(`  - 乱数: ${defenseRoll.toFixed(2)}`);
+            // console.log(`--- 防御判定 (Target: ${action.targetId}) ---`);
+            // console.log(`  - ターゲット防御: ${targetLegs.armor}`);
+            // console.log(`  - 防御成功率: ${Math.round(defenseChance * 100)}%`);
+            // console.log(`  - 乱数: ${defenseRoll.toFixed(2)}`);
             let defenseSuccess = false;
             if (defenseRoll < defenseChance) {
                 const defensePartKey = findBestDefensePart(this.world, action.targetId);
                 if (defensePartKey) {
                     defenseSuccess = true;
                     finalTargetPartKey = defensePartKey;
-                    console.log(`  - 結果: 防御成功 (防御パーツ: ${defensePartKey})`);
+                    // console.log(`  - 結果: 防御成功 (防御パーツ: ${defensePartKey})`);
                 } else {
-                    console.log(`  - 結果: 防御失敗 (防御可能パーツなし)`);
+                    // console.log(`  - 結果: 防御失敗 (防御可能パーツなし)`);
                 }
             } else {
-                console.log(`  - 結果: 防御失敗`);
+                // console.log(`  - 結果: 防御失敗`);
             }
             // --- 3. ダメージ計算 ---
             finalDamage = calculateDamage(this.world, executor, action.targetId, action);
@@ -190,7 +202,7 @@ export class ActionSystem extends BaseSystem {
                 resultMessage = `${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
             }
         }
-        console.log(`=================================================`);
+        // console.log(`=================================================`);
         // --- 4. 結果をActionコンポーネントに一時保存 ---
         action.targetPartKey = finalTargetPartKey;
         action.damage = finalDamage;

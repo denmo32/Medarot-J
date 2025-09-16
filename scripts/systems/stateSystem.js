@@ -83,9 +83,10 @@ export class StateSystem {
      * @param {object} detail - 行動の実行結果
      */
     onActionExecuted(detail) {
-        const { attackerId, targetId, targetPartKey, damage, isPartBroken, isPlayerBroken } = detail;
+        // ★変更: isPlayerBroken を削除。責務をHistorySystemに移管。
+        const { attackerId, targetId, targetPartKey, damage, isPartBroken } = detail;
 
-        // ★追加: ターゲットがいない場合（格闘の空振りなど）は攻撃者の状態をリセットして終了
+        // ターゲットがいない場合（格闘の空振りなど）は攻撃者の状態をリセットして終了
         if (!targetId) {
             this.resetAttackerState(attackerId);
             return;
@@ -93,6 +94,8 @@ export class StateSystem {
 
         // 1. ダメージをターゲットのパーツHPに反映させます。
         const targetParts = this.world.getComponent(targetId, Parts);
+        // ★追加: ターゲットパーツが存在しない場合は早期リターン
+        if (!targetParts || !targetParts[targetPartKey]) return;
         const part = targetParts[targetPartKey];
         part.hp = Math.max(0, part.hp - damage);
 
@@ -103,18 +106,11 @@ export class StateSystem {
             this.world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey: targetPartKey });
         }
 
-        // 3. プレイヤー自体が機能停止（頭部破壊）した場合の処理
-        if (isPlayerBroken) {
-            const gameState = this.world.getComponent(targetId, GameState);
-            const gauge = this.world.getComponent(targetId, Gauge);
-            // 状態を「破壊」に即時変更し、以降の行動をすべて不能にします。
-            gameState.state = PlayerStateType.BROKEN;
-            gauge.value = 0; 
-            // GameFlowSystemにプレイヤー破壊を通知し、ゲームオーバー判定を促します。
-            this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId });
-        }
+        // ★削除: プレイヤー破壊処理はHistorySystemに移動しました。
+        // これにより、StateSystemは純粋な状態遷移とパーツHPの管理に集中し、
+        // HistorySystemが戦闘結果（ログ、プレイヤー破壊）をまとめて扱う体制が整います。
 
-        // 4. 攻撃者の状態リセットは onAttackSequenceCompleted に移動
+        // 攻撃者の状態リセットは onAttackSequenceCompleted に移動
     }
 
     /**
