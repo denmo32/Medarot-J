@@ -6,7 +6,7 @@
 import { GameEvents } from '../common/events.js';
 // ★追加: Partsコンポーネントをインポート
 import { Parts } from '../core/components.js';
-import { getAttackableParts } from '../utils/battleUtils.js';
+import { getAttackableParts, decideAndEmitAction } from '../utils/battleUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
 
 /**
@@ -36,32 +36,11 @@ export class AiSystem {
             // 2. どのパーツで攻撃するかを決定します。
             const [partKey, part] = this._chooseActionPart(entityId, availableParts);
             
-            // ★追加: 選択したパーツのアクションタイプ（'格闘' or '射撃'）を取得
-            const selectedPartAction = this.world.getComponent(entityId, Parts)[partKey].action;
-
-            // 3. アクションタイプに応じてターゲット決定戦略を分岐
-            if (selectedPartAction === '格闘') {
-                // 格闘の場合、ターゲットは未定のまま行動を決定
-                this.world.emit(GameEvents.ACTION_SELECTED, { 
-                    entityId, 
-                    partKey, 
-                    targetId: null, 
-                    targetPartKey: null 
-                });
-            } else {
-                // 射撃の場合、従来通りターゲットを決定
-                const target = determineTarget(this.world, entityId);
-
-                // ターゲットが見つからない場合は行動をスキップ
-                if (!target) {
-                    this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey: null, targetId: null, targetPartKey: null });
-                    return;
-                }
-                const { targetId, targetPartKey } = target;
-
-                // 4. 決定した行動内容をStateSystemに通知します。
-                this.world.emit(GameEvents.ACTION_SELECTED, { entityId, partKey, targetId, targetPartKey });
-            }
+            // 3. ★変更: ターゲット決定とイベント発行をユーティリティ関数に委譲します。
+            //    AIは射撃の場合も格闘の場合も、まずターゲットを決定しようと試みます。
+            //    最終的にそのターゲット情報を使うかどうかは、共通化された関数内で判断されます。
+            const target = determineTarget(this.world, entityId);
+            decideAndEmitAction(this.world, entityId, partKey, target);
 
         } else {
             // 攻撃可能なパーツが残っていない場合、自身が破壊されたものとしてイベントを発行します。
