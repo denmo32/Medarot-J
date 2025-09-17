@@ -1,6 +1,7 @@
 import * as Components from './components.js';
 import { ViewSystem } from '../ui/viewSystem.js';
 import { DomFactorySystem } from '../ui/domFactorySystem.js';
+import { ActionPanelSystem } from '../ui/actionPanelSystem.js'; // ★新規: ActionPanelSystemをインポート
 import { RenderSystem } from '../ui/renderSystem.js';
 import { GaugeSystem } from '../systems/gaugeSystem.js';
 import { StateSystem } from '../systems/stateSystem.js';
@@ -25,6 +26,7 @@ export function initializeSystems(world) {
     new InputSystem(world);
     new AiSystem(world);
     new DomFactorySystem(world);
+    new ActionPanelSystem(world); // ★新規: ActionPanelSystemを登録
 
     const gameFlowSystem = new GameFlowSystem(world);
     const viewSystem = new ViewSystem(world);

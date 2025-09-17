@@ -6,7 +6,8 @@
 import { GameEvents } from '../common/events.js';
 // ★追加: Partsコンポーネントをインポート
 import { Parts } from '../core/components.js';
-import { getAttackableParts, decideAndEmitAction } from '../utils/battleUtils.js';
+import { getAttackableParts } from '../utils/battleUtils.js';
+import { decideAndEmitAction } from '../utils/actionUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
 
 /**

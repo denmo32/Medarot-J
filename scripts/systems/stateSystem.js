@@ -185,12 +185,8 @@ export class StateSystem {
             }
         }
         if (attackerAction) {
-            attackerAction.partKey = null;
-            attackerAction.type = null;
-            attackerAction.targetId = null;
-            attackerAction.targetPartKey = null;
-            attackerAction.damage = 0;
-            attackerAction.resultMessage = '';
+            // Actionコンポーネントを再生成してリセットする
+            this.world.addComponent(attackerId, new Action());
         }
     }
 

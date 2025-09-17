@@ -6,7 +6,6 @@
  */
 export const GameEvents = {
     // --- Game Flow Events ---
-    GAME_START_REQUESTED: 'GAME_START_REQUESTED',       // ★変更: 開始アイコンがクリックされた
     GAME_START_CONFIRMED: 'GAME_START_CONFIRMED',       // ★追加: 開始確認モーダルで「はい」が押された
     RESET_BUTTON_CLICKED: 'RESET_BUTTON_CLICKED', // リセットボタンがクリックされた
     GAME_WILL_RESET: 'GAME_WILL_RESET',           // ★追加: ゲームのリセット処理が開始される直前
