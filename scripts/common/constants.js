@@ -59,6 +59,16 @@ export const MedalPersonality = {
 };
 
 /**
+ * ★新規: パーツキーに対応する日本語名を定義する定数
+ */
+export const PartNameJp = {
+    [PartType.HEAD]: '頭部',
+    [PartType.RIGHT_ARM]: '右腕',
+    [PartType.LEFT_ARM]: '左腕',
+    [PartType.LEGS]: '脚部'
+};
+
+/**
  * ★新規: モーダルの種類を定義する定数
  * これにより、コード内のマジックストリングを排除し、タイプミスによるバグを防ぎます。
  */

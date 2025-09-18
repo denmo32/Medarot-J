@@ -44,7 +44,7 @@ export class InputSystem {
             title: '', // ★修正: タイトルは空文字にして、所有者名を別途表示
             ownerName: playerInfo.name,
             buttons: allActionParts.map(([partKey, part]) => ({
-                text: `${part.name} (${part.action})`,
+                text: `${part.name} (${part.type})`,
                 partKey: partKey,
                 isBroken: part.isBroken,
                 action: part.action // ★追加: ViewSystemが参照するためにアクションタイプを渡す

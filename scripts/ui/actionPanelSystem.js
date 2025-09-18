@@ -89,19 +89,11 @@ export class ActionPanelSystem {
                 setupEvents: (container, data) => this.setupExecutionResultEvents(container, data)
             },
             [ModalType.BATTLE_START_CONFIRM]: {
-                title: '合意と見てよろしいですね！？',
-                actorName: '',
+                title: '',
+                actorName: '合意と見てよろしいですね！？',
                 battleStartButton: true,
-                contentHTML: '<div class="buttons-center"><button id="panelBtnBattleStart" class="action-panel-button">ロボトルファイト！</button></div>',
-                setupEvents: (container) => {
-                    const btn = container.querySelector('#panelBtnBattleStart');
-                    if (btn) {
-                        btn.onclick = () => {
-                            this.world.emit(GameEvents.BATTLE_START_CONFIRMED);
-                            this.hideActionPanel();
-                        };
-                    }
-                }
+                contentHTML: '',
+                setupEvents: null
             },
             [ModalType.MESSAGE]: {
                 title: '',

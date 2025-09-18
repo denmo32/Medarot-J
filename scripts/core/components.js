@@ -31,16 +31,19 @@ export class GameState {
 
 // パーツ情報
 export class Parts {
-    constructor() {
-        const hp = CONFIG.PART_HP_BASE;
-        const legsHp = hp + CONFIG.LEGS_HP_BONUS;
-        // ★変更: パーツに新しいパラメータ(success, might, mobility, armor)を追加。powerをmightにリネーム。
-        // 成功: 攻撃の当たりやすさ, 威力: ダメージの基本値
-        this.head =     { name: '頭部', hp, maxHp: hp, action: '射撃', success: 50, might: 10, isBroken: false };
-        this.rightArm = { name: '右腕', hp, maxHp: hp, action: '射撃', success: 50, might: 20, isBroken: false };
-        this.leftArm =  { name: '左腕', hp, maxHp: hp, action: '格闘', success: 50, might: 25, isBroken: false };
-        // 機動: 攻撃の避けやすさ, 防御: ダメージの軽減しやすさ, 推進: ゲージの溜まる速さ
-        this.legs =     { name: '脚部', hp: legsHp, maxHp: legsHp, action: '移動', mobility: 20, armor: 20, propulsion: 20, isBroken: false };
+    /**
+     * @param {object} head - 頭部パーツのオブジェクト
+     * @param {object} rightArm - 右腕パーツのオブジェクト
+     * @param {object} leftArm - 左腕パーツのオブジェクト
+     * @param {object} legs - 脚部パーツのオブジェクト
+     */
+    constructor(head, rightArm, leftArm, legs) {
+        // ★変更: 外部から渡されたパーツオブジェクトをディープコピーして設定
+        // これにより、マスターデータが戦闘中に変更されるのを防ぎます。
+        this.head = { ...head };
+        this.rightArm = { ...rightArm };
+        this.leftArm = { ...leftArm };
+        this.legs = { ...legs };
     }
 }
 

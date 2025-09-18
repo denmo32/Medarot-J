@@ -227,7 +227,7 @@ body {
 /* ★新規: ボタンの三角配置用スタイル */
 .triangle-layout {
     width: 100%;
-    max-width: 250px; /* レイアウトの最大幅を制限 */
+    max-width: 1000px;
     margin: 0 auto;
 }
 .top-row, .bottom-row {

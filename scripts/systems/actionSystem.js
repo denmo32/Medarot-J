@@ -6,7 +6,7 @@ import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action, GameContext } from '../core/components.js';
 // ★変更: GamePhaseTypeを追加インポート
-import { PlayerStateType, PartType, ModalType, GamePhaseType } from '../common/constants.js';
+import { PlayerStateType, PartType, ModalType, GamePhaseType, PartNameJp } from '../common/constants.js';
 // ★変更: battleUtilsから追加の関数をインポート
 import { calculateDamage, findBestDefensePart, findNearestEnemy, selectRandomPart, calculateEvasionChance, calculateDefenseChance } from '../utils/battleUtils.js';
 import { BaseSystem } from '../core/baseSystem.js';
@@ -195,7 +195,8 @@ export class ActionSystem extends BaseSystem {
             }
             // --- 3. ダメージ計算 ---
             finalDamage = calculateDamage(this.world, executor, action.targetId, action);
-            const finalTargetPartName = targetParts[finalTargetPartKey].name;
+            // ★変更: パーツの固有名ではなく、部位名(頭部、右腕など)をメッセージに使用する
+            const finalTargetPartName = PartNameJp[finalTargetPartKey] || '不明な部位';
             if (defenseSuccess) {
                 resultMessage = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
             } else {

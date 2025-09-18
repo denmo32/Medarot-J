@@ -132,6 +132,6 @@ export class RenderSystem extends BaseSystem {
                 // ActionSystemにアニメーション完了を通知
                 this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             });
-        }, 150); // 150msの遅延 (CSS transitionが0.1sのため)
+        }, 110); // 110msの遅延 (CSS transitionが0.1sのため)
     }
 }
