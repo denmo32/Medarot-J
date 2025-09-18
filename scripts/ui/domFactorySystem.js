@@ -3,7 +3,7 @@
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
-import { TeamID } from '../common/constants.js';
+import { TeamID, PartType } from '../common/constants.js';
 
 /**
  * DOM要素の生成、配置、削除に特化したシステム。
@@ -105,11 +105,19 @@ export class DomFactorySystem {
         nameEl.textContent = `${playerInfo.name} ${playerInfo.isLeader ? '(L)' : ''}`;
         nameEl.className = `player-name ${teamConfig.textColor}`;
 
+        // ★新規: パーツの部位を表す絵文字のマッピング
+        const partIcons = {
+            [PartType.HEAD]: '👤',
+            [PartType.RIGHT_ARM]: '🫷',
+            [PartType.LEFT_ARM]: '🫸',
+            [PartType.LEGS]: '👣'
+        };
+
         // 各パーツの情報を設定し、DOM参照をキャッシュ
         Object.entries(parts).forEach(([key, part]) => {
             const partEl = infoPanel.querySelector(`[data-part-key="${key}"]`);
             const partNameEl = partEl.querySelector('.part-name');
-            partNameEl.textContent = part.name.substring(0, 1);
+            partNameEl.textContent = partIcons[key] || '?'; // ★変更: 絵文字を表示
             
             domRef.partDOMElements[key] = {
                 container: partEl,
