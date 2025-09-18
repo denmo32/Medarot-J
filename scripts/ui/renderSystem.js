@@ -24,14 +24,30 @@ export class RenderSystem extends BaseSystem {
     updatePosition(entityId) {
         const domRef = this.getCachedComponent(entityId, DOMReference);
         if (!domRef || !domRef.iconElement) return;
+
         // 位置と状態のコンポーネントを取得
         const position = this.getCachedComponent(entityId, Position);
         const gameState = this.getCachedComponent(entityId, GameState);
         if (!position || !gameState) return;
+
         // Positionコンポーネントのx座標をDOMのleftスタイルに適用
         domRef.iconElement.style.left = `${position.x * 100}%`;
         domRef.iconElement.style.top = `${position.y}%`;
         domRef.iconElement.style.transform = 'translate(-50%, -50%)';
+
+        // ★新規: 状態に応じてアイコンの枠線の色を動的に変更
+        switch (gameState.state) {
+            case PlayerStateType.SELECTED_CHARGING: // チャージ中
+                domRef.iconElement.style.borderColor = '#f6ad55'; // オレンジ
+                break;
+            case PlayerStateType.CHARGING: // クールダウン中
+                domRef.iconElement.style.borderColor = '#4fd1c5'; // 水色
+                break;
+            default: // その他の状態
+                domRef.iconElement.style.borderColor = '#718096'; // デフォルトのグレー
+                break;
+        }
+
         // 状態に応じたCSSクラスの切り替え
         domRef.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
         domRef.iconElement.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
