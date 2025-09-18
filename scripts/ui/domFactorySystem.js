@@ -102,8 +102,7 @@ export class DomFactorySystem {
         
         // 名前とリーダー表示を設定
         const nameEl = infoPanel.querySelector('.player-name');
-        nameEl.textContent = `${playerInfo.name} ${playerInfo.isLeader ? '(L)' : ''}`;
-        nameEl.className = `player-name ${teamConfig.textColor}`;
+        nameEl.textContent = `${playerInfo.name}`;        nameEl.className = `player-name ${teamConfig.textColor}`;
 
         // ★新規: パーツの部位を表す絵文字のマッピング
         const partIcons = {
