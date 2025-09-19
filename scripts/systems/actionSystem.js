@@ -152,7 +152,7 @@ export class ActionSystem extends BaseSystem {
         let finalDamage = 0;
         let finalTargetPartKey = action.targetPartKey;
         let resultMessage = '';
-        const declarationMessage = `${attackerInfo.name}の${action.type}！`;
+        const declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！　${attackingPart.trait}！`;
         // console.log(`=================================================`);
         // console.log(`攻撃シーケンス開始: ${attackerInfo.name} -> ${targetInfo.name}`);
         
