@@ -144,7 +144,12 @@ export class StateSystem {
         const performanceScore = mightScore + successScore;
 
         // 時間補正率 = 1.0 + (性能スコア * 影響係数)
-        const multiplier = 1.0 + (performanceScore * factor);
+        let multiplier = 1.0 + (performanceScore * factor);
+
+        // ★変更: 「撃つ」攻撃の場合、チャージとクールダウンの両方にボーナスを与える
+        if (part.type === '撃つ') {
+            multiplier *= 0.75; // チャージ/クールダウン時間を25%短縮（補正率を小さくする）
+        }
 
         return multiplier;
     }
