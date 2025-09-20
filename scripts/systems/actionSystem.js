@@ -189,8 +189,15 @@ export class ActionSystem extends BaseSystem {
             }
 
             // --- 3. ダメージ計算 ---
-            // ★変更: isCriticalフラグを渡して、クリティカル効果を適用する
-            finalDamage = calculateDamage(this.world, executor, action.targetId, action, isCritical);
+            // ★変更: isCritical, defenseSuccess の状態に応じて、適切なフラグを立ててダメージ計算を呼び出す
+            finalDamage = calculateDamage(
+                this.world, 
+                executor, 
+                action.targetId, 
+                action, 
+                isCritical, // isCritical: trueなら回避度・防御度を無視
+                !isCritical && !defenseSuccess // isDefenseBypassed: クリティカルでなく、かつ防御失敗時にtrue
+            );
             
             // ★変更: パーツの固有名ではなく、部位名(頭部、右腕など)をメッセージに使用する
             const finalTargetPartName = PartNameJp[finalTargetPartKey] || '不明な部位';

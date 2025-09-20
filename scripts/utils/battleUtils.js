@@ -81,10 +81,11 @@ export function calculateCriticalChance(attackingPart, targetLegs) {
  * @param {number} attackerId - 攻撃者のエンティティID
  * @param {number} targetId - ターゲットのエンティティID
  * @param {object} action - 攻撃アクション情報
- * @param {boolean} isCritical - ★追加: クリティカルヒットが発生したかどうか
+ * @param {boolean} isCritical - クリティカルヒットが発生したかどうか
+ * @param {boolean} isDefenseBypassed - ★新規: 防御に失敗し、防御度が無効化されるかどうか
  * @returns {number} 計算されたダメージ値
  */
-export function calculateDamage(world, attackerId, targetId, action, isCritical = false) {
+export function calculateDamage(world, attackerId, targetId, action, isCritical = false, isDefenseBypassed = false) {
     const attackerParts = world.getComponent(attackerId, Parts);
     const attackingPart = attackerParts[action.partKey];
     const targetParts = world.getComponent(targetId, Parts);
@@ -96,7 +97,8 @@ export function calculateDamage(world, attackerId, targetId, action, isCritical 
     const success = attackingPart.success || 0; // 攻撃側成功度
     const might = attackingPart.might || 0;       // 攻撃側威力度
     const mobility = targetParts.legs.mobility || 0; // ターゲット回避度
-    const armor = targetParts.legs.armor || 0;       // ターゲット防御度
+    // ★変更: armorはletで定義し、条件によって0に上書きできるようにする
+    let armor = targetParts.legs.armor || 0;       // ターゲット防御度
     
     // ★変更: クリティカルヒットか否かでダメージ計算式を分岐
     let baseDamage;
@@ -104,7 +106,11 @@ export function calculateDamage(world, attackerId, targetId, action, isCritical 
         // クリティカルヒットの場合、ダメージ計算式から mobility と armor の影響を完全に排除する
         baseDamage = Math.max(0, success);
     } else {
-        // 通常ヒットの場合、従来通りの計算
+        // ★新規: 防御失敗（防御度無効化）の場合、armorを0として扱う
+        if (isDefenseBypassed) {
+            armor = 0;
+        }
+        // 通常ヒットの場合、mobilityと（条件付きの）armorを減算
         baseDamage = Math.max(0, success - mobility - armor);
     }
 
@@ -114,10 +120,15 @@ export function calculateDamage(world, attackerId, targetId, action, isCritical 
     if (CONFIG.DEBUG) {
         console.log(`--- ダメージ計算 (Attacker: ${attackerId}, Target: ${targetId}) ---`);
         console.log(`  攻撃側: 成功=${success}, 威力=${might}`);
-        console.log(`  ターゲット側: 機動=${mobility}, 防御=${armor}`);
+        // ★変更: 元の防御値を表示するように修正
+        console.log(`  ターゲット側: 機動=${mobility}, 防御=${targetParts.legs.armor || 0}`);
         if (isCritical) {
             console.log('  - ★クリティカルヒット発生！ ターゲットの回避度・防御度を無視！');
             console.log(`  計算過程: Math.floor(Math.max(0, ${success}) / 4) + ${might} = ${finalDamage}`);
+        } else if (isDefenseBypassed) {
+            // ★新規: 防御失敗時のログを追加
+            console.log('  - ●防御失敗！ ターゲットの防御度を無視！');
+            console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - 0) / 4) + ${might} = ${finalDamage}`);
         } else {
             console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - ${armor}) / 4) + ${might} = ${finalDamage}`);
         }
