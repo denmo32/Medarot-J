@@ -122,6 +122,11 @@ export function calculateDamage(world, attackerId, targetId, action, isCritical 
             break;
         // '撃つ' はボーナスなし
     }
+
+    // ★新規: 防御側のstabilityを防御度に加算
+    const targetLegs = targetParts.legs;
+    const defenseBonus = Math.floor((targetLegs.stability || 0) / 2);
+    armor += defenseBonus;
     
     // ★変更: クリティカルヒットか否かでダメージ計算式を分岐
     let baseDamage;
@@ -144,16 +149,20 @@ export function calculateDamage(world, attackerId, targetId, action, isCritical 
         console.log(`--- ダメージ計算 (Attacker: ${attackerId}, Target: ${targetId}) ---`);
         console.log(`  攻撃側: 素の成功=${attackingPart.success}, 素の威力=${attackingPart.might}`);
         if (bonusType) {
-            console.log(`  - タイプボーナス (${attackingPart.type}): ${bonusType}`);
+            console.log(`  - 攻撃タイプボーナス (${attackingPart.type}): ${bonusType}`);
         }
-        console.log(`  - 最終成功=${success}, 最終威力=${might}`);
-        // ★変更: 元の防御値を表示するように修正
-        console.log(`  ターゲット側: 機動=${mobility}, 防御=${targetParts.legs.armor || 0}`);
+        console.log(`  => 最終的な攻撃パラメータ: 成功=${success}, 威力=${might}`);
+        
+        console.log(`  ターゲット側: 機動=${mobility}, 素の防御=${targetLegs.armor || 0}`);
+        if (defenseBonus > 0) {
+            console.log(`  - 防御ボーナス (stability/2): +${defenseBonus}`);
+        }
+        console.log(`  => 最終的な防御パラメータ: 防御=${armor}`);
+
         if (isCritical) {
             console.log('  - ★クリティカルヒット発生！ ターゲットの回避度・防御度を無視！');
             console.log(`  計算過程: Math.floor(Math.max(0, ${success}) / 4) + ${might} = ${finalDamage}`);
         } else if (isDefenseBypassed) {
-            // ★新規: 防御失敗時のログを追加
             console.log('  - ●防御失敗！ ターゲットの防御度を無視！');
             console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - 0) / 4) + ${might} = ${finalDamage}`);
         } else {
