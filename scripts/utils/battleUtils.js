@@ -94,11 +94,34 @@ export function calculateDamage(world, attackerId, targetId, action, isCritical 
         return 0;
     }
     // 新しいダメージ計算式に必要なパラメータを取得
-    const success = attackingPart.success || 0; // 攻撃側成功度
-    const might = attackingPart.might || 0;       // 攻撃側威力度
+    let success = attackingPart.success || 0; // 攻撃側成功度
+    let might = attackingPart.might || 0;       // 攻撃側威力度
     const mobility = targetParts.legs.mobility || 0; // ターゲット回避度
-    // ★変更: armorはletで定義し、条件によって0に上書きできるようにする
     let armor = targetParts.legs.armor || 0;       // ターゲット防御度
+
+    // ★新規: 攻撃タイプに応じたボーナス計算
+    const attackerLegs = attackerParts.legs;
+    let bonusType = '';
+    let bonusValue = 0;
+
+    switch (attackingPart.type) {
+        case '狙い撃ち': // 安定性の半分を成功度に追加
+            bonusValue = Math.floor((attackerLegs.stability || 0) / 2);
+            success += bonusValue;
+            bonusType = `stability/2 (+${bonusValue})`;
+            break;
+        case '殴る': // 機動の半分を成功度に追加
+            bonusValue = Math.floor((attackerLegs.mobility || 0) / 2);
+            success += bonusValue;
+            bonusType = `mobility/2 (+${bonusValue})`;
+            break;
+        case '我武者羅': // 推進の半分を威力に追加
+            bonusValue = Math.floor((attackerLegs.propulsion || 0) / 2);
+            might += bonusValue;
+            bonusType = `propulsion/2 (+${bonusValue})`;
+            break;
+        // '撃つ' はボーナスなし
+    }
     
     // ★変更: クリティカルヒットか否かでダメージ計算式を分岐
     let baseDamage;
@@ -119,7 +142,11 @@ export function calculateDamage(world, attackerId, targetId, action, isCritical 
     // デバッグモードが有効な場合のみログを出力
     if (CONFIG.DEBUG) {
         console.log(`--- ダメージ計算 (Attacker: ${attackerId}, Target: ${targetId}) ---`);
-        console.log(`  攻撃側: 成功=${success}, 威力=${might}`);
+        console.log(`  攻撃側: 素の成功=${attackingPart.success}, 素の威力=${attackingPart.might}`);
+        if (bonusType) {
+            console.log(`  - タイプボーナス (${attackingPart.type}): ${bonusType}`);
+        }
+        console.log(`  - 最終成功=${success}, 最終威力=${might}`);
         // ★変更: 元の防御値を表示するように修正
         console.log(`  ターゲット側: 機動=${mobility}, 防御=${targetParts.legs.armor || 0}`);
         if (isCritical) {

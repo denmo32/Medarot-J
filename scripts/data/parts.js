@@ -30,9 +30,9 @@ export const PARTS_DATA = {
     },
     // --- 脚部パーツ ---
     [PartType.LEGS]: {
-        'legs_001': { name: 'ライフルレッグ', hp: 60, maxHp: 60, mobility: 30, armor: 20, propulsion: 25, isBroken: false },
-        'legs_002': { name: 'ソードレッグ', hp: 70, maxHp: 70, mobility: 20, armor: 30, propulsion: 20, isBroken: false },
-        'legs_003': { name: 'ガトリングレッグ', hp: 50, maxHp: 50, mobility: 40, armor: 15, propulsion: 30, isBroken: false },
-        'legs_004': { name: 'ハンマーレッグ', hp: 45, maxHp: 45, mobility: 50, armor: 10, propulsion: 35, isBroken: false },
+        'legs_001': { name: 'ライフルレッグ', hp: 60, maxHp: 60, mobility: 30, armor: 20, propulsion: 25, stability: 25, isBroken: false },
+        'legs_002': { name: 'ソードレッグ', hp: 70, maxHp: 70, mobility: 20, armor: 30, propulsion: 20, stability: 30, isBroken: false },
+        'legs_003': { name: 'ガトリングレッグ', hp: 50, maxHp: 50, mobility: 40, armor: 15, propulsion: 30, stability: 20, isBroken: false },
+        'legs_004': { name: 'ハンマーレッグ', hp: 45, maxHp: 45, mobility: 50, armor: 10, propulsion: 35, stability: 15, isBroken: false },
     }
 };
