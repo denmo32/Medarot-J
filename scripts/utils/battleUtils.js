@@ -38,6 +38,35 @@ export function calculateDefenseChance(armor) {
 }
 
 /**
+ * ★新規: クリティカルヒットの発生確率を計算する関数。
+ * 攻撃側の成功度が防御側の回避度を上回るほど、発生確率が上昇します。
+ * @param {object} attackingPart - 攻撃側のパーツ
+ * @param {object} targetLegs - ターゲットの脚部パーツ
+ * @returns {number} 0から1の間の発生確率
+ */
+export function calculateCriticalChance(attackingPart, targetLegs) {
+    const config = CONFIG.CRITICAL_HIT;
+    if (!config) return 0;
+
+    const success = attackingPart.success || 0;
+    const mobility = targetLegs.mobility || 0;
+
+    // 成功度と機動度の差を計算（マイナスにならないようにする）
+    const difference = Math.max(0, success - mobility);
+
+    // 基本確率を計算
+    let chance = difference / config.DIFFERENCE_FACTOR;
+
+    // 攻撃タイプによるボーナスを加算
+    const typeBonus = config.TYPE_BONUS[attackingPart.type] || 0;
+    chance += typeBonus;
+    
+    // 最終的な確率を0から1の範囲に収める
+    return Math.max(0, Math.min(1, chance));
+}
+
+
+/**
  * ダメージを計算する
  * 
  * ダメージ計算式の意味:
@@ -52,9 +81,10 @@ export function calculateDefenseChance(armor) {
  * @param {number} attackerId - 攻撃者のエンティティID
  * @param {number} targetId - ターゲットのエンティティID
  * @param {object} action - 攻撃アクション情報
+ * @param {boolean} isCritical - ★追加: クリティカルヒットが発生したかどうか
  * @returns {number} 計算されたダメージ値
  */
-export function calculateDamage(world, attackerId, targetId, action) {
+export function calculateDamage(world, attackerId, targetId, action, isCritical = false) {
     const attackerParts = world.getComponent(attackerId, Parts);
     const attackingPart = attackerParts[action.partKey];
     const targetParts = world.getComponent(targetId, Parts);
@@ -67,18 +97,30 @@ export function calculateDamage(world, attackerId, targetId, action) {
     const might = attackingPart.might || 0;       // 攻撃側威力度
     const mobility = targetParts.legs.mobility || 0; // ターゲット回避度
     const armor = targetParts.legs.armor || 0;       // ターゲット防御度
-    // 新しいダメージ計算式を適用
-    // ダメージ = (攻撃側成功度 - ターゲット回避度 - ターゲット防御度) / 4 + 攻撃側威力度
-    // ※括弧内の最低値は0とする
-    const baseDamage = Math.max(0, success - mobility - armor);
+    
+    // ★変更: クリティカルヒットか否かでダメージ計算式を分岐
+    let baseDamage;
+    if (isCritical) {
+        // クリティカルヒットの場合、ダメージ計算式から mobility と armor の影響を完全に排除する
+        baseDamage = Math.max(0, success);
+    } else {
+        // 通常ヒットの場合、従来通りの計算
+        baseDamage = Math.max(0, success - mobility - armor);
+    }
+
     const finalDamage = Math.floor(baseDamage / 4) + might;
+
     // デバッグモードが有効な場合のみログを出力
     if (CONFIG.DEBUG) {
         console.log(`--- ダメージ計算 (Attacker: ${attackerId}, Target: ${targetId}) ---`);
         console.log(`  攻撃側: 成功=${success}, 威力=${might}`);
         console.log(`  ターゲット側: 機動=${mobility}, 防御=${armor}`);
-        console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - ${armor}) / 4) + ${might} = ${finalDamage}`);
-        console.log(`  - ベースダメージ(括弧内): ${baseDamage}`);
+        if (isCritical) {
+            console.log('  - ★クリティカルヒット発生！ ターゲットの回避度・防御度を無視！');
+            console.log(`  計算過程: Math.floor(Math.max(0, ${success}) / 4) + ${might} = ${finalDamage}`);
+        } else {
+            console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - ${armor}) / 4) + ${might} = ${finalDamage}`);
+        }
         console.log(`  - 最終ダメージ: ${finalDamage}`);
     }
     return finalDamage;
@@ -255,5 +297,3 @@ export function selectPartByCondition(world, enemies, sortFn) {
     const selectedPart = allParts[0];
     return { targetId: selectedPart.entityId, targetPartKey: selectedPart.partKey };
 }
-
-

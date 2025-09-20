@@ -7,8 +7,8 @@ import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action, GameContext } from '../core/components.js';
 // ★変更: GamePhaseTypeを追加インポート
 import { PlayerStateType, PartType, ModalType, GamePhaseType, PartNameJp } from '../common/constants.js';
-// ★変更: battleUtilsから追加の関数をインポート
-import { calculateDamage, findBestDefensePart, findNearestEnemy, selectRandomPart, calculateEvasionChance, calculateDefenseChance } from '../utils/battleUtils.js';
+// ★変更: battleUtilsからクリティカル計算関数を追加でインポート
+import { calculateDamage, findBestDefensePart, findNearestEnemy, selectRandomPart, calculateEvasionChance, calculateDefenseChance, calculateCriticalChance } from '../utils/battleUtils.js';
 import { BaseSystem } from '../core/baseSystem.js';
 
 /**
@@ -153,57 +153,55 @@ export class ActionSystem extends BaseSystem {
         let finalTargetPartKey = action.targetPartKey;
         let resultMessage = '';
         const declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！　${attackingPart.trait}！`;
-        // console.log(`=================================================`);
-        // console.log(`攻撃シーケンス開始: ${attackerInfo.name} -> ${targetInfo.name}`);
         
         // --- 1. 回避判定 ---
-        // ★変更: calculateEvasionChanceヘルパー関数を使用
         const evasionChance = calculateEvasionChance(targetLegs.mobility, attackingPart.success);
         const evasionRoll = Math.random();
-        // console.log(`--- 回避判定 (Target: ${action.targetId}) ---`);
-        // console.log(`  - ターゲット機動: ${targetLegs.mobility}, 攻撃側成功: ${attackingPart.success}`);
-        // console.log(`  - 回避成功率: ${Math.round(evasionChance * 100)}%`);
-        // console.log(`  - 乱数: ${evasionRoll.toFixed(2)}`);
+
         if (evasionRoll < evasionChance) {
             // 回避成功
             finalDamage = 0;
             resultMessage = `${targetInfo.name}は攻撃を回避！`;
-            // console.log(`  - 結果: 回避成功`);
         } else {
-            // 回避失敗
-            // console.log(`  - 結果: 回避失敗`);
-            // --- 2. 防御判定 ---
-            // ★変更: calculateDefenseChanceヘルパー関数を使用
-            const defenseChance = calculateDefenseChance(targetLegs.armor);
-            const defenseRoll = Math.random();
-            // console.log(`--- 防御判定 (Target: ${action.targetId}) ---`);
-            // console.log(`  - ターゲット防御: ${targetLegs.armor}`);
-            // console.log(`  - 防御成功率: ${Math.round(defenseChance * 100)}%`);
-            // console.log(`  - 乱数: ${defenseRoll.toFixed(2)}`);
+            // 回避失敗（命中確定）
+            
+            // ★新規: 2. クリティカル判定
+            const critChance = calculateCriticalChance(attackingPart, targetLegs);
+            const critRoll = Math.random();
+            const isCritical = critRoll < critChance;
+
             let defenseSuccess = false;
-            if (defenseRoll < defenseChance) {
-                const defensePartKey = findBestDefensePart(this.world, action.targetId);
-                if (defensePartKey) {
-                    defenseSuccess = true;
-                    finalTargetPartKey = defensePartKey;
-                    // console.log(`  - 結果: 防御成功 (防御パーツ: ${defensePartKey})`);
-                } else {
-                    // console.log(`  - 結果: 防御失敗 (防御可能パーツなし)`);
-                }
+
+            if (isCritical) {
+                // クリティカルヒットの場合、防御判定は行わない
+                resultMessage = 'クリティカル！　';
             } else {
-                // console.log(`  - 結果: 防御失敗`);
+                // 通常ヒットの場合のみ、防御判定を行う
+                const defenseChance = calculateDefenseChance(targetLegs.armor);
+                const defenseRoll = Math.random();
+                if (defenseRoll < defenseChance) {
+                    const defensePartKey = findBestDefensePart(this.world, action.targetId);
+                    if (defensePartKey) {
+                        defenseSuccess = true;
+                        finalTargetPartKey = defensePartKey;
+                    }
+                }
             }
+
             // --- 3. ダメージ計算 ---
-            finalDamage = calculateDamage(this.world, executor, action.targetId, action);
+            // ★変更: isCriticalフラグを渡して、クリティカル効果を適用する
+            finalDamage = calculateDamage(this.world, executor, action.targetId, action, isCritical);
+            
             // ★変更: パーツの固有名ではなく、部位名(頭部、右腕など)をメッセージに使用する
             const finalTargetPartName = PartNameJp[finalTargetPartKey] || '不明な部位';
             if (defenseSuccess) {
                 resultMessage = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
             } else {
-                resultMessage = `${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
+                // ★変更: クリティカルの場合、既存のresultMessageに追記する
+                resultMessage += `${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
             }
         }
-        // console.log(`=================================================`);
+        
         // --- 4. 結果をActionコンポーネントに一時保存 ---
         action.targetPartKey = finalTargetPartKey;
         action.damage = finalDamage;

@@ -7,6 +7,18 @@ export const CONFIG = {
     PART_HP_BASE: 50,
             LEGS_HP_BONUS: 10,
         BASE_DAMAGE: 20,
+    // ★新規: デバッグログの表示を制御するフラグ
+    DEBUG: false, 
+    // ★新規: クリティカルヒット関連の定数
+    CRITICAL_HIT: {
+        // 攻撃成功度とターゲット機動度の差を確率に変換する際の係数
+        DIFFERENCE_FACTOR: 200, 
+        // 特定の攻撃タイプに加算されるクリティカル率ボーナス
+        TYPE_BONUS: {
+            '殴る': 0.25,
+            '狙い撃ち': 0.50,
+        },
+    },
     // ★新規: 時間調整関連の定数
     TIME_ADJUSTMENT: {
         MAX_MIGHT: 99, // ゲーム内の最大威力（基準値）
