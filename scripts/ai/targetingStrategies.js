@@ -3,8 +3,8 @@
  * このファイルは、AIの「メダルの性格」に基づいた多様なターゲティング戦略（アルゴリズム）を定義します。
  */
 import { Parts, PlayerInfo, GameState, BattleLog, GameContext } from '../core/components.js';
-import { PartType, PlayerStateType, MedalPersonality } from '../common/constants.js';
-// ★追加: battleUtilsから関数をインポート
+// ★改善: PartInfoを参照することで、ハードコードされた文字列を排除
+import { PlayerStateType, MedalPersonality, PartInfo } from '../common/constants.js';
 import { isValidTarget, selectRandomPart, getAllEnemyParts, selectPartByCondition } from '../utils/battleUtils.js';
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。
@@ -17,23 +17,26 @@ export const targetingStrategies = {
     /**
      * [HUNTER]: 弱った敵から確実に仕留める、狩人のような性格。
      * 敵全体のパーツの中で、現在HPが最も低いものを狙います。
+     * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.HUNTER]: (world, attackerId, enemies) => {
+    [MedalPersonality.HUNTER]: ({ world, enemies }) => {
         return selectPartByCondition(world, enemies, (a, b) => a.part.hp - b.part.hp);
     },
     /**
      * [CRUSHER]: 頑丈なパーツを先に破壊し、敵の耐久力を削ぐ、破壊者のような性格。
      * 敵全体のパーツの中で、現在HPが最も高いものを狙います。
+     * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.CRUSHER]: (world, attackerId, enemies) => {
+    [MedalPersonality.CRUSHER]: ({ world, enemies }) => {
         return selectPartByCondition(world, enemies, (a, b) => b.part.hp - a.part.hp);
     },
     /**
      * [JOKER]: 行動が予測不能で、戦況をかき乱す、トリックスターのような性格。
      * 敵全体の「攻撃可能な全パーツ」を一つの大きなリストとみなし、その中から完全にランダムで1つをターゲットとします。
      * 結果として、健在なパーツを多く持つ敵が狙われやすくなります。
+     * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.JOKER]: (world, attackerId, enemies) => {
+    [MedalPersonality.JOKER]: ({ world, enemies }) => {
         const allParts = getAllEnemyParts(world, enemies);
         if (allParts.length === 0) return null;
         const randomIndex = Math.floor(Math.random() * allParts.length);
@@ -42,13 +45,9 @@ export const targetingStrategies = {
     /**
      * [COUNTER]: 受けた攻撃に即座にやり返す、短期的な性格。
      * 自分を最後に攻撃してきた敵を狙います。いなければ、フォールバックとして別の戦略が選択されます。
-     * 
-     * ★変更: 以前はtargetIdの有効性をチェックしていましたが、
-     * そのチェックはdetermineTarget関数で一元管理するよう変更しました。
-     * これにより、各戦略関数は単にターゲットを返すだけになり、
-     * 有効性のチェックはdetermineTargetで一括処理されるようになります。
+     * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.COUNTER]: (world, attackerId, enemies) => {
+    [MedalPersonality.COUNTER]: ({ world, attackerId }) => {
         const attackerLog = world.getComponent(attackerId, BattleLog);
         const targetId = attackerLog.lastAttackedBy;
         return targetId ? selectRandomPart(world, targetId) : null;
@@ -56,13 +55,9 @@ export const targetingStrategies = {
     /**
      * [GUARD]: リーダーを守ることを最優先する、護衛のような性格。
      * 味方チームのリーダーを最後に攻撃した敵を狙います。
-     * 
-     * ★変更: 以前はtargetIdの有効性をチェックしていましたが、
-     * そのチェックはdetermineTarget関数で一元管理するよう変更しました。
-     * これにより、各戦略関数は単にターゲットを返すだけになり、
-     * 有効性のチェックはdetermineTargetで一括処理されるようになります。
+     * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.GUARD]: (world, attackerId, enemies) => {
+    [MedalPersonality.GUARD]: ({ world, attackerId }) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
         const context = world.getSingletonComponent(GameContext);
         const targetId = context.leaderLastAttackedBy[attackerInfo.teamId];
@@ -71,13 +66,9 @@ export const targetingStrategies = {
     /**
      * [FOCUS]: 一度狙った獲物は逃さない、執拗な性格。
      * 自分が前回攻撃したのと同じパーツを、執拗に狙い続けます。
-     * 
-     * ★変更: 以前はtargetIdとpartKeyの有効性をチェックしていましたが、
-     * そのチェックはdetermineTarget関数で一元管理するよう変更しました。
-     * これにより、各戦略関数は単にターゲットを返すだけになり、
-     * 有効性のチェックはdetermineTargetで一括処理されるようになります。
+     * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.FOCUS]: (world, attackerId, enemies) => {
+    [MedalPersonality.FOCUS]: ({ world, attackerId }) => {
         const attackerLog = world.getComponent(attackerId, BattleLog);
         const lastAttack = attackerLog.lastAttack;
         return { targetId: lastAttack.targetId, targetPartKey: lastAttack.partKey };
@@ -85,13 +76,9 @@ export const targetingStrategies = {
     /**
      * [ASSIST]: 味方と連携して同じ敵を攻撃する、協調的な性格。
      * 味方が最後に攻撃した敵のパーツを狙い、集中攻撃を仕掛けます。
-     * 
-     * ★変更: 以前はtargetIdとpartKeyの有効性をチェックしていましたが、
-     * そのチェックはdetermineTarget関数で一元管理するよう変更しました。
-     * これにより、各戦略関数は単にターゲットを返すだけになり、
-     * 有効性のチェックはdetermineTargetで一括処理されるようになります。
+     * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.ASSIST]: (world, attackerId, enemies) => {
+    [MedalPersonality.ASSIST]: ({ world, attackerId }) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
         const context = world.getSingletonComponent(GameContext);
         const teamLastAttack = context.teamLastAttack[attackerInfo.teamId];
@@ -100,13 +87,9 @@ export const targetingStrategies = {
     /**
      * [LEADER_FOCUS]: リーダーを集中攻撃し、早期決着を狙う、極めて攻撃的な性格。
      * 戦略の基本として、敵チームのリーダーを最優先で狙います。
-     * 
-     * ★変更: 以前はleaderの有効性をチェックしていましたが、
-     * そのチェックはdetermineTarget関数で一元管理するよう変更しました。
-     * これにより、各戦略関数は単にターゲットを返すだけになり、
-     * 有効性のチェックはdetermineTargetで一括処理されるようになります。
+     * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.LEADER_FOCUS]: (world, attackerId, enemies) => {
+    [MedalPersonality.LEADER_FOCUS]: ({ world, enemies }) => {
         const leader = enemies.find(id => world.getComponent(id, PlayerInfo).isLeader);
         return leader ? selectRandomPart(world, leader) : null;
     },
@@ -114,8 +97,9 @@ export const targetingStrategies = {
      * [RANDOM]: 基本的な性格であり、他の戦略が条件を満たさず実行できない場合の安全策（フォールバック）としての役割も持ちます。
      * まず「敵1体」をランダムに選び、次にその敵のパーツをランダムに狙います。
      * どの敵機体も等しい確率で選ばれます。
+     * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.RANDOM]: (world, attackerId, enemies) => {
+    [MedalPersonality.RANDOM]: ({ world, enemies }) => {
         if (enemies.length === 0) return null;
         const targetId = enemies[Math.floor(Math.random() * enemies.length)];
         return selectRandomPart(world, targetId);

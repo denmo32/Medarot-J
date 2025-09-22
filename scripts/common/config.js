@@ -26,6 +26,20 @@ export const CONFIG = {
         CHARGE_IMPACT_FACTOR: 1, // チャージ時間への影響係数
         COOLDOWN_IMPACT_FACTOR: 1 // クールダウン時間への影響係数
     },
+    // ★新規: 計算式関連の定数を集約
+    // ゲームバランス調整を容易にするため、ロジック内のマジックナンバーを外部設定化
+    FORMULAS: {
+        EVASION: {
+            DIFFERENCE_DIVISOR: 200, // 回避計算式: (機動 - 成功) / この値
+            BASE_CHANCE: 0.10,       // 回避計算式の基本確率
+            MAX_CHANCE: 0.95         // 回避の最大確率
+        },
+        DEFENSE: {
+            ARMOR_DIVISOR: 400,      // 防御計算式: 装甲 / この値
+            BASE_CHANCE: 0.10,       // 防御計算式の基本確率
+            MAX_CHANCE: 0.95         // 防御の最大確率
+        }
+    },
     // バトルフィールド関連の定数を集約
     BATTLEFIELD: {
         HOME_MARGIN_TEAM1: 0.05, // チーム1のホームポジションのX座標

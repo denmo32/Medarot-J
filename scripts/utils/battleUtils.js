@@ -1,40 +1,40 @@
-// scripts/utils/battleUtils.js
 import { CONFIG } from '../common/config.js';
 import { Parts, Position, PlayerInfo, GameState } from '../core/components.js';
-import { PartType, PlayerStateType } from '../common/constants.js';
+// ★改善: PartInfoを参照することで、ハードコードされた文字列を排除
+import { PartInfo, PlayerStateType } from '../common/constants.js';
 
 /**
  * 回避確率を計算する
  * 
- * 公式: (mobility - success) / 200 + 0.10 を 0-0.95 の範囲にクリップ
+ * 公式: (mobility - success) / [係数A] + [係数B] を 0-[係数C] の範囲にクリップ
  * - mobility: ターゲットの機動値
  * - success: 攻撃側の成功値
- * - 計算結果は0から0.95の間の確率を返す
  * 
  * @param {number} mobility - ターゲットの機動値
  * @param {number} success - 攻撃側の成功値
- * @returns {number} 0-0.95の範囲で確率を返す
+ * @returns {number} 0-Xの範囲で確率を返す
  */
 export function calculateEvasionChance(mobility, success) {
-    // 公式: (mobility - success) / 200 + 0.10 を 0-0.95 にクリップ
-    const base = (mobility - success) / 200 + 0.10;
-    return Math.max(0, Math.min(0.95, base));
+    // ★改善: 計算式をconfigから参照することで、バランス調整を容易にする
+    const formula = CONFIG.FORMULAS.EVASION;
+    const base = (mobility - success) / formula.DIFFERENCE_DIVISOR + formula.BASE_CHANCE;
+    return Math.max(0, Math.min(formula.MAX_CHANCE, base));
 }
 
 /**
  * 防御確率を計算する
  * 
- * 公式: armor / 400 + 0.10 を 0-0.95 の範囲にクリップ
+ * 公式: armor / [係数A] + [係数B] を 0-[係数C] の範囲にクリップ
  * - armor: ターゲットの防御値
- * - 計算結果は0から0.95の間の確率を返す
  * 
  * @param {number} armor - ターゲットの防御値
- * @returns {number} 0-0.95の範囲で確率を返す
+ * @returns {number} 0-Xの範囲で確率を返す
  */
 export function calculateDefenseChance(armor) {
-    // 公式: armor / 400 + 0.10 を 0-0.95 にクリップ
-    const base = armor / 400 + 0.10;
-    return Math.max(0, Math.min(0.95, base));
+    // ★改善: 計算式をconfigから参照することで、バランス調整を容易にする
+    const formula = CONFIG.FORMULAS.DEFENSE;
+    const base = armor / formula.ARMOR_DIVISOR + formula.BASE_CHANCE;
+    return Math.max(0, Math.min(formula.MAX_CHANCE, base));
 }
 
 /**
@@ -186,7 +186,14 @@ export function getParts(world, entityId, includeBroken = false, attackableOnly 
     if (!world || entityId === null || entityId === undefined) return [];
     const parts = world.getComponent(entityId, Parts);
     if (!parts) return [];
-    let partTypes = attackableOnly ? [PartType.HEAD, PartType.RIGHT_ARM, PartType.LEFT_ARM, PartType.LEGS] : Object.keys(parts);
+    
+    // ★改善: ハードコードされたキーではなく、PartInfoから攻撃パーツのキーリストを生成
+    const attackablePartKeys = [PartInfo.HEAD.key, PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key];
+    
+    let partTypes = attackableOnly 
+        ? attackablePartKeys 
+        : Object.keys(parts);
+        
     return Object.entries(parts)
         .filter(([key, part]) => partTypes.includes(key) && (includeBroken || !part.isBroken));
 }
@@ -222,7 +229,8 @@ export function findBestDefensePart(world, entityId) {
     const parts = world.getComponent(entityId, Parts);
     if (!parts) return null;
     const defendableParts = Object.entries(parts)
-        .filter(([key, part]) => key !== PartType.HEAD && !part.isBroken);
+        // ★改善: ハードコードされた 'head' を PartInfo.HEAD.key に変更
+        .filter(([key, part]) => key !== PartInfo.HEAD.key && !part.isBroken);
     if (defendableParts.length === 0) return null;
     // HPで降順ソートして、最もHPが高いパーツを返す
     defendableParts.sort(([, a], [, b]) => b.hp - a.hp);

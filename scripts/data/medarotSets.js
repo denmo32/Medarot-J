@@ -3,43 +3,44 @@
  * メダロットの機体名と、使用するパーツIDの組み合わせを定義します。
  */
 
-import { PartType } from '../common/constants.js';
+// ★改善: PartInfoを参照することで、パーツに関する定義元を一元化
+import { PartInfo } from '../common/constants.js';
 
 export const MEDAROT_SETS = [
     {
         name: 'ライフルテスト',
         parts: {
-            [PartType.HEAD]: 'head_001',
-            [PartType.RIGHT_ARM]: 'rarm_001',
-            [PartType.LEFT_ARM]: 'larm_001',
-            [PartType.LEGS]: 'legs_001'
+            [PartInfo.HEAD.key]: 'head_001',
+            [PartInfo.RIGHT_ARM.key]: 'rarm_001',
+            [PartInfo.LEFT_ARM.key]: 'larm_001',
+            [PartInfo.LEGS.key]: 'legs_001'
         }
     },
     {
         name: 'ソードテスト',
         parts: {
-            [PartType.HEAD]: 'head_002',
-            [PartType.RIGHT_ARM]: 'rarm_002',
-            [PartType.LEFT_ARM]: 'larm_002',
-            [PartType.LEGS]: 'legs_002'
+            [PartInfo.HEAD.key]: 'head_002',
+            [PartInfo.RIGHT_ARM.key]: 'rarm_002',
+            [PartInfo.LEFT_ARM.key]: 'larm_002',
+            [PartInfo.LEGS.key]: 'legs_002'
         }
     },
     {
         name: 'ガトリングテスト',
         parts: {
-            [PartType.HEAD]: 'head_003',
-            [PartType.RIGHT_ARM]: 'rarm_003',
-            [PartType.LEFT_ARM]: 'larm_003',
-            [PartType.LEGS]: 'legs_003'
+            [PartInfo.HEAD.key]: 'head_003',
+            [PartInfo.RIGHT_ARM.key]: 'rarm_003',
+            [PartInfo.LEFT_ARM.key]: 'larm_003',
+            [PartInfo.LEGS.key]: 'legs_003'
         }
     },
     {
         name: 'ハンマーテスト',
         parts: {
-            [PartType.HEAD]: 'head_004',
-            [PartType.RIGHT_ARM]: 'rarm_004',
-            [PartType.LEFT_ARM]: 'larm_004',
-            [PartType.LEGS]: 'legs_004'
+            [PartInfo.HEAD.key]: 'head_004',
+            [PartInfo.RIGHT_ARM.key]: 'rarm_004',
+            [PartInfo.LEFT_ARM.key]: 'larm_004',
+            [PartInfo.LEGS.key]: 'legs_004'
         }
     },
 ];

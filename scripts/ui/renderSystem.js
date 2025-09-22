@@ -1,4 +1,3 @@
-// scripts/systems/renderSystem.js:
 import { PlayerInfo, Position, Gauge, GameState, Parts, DOMReference } from '../core/components.js';
 import { PlayerStateType, TeamID } from '../common/constants.js'; // TeamIDをインポート
 import { BaseSystem } from '../core/baseSystem.js';
@@ -6,7 +5,8 @@ import { GameEvents } from '../common/events.js';
 export class RenderSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        // ★新規: 攻撃アニメーションの要求イベントを購読
+        // ★改善: アニメーション要求イベントを直接購読
+        // これにより、ViewSystemの仲介をなくし、システム間の連携をシンプルにします。
         this.world.on(GameEvents.EXECUTE_ATTACK_ANIMATION, this.executeAttackAnimation.bind(this));
     }
     update(deltaTime) {
@@ -72,32 +72,35 @@ export class RenderSystem extends BaseSystem {
         });
     }
     /**
-     * ★新規: 攻撃アニメーションを実行するメソッド。
-     * ViewSystem からイベントで要求され、実際のDOM操作とアニメーションを担当します。
+     * ★改善: 攻撃アニメーションを実行し、ゲームのポーズ/再開も管理します。
+     * ActionSystem からイベントで直接要求され、アニメーションに関連する状態管理をこのシステム内で完結させます。
      * @param {object} detail - { attackerId, targetId }
      */
     executeAttackAnimation(detail) {
         const { attackerId, targetId } = detail;
         const attackerDomRef = this.world.getComponent(attackerId, DOMReference);
         const targetDomRef = this.world.getComponent(targetId, DOMReference);
-        // DOM要素の存在確認（ViewSystemでもチェックしているが、念のため二重チェック）
+        // DOM要素の存在確認
         if (!attackerDomRef || !targetDomRef || !attackerDomRef.iconElement || !targetDomRef.iconElement || !attackerDomRef.targetIndicatorElement) {
             console.warn('RenderSystem: Missing DOM elements for animation. Skipping.', detail);
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
         }
+
+        // ★新規: アニメーション開始時にゲームの進行を一時停止
+        this.world.emit(GameEvents.GAME_PAUSED);
+
         const indicator = attackerDomRef.targetIndicatorElement;
         const attackerIcon = attackerDomRef.iconElement;
         const targetIcon = targetDomRef.iconElement;
-        // ★根本原因の修正: 親要素のtransformから逃れるため、アニメーション中だけインジケーターをbody直下に移動
+        
         const originalParent = indicator.parentNode;
         document.body.appendChild(indicator);
-        // ★タイミング問題の修正: ターゲットアイコンのCSS transition完了を待つため、少し遅延させる
+        
         setTimeout(() => {
-            // 座標計算
             const attackerRect = attackerIcon.getBoundingClientRect();
             const targetRect = targetIcon.getBoundingClientRect();
-            // インジケーターを一時的に fixed ポジションにして、ページ全体でアニメーションさせる
+            
             const originalStyle = {
                 position: indicator.style.position,
                 top: indicator.style.top,
@@ -106,38 +109,34 @@ export class RenderSystem extends BaseSystem {
                 transition: indicator.style.transition,
                 zIndex: indicator.style.zIndex
             };
-            indicator.style.transition = 'none'; // JSアニメーション中はCSSのtransitionを無効化
+            indicator.style.transition = 'none'; 
             indicator.style.position = 'fixed';
             indicator.style.zIndex = '100';
-            // アニメーション開始時にactiveクラスを追加して表示状態にする
+            
             indicator.classList.add('active');
-            // 攻撃者アイコンの中心座標を初期位置とする
+            
             const startX = attackerRect.left + attackerRect.width / 2;
             const startY = attackerRect.top + attackerRect.height / 2;
-            // ターゲットアイコンの中心座標を最終位置とする
             const endX = targetRect.left + targetRect.width / 2;
             const endY = targetRect.top + targetRect.height / 2;
-            // インジケーターの初期位置を設定 (fixedなのでビューポート基準)
+            
             indicator.style.left = `${startX}px`;
             indicator.style.top = `${startY}px`;
+            
             const animation = indicator.animate([
-                // 1. 攻撃者の位置で出現し、拡大する
                 { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1, offset: 0 },
                 { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 1, offset: 0.2 },
-                // 2. ターゲットの位置まで移動する
                 { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(1.5)`, opacity: 1, offset: 0.5 },
-                // 3. ターゲットの位置で脈動（縮小→拡大→縮小）し、最後に消える
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 1, offset: 0.65 }, // ★変更: 1回目の縮小スケールを0.5に
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 1, offset: 0.65 },
                 { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(2.0)`, opacity: 1, offset: 0.8 },
                 { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0, offset: 1 }
             ], {
-                duration: 1200, // アニメーション時間は1.2秒
+                duration: 1200, 
                 easing: 'ease-in-out'
             });
             animation.finished.then(() => {
-                // ★修正: インジケーターを元の親要素に戻す
                 if(originalParent) originalParent.appendChild(indicator);
-                // アニメーション後にインジケーターのスタイルを元に戻す
+                
                 indicator.style.position = originalStyle.position;
                 indicator.style.top = originalStyle.top;
                 indicator.style.left = originalStyle.left;
@@ -145,9 +144,13 @@ export class RenderSystem extends BaseSystem {
                 indicator.style.transition = originalStyle.transition;
                 indicator.style.zIndex = originalStyle.zIndex;
                 indicator.classList.remove('active');
+                
                 // ActionSystemにアニメーション完了を通知
                 this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
+                // ★修正: アニメーション完了時にゲームを再開しない。
+                // ゲームの再開は、後続のメッセージモーダルが全て閉じられた後、ActionPanelSystemによって行われる。
+                // this.world.emit(GameEvents.GAME_RESUMED);
             });
-        }, 110); // 110msの遅延 (CSS transitionが0.1sのため)
+        }, 110);
     }
 }

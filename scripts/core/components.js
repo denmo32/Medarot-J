@@ -32,18 +32,34 @@ export class GameState {
 // パーツ情報
 export class Parts {
     /**
-     * @param {object} head - 頭部パーツのオブジェクト
-     * @param {object} rightArm - 右腕パーツのオブジェクト
-     * @param {object} leftArm - 左腕パーツのオブジェクト
-     * @param {object} legs - 脚部パーツのオブジェクト
+     * @param {object} head - 頭部パーツのマスターデータ
+     * @param {object} rightArm - 右腕パーツのマスターデータ
+     * @param {object} leftArm - 左腕パーツのマスターデータ
+     * @param {object} legs - 脚部パーツのマスターデータ
      */
     constructor(head, rightArm, leftArm, legs) {
-        // ★変更: 外部から渡されたパーツオブジェクトをディープコピーして設定
-        // これにより、マスターデータが戦闘中に変更されるのを防ぎます。
-        this.head = { ...head };
-        this.rightArm = { ...rightArm };
-        this.leftArm = { ...leftArm };
-        this.legs = { ...legs };
+        /**
+         * ★改善: マスターデータを元に、戦闘インスタンス用のパーツデータを生成します。
+         * マスターデータ（設計図）と、戦闘中に変動する状態（HPなど）を明確に分離し、
+         * データの不変性を保つことで、予期せぬバグを防ぎます。
+         * @param {object} partData - パーツのマスターデータ
+         * @returns {object | null} 戦闘インスタンス用のパーツオブジェクト、またはnull
+         */
+        const initializePart = (partData) => {
+            if (!partData) return null;
+            // マスターデータをコピーし、戦闘中に変動する状態を追加
+            const partInstance = { ...partData };
+            // HPは最大HPで初期化
+            partInstance.hp = partData.maxHp;
+            // 破壊状態は'false'で初期化
+            partInstance.isBroken = false;
+            return partInstance;
+        };
+
+        this.head = initializePart(head);
+        this.rightArm = initializePart(rightArm);
+        this.leftArm = initializePart(leftArm);
+        this.legs = initializePart(legs);
     }
 }
 

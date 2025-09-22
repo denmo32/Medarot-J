@@ -1,9 +1,8 @@
-// scripts/systems/domFactorySystem.js:
-
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
-import { TeamID, PartType } from '../common/constants.js';
+// ★改善: PartKeyToInfoMap, PartInfo を参照し、定義元を一元化
+import { TeamID, PartKeyToInfoMap, PartInfo } from '../common/constants.js';
 
 /**
  * DOM要素の生成、配置、削除に特化したシステム。
@@ -104,19 +103,16 @@ export class DomFactorySystem {
         const nameEl = infoPanel.querySelector('.player-name');
         nameEl.textContent = `${playerInfo.name}`;        nameEl.className = `player-name ${teamConfig.textColor}`;
 
-        // ★新規: パーツの部位を表す絵文字のマッピング
-        const partIcons = {
-            [PartType.HEAD]: '👤',
-            [PartType.RIGHT_ARM]: '🫷',
-            [PartType.LEFT_ARM]: '🫸',
-            [PartType.LEGS]: '👣'
-        };
+        // ★廃止: PartInfoに一元管理されたため、このローカルマッピングは不要
+        // const partIcons = { ... };
 
         // 各パーツの情報を設定し、DOM参照をキャッシュ
         Object.entries(parts).forEach(([key, part]) => {
             const partEl = infoPanel.querySelector(`[data-part-key="${key}"]`);
+            if (!partEl) return;
             const partNameEl = partEl.querySelector('.part-name');
-            partNameEl.textContent = partIcons[key] || '?'; // ★変更: 絵文字を表示
+            // ★改善: PartKeyToInfoMapからアイコン情報を取得
+            partNameEl.textContent = PartKeyToInfoMap[key]?.icon || '?'; 
             
             domRef.partDOMElements[key] = {
                 container: partEl,

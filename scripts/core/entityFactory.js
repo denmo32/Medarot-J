@@ -1,8 +1,9 @@
 import { CONFIG } from '../common/config.js';
 import * as Components from './components.js';
-import { TeamID, MedalPersonality, PartType } from '../common/constants.js'; // ★PartTypeを追加
-import { PARTS_DATA } from '../data/parts.js'; // ★パーツデータをインポート
-import { MEDAROT_SETS } from '../data/medarotSets.js'; // ★機体セットをインポート
+// ★改善: PartInfoを参照することで、パーツに関する定義元を一元化
+import { TeamID, MedalPersonality, PartInfo } from '../common/constants.js'; 
+import { PARTS_DATA } from '../data/parts.js'; 
+import { MEDAROT_SETS } from '../data/medarotSets.js'; 
 
 /**
  * 単一のプレイヤーエンティティを生成し、その特性を定義するコンポーネント群を追加します。
@@ -28,10 +29,11 @@ function createPlayerEntity(world, teamId, index, totalId) {
     const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;
 
     // ★新規: 選択された機体セットに基づいてパーツオブジェクトを構築
-    const headPart = PARTS_DATA[PartType.HEAD][medarotSet.parts.head];
-    const rightArmPart = PARTS_DATA[PartType.RIGHT_ARM][medarotSet.parts.rightArm];
-    const leftArmPart = PARTS_DATA[PartType.LEFT_ARM][medarotSet.parts.leftArm];
-    const legsPart = PARTS_DATA[PartType.LEGS][medarotSet.parts.legs];
+    // ★改善: PartInfoからパーツキーを参照
+    const headPart = PARTS_DATA[PartInfo.HEAD.key][medarotSet.parts.head];
+    const rightArmPart = PARTS_DATA[PartInfo.RIGHT_ARM.key][medarotSet.parts.rightArm];
+    const leftArmPart = PARTS_DATA[PartInfo.LEFT_ARM.key][medarotSet.parts.leftArm];
+    const legsPart = PARTS_DATA[PartInfo.LEGS.key][medarotSet.parts.legs];
 
     world.addComponent(entityId, new Components.PlayerInfo(name, teamId, isLeader));
     world.addComponent(entityId, new Components.Gauge());

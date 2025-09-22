@@ -1,5 +1,3 @@
-// scripts/constants.js:
-
 /**
  * ゲーム全体の状態を定義する定数
  */
@@ -25,14 +23,38 @@ export const PlayerStateType = {
 };
 
 /**
- * パーツのキーを定義する定数
+ * ★改善: パーツの部位に関する情報を一元管理する定数
+ * 部位キー、日本語名、UIアイコンなどを集約し、情報の散逸を防ぎます。
+ * これにより、関連情報の追加・変更がこのオブジェクトの修正のみで完結します。
  */
-export const PartType = {
-    HEAD: 'head',
-    RIGHT_ARM: 'rightArm',
-    LEFT_ARM: 'leftArm',
-    LEGS: 'legs'
+export const PartInfo = {
+    HEAD:      { key: 'head',     name: '頭部', icon: '👤' },
+    RIGHT_ARM: { key: 'rightArm', name: '右腕', icon: '🫷' },
+    LEFT_ARM:  { key: 'leftArm',  name: '左腕', icon: '🫸' },
+    LEGS:      { key: 'legs',     name: '脚部', icon: '👣' }
 };
+
+/**
+ * パーツのキーを定義する定数 (PartInfoから自動生成)
+ * 既存コードとの互換性と、キーへの直接アクセスを提供するために維持します。
+ */
+export const PartType = Object.values(PartInfo).reduce((acc, { key }) => {
+    // 例: 'HEAD' -> 'head'
+    const keyName = Object.keys(PartInfo).find(k => PartInfo[k].key === key);
+    if (keyName) {
+        acc[keyName] = key;
+    }
+    return acc;
+}, {});
+
+/**
+ * ★新規: パーツキー(例: 'head')から対応するPartInfoオブジェクトを逆引きするためのマップ
+ * これにより、動的なキー文字列から関連情報(名前、アイコン等)を効率的に取得できます。
+ */
+export const PartKeyToInfoMap = Object.values(PartInfo).reduce((acc, info) => {
+    acc[info.key] = info;
+    return acc;
+}, {});
 
 /**
  * チームIDを定義する定数
@@ -59,14 +81,9 @@ export const MedalPersonality = {
 };
 
 /**
- * ★新規: パーツキーに対応する日本語名を定義する定数
+ * ★廃止: PartInfoに統合されたため不要になりました。
  */
-export const PartNameJp = {
-    [PartType.HEAD]: '頭部',
-    [PartType.RIGHT_ARM]: '右腕',
-    [PartType.LEFT_ARM]: '左腕',
-    [PartType.LEGS]: '脚部'
-};
+// export const PartNameJp = { ... };
 
 /**
  * ★新規: モーダルの種類を定義する定数

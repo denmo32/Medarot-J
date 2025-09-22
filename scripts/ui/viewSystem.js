@@ -1,4 +1,3 @@
-// scripts/systems/viewSystem.js:
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
 import { GamePhaseType, ModalType } from '../common/constants.js';
@@ -46,7 +45,8 @@ export class ViewSystem {
      */
     bindWorldEvents() {
         this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
-        this.world.on(GameEvents.EXECUTION_ANIMATION_REQUESTED, this.onExecutionAnimationRequested.bind(this));
+        // ★廃止: アニメーション要求の仲介は不要になりました。RenderSystemが直接イベントを受け取ります。
+        // this.world.on(GameEvents.EXECUTION_ANIMATION_REQUESTED, this.onExecutionAnimationRequested.bind(this));
     }
 
     /**
@@ -75,28 +75,11 @@ export class ViewSystem {
     }
 
     /**
-     * ActionSystemからの要求を受け、実行アニメーションを再生します。
-     * @param {object} detail - { attackerId, targetId }
+     * ★廃止: このメソッドと関連ロジックはRenderSystemに移管されました。
+     * ActionSystemが直接RenderSystemにアニメーションを要求するフローに変更されたため、
+     * ViewSystemがアニメーション処理を仲介する必要がなくなりました。
      */
-    onExecutionAnimationRequested(detail) {
-        const { attackerId, targetId } = detail;
-
-        // アニメーションに必要なDOM要素が揃っているか最終確認
-        const attackerDomRef = this.world.getComponent(attackerId, Components.DOMReference);
-        const targetDomRef = this.world.getComponent(targetId, Components.DOMReference);
-        if (!attackerDomRef || !targetDomRef || !attackerDomRef.iconElement || !targetDomRef.iconElement || !attackerDomRef.targetIndicatorElement) {
-            console.warn('ViewSystem: Missing DOM elements for animation. Skipping.', detail);
-            // アニメーションをスキップし、即座に完了イベントを発行してゲームを続行させる
-            this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
-            return;
-        }
-
-        // ゲージ進行などを一時停止させる
-        this.world.emit(GameEvents.GAME_PAUSED);
-
-        // 実際のアニメーション実行はRenderSystemに委譲する
-        this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, { attackerId, targetId });
-    }
+    // onExecutionAnimationRequested(detail) { ... }
 
     /**
      * ターゲット表示用アニメーションのCSSを動的に<head>へ注入します。

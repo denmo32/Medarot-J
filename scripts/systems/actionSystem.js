@@ -5,9 +5,8 @@
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action, GameContext } from '../core/components.js';
-// ★変更: GamePhaseTypeを追加インポート
-import { PlayerStateType, PartType, ModalType, GamePhaseType, PartNameJp } from '../common/constants.js';
-// ★変更: battleUtilsからクリティカル計算関数を追加でインポート
+// ★改善: PartInfo, PartKeyToInfoMapを参照し、定義元を一元化
+import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap } from '../common/constants.js';
 import { calculateDamage, findBestDefensePart, findNearestEnemy, selectRandomPart, calculateEvasionChance, calculateDefenseChance, calculateCriticalChance } from '../utils/battleUtils.js';
 import { BaseSystem } from '../core/baseSystem.js';
 
@@ -47,8 +46,9 @@ export class ActionSystem extends BaseSystem {
         const targetPart = targetParts[action.targetPartKey];
         const newHp = Math.max(0, targetPart.hp - action.damage);
         
+        // ★改善: ハードコードされた 'head' を PartInfo.HEAD.key に変更
         const isPartBroken = newHp === 0 && !targetPart.isBroken;
-        const isPlayerBroken = action.targetPartKey === PartType.HEAD && newHp === 0;
+        const isPlayerBroken = action.targetPartKey === PartInfo.HEAD.key && newHp === 0;
 
         // 1. 先にゲームロジックを確定させるイベント(ACTION_EXECUTED)を発行します。
         // このイベントは同期的であり、これを受け取った各システム（HistorySystemなど）の処理が
@@ -125,9 +125,10 @@ export class ActionSystem extends BaseSystem {
                     return;
             }
         }
-        // 状態をアニメーション待ちに変更し、ViewSystemにアニメーションを要求します。
+        // ★改善: アニメーション要求フローを簡略化。RenderSystemに直接アニメーションを要求する。
+        // これにより、ViewSystemの仲介が不要になり、システム間の連携がシンプルになる。
         gameState.state = PlayerStateType.AWAITING_ANIMATION;
-        this.world.emit(GameEvents.EXECUTION_ANIMATION_REQUESTED, {
+        this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
             attackerId: executor,
             targetId: action.targetId
         });
@@ -199,8 +200,8 @@ export class ActionSystem extends BaseSystem {
                 !isCritical && !defenseSuccess // isDefenseBypassed: クリティカルでなく、かつ防御失敗時にtrue
             );
             
-            // ★変更: パーツの固有名ではなく、部位名(頭部、右腕など)をメッセージに使用する
-            const finalTargetPartName = PartNameJp[finalTargetPartKey] || '不明な部位';
+            // ★改善: PartKeyToInfoMap を使用して、パーツキーから日本語名を動的に取得
+            const finalTargetPartName = PartKeyToInfoMap[finalTargetPartKey]?.name || '不明な部位';
             if (defenseSuccess) {
                 resultMessage = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
             } else {

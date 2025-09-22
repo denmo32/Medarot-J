@@ -5,7 +5,6 @@
 import { PlayerInfo, GameState, Medal } from '../core/components.js';
 import { PlayerStateType } from '../common/constants.js';
 import { targetingStrategies } from './targetingStrategies.js';
-// ★修正: isValidTargetをインポートし、フォールバック処理で利用します。
 import { getValidEnemies, isValidTarget } from '../utils/battleUtils.js';
 
 /**
@@ -25,15 +24,23 @@ export function determineTarget(world, attackerId) {
     const enemies = getValidEnemies(world, attackerId);
     if (enemies.length === 0) return null;
     
+    // ★改善: 各戦略関数に渡す引数を単一のコンテキストオブジェクトに集約。
+    // これにより、将来的に戦略が必要とする情報が増えても、関数のシグネチャを変更する必要がなくなり、柔軟性が向上します。
+    const strategyContext = {
+        world,
+        attackerId,
+        enemies,
+    };
+
     // 手順1: 本来の性格に基づいた戦略でターゲット候補を決定します。
     const primaryStrategy = targetingStrategies[attackerMedal.personality] || targetingStrategies.RANDOM;
-    let target = primaryStrategy(world, attackerId, enemies);
+    let target = primaryStrategy(strategyContext);
     
     // 手順2: ターゲット候補が「存在しない」または「無効（破壊済みなど）」であるか検証します。
     // isValidTargetは、ターゲットエンティティの生存と、指定されたパーツが破壊されていないかを確認するヘルパー関数です。
     if (!target || !isValidTarget(world, target.targetId, target.targetPartKey)) {
         // 手順3: 検証に失敗した場合、フォールバックとしてRANDOM戦略を実行し、ターゲットを再決定します。
-        target = targetingStrategies.RANDOM(world, attackerId, enemies);
+        target = targetingStrategies.RANDOM(strategyContext);
     }
     
     return target;
