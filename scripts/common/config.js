@@ -38,6 +38,21 @@ export const CONFIG = {
             ARMOR_DIVISOR: 400,      // 防御計算式: 装甲 / この値
             BASE_CHANCE: 0.10,       // 防御計算式の基本確率
             MAX_CHANCE: 0.95         // 防御の最大確率
+        },
+        // ★新規: ダメージ計算式の除数を定義
+        DAMAGE: {
+            BASE_DAMAGE_DIVISOR: 4 // ダメージ計算式: baseDamage / この値
+        },
+        // ★新規: ゲージ増加計算式の除数を定義
+        GAUGE: {
+            GAUGE_INCREMENT_DIVISOR: 20.0 // ゲージ計算式: propulsion / この値
+        }
+    },
+    // ★新規: 特定のパーツタイプに依存する挙動の定義
+    PART_TYPE_MODIFIERS: {
+        '撃つ': {
+            // '撃つ'タイプはチャージとクールダウンの両方の時間に影響する
+            speedMultiplier: 0.75 // 補正率を0.75にする（25%短縮）
         }
     },
     // バトルフィールド関連の定数を集約
@@ -53,5 +68,4 @@ export const CONFIG = {
         [TeamID.TEAM1]: { name: 'チーム 1', color: '#63b3ed', baseSpeed: 1.0, textColor: 'text-blue-300' },
         [TeamID.TEAM2]: { name: 'チーム 2', color: '#f56565', baseSpeed: 1.0, textColor: 'text-red-300' }
     },
-    
 };

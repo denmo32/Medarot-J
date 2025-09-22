@@ -1,5 +1,6 @@
 // scripts/systems/historySystem.js:
 
+import { BaseSystem } from '../core/baseSystem.js';
 // ★変更: 必要なコンポーネントと定数をインポート
 import { PlayerInfo, BattleLog, GameContext, GameState, Gauge } from '../core/components.js';
 import { GameEvents } from '../common/events.js';
@@ -10,10 +11,9 @@ import { PlayerStateType } from '../common/constants.js';
  * 戦闘結果に基づき、戦闘履歴（BattleLog, GameContext）を更新するシステム。
  * StateSystemから責務を分離するために新設されました。
  */
-export class HistorySystem {
+export class HistorySystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
-        this.context = this.world.getSingletonComponent(GameContext);
+        super(world);
 
         // 行動が実行されたイベントをリッスンし、履歴を更新する
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));

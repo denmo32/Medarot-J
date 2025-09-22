@@ -3,6 +3,7 @@
  * このファイルは、ゲーム内でのエンティティ（キャラクター）の行動順を管理する責務を持ちます。
  */
 
+import { BaseSystem } from '../core/baseSystem.js';
 import { GameContext, GameState, PlayerInfo } from '../core/components.js';
 import { GameEvents } from '../common/events.js';
 // ★変更: GamePhaseTypeをインポート
@@ -16,10 +17,9 @@ import { PlayerStateType, TeamID, GamePhaseType } from '../common/constants.js';
  * 2. 柔軟なターン制御: 将来的に「素早さの高いキャラが連続で行動する」といった複雑なターン制御を導入する場合、
  *    このシステムにロジックを集約できるため、拡張が容易になります。
  */
-export class TurnSystem {
+export class TurnSystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
-        this.context = this.world.getSingletonComponent(GameContext);
+        super(world);
         
         // 行動選択の権利を得たエンティティが待機するキュー（待ち行列）。
         // このキューの先頭にいるエンティティが、次に行動を選択できます。

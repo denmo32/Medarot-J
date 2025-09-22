@@ -1,3 +1,4 @@
+import { BaseSystem } from '../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
@@ -9,9 +10,9 @@ import { TeamID, PartKeyToInfoMap, PartInfo } from '../common/constants.js';
  * HTMLテンプレートを利用して、JavaScriptコードからHTML構造を分離します。
  * このシステムはイベント駆動であり、updateループを持ちません。
  */
-export class DomFactorySystem {
+export class DomFactorySystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
+        super(world);
         
         // テンプレートとコンテナ要素への参照をキャッシュ
         this.playerInfoTemplate = document.getElementById('player-info-template');

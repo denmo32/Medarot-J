@@ -1,5 +1,8 @@
 // scripts/systems/baseSystem.js
 
+// ★追加: GameContextをインポート
+import { GameContext } from './components.js';
+
 /**
  * すべてのシステムクラスの基底クラス
  * 共通の初期化処理とユーティリティを提供
@@ -7,6 +10,8 @@
 export class BaseSystem {
     constructor(world) {
         this.world = world;
+        // ★追加: GameContextシングルトンへの参照を自動的にキャッシュ
+        this.context = this.world.getSingletonComponent(GameContext);
     }
 
     /**

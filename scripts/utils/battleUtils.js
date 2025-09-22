@@ -166,7 +166,7 @@ export function calculateDamage(world, attackerId, targetId, action, isCritical 
             console.log('  - ●防御失敗！ ターゲットの防御度を無視！');
             console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - 0) / 4) + ${might} = ${finalDamage}`);
         } else {
-            console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - ${armor}) / 4) + ${might} = ${finalDamage}`);
+            console.log(`  計算過程: Math.floor(Math.max(0, ${success} - ${mobility} - ${armor}) / ${CONFIG.FORMULAS.DAMAGE.BASE_DAMAGE_DIVISOR}) + ${might} = ${finalDamage}`);
         }
         console.log(`  - 最終ダメージ: ${finalDamage}`);
     }

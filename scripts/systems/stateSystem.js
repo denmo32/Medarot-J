@@ -146,9 +146,10 @@ export class StateSystem {
         // 時間補正率 = 1.0 + (性能スコア * 影響係数)
         let multiplier = 1.0 + (performanceScore * factor);
 
-        // ★変更: 「撃つ」攻撃の場合、チャージとクールダウンの両方にボーナスを与える
-        if (part.type === '撃つ') {
-            multiplier *= 0.75; // チャージ/クールダウン時間を25%短縮（補正率を小さくする）
+        // ★変更: ハードコードされたロジックをconfigから参照するように修正
+        const typeModifier = CONFIG.PART_TYPE_MODIFIERS?.[part.type];
+        if (typeModifier?.speedMultiplier) {
+            multiplier *= typeModifier.speedMultiplier;
         }
 
         return multiplier;

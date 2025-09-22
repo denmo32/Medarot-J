@@ -3,6 +3,7 @@
  * このファイルは、AIキャラクターの行動と思考ロジックを管理する責務を持ちます。
  */
 
+import { BaseSystem } from '../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 // ★改善: Medalコンポーネントをインポートし、性格を取得できるようにする
 import { Medal } from '../core/components.js';
@@ -18,9 +19,9 @@ import { partSelectionStrategies, personalityToPartSelection } from '../ai/partS
  * TurnSystemからAIの行動ターンであることが通知されると、このシステムが起動します。
  * プレイヤーの入力を待つInputSystemと対になる存在であり、AIの意思決定プロセスを担います。
  */
-export class AiSystem {
+export class AiSystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
+        super(world);
 
         // AIの行動が必要になった時（AIのターンが来た時）のイベントのみを購読します。
         this.world.on(GameEvents.AI_ACTION_REQUIRED, this.onAiActionRequired.bind(this));
@@ -41,7 +42,7 @@ export class AiSystem {
             const attackerMedal = this.world.getComponent(entityId, Medal);
             // 性格に対応する戦略を取得、なければデフォルト(POWER_FOCUS)を使用
             const partStrategy = personalityToPartSelection[attackerMedal.personality] || partSelectionStrategies.POWER_FOCUS;
-            const [partKey, part] = partStrategy(this.world, entityId, availableParts);
+            const [partKey, part] = partStrategy({ world: this.world, entityId, availableParts });
             
             // 3. ターゲット決定とイベント発行をユーティリティ関数に委譲します。
             const target = determineTarget(this.world, entityId);

@@ -42,7 +42,7 @@ export class GaugeSystem extends BaseSystem {
 
             // ★変更: speedMultiplierを考慮してゲージを増加させる
             const speedMultiplier = gauge.speedMultiplier || 1.0;
-            const increment = (propulsion / 20.0) * (deltaTime / CONFIG.UPDATE_INTERVAL) / speedMultiplier;
+            const increment = (propulsion / CONFIG.FORMULAS.GAUGE.GAUGE_INCREMENT_DIVISOR) * (deltaTime / CONFIG.UPDATE_INTERVAL) / speedMultiplier;
             gauge.value += increment;
 
             // ゲージが最大値を超えないようにする

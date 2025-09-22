@@ -1,5 +1,6 @@
 // scripts/systems/inputSystem.js:
 
+import { BaseSystem } from '../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 // ★追加: Partsコンポーネントをインポート
 import { PlayerInfo, Parts } from '../core/components.js';
@@ -14,9 +15,9 @@ import { determineTarget } from '../ai/targetingUtils.js';
  * UiSystemからのUIイベントを受け取り、ゲームロジックで扱えるACTION_SELECTEDイベントに変換します。
  * 旧DecisionSystemのプレイヤー担当部分の責務を継承しています。
  */
-export class InputSystem {
+export class InputSystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
+        super(world);
 
         // プレイヤーの入力が必要になった時と、実際にUIでパーツが選択された時のイベントをリッスン
         this.world.on(GameEvents.PLAYER_INPUT_REQUIRED, this.onPlayerInputRequired.bind(this));

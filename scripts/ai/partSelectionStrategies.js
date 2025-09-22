@@ -13,12 +13,13 @@ export const partSelectionStrategies = {
     /**
      * [デフォルト戦略]: 最も威力の高いパーツを選択します。
      * 多くの攻撃的な性格（HUNTER, CRUSHERなど）で共通して使用される基本戦略です。
-     * @param {World} world - ワールドオブジェクト
-     * @param {number} entityId - AIのエンティティID
-     * @param {Array} availableParts - 使用可能なパーツのリスト [[partKey, partObject], ...]
+     * @param {object} context - 戦略が必要とする情報を含むコンテキストオブジェクト
+     * @param {World} context.world - ワールドオブジェクト
+     * @param {number} context.entityId - AIのエンティティID
+     * @param {Array} context.availableParts - 使用可能なパーツのリスト [[partKey, partObject], ...]
      * @returns {[string, object]} - 選択されたパーツのキーとオブジェクト [partKey, partObject]
      */
-    POWER_FOCUS: (world, entityId, availableParts) => {
+    POWER_FOCUS: ({ world, entityId, availableParts }) => {
         if (!availableParts || availableParts.length === 0) {
             return [null, null];
         }
@@ -29,12 +30,13 @@ export const partSelectionStrategies = {
 
     /**
      * [JOKER / RANDOM 戦略]: 使用可能なパーツから完全にランダムで1つを選択します。
-     * @param {World} world - ワールドオブジェクト
-     * @param {number} entityId - AIのエンティティID
-     * @param {Array} availableParts - 使用可能なパーツのリスト [[partKey, partObject], ...]
+     * @param {object} context - 戦略が必要とする情報を含むコンテキストオブジェクト
+     * @param {World} context.world - ワールドオブジェクト
+     * @param {number} context.entityId - AIのエンティティID
+     * @param {Array} context.availableParts - 使用可能なパーツのリスト [[partKey, partObject], ...]
      * @returns {[string, object]} - 選択されたパーツのキーとオブジェクト [partKey, partObject]
      */
-    RANDOM: (world, entityId, availableParts) => {
+    RANDOM: ({ world, entityId, availableParts }) => {
         if (!availableParts || availableParts.length === 0) {
             return [null, null];
         }

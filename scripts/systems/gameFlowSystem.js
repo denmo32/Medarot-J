@@ -1,5 +1,6 @@
 // scripts/systems/gameFlowSystem.js:
 
+import { BaseSystem } from '../core/baseSystem.js';
 import { GameContext, GameState, Gauge, PlayerInfo } from '../core/components.js';
 import { GameEvents } from '../common/events.js';
 import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../common/constants.js';
@@ -8,13 +9,9 @@ import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../common/con
  * ゲーム全体のフロー（開始、戦闘、終了、リセット）を管理するシステム。
  * ゲームのグローバルな状態(GameContext)を唯一変更する責務を持つ。
  */
-export class GameFlowSystem {
+export class GameFlowSystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
-        // ワールドに存在する唯一のGameContextコンポーネントへの参照を保持します。
-        // これにより、毎フレーム検索する必要がなくなります。
-        this.context = this.world.getSingletonComponent(GameContext);
-
+        super(world);
         this.bindWorldEvents();
     }
 

@@ -28,18 +28,21 @@ function createPlayerEntity(world, teamId, index, totalId) {
     const initialX = teamId === TeamID.TEAM1 ? 0 : 1;
     const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;
 
-    // ★新規: 選択された機体セットに基づいてパーツオブジェクトを構築
-    // ★改善: PartInfoからパーツキーを参照
-    const headPart = PARTS_DATA[PartInfo.HEAD.key][medarotSet.parts.head];
-    const rightArmPart = PARTS_DATA[PartInfo.RIGHT_ARM.key][medarotSet.parts.rightArm];
-    const leftArmPart = PARTS_DATA[PartInfo.LEFT_ARM.key][medarotSet.parts.leftArm];
-    const legsPart = PARTS_DATA[PartInfo.LEGS.key][medarotSet.parts.legs];
+    // ★修正: よりシンプルで正しいロジックにリファクタリング
+    const partsData = {};
+    for (const partKey in medarotSet.parts) {
+        const partId = medarotSet.parts[partKey];
+        // partKey は 'head', 'rightArm' など
+        if (PARTS_DATA[partKey] && PARTS_DATA[partKey][partId]) {
+            partsData[partKey] = PARTS_DATA[partKey][partId];
+        }
+    }
 
     world.addComponent(entityId, new Components.PlayerInfo(name, teamId, isLeader));
     world.addComponent(entityId, new Components.Gauge());
     world.addComponent(entityId, new Components.GameState());
-    // ★変更: 構築したパーツオブジェクトをPartsコンポーネントに渡す
-    world.addComponent(entityId, new Components.Parts(headPart, rightArmPart, leftArmPart, legsPart));
+    // ★修正: 正しいパーツデータを渡す
+    world.addComponent(entityId, new Components.Parts(partsData.head, partsData.rightArm, partsData.leftArm, partsData.legs));
     world.addComponent(entityId, new Components.DOMReference());
     world.addComponent(entityId, new Components.Action());
     world.addComponent(entityId, new Components.Medal(personality));

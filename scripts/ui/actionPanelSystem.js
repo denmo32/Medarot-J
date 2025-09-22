@@ -1,19 +1,18 @@
-
 /**
  * @file アクションパネル管理システム
  * このファイルは、ゲーム中に表示されるアクションパネル（モーダル）の表示、非表示、
  * コンテンツ生成、および関連するユーザーインタラクションの管理に特化した責務を持ちます。
  * viewSystemから分離されました。
  */
+import { BaseSystem } from '../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
 import { ModalType } from '../common/constants.js';
 
-export class ActionPanelSystem {
+export class ActionPanelSystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
-        this.context = this.world.getSingletonComponent(Components.GameContext);
+        super(world);
         this.confirmActionEntityId = null;
         this.currentModalType = null;
 
