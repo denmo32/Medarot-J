@@ -5,7 +5,7 @@
 import { Parts, PlayerInfo, GameState, BattleLog, GameContext } from '../core/components.js';
 // ★改善: PartInfoを参照することで、ハードコードされた文字列を排除
 import { PlayerStateType, MedalPersonality, PartInfo } from '../common/constants.js';
-import { isValidTarget, selectRandomPart, getAllEnemyParts, selectPartByCondition } from '../utils/battleUtils.js';
+import { isValidTarget, selectRandomPart, getAllEnemyParts, selectPartByCondition } from '../utils/queryUtils.js';
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。
  * なぜこの形式なのか？

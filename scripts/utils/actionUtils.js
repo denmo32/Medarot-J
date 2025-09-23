@@ -5,7 +5,7 @@
  */
 import { GameEvents } from '../common/events.js';
 import { Parts } from '../core/components.js';
-import { isValidTarget } from './battleUtils.js';
+import { isValidTarget } from './queryUtils.js';
 
 /**
  * 選択されたパーツに基づき、適切な行動決定イベントを発行します。

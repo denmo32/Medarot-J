@@ -6,7 +6,7 @@ import { GameEvents } from '../common/events.js';
 import { PlayerInfo, Parts } from '../core/components.js';
 import { ModalType } from '../common/constants.js';
 // ★変更: 新しいユーティリティ関数 decideAndEmitAction をインポート
-import { getAllActionParts } from '../utils/battleUtils.js';
+import { getAllActionParts } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
 

@@ -5,13 +5,11 @@
 
 import { BaseSystem } from '../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-// ★改善: Medalコンポーネントをインポートし、性格を取得できるようにする
 import { Medal } from '../core/components.js';
-import { getAttackableParts } from '../utils/battleUtils.js';
+import { getAttackableParts } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
-// ★改善: 新設したパーツ選択戦略をインポート
-import { partSelectionStrategies, personalityToPartSelection } from '../ai/partSelectionStrategies.js';
+import { getStrategiesFor } from '../ai/personalityRegistry.js';
 
 
 /**
@@ -38,13 +36,14 @@ export class AiSystem extends BaseSystem {
         const availableParts = getAttackableParts(this.world, entityId);
 
         if (availableParts.length > 0) {
-            // 2. ★改善: どのパーツで攻撃するかを、外部の戦略モジュールに委譲して決定します。
+            // 2. ★改善: 性格に応じた戦略セットをレジストリから取得します。
             const attackerMedal = this.world.getComponent(entityId, Medal);
-            // 性格に対応する戦略を取得、なければデフォルト(POWER_FOCUS)を使用
-            const partStrategy = personalityToPartSelection[attackerMedal.personality] || partSelectionStrategies.POWER_FOCUS;
-            const [partKey, part] = partStrategy({ world: this.world, entityId, availableParts });
+            const strategies = getStrategiesFor(attackerMedal.personality);
             
-            // 3. ターゲット決定とイベント発行をユーティリティ関数に委譲します。
+            // 3. ★改善: パーツ選択戦略を実行し、使用するパーツを決定します。
+            const [partKey, part] = strategies.partSelection({ world: this.world, entityId, availableParts });
+            
+            // 4. ターゲット決定とイベント発行をユーティリティ関数に委譲します。
             const target = determineTarget(this.world, entityId);
             decideAndEmitAction(this.world, entityId, partKey, target);
 
@@ -54,11 +53,6 @@ export class AiSystem extends BaseSystem {
         }
     }
 
-    /**
-     * ★廃止: AIのパーツ選択ロジックは partSelectionStrategies.js に分離されました。
-     * これにより、AiSystemは思考ロジックの詳細から解放され、より管理的な役割に集中できます。
-     */
-    // _chooseActionPart(entityId, availableParts) { ... }
     
     // このシステムはイベント駆動で動作するため、毎フレーム実行されるupdate処理は不要です。
     update(deltaTime) {}

@@ -15,6 +15,7 @@ export class ActionPanelSystem extends BaseSystem {
         super(world);
         this.confirmActionEntityId = null;
         this.currentModalType = null;
+        this.currentModalData = null; // ★新規: 表示中モーダルのデータを保持
 
         this.dom = {
             actionPanel: document.getElementById('action-panel'),
@@ -134,7 +135,8 @@ export class ActionPanelSystem extends BaseSystem {
                     break;
                 case ModalType.ATTACK_DECLARATION:
                     if (this.confirmActionEntityId !== null) {
-                        this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { entityId: this.confirmActionEntityId });
+                        // ★修正: 保持しておいたモーダルの全データをペイロードとして渡す
+                        this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.currentModalData);
                     }
                     break;
                 case ModalType.EXECUTION_RESULT:
@@ -162,6 +164,7 @@ export class ActionPanelSystem extends BaseSystem {
 
         this.world.emit(GameEvents.GAME_PAUSED);
         this.currentModalType = type;
+        this.currentModalData = data; // ★新規: データを保持
 
         if (type === ModalType.ATTACK_DECLARATION || type === ModalType.EXECUTION_RESULT) {
             this.confirmActionEntityId = data.entityId;
@@ -202,6 +205,7 @@ export class ActionPanelSystem extends BaseSystem {
         this.world.emit(GameEvents.GAME_RESUMED);
         this.confirmActionEntityId = null;
         this.currentModalType = null;
+        this.currentModalData = null; // ★新規: データをクリア
 
         const activeIndicator = document.querySelector('.target-indicator.active');
         if (activeIndicator) {

@@ -7,7 +7,8 @@ import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action, GameContext } from '../core/components.js';
 // ★改善: PartInfo, PartKeyToInfoMapを参照し、定義元を一元化
 import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap } from '../common/constants.js';
-import { calculateDamage, findBestDefensePart, findNearestEnemy, selectRandomPart, calculateEvasionChance, calculateDefenseChance, calculateCriticalChance } from '../utils/battleUtils.js';
+import { findBestDefensePart, findNearestEnemy, selectRandomPart } from '../utils/queryUtils.js';
+import { calculateDamage, calculateEvasionChance, calculateDefenseChance, calculateCriticalChance } from '../utils/combatFormulas.js';
 import { BaseSystem } from '../core/baseSystem.js';
 
 /**
@@ -32,54 +33,48 @@ export class ActionSystem extends BaseSystem {
      * @param {object} detail - イベント詳細 ({ entityId })
      */
     onAttackDeclarationConfirmed(detail) {
-        const { entityId } = detail;
-        const action = this.getCachedComponent(entityId, Action);
+        // ★修正: ペイロードから全情報を取得
+        const { entityId, damage, resultMessage, targetId, targetPartKey } = detail;
+
         // 格闘攻撃が空振りした場合など、ターゲットが存在しない場合はシーケンスを完了させる
-        if (!action || !action.targetId) {
+        if (!targetId) {
             this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId });
             return;
         };
 
-        const targetParts = this.getCachedComponent(action.targetId, Parts);
+        const targetParts = this.getCachedComponent(targetId, Parts);
         if (!targetParts) return;
 
-        const targetPart = targetParts[action.targetPartKey];
-        const newHp = Math.max(0, targetPart.hp - action.damage);
+        const targetPart = targetParts[targetPartKey];
+        const newHp = Math.max(0, targetPart.hp - damage);
         
-        // ★改善: ハードコードされた 'head' を PartInfo.HEAD.key に変更
         const isPartBroken = newHp === 0 && !targetPart.isBroken;
-        const isPlayerBroken = action.targetPartKey === PartInfo.HEAD.key && newHp === 0;
+        const isPlayerBroken = targetPartKey === PartInfo.HEAD.key && newHp === 0;
 
-        // 1. 先にゲームロジックを確定させるイベント(ACTION_EXECUTED)を発行します。
-        // このイベントは同期的であり、これを受け取った各システム（HistorySystemなど）の処理が
-        // この場で実行され、ゲームの状態（phaseなど）が即座に更新されます。
+        // 1. ゲームロジックを確定させるイベントを発行
         this.world.emit(GameEvents.ACTION_EXECUTED, {
             attackerId: entityId,
-            targetId: action.targetId,
-            targetPartKey: action.targetPartKey,
-            damage: action.damage,
+            targetId: targetId,
+            targetPartKey: targetPartKey,
+            damage: damage,
             isPartBroken: isPartBroken,
             isPlayerBroken: isPlayerBroken,
         });
 
-        // ★追加: ゲームオーバーチェック
-        // 上記のACTION_EXECUTEDイベントの結果、ゲームのフェーズがGAME_OVERに移行した場合、
-        // 後続の「攻撃結果モーダル」は表示せず、処理をここで終了します。
-        // これにより、「ゲームオーバー画面」と「攻撃結果画面」の表示が競合するのを防ぎます。
+        // ゲームオーバーチェック
         if (this.context.phase === GamePhaseType.GAME_OVER) {
-            // デバッグログは不要になったため削除します。
             return;
         }
 
-        // 2. 次に、UIに結果を表示するためのモーダル表示を要求します。
+        // 2. UIに結果を表示するためのモーダル表示を要求
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.EXECUTION_RESULT,
             data: {
                 entityId: entityId,
-                message: action.resultMessage,
-                targetId: action.targetId,
-                targetPartKey: action.targetPartKey,
-                damage: action.damage
+                message: resultMessage,
+                targetId: targetId,
+                targetPartKey: targetPartKey,
+                damage: damage
             },
             immediate: true
         });
@@ -210,20 +205,22 @@ export class ActionSystem extends BaseSystem {
             }
         }
         
-        // --- 4. 結果をActionコンポーネントに一時保存 ---
+        // --- 4. 結果をActionコンポーネントに一時保存 ---        
         action.targetPartKey = finalTargetPartKey;
-        action.damage = finalDamage;
-        action.resultMessage = resultMessage;
-        action.declarationMessage = declarationMessage; // ★追加: 宣言メッセージも保存
-        
-        // ★修正: 即座に攻撃宣言モーダルを表示（シーケンス管理をスキップ）
+
+        // ★修正: 計算結果をイベントペイロードで直接渡す
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.ATTACK_DECLARATION,
             data: {
                 entityId: executor,
-                message: declarationMessage
+                message: declarationMessage,
+                // 後続の処理で必要になるデータをペイロードに含める
+                damage: finalDamage,
+                resultMessage: resultMessage,
+                targetId: action.targetId,
+                targetPartKey: finalTargetPartKey,
             },
-            immediate: true // ★追加: 即座表示フラグ
+            immediate: true
         });
     }
 }

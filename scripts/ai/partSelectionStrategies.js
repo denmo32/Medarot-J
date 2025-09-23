@@ -44,12 +44,3 @@ export const partSelectionStrategies = {
         return availableParts[randomIndex];
     },
 };
-
-/**
- * メダルの性格とパーツ選択戦略をマッピングします。
- * ここで定義されていない性格は、デフォルトの'POWER_FOCUS'戦略を使用します。
- */
-export const personalityToPartSelection = {
-    [MedalPersonality.JOKER]: partSelectionStrategies.RANDOM,
-    [MedalPersonality.RANDOM]: partSelectionStrategies.RANDOM,
-};

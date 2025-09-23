@@ -7,7 +7,7 @@ import { Gauge, GameState, Parts, PlayerInfo, Action, GameContext } from '../cor
 import { CONFIG } from '../common/config.js'; // ★追加
 import { GameEvents } from '../common/events.js';
 import { PlayerStateType, ModalType } from '../common/constants.js';
-import { isValidTarget } from '../utils/battleUtils.js';
+import { isValidTarget } from '../utils/queryUtils.js';
 
 /**
  * エンティティの「状態」を管理するステートマシン（状態遷移機械）としての役割を担うシステム。
