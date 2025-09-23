@@ -4,9 +4,6 @@ export const CONFIG = {
     MAX_GAUGE: 100,
     UPDATE_INTERVAL: 20,
     PLAYERS_PER_TEAM: 3,
-    PART_HP_BASE: 50,
-            LEGS_HP_BONUS: 10,
-        BASE_DAMAGE: 20,
     // ★新規: デバッグログの表示を制御するフラグ
     DEBUG: false, 
     // ★新規: クリティカルヒット関連の定数
@@ -31,12 +28,12 @@ export const CONFIG = {
     FORMULAS: {
         EVASION: {
             DIFFERENCE_DIVISOR: 200, // 回避計算式: (機動 - 成功) / この値
-            BASE_CHANCE: 0.10,       // 回避計算式の基本確率
+            BASE_CHANCE: 0.05,       // 回避計算式の基本確率
             MAX_CHANCE: 0.95         // 回避の最大確率
         },
         DEFENSE: {
-            ARMOR_DIVISOR: 400,      // 防御計算式: 装甲 / この値
-            BASE_CHANCE: 0.10,       // 防御計算式の基本確率
+            ARMOR_DIVISOR: 4,		 // 防御計算式: 装甲 / この値
+            BASE_CHANCE: 0.05,       // 防御計算式の基本確率
             MAX_CHANCE: 0.95         // 防御の最大確率
         },
         // ★新規: ダメージ計算式の除数を定義
