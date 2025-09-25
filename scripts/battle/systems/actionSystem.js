@@ -9,7 +9,7 @@ import { GameState, PlayerInfo, Parts, Action, GameContext } from '../core/compo
 import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap } from '../common/constants.js';
 import { findBestDefensePart, findNearestEnemy, selectRandomPart } from '../utils/queryUtils.js';
 import { calculateDamage, calculateEvasionChance, calculateDefenseChance, calculateCriticalChance } from '../utils/combatFormulas.js';
-import { BaseSystem } from '../core/baseSystem.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 
 /**
  * 「行動の実行」に特化したシステム。
@@ -62,7 +62,7 @@ export class ActionSystem extends BaseSystem {
         });
 
         // ゲームオーバーチェック
-        if (this.context.phase === GamePhaseType.GAME_OVER) {
+        if (this.context.battlePhase === GamePhaseType.GAME_OVER) {
             return;
         }
 

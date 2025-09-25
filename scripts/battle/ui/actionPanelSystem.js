@@ -4,7 +4,7 @@
  * コンテンツ生成、および関連するユーザーインタラクションの管理に特化した責務を持ちます。
  * viewSystemから分離されました。
  */
-import { BaseSystem } from '../core/baseSystem.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';

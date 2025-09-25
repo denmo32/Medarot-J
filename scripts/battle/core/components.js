@@ -113,7 +113,8 @@ export class Team {
 // --- New: ゲーム全体のグローバルな状態を管理するシングルトンコンポーネント ---
 export class GameContext {
     constructor() {
-        this.phase = GamePhaseType.IDLE;
+        this.gameMode = 'map'; // 'map' or 'battle'
+        this.battlePhase = GamePhaseType.IDLE;
         // ★削除: activePlayerはUIの状態に依存するため、コアロジックから削除。
         // this.activePlayer = null; // 行動選択中または実行中のプレイヤー
         this.isPausedByModal = false; // モーダル表示により、ゲームの進行が一時停止しているか

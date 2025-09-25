@@ -242,3 +242,16 @@ body {
     justify-content: space-between; /* 両端に寄せる */
     margin-top: 5px; /* ★変更: マージンを縮小 */
 }
+
+/* --- Map System Styles --- */
+.map-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#game-canvas {
+    border: 2px solid #fff;
+    background-color: #2a8a2a; /* Grass background color */
+}

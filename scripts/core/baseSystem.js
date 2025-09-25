@@ -1,7 +1,7 @@
 // scripts/systems/baseSystem.js
 
 // ★追加: GameContextをインポート
-import { GameContext } from './components.js';
+import { GameContext } from '../battle/core/components.js';
 
 /**
  * すべてのシステムクラスの基底クラス

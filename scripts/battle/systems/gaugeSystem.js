@@ -3,7 +3,7 @@
 import { Gauge, GameState, GameContext, Parts } from '../core/components.js';
 import { CONFIG } from '../common/config.js';
 import { PlayerStateType, GamePhaseType } from '../common/constants.js';
-import { BaseSystem } from '../core/baseSystem.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 
 export class GaugeSystem extends BaseSystem {
     constructor(world) {
@@ -15,7 +15,7 @@ export class GaugeSystem extends BaseSystem {
     update(deltaTime) {
         // バトルフェーズでない場合、またはモーダル表示によりゲーム全体が一時停止している場合は、
         // ゲージの進行を停止する
-        if (this.context.phase !== GamePhaseType.BATTLE || this.context.isPausedByModal) {
+        if (this.context.battlePhase !== GamePhaseType.BATTLE || this.context.isPausedByModal) {
             return;
         }
 

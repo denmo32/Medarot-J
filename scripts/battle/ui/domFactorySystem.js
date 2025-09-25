@@ -1,4 +1,4 @@
-import { BaseSystem } from '../core/baseSystem.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';

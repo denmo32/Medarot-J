@@ -1,6 +1,6 @@
 // scripts/systems/inputSystem.js:
 
-import { BaseSystem } from '../core/baseSystem.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 // ★追加: Partsコンポーネントをインポート
 import { PlayerInfo, Parts } from '../core/components.js';

@@ -1,6 +1,6 @@
 // scripts/systems/gameFlowSystem.js:
 
-import { BaseSystem } from '../core/baseSystem.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 import { GameContext, GameState, Gauge, PlayerInfo } from '../core/components.js';
 import { GameEvents } from '../common/events.js';
 import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../common/constants.js';
@@ -43,10 +43,10 @@ export class GameFlowSystem extends BaseSystem {
     }
 
     onGameStartConfirmed() {
-        if (this.context.phase !== GamePhaseType.IDLE) return;
+        if (this.context.battlePhase !== GamePhaseType.IDLE) return;
 
         // 1. ゲームフェーズを初期選択に変更
-        this.context.phase = GamePhaseType.INITIAL_SELECTION;
+        this.context.battlePhase = GamePhaseType.INITIAL_SELECTION;
 
         // 2. 全プレイヤーを準備完了状態にし、ゲージを最大にする
         const players = this.world.getEntitiesWith(GameState, Gauge);
@@ -60,7 +60,7 @@ export class GameFlowSystem extends BaseSystem {
 
     onBattleStartConfirmed() {
         // 1. フェーズをバトルに移行
-        this.context.phase = GamePhaseType.BATTLE;
+        this.context.battlePhase = GamePhaseType.BATTLE;
         
         // 2. 全プレイヤーのゲージをリセット
         this.world.getEntitiesWith(Gauge).forEach(id => {
@@ -78,12 +78,12 @@ export class GameFlowSystem extends BaseSystem {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
 
         // リーダー破壊、かつ、まだゲームオーバーになっていなければ処理
-        if (playerInfo && playerInfo.isLeader && this.context.phase !== GamePhaseType.GAME_OVER) {
+        if (playerInfo && playerInfo.isLeader && this.context.battlePhase !== GamePhaseType.GAME_OVER) {
             // 敵チームを勝者とする
             const winningTeam = playerInfo.teamId === TeamID.TEAM1 ? TeamID.TEAM2 : TeamID.TEAM1;
             
             // 1. ゲームフェーズを終了に設定
-            this.context.phase = GamePhaseType.GAME_OVER;
+            this.context.battlePhase = GamePhaseType.GAME_OVER;
             this.context.winningTeam = winningTeam;
 
             // 2. ゲームオーバーモーダルの表示を要求
@@ -102,7 +102,7 @@ export class GameFlowSystem extends BaseSystem {
         }
 
         // ★修正: BATTLE_START_CONFIRMフェーズの処理を追加
-        if (this.context.phase === GamePhaseType.BATTLE_START_CONFIRM) {
+        if (this.context.battlePhase === GamePhaseType.BATTLE_START_CONFIRM) {
             // 全てのモーダルが閉じられたことを確認してから、バトル開始確認モーダルを表示
             if (!this.context.isPausedByModal) {
                 this.world.emit(GameEvents.SHOW_MODAL, { 
@@ -115,7 +115,7 @@ export class GameFlowSystem extends BaseSystem {
         }
 
         // 初期選択フェーズでのみ実行
-        if (this.context.phase !== GamePhaseType.INITIAL_SELECTION) return;
+        if (this.context.battlePhase !== GamePhaseType.INITIAL_SELECTION) return;
 
         // 全プレイヤーが行動選択を終えたかチェック
         const allPlayers = this.world.getEntitiesWith(GameState);
@@ -128,7 +128,7 @@ export class GameFlowSystem extends BaseSystem {
 
         // 全員が選択し終わったら、戦闘開始確認フェーズに移行
         if (allSelected) {
-            this.context.phase = GamePhaseType.BATTLE_START_CONFIRM;
+            this.context.battlePhase = GamePhaseType.BATTLE_START_CONFIRM;
             // ★修正: 即座にモーダルを表示するのではなく、次のフレームで処理
             // これにより、他のモーダルが閉じられるのを待つ
         }

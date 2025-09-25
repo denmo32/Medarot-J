@@ -3,7 +3,7 @@
  * このファイルは、ゲーム内でのエンティティ（キャラクター）の行動順を管理する責務を持ちます。
  */
 
-import { BaseSystem } from '../core/baseSystem.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 import { GameContext, GameState, PlayerInfo } from '../core/components.js';
 import { GameEvents } from '../common/events.js';
 // ★変更: GamePhaseTypeをインポート
@@ -65,7 +65,7 @@ export class TurnSystem extends BaseSystem {
         // ★変更: 初期行動選択フェーズとバトル中の両方で動作するように修正
         // これにより、ゲーム開始直後の行動選択が正しく開始され、かつゲームオーバー後には停止します。
         const activePhases = [GamePhaseType.BATTLE, GamePhaseType.INITIAL_SELECTION];
-        if (!activePhases.includes(this.context.phase)) {
+        if (!activePhases.includes(this.context.battlePhase)) {
             return;
         }
 

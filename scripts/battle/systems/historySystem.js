@@ -1,6 +1,6 @@
 // scripts/systems/historySystem.js:
 
-import { BaseSystem } from '../core/baseSystem.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 // ★変更: 必要なコンポーネントと定数をインポート
 import { PlayerInfo, BattleLog, GameContext, GameState, Gauge } from '../core/components.js';
 import { GameEvents } from '../common/events.js';

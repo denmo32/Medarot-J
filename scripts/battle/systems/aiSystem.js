@@ -3,7 +3,7 @@
  * このファイルは、AIキャラクターの行動と思考ロジックを管理する責務を持ちます。
  */
 
-import { BaseSystem } from '../core/baseSystem.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 import { Medal } from '../core/components.js';
 import { getAttackableParts } from '../utils/queryUtils.js';

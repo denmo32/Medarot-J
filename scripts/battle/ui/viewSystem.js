@@ -71,7 +71,7 @@ export class ViewSystem {
      * 毎フレーム実行され、ゲームフェーズに応じてUI要素の表示/非表示を制御します。
      */
     update(deltaTime) {
-        this.dom.gameStartButton.style.display = this.context.phase === GamePhaseType.IDLE ? "flex" : "none";
+        this.dom.gameStartButton.style.display = this.context.battlePhase === GamePhaseType.IDLE ? "flex" : "none";
     }
 
     /**

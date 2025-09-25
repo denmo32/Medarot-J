@@ -1,87 +1,124 @@
 /**
  * @file アプリケーションのエントリーポイント
  * このファイルは、ゲーム全体の初期化とメインループの管理を行います。
- * ECS (Entity-Component-System) アーキテクチャのセットアップはここから始まります。
  */
 
 import { World } from './core/world.js';
-import { GameEvents } from './common/events.js';
-import { initializeSystems } from './core/systemInitializer.js';
-import { createPlayers } from './core/entityFactory.js';
+import { Game as RpgGame } from './map/game.js';
+import { GameEvents } from './battle/common/events.js';
+import { initializeSystems as initializeBattleSystems } from './battle/core/systemInitializer.js';
+import { createPlayers as createBattlePlayers } from './battle/core/entityFactory.js';
+// 必要なコンポーネントを直接インポート
+import { GameContext, GameState, Gauge } from './battle/core/components.js';
+import { GamePhaseType, PlayerStateType } from './battle/common/constants.js';
 
-// DOMの解析と準備が完了してからゲームの初期化を開始します。
-// これにより、DOM要素に依存するシステム(ViewSystemなど)が、対象要素を見つけられないというエラーを防ぎます。
-document.addEventListener('DOMContentLoaded', () => {
-    // `world`はECSアーキテクチャの中心です。
-    // すべてのエンティティ、コンポーネント、システムを保持・管理するコンテナの役割を果たします。
-    let world = new World();
+document.addEventListener('DOMContentLoaded', async () => {
+    // --- Game State Containers ---
+    let battleWorld = new World();
+    let rpgGame = null;
+    let gameContext = null; // battleWorldから取得するシングルトン
 
+    // --- UI Elements ---
+    const mapContainer = document.getElementById('map-container');
+    const battleContainer = document.getElementById('battle-container');
+    const gameStartButton = document.getElementById('gameStartButton');
 
-    // === ゲーム管理 ===
+    // --- Game Management ---
 
     /**
-     * ゲームの状態を完全にリセットし、初期状態に戻します。
-     * ページをリロードするのではなく、オブジェクトを再生成する理由は、
-     * メモリリークを防ぎ、クリーンな状態でゲームを再開するためです。
+     * 戦闘システムを初期化（またはリセット）します。
      */
-    function resetGame() {
-        // 他のシステムにリセットが始まることを通知し、必要なクリーンアップ処理を促します。
-        if (world.listeners.size > 0) {
-            world.emit(GameEvents.GAME_WILL_RESET);
+    function initializeBattle() {
+        if (battleWorld.listeners.size > 0) {
+            battleWorld.emit(GameEvents.GAME_WILL_RESET);
+        }
+        for (const system of battleWorld.systems) {
+            if (system.destroy) system.destroy();
         }
 
-        // 古いシステムのイベントリスナーなどを破棄します。
-        for (const system of world.systems) {
-            if (system.destroy) {
-                system.destroy();
-            }
-        }
+        battleWorld = new World();
+        initializeBattleSystems(battleWorld);
+        createBattlePlayers(battleWorld);
+        gameContext = battleWorld.getSingletonComponent(GameContext);
 
-        // ワールドを再作成することで、すべてのエンティティとコンポーネントを破棄します。
-        world = new World();
-
-        // クリーンなワールドに、再度システムとエンティティをセットアップします。
-        initializeSystems(world);
-        setupGameEvents();
-        createPlayers(world);
-
-        // UIの初期構築を要求します。
-        world.emit(GameEvents.SETUP_UI_REQUESTED);
+        battleWorld.emit(GameEvents.SETUP_UI_REQUESTED);
+        
+        // 戦闘終了後にマップモードに戻るイベントを設定
+        battleWorld.on(GameEvents.GAME_OVER, () => setTimeout(switchToMapMode, 3000));
+        battleWorld.on(GameEvents.RESET_BUTTON_CLICKED, switchToMapMode);
     }
 
     /**
-     * ゲーム全体に関わるイベントと、それに対応する処理を紐付けます。
+     * マップ探索システムを初期化します。
      */
-    function setupGameEvents() {
-        world.on(GameEvents.RESET_BUTTON_CLICKED, resetGame);
+    async function initializeMap() {
+        const canvas = document.getElementById('game-canvas');
+        if (!canvas) {
+            console.error('Canvas element not found!');
+            return;
+        }
+        rpgGame = new RpgGame(canvas);
+        await rpgGame.init();
     }
 
-    // === ゲームループ ===
+    /**
+     * マップモードに切り替えます。
+     */
+    function switchToMapMode() {
+        if (gameContext) gameContext.gameMode = 'map';
+        mapContainer.classList.remove('hidden');
+        battleContainer.classList.add('hidden');
+        console.log("モード切替: マップ探索");
+    }
 
-    let animationFrameId = null;
+    /**
+     * 戦闘モードに切り替えます。
+     */
+    function switchToBattleMode() {
+        console.log("モード切替: 戦闘");
+        initializeBattle();
+        if (gameContext) {
+            gameContext.gameMode = 'battle';
+            // GameFlowSystemに戦闘開始確認を要求
+            battleWorld.emit(GameEvents.GAME_START_CONFIRMED);
+        }
+        
+        battleContainer.classList.remove('hidden');
+        mapContainer.classList.add('hidden');
+    }
+
+    // --- Main Game Loop ---
     let lastTime = 0;
-
-    /**
-     * ゲームのメインループ。毎フレーム呼び出され、ゲームの状態を更新・描画します。
-     * `requestAnimationFrame` を使う理由は、ブラウザの描画タイミングに処理を同期させることで、
-     * CPUに優しく、スムーズで効率的なアニメーションを実現するためです。
-     * @param {number} timestamp - requestAnimationFrameから渡される高精度なタイムスタンプ
-     */
     function gameLoop(timestamp) {
-        if (!lastTime) {
-            lastTime = timestamp;
-        }
+        if (!lastTime) lastTime = timestamp;
         const deltaTime = timestamp - lastTime;
         lastTime = timestamp;
 
-        // 登録されたすべてのシステムのupdateメソッドを呼び出し、ゲームの状態を更新します。
-        world.update(deltaTime);
+        if (gameContext) {
+            if (gameContext.gameMode === 'map' && rpgGame) {
+                rpgGame.update(deltaTime);
+                rpgGame.draw();
+            } else if (gameContext.gameMode === 'battle') {
+                battleWorld.update(deltaTime);
+            }
+        }
 
-        // 次のフレームで再度gameLoopを呼び出すようにブラウザに要求します。
-        animationFrameId = requestAnimationFrame(gameLoop);
+        requestAnimationFrame(gameLoop);
     }
+    
+    // --- Initial Setup ---
+    
+    // 1. 戦闘システムを初期化し、gameContext を取得
+    initializeBattle();
+    // 2. マップシステムを初期化
+    await initializeMap();
 
-    // === 初期化とゲーム開始 ===
-    resetGame(); // 初回起動時にゲームをセットアップ
-    requestAnimationFrame(gameLoop); // ゲームループを開始
+    // 3. 初期モードをマップに設定
+    switchToMapMode();
+
+    // 4. メインループを開始
+    requestAnimationFrame(gameLoop);
+
+    // 5. マップからの戦闘開始イベントをリッスン
+    window.addEventListener('startbattle', switchToBattleMode);
 });

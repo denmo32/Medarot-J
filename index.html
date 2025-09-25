@@ -8,9 +8,11 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="main-container">
-        
-        
+    <div id="map-container" class="map-container">
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <div id="battle-container" class="main-container hidden">
         <div id="battlefield" class="battlefield">
             <div class="action-line-1"></div>
             <div class="action-line-2"></div>
@@ -18,31 +20,24 @@
 
         <div class="info-panels">
             <div id="team1InfoPanel" class="team-info-panel">
-                
-                <!-- ★変更: プレイヤー情報はDomFactorySystemによって動的に生成される -->
                 <div class="team-players-container"></div>
             </div>
             <div id="team2InfoPanel" class="team-info-panel">
-                
-                <!-- ★変更: プレイヤー情報はDomFactorySystemによって動的に生成される -->
                 <div class="team-players-container"></div>
             </div>
         </div>
 
-        <!-- ★新規: モーダルに代わる、新しいアクションパネル -->
         <div id="action-panel" class="action-panel hidden">
-            <!-- ★新規: 行動主体を左上に表示するための要素 -->
             <div id="action-panel-owner" class="action-panel-owner"></div>
             <div id="action-panel-content" class="action-panel-content">
                 <h3 id="action-panel-title" class="action-panel-title"></h3>
                 <p id="action-panel-actor" class="action-panel-actor"></p>
-                                <div id="action-panel-buttons" class="buttons-center gap-4"></div>
+                <div id="action-panel-buttons" class="buttons-center gap-4"></div>
                 <button id="action-panel-confirm-button" class="action-panel-button" style="display: none;"></button>
                 <button id="action-panel-battle-start-button" class="action-panel-button" style="display: none;">ロボトルファイト！</button>
             </div>
         </div>
-
-        </div>
+    </div>
     </div>
 
     <!-- ロボトル開始アイコンボタン -->
