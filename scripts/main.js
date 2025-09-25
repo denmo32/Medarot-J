@@ -3,19 +3,25 @@
  * このファイルは、ゲーム全体の初期化とメインループの管理を行います。
  */
 
-import { World } from './core/world.js';
-import { Game as RpgGame } from './map/game.js';
 import { GameEvents } from './battle/common/events.js';
 import { initializeSystems as initializeBattleSystems } from './battle/core/systemInitializer.js';
 import { createPlayers as createBattlePlayers } from './battle/core/entityFactory.js';
-// 必要なコンポーネントを直接インポート
 import { GameContext } from './battle/core/components.js';
-import { MAP_EVENTS } from './map/constants.js';
+import { MAP_EVENTS, CONFIG as MAP_CONFIG, PLAYER_STATES } from './map/constants.js';
+import { World } from './core/world.js';
+import { Camera } from './map/camera.js';
+import { Renderer } from './map/renderer.js';
+import { Map } from './map/map.js';
+import { InputHandler } from './map/inputHandler.js';
+import * as MapComponents from './map/components.js';
+import { PlayerInputSystem } from './map/systems/PlayerInputSystem.js';
+import { MovementSystem } from './map/systems/MovementSystem.js';
+import { CameraSystem } from './map/systems/CameraSystem.js';
+import { RenderSystem as MapRenderSystem } from './map/systems/RenderSystem.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     // --- Global World Instance ---
     const world = new World();
-    let rpgGame = null; // TODO: This will be integrated into ECS later.
 
     // --- UI Elements ---
     const mapContainer = document.getElementById('map-container');
@@ -61,7 +67,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * Sets up the objects required for map exploration mode.
+     * Sets up the systems and entities for map exploration mode.
      */
     async function setupMapMode() {
         clearWorld(world);
@@ -71,11 +77,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('Canvas element not found!');
             return;
         }
+        canvas.width = MAP_CONFIG.VIEWPORT_WIDTH;
+        canvas.height = MAP_CONFIG.VIEWPORT_HEIGHT;
+
+        // --- Map Mode Objects (to be passed to systems) ---
+        const input = new InputHandler();
+        const camera = new Camera();
+        const renderer = new Renderer(canvas);
         
-        rpgGame = new RpgGame(canvas, world); 
-        await rpgGame.init();
+        const response = await fetch('scripts/map/map.json');
+        const mapData = await response.json();
+        const map = new Map(mapData);
+
+        // --- Register Map Systems ---
+        world.registerSystem(new PlayerInputSystem(world, input, map));
+        world.registerSystem(new MovementSystem(world, map));
+        world.registerSystem(new CameraSystem(world, camera, map));
+        world.registerSystem(new MapRenderSystem(world, renderer, map, camera));
+
+        // --- Create Map Entities ---
+        const playerEntityId = world.createEntity();
+        const initialX = 1 * MAP_CONFIG.TILE_SIZE + (MAP_CONFIG.TILE_SIZE - MAP_CONFIG.PLAYER_SIZE) / 2;
+        const initialY = 1 * MAP_CONFIG.TILE_SIZE + (MAP_CONFIG.TILE_SIZE - MAP_CONFIG.PLAYER_SIZE) / 2;
+
+        world.addComponent(playerEntityId, new MapComponents.Position(initialX, initialY));
+        world.addComponent(playerEntityId, new MapComponents.Velocity(0, 0));
+        world.addComponent(playerEntityId, new MapComponents.Renderable('circle', 'gold', MAP_CONFIG.PLAYER_SIZE));
+        world.addComponent(playerEntityId, new MapComponents.PlayerControllable());
+        world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
+        world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
         
-        // Create a temporary GameContext for map mode
+        // --- Create Game Context ---
         const contextEntity = world.createEntity();
         world.addComponent(contextEntity, new GameContext());
         const gameContext = world.getSingletonComponent(GameContext);
@@ -111,16 +143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const deltaTime = timestamp - lastTime;
         lastTime = timestamp;
 
-        const gameContext = world.getSingletonComponent(GameContext);
-
-        if (gameContext) {
-            if (gameContext.gameMode === 'map') {
-                rpgGame.update(deltaTime);
-                rpgGame.draw();
-            } else if (gameContext.gameMode === 'battle') {
-                world.update(deltaTime);
-            }
-        }
+        // Update all systems in the current mode
+        world.update(deltaTime);
 
         requestAnimationFrame(gameLoop);
     }
