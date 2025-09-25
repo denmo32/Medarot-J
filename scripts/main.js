@@ -28,30 +28,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const battleContainer = document.getElementById('battle-container');
 
     /**
-     * Clears the state of the world instance.
-     * @param {World} worldInstance 
-     */
-    function clearWorld(worldInstance) {
-        worldInstance.emit(GameEvents.GAME_WILL_RESET);
-        
-        for (const system of worldInstance.systems) {
-            if (system.destroy) {
-                system.destroy();
-            }
-        }
-        
-        worldInstance.listeners.clear();
-        worldInstance.systems = [];
-        worldInstance.entities.clear();
-        worldInstance.components.clear();
-        worldInstance.nextEntityId = 0;
-    }
-
-    /**
      * Sets up the systems and entities required for battle mode.
      */
     function setupBattleMode() {
-        clearWorld(world);
+        world.emit(GameEvents.GAME_WILL_RESET);
+        world.reset();
 
         initializeBattleSystems(world);
         createBattlePlayers(world);
@@ -70,7 +51,8 @@ document.addEventListener('DOMContentLoaded', async () => {
      * Sets up the systems and entities for map exploration mode.
      */
     async function setupMapMode() {
-        clearWorld(world);
+        world.emit(GameEvents.GAME_WILL_RESET);
+        world.reset();
         
         const canvas = document.getElementById('game-canvas');
         if (!canvas) {

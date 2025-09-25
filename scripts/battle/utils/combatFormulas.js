@@ -134,3 +134,37 @@ export function calculateDamage(world, attackerId, targetId, action, isCritical 
     }
     return finalDamage;
 }
+
+/**
+ * ★新規: パーツ性能に基づき、速度補正率を計算する
+ * 元々はStateSystemにあったメソッドです。
+ * @param {object} part - パーツオブジェクト
+ * @param {'charge' | 'cooldown'} factorType - 計算する係数の種類
+ * @returns {number} 速度補正率 (1.0が基準)
+ */
+export function calculateSpeedMultiplier(part, factorType) {
+    if (!part) return 1.0;
+
+    const config = CONFIG.TIME_ADJUSTMENT;
+    const factor = factorType === 'charge' ? config.CHARGE_IMPACT_FACTOR : config.COOLDOWN_IMPACT_FACTOR;
+
+    const might = part.might || 0;
+    const success = part.success || 0;
+
+    // 性能スコア = (威力 / 最大威力) + (成功 / 最大成功)
+    // 基準値が0の場合のゼロ除算を避ける
+    const mightScore = config.MAX_MIGHT > 0 ? might / config.MAX_MIGHT : 0;
+    const successScore = config.MAX_SUCCESS > 0 ? success / config.MAX_SUCCESS : 0;
+    const performanceScore = mightScore + successScore;
+
+    // 時間補正率 = 1.0 + (性能スコア * 影響係数)
+    let multiplier = 1.0 + (performanceScore * factor);
+
+    // ★変更: ハードコードされたロジックをconfigから参照するように修正
+    const typeModifier = CONFIG.PART_TYPE_MODIFIERS?.[part.type];
+    if (typeModifier?.speedMultiplier) {
+        multiplier *= typeModifier.speedMultiplier;
+    }
+
+    return multiplier;
+}

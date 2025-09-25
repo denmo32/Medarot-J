@@ -203,4 +203,25 @@ export class World {
             }
         }
     }
+
+    /**
+     * ワールドの状態を完全にリセットします。
+     * エンティティ、コンポーネント、システム、リスナーがすべてクリアされます。
+     * 実行中のシステムの `destroy` メソッドも呼び出されます。
+     */
+    reset() {
+        // 実行中のシステムのクリーンアップ処理を呼び出す
+        for (const system of this.systems) {
+            if (system.destroy) {
+                system.destroy();
+            }
+        }
+        
+        // すべての内部状態を初期化
+        this.listeners.clear();
+        this.systems = [];
+        this.entities.clear();
+        this.components.clear();
+        this.nextEntityId = 0;
+    }
 }
