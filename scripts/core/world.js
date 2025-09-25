@@ -109,6 +109,20 @@ export class World {
     }
 
     /**
+     * 指定されたエンティティから特定のコンポーネントを削除します。
+     * @param {number} entityId - コンポーネントを削除するエンティティのID
+     * @param {Function} componentClass - 削除したいコンポーネントのクラス
+     */
+    removeComponent(entityId, componentClass) {
+        if (this.entities.has(entityId)) {
+            this.entities.get(entityId).delete(componentClass);
+        }
+        if (this.components.has(componentClass)) {
+            this.components.get(componentClass).delete(entityId);
+        }
+    }
+
+    /**
      * ワールドに一つしか存在しないシングルトンコンポーネントを取得します。
      * なぜシングルトンが必要か？ GameContextのように、ゲーム全体で共有されるべき唯一の状態を
      * 管理するために使用します。これにより、グローバル変数を避けつつ、どこからでも安全にアクセスできます。

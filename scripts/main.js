@@ -9,79 +9,96 @@ import { GameEvents } from './battle/common/events.js';
 import { initializeSystems as initializeBattleSystems } from './battle/core/systemInitializer.js';
 import { createPlayers as createBattlePlayers } from './battle/core/entityFactory.js';
 // 必要なコンポーネントを直接インポート
-import { GameContext, GameState, Gauge } from './battle/core/components.js';
-import { GamePhaseType, PlayerStateType } from './battle/common/constants.js';
+import { GameContext } from './battle/core/components.js';
+import { MAP_EVENTS } from './map/constants.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // --- Game State Containers ---
-    let battleWorld = new World();
-    let rpgGame = null;
-    let gameContext = null; // battleWorldから取得するシングルトン
+    // --- Global World Instance ---
+    const world = new World();
+    let rpgGame = null; // TODO: This will be integrated into ECS later.
 
     // --- UI Elements ---
     const mapContainer = document.getElementById('map-container');
     const battleContainer = document.getElementById('battle-container');
-    const gameStartButton = document.getElementById('gameStartButton');
-
-    // --- Game Management ---
 
     /**
-     * 戦闘システムを初期化（またはリセット）します。
+     * Clears the state of the world instance.
+     * @param {World} worldInstance 
      */
-    function initializeBattle() {
-        if (battleWorld.listeners.size > 0) {
-            battleWorld.emit(GameEvents.GAME_WILL_RESET);
-        }
-        for (const system of battleWorld.systems) {
-            if (system.destroy) system.destroy();
-        }
-
-        battleWorld = new World();
-        initializeBattleSystems(battleWorld);
-        createBattlePlayers(battleWorld);
-        gameContext = battleWorld.getSingletonComponent(GameContext);
-
-        battleWorld.emit(GameEvents.SETUP_UI_REQUESTED);
+    function clearWorld(worldInstance) {
+        worldInstance.emit(GameEvents.GAME_WILL_RESET);
         
-        // 戦闘終了後にマップモードに戻るイベントを設定
-        battleWorld.on(GameEvents.GAME_OVER, () => setTimeout(switchToMapMode, 3000));
-        battleWorld.on(GameEvents.RESET_BUTTON_CLICKED, switchToMapMode);
+        for (const system of worldInstance.systems) {
+            if (system.destroy) {
+                system.destroy();
+            }
+        }
+        
+        worldInstance.listeners.clear();
+        worldInstance.systems = [];
+        worldInstance.entities.clear();
+        worldInstance.components.clear();
+        worldInstance.nextEntityId = 0;
     }
 
     /**
-     * マップ探索システムを初期化します。
+     * Sets up the systems and entities required for battle mode.
      */
-    async function initializeMap() {
+    function setupBattleMode() {
+        clearWorld(world);
+
+        initializeBattleSystems(world);
+        createBattlePlayers(world);
+        const gameContext = world.getSingletonComponent(GameContext);
+        gameContext.gameMode = 'battle';
+
+        world.emit(GameEvents.SETUP_UI_REQUESTED);
+        
+        world.on(GameEvents.GAME_OVER, () => setTimeout(switchToMapMode, 3000));
+        world.on(GameEvents.RESET_BUTTON_CLICKED, switchToMapMode);
+        
+        world.emit(GameEvents.GAME_START_CONFIRMED);
+    }
+
+    /**
+     * Sets up the objects required for map exploration mode.
+     */
+    async function setupMapMode() {
+        clearWorld(world);
+        
         const canvas = document.getElementById('game-canvas');
         if (!canvas) {
             console.error('Canvas element not found!');
             return;
         }
-        rpgGame = new RpgGame(canvas);
+        
+        rpgGame = new RpgGame(canvas, world); 
         await rpgGame.init();
+        
+        // Create a temporary GameContext for map mode
+        const contextEntity = world.createEntity();
+        world.addComponent(contextEntity, new GameContext());
+        const gameContext = world.getSingletonComponent(GameContext);
+        gameContext.gameMode = 'map';
     }
 
     /**
-     * マップモードに切り替えます。
+     * Switches the game to map mode.
      */
     function switchToMapMode() {
-        if (gameContext) gameContext.gameMode = 'map';
-        mapContainer.classList.remove('hidden');
-        battleContainer.classList.add('hidden');
-        console.log("モード切替: マップ探索");
+        setupMapMode().then(() => {
+            mapContainer.classList.remove('hidden');
+            battleContainer.classList.add('hidden');
+            console.log("Mode Switch: Map Exploration");
+        });
     }
 
     /**
-     * 戦闘モードに切り替えます。
+     * Switches the game to battle mode.
      */
     function switchToBattleMode() {
-        console.log("モード切替: 戦闘");
-        initializeBattle();
-        if (gameContext) {
-            gameContext.gameMode = 'battle';
-            // GameFlowSystemに戦闘開始確認を要求
-            battleWorld.emit(GameEvents.GAME_START_CONFIRMED);
-        }
+        console.log("Mode Switch: Battle");
+        setupBattleMode();
         
         battleContainer.classList.remove('hidden');
         mapContainer.classList.add('hidden');
@@ -94,12 +111,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const deltaTime = timestamp - lastTime;
         lastTime = timestamp;
 
+        const gameContext = world.getSingletonComponent(GameContext);
+
         if (gameContext) {
-            if (gameContext.gameMode === 'map' && rpgGame) {
+            if (gameContext.gameMode === 'map') {
                 rpgGame.update(deltaTime);
                 rpgGame.draw();
             } else if (gameContext.gameMode === 'battle') {
-                battleWorld.update(deltaTime);
+                world.update(deltaTime);
             }
         }
 
@@ -108,17 +127,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // --- Initial Setup ---
     
-    // 1. 戦闘システムを初期化し、gameContext を取得
-    initializeBattle();
-    // 2. マップシステムを初期化
-    await initializeMap();
+    await setupMapMode();
 
-    // 3. 初期モードをマップに設定
-    switchToMapMode();
+    mapContainer.classList.remove('hidden');
+    battleContainer.classList.add('hidden');
+    console.log("Mode Switch: Map Exploration");
 
-    // 4. メインループを開始
     requestAnimationFrame(gameLoop);
 
-    // 5. マップからの戦闘開始イベントをリッスン
-    window.addEventListener('startbattle', switchToBattleMode);
+    world.on(MAP_EVENTS.BATTLE_TRIGGERED, switchToBattleMode);
 });

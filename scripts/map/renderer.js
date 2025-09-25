@@ -1,5 +1,6 @@
 // renderer.js
 import { CONFIG, TILE_TYPES } from './constants.js';
+import * as MapComponents from './components.js';
 
 /**
  * 描画全般を管理するクラス
@@ -12,11 +13,11 @@ export class Renderer {
 
     /**
      * 指定されたすべてのオブジェクトを描画する
-     * @param {Array<object>} entities - 描画対象のエンティティの配列
+     * @param {World} world - ECSワールド
      * @param {Map} map - 描画対象のマップ
      * @param {Camera} camera - カメラ
      */
-    render(entities, map, camera) {
+    render(world, map, camera) {
         // Canvasをクリア
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
@@ -27,9 +28,28 @@ export class Renderer {
         // マップを描画
         map.draw(this, camera);
 
-        // 各エンティティを描画
-        for (const entity of entities) {
-            entity.draw(this);
+        // ECSから描画対象のエンティティを取得して描画
+        const entitiesToRender = world.getEntitiesWith(MapComponents.Position, MapComponents.Renderable);
+        for (const entityId of entitiesToRender) {
+            const position = world.getComponent(entityId, MapComponents.Position);
+            const renderable = world.getComponent(entityId, MapComponents.Renderable);
+
+            if (renderable.shape === 'circle') {
+                this.drawCircle(
+                    position.x + renderable.size / 2,
+                    position.y + renderable.size / 2,
+                    renderable.size / 2,
+                    renderable.color
+                );
+            } else if (renderable.shape === 'rect') {
+                this.drawRect(
+                    position.x,
+                    position.y,
+                    renderable.size,
+                    renderable.size,
+                    renderable.color
+                );
+            }
         }
 
         // コンテキストを元の状態に戻す

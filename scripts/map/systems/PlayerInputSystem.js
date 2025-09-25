@@ -1,0 +1,65 @@
+import { BaseSystem } from '../../core/baseSystem.js';
+import * as MapComponents from '../components.js';
+import { CONFIG, PLAYER_STATES } from '../constants.js';
+
+/**
+ * プレイヤーの入力に基づいて目標タイルを設定し、状態を遷移させるシステム。
+ */
+export class PlayerInputSystem extends BaseSystem {
+    constructor(world, input, map) {
+        super(world);
+        this.input = input;
+        this.map = map;
+    }
+
+    update() {
+        const entities = this.world.getEntitiesWith(
+            MapComponents.PlayerControllable, 
+            MapComponents.State, 
+            MapComponents.Position,
+            MapComponents.Collision
+        );
+
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, MapComponents.State);
+
+            // アイドル状態かつ入力がある場合のみ処理
+            if (state.value === PLAYER_STATES.IDLE && this.input && this.input.direction) {
+                const position = this.world.getComponent(entityId, MapComponents.Position);
+                const collision = this.world.getComponent(entityId, MapComponents.Collision);
+
+                let targetX = position.x;
+                let targetY = position.y;
+
+                // 現在のタイル位置を基準に、次のタイルの中央を目指す
+                const currentTileX = Math.floor((position.x + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
+                const currentTileY = Math.floor((position.y + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
+
+                const baseTargetX = currentTileX * CONFIG.TILE_SIZE + (CONFIG.TILE_SIZE - CONFIG.PLAYER_SIZE) / 2;
+                const baseTargetY = currentTileY * CONFIG.TILE_SIZE + (CONFIG.TILE_SIZE - CONFIG.PLAYER_SIZE) / 2;
+
+                switch (this.input.direction) {
+                    case 'up':    targetY = baseTargetY - CONFIG.TILE_SIZE; break;
+                    case 'down':  targetY = baseTargetY + CONFIG.TILE_SIZE; break;
+                    case 'left':  targetX = baseTargetX - CONFIG.TILE_SIZE; break;
+                    case 'right': targetX = baseTargetX + CONFIG.TILE_SIZE; break;
+                }
+
+                // 移動先の当たり判定
+                const bounds = {
+                    x: targetX + collision.padding,
+                    y: targetY + collision.padding,
+                    width: collision.width - collision.padding * 2,
+                    height: collision.height - collision.padding * 2,
+                };
+
+                if (!this.map.isColliding(bounds)) {
+                    // 状態を「歩行中」に遷移
+                    state.value = PLAYER_STATES.WALKING;
+                    // 目標地点コンポーネントを追加
+                    this.world.addComponent(entityId, new MapComponents.TargetPosition(targetX, targetY));
+                }
+            }
+        }
+    }
+}

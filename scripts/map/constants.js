@@ -32,3 +32,8 @@ export const KEY_MAP = {
     ArrowLeft: 'left',
     ArrowRight: 'right',
 };
+
+// マップ固有のイベント
+export const MAP_EVENTS = {
+    BATTLE_TRIGGERED: 'MAP_BATTLE_TRIGGERED', // 戦闘発生タイルに到達した
+};
