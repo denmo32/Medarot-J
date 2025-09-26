@@ -1,6 +1,7 @@
 // scripts/systems/gaugeSystem.js:
 
-import { Gauge, GameState, GameContext, Parts } from '../core/components.js';
+import { Gauge, GameState, Parts } from '../core/components.js'; // Import Gauge, GameState, Parts from components
+import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js';
 import { PlayerStateType, GamePhaseType } from '../common/constants.js';
 import { BaseSystem } from '../../core/baseSystem.js';
@@ -8,14 +9,15 @@ import { BaseSystem } from '../../core/baseSystem.js';
 export class GaugeSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        // GameContextへの参照を保持
-        this.context = this.world.getSingletonComponent(GameContext);
+        // New context references
+        this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
+        this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
     }
 
     update(deltaTime) {
         // バトルフェーズでない場合、またはモーダル表示によりゲーム全体が一時停止している場合は、
         // ゲージの進行を停止する
-        if (this.context.battlePhase !== GamePhaseType.BATTLE || this.context.isPausedByModal) {
+        if (this.battlePhaseContext.battlePhase !== GamePhaseType.BATTLE || this.uiStateContext.isPausedByModal) {
             return;
         }
 

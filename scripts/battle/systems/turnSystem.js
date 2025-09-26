@@ -5,6 +5,7 @@
 
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameContext, GameState, PlayerInfo } from '../core/components.js';
+import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { GameEvents } from '../common/events.js';
 // ★変更: GamePhaseTypeをインポート
 import { PlayerStateType, TeamID, GamePhaseType } from '../common/constants.js';
@@ -24,6 +25,10 @@ export class TurnSystem extends BaseSystem {
         // 行動選択の権利を得たエンティティが待機するキュー（待ち行列）。
         // このキューの先頭にいるエンティティが、次に行動を選択できます。
         this.actionQueue = [];
+        
+        // Use new context components for responsibilities
+        this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
+        this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
 
         // StateSystemなど、他のシステムからの要求に応じてキューを操作するためのイベントリスナーを登録します。
         this.world.on(GameEvents.ACTION_QUEUE_REQUEST, this.onActionQueueRequest.bind(this));
@@ -65,13 +70,13 @@ export class TurnSystem extends BaseSystem {
         // ★変更: 初期行動選択フェーズとバトル中の両方で動作するように修正
         // これにより、ゲーム開始直後の行動選択が正しく開始され、かつゲームオーバー後には停止します。
         const activePhases = [GamePhaseType.BATTLE, GamePhaseType.INITIAL_SELECTION];
-        if (!activePhases.includes(this.context.battlePhase)) {
+        if (!activePhases.includes(this.battlePhaseContext.battlePhase)) { // Use BattlePhaseContext
             return;
         }
 
         // キューに誰もいない、またはモーダル表示などでゲームが一時停止中の場合は、何も行いません。
         // isPausedByModalのチェックは、プレイヤーがUI操作中にターンが進行してしまうことを防ぐために重要です。
-        if (this.actionQueue.length === 0 || this.context.isPausedByModal) {
+        if (this.actionQueue.length === 0 || this.uiStateContext.isPausedByModal) { // Use UIStateContext
             return;
         }
         

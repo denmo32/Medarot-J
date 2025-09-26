@@ -1,4 +1,8 @@
 import * as Components from './components.js';
+import { GameModeContext } from './GameModeContext.js';
+import { BattlePhaseContext } from './BattlePhaseContext.js';
+import { UIStateContext } from './UIStateContext.js';
+import { BattleHistoryContext } from './BattleHistoryContext.js';
 import { ViewSystem } from '../ui/viewSystem.js';
 import { DomFactorySystem } from '../ui/domFactorySystem.js';
 import { ActionPanelSystem } from '../ui/actionPanelSystem.js'; // ★新規: ActionPanelSystemをインポート
@@ -19,8 +23,12 @@ import { TurnSystem } from '../systems/turnSystem.js';
  */
 export function initializeSystems(world) {
     // --- シングルトンコンポーネントの作成 ---
+    // Old GameContext responsibilities are now split into separate singleton components
     const contextEntity = world.createEntity();
-    world.addComponent(contextEntity, new Components.GameContext());
+    world.addComponent(contextEntity, new GameModeContext()); // Manages game mode (map, battle)
+    world.addComponent(contextEntity, new BattlePhaseContext()); // Manages battle phase (idle, battle, game over)
+    world.addComponent(contextEntity, new UIStateContext()); // Manages UI state (paused by modal, message queue)
+    world.addComponent(contextEntity, new BattleHistoryContext()); // Manages battle history for AI personalities
 
     // --- システムの登録 ---
     new InputSystem(world);

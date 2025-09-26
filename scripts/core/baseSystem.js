@@ -1,17 +1,15 @@
 // scripts/systems/baseSystem.js
 
-// ★追加: GameContextをインポート
-import { GameContext } from '../battle/core/components.js';
-
 /**
  * すべてのシステムクラスの基底クラス
  * 共通の初期化処理とユーティリティを提供
+ * Note: After GameContext separation, systems should retrieve their specific context components
+ * (e.g., BattlePhaseContext, UIStateContext, GameModeContext, BattleHistoryContext) manually in their constructors.
+ * This base class no longer provides a generic 'this.context' reference to the old GameContext.
  */
 export class BaseSystem {
     constructor(world) {
         this.world = world;
-        // ★追加: GameContextシングルトンへの参照を自動的にキャッシュ
-        this.context = this.world.getSingletonComponent(GameContext);
     }
 
     /**

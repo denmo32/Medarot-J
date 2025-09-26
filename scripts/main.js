@@ -7,6 +7,7 @@ import { GameEvents } from './battle/common/events.js';
 import { initializeSystems as initializeBattleSystems } from './battle/core/systemInitializer.js';
 import { createPlayers as createBattlePlayers } from './battle/core/entityFactory.js';
 import { GameContext } from './battle/core/components.js';
+import { GameModeContext } from './battle/core/index.js'; // Import new context for game mode
 import { MAP_EVENTS, CONFIG as MAP_CONFIG, PLAYER_STATES } from './map/constants.js';
 import { World } from './core/world.js';
 import { Camera } from './map/camera.js';
@@ -36,8 +37,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         initializeBattleSystems(world);
         createBattlePlayers(world);
-        const gameContext = world.getSingletonComponent(GameContext);
-        gameContext.gameMode = 'battle';
+        const gameModeContext = world.getSingletonComponent(GameModeContext); // Use new context for game mode
+        gameModeContext.gameMode = 'battle';
 
         world.emit(GameEvents.SETUP_UI_REQUESTED);
         
@@ -90,10 +91,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
         
         // --- Create Game Context ---
+        // The new context components (GameModeContext, BattlePhaseContext, etc.) are created in initializeSystems
+        // But we still create GameContext here for the gameMode property, which is now managed by GameModeContext
+        // However, since main.js was using GameContext.gameMode, we need to ensure GameModeContext is created.
+        // Let's create GameModeContext here for map mode, assuming systemInitializer.js handles battle mode.
         const contextEntity = world.createEntity();
-        world.addComponent(contextEntity, new GameContext());
-        const gameContext = world.getSingletonComponent(GameContext);
-        gameContext.gameMode = 'map';
+        world.addComponent(contextEntity, new GameModeContext()); // Create GameModeContext for map mode
+        const gameModeContext = world.getSingletonComponent(GameModeContext);
+        gameModeContext.gameMode = 'map';
     }
 
     /**
@@ -142,4 +147,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     requestAnimationFrame(gameLoop);
 
     world.on(MAP_EVENTS.BATTLE_TRIGGERED, switchToBattleMode);
+
+    window.focus();
 });

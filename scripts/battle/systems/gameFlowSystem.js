@@ -2,16 +2,26 @@
 
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameContext, GameState, Gauge, PlayerInfo } from '../core/components.js';
+import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { GameEvents } from '../common/events.js';
 import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../common/constants.js';
 
 /**
  * ゲーム全体のフロー（開始、戦闘、終了、リセット）を管理するシステム。
  * ゲームのグローバルな状態(GameContext)を唯一変更する責務を持つ。
+ * Note: After context separation, this system now interacts with multiple context components:
+ * - BattlePhaseContext: for battle phase changes
+ * - UIStateContext: for pausing and message queue
+ * - GameContext: for the final winning team result
  */
 export class GameFlowSystem extends BaseSystem {
     constructor(world) {
         super(world);
+        // Use new context components for their specific responsibilities
+        this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
+        this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
+        this.gameContext = this.world.getSingletonComponent(GameContext);
+        
         this.bindWorldEvents();
     }
 
@@ -26,27 +36,27 @@ export class GameFlowSystem extends BaseSystem {
 
     /**
      * ★新規: ゲームの一時停止を処理するハンドラ。
-     * ViewSystemから発行されたイベントを受け、GameContextのフラグを更新します。
+     * ViewSystemから発行されたイベントを受け、UIStateContextのフラグを更新します。
      * これにより、UIの都合によるゲーム停止が、コアロジックに直接影響するのを防ぎます。
      */
     onGamePaused() {
-        // GameContextのフラグを更新し、GaugeSystemやTurnSystemなどの進行を停止させます。
-        this.context.isPausedByModal = true;
+        // UIStateContextのフラグを更新し、GaugeSystemやTurnSystemなどの進行を停止させます。
+        this.uiStateContext.isPausedByModal = true;
     }
 
     /**
      * ★新規: ゲームの再開を処理するハンドラ。
      */
     onGameResumed() {
-        // GameContextのフラグを更新し、ゲームの進行を再開させます。
-        this.context.isPausedByModal = false;
+        // UIStateContextのフラグを更新し、ゲームの進行を再開させます。
+        this.uiStateContext.isPausedByModal = false;
     }
 
     onGameStartConfirmed() {
-        if (this.context.battlePhase !== GamePhaseType.IDLE) return;
+        if (this.battlePhaseContext.battlePhase !== GamePhaseType.IDLE) return;
 
-        // 1. ゲームフェーズを初期選択に変更
-        this.context.battlePhase = GamePhaseType.INITIAL_SELECTION;
+        // 1. ゲームフェーズを初期選択に変更 (use BattlePhaseContext)
+        this.battlePhaseContext.battlePhase = GamePhaseType.INITIAL_SELECTION;
 
         // 2. 全プレイヤーを準備完了状態にし、ゲージを最大にする
         const players = this.world.getEntitiesWith(GameState, Gauge);
@@ -59,8 +69,8 @@ export class GameFlowSystem extends BaseSystem {
     }
 
     onBattleStartConfirmed() {
-        // 1. フェーズをバトルに移行
-        this.context.battlePhase = GamePhaseType.BATTLE;
+        // 1. フェーズをバトルに移行 (use BattlePhaseContext)
+        this.battlePhaseContext.battlePhase = GamePhaseType.BATTLE;
         
         // 2. 全プレイヤーのゲージをリセット
         this.world.getEntitiesWith(Gauge).forEach(id => {
@@ -78,13 +88,13 @@ export class GameFlowSystem extends BaseSystem {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
 
         // リーダー破壊、かつ、まだゲームオーバーになっていなければ処理
-        if (playerInfo && playerInfo.isLeader && this.context.battlePhase !== GamePhaseType.GAME_OVER) {
+        if (playerInfo && playerInfo.isLeader && this.battlePhaseContext.battlePhase !== GamePhaseType.GAME_OVER) { // Use BattlePhaseContext
             // 敵チームを勝者とする
             const winningTeam = playerInfo.teamId === TeamID.TEAM1 ? TeamID.TEAM2 : TeamID.TEAM1;
             
-            // 1. ゲームフェーズを終了に設定
-            this.context.battlePhase = GamePhaseType.GAME_OVER;
-            this.context.winningTeam = winningTeam;
+            // 1. ゲームフェーズを終了に設定 (use BattlePhaseContext)
+            this.battlePhaseContext.battlePhase = GamePhaseType.GAME_OVER;
+            this.gameContext.winningTeam = winningTeam; // Use original GameContext for winning team result
 
             // 2. ゲームオーバーモーダルの表示を要求
             this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.GAME_OVER, data: { winningTeam } });
@@ -92,19 +102,19 @@ export class GameFlowSystem extends BaseSystem {
     }
 
     update(deltaTime) {
-        // ★新規: メッセージキューの処理
+        // ★新規: メッセージキューの処理 (use UIStateContext)
         // ゲームがポーズされておらず、かつキューに表示待ちのメッセージがある場合にモーダルを表示します。
         // これにより、モーダル表示の競合を防ぎ、安全なタイミングでメッセージを処理します。
-        if (!this.context.isPausedByModal && this.context.messageQueue && this.context.messageQueue.length > 0) {
-            const message = this.context.messageQueue.shift();
+        if (!this.uiStateContext.isPausedByModal && this.uiStateContext.messageQueue && this.uiStateContext.messageQueue.length > 0) { // Use UIStateContext
+            const message = this.uiStateContext.messageQueue.shift(); // Use UIStateContext
             this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.MESSAGE, data: { message } });
             return; // メッセージ表示を要求したら、このフレームの他の処理はスキップ
         }
 
         // ★修正: BATTLE_START_CONFIRMフェーズの処理を追加
-        if (this.context.battlePhase === GamePhaseType.BATTLE_START_CONFIRM) {
+        if (this.battlePhaseContext.battlePhase === GamePhaseType.BATTLE_START_CONFIRM) { // Use BattlePhaseContext
             // 全てのモーダルが閉じられたことを確認してから、バトル開始確認モーダルを表示
-            if (!this.context.isPausedByModal) {
+            if (!this.uiStateContext.isPausedByModal) { // Use UIStateContext
                 this.world.emit(GameEvents.SHOW_MODAL, { 
                     type: ModalType.BATTLE_START_CONFIRM,
                     data: {},
@@ -115,7 +125,7 @@ export class GameFlowSystem extends BaseSystem {
         }
 
         // 初期選択フェーズでのみ実行
-        if (this.context.battlePhase !== GamePhaseType.INITIAL_SELECTION) return;
+        if (this.battlePhaseContext.battlePhase !== GamePhaseType.INITIAL_SELECTION) return; // Use BattlePhaseContext
 
         // 全プレイヤーが行動選択を終えたかチェック
         const allPlayers = this.world.getEntitiesWith(GameState);
@@ -128,7 +138,7 @@ export class GameFlowSystem extends BaseSystem {
 
         // 全員が選択し終わったら、戦闘開始確認フェーズに移行
         if (allSelected) {
-            this.context.battlePhase = GamePhaseType.BATTLE_START_CONFIRM;
+            this.battlePhaseContext.battlePhase = GamePhaseType.BATTLE_START_CONFIRM;
             // ★修正: 即座にモーダルを表示するのではなく、次のフレームで処理
             // これにより、他のモーダルが閉じられるのを待つ
         }

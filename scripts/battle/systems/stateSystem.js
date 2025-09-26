@@ -4,9 +4,10 @@
  */
 
 import { Gauge, GameState, Parts, PlayerInfo, Action, GameContext } from '../core/components.js';
+import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js'; // ★追加
 import { GameEvents } from '../common/events.js';
-import { PlayerStateType, ModalType } from '../common/constants.js';
+import { PlayerStateType, ModalType, GamePhaseType } from '../common/constants.js';
 import { isValidTarget } from '../utils/queryUtils.js';
 import { calculateSpeedMultiplier } from '../utils/combatFormulas.js';
 
@@ -20,7 +21,11 @@ import { calculateSpeedMultiplier } from '../utils/combatFormulas.js';
 export class StateSystem {
     constructor(world) {
         this.world = world;
-        this.context = this.world.getSingletonComponent(GameContext);
+        // Use new context components
+        this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
+        this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
+        // Keep reference to GameContext for winningTeam if needed later in update loop
+        this.gameContext = this.world.getSingletonComponent(GameContext);
 
         // 他のシステムから発行される、状態遷移のきっかけとなるイベントを購読します。
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
@@ -182,7 +187,7 @@ export class StateSystem {
                 if (action.partKey && parts[action.partKey] && parts[action.partKey].isBroken) {
                     const message = "行動予約パーツが破壊されたため、放熱に移行！";
                     // ★修正: モーダルの競合を避けるため、直接表示せずにメッセージキューに追加する
-                    this.context.messageQueue.push(message);
+                    this.uiStateContext.messageQueue.push(message); // Use UIStateContext for messageQueue
                     this.resetAttackerState(entityId, { interrupted: true });
                     continue;
                 }
@@ -195,7 +200,7 @@ export class StateSystem {
                         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
                         const message = `ターゲットロスト！ ${playerInfo.name}は放熱に移行！`;
                         // メッセージをキューに追加し、モーダルでの表示を要求します。
-                        this.context.messageQueue.push(message);
+                        this.uiStateContext.messageQueue.push(message); // Use UIStateContext for messageQueue
                         // 状態をリセットし、その地点からのクールダウンを開始させます。
                         this.resetAttackerState(entityId, { interrupted: true });
                         continue; // このエンティティの以降の処理をスキップ

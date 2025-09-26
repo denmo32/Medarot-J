@@ -3,17 +3,22 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 // ★変更: 必要なコンポーネントと定数をインポート
 import { PlayerInfo, BattleLog, GameContext, GameState, Gauge } from '../core/components.js';
+import { BattleHistoryContext } from '../core/index.js'; // Import new context
 import { GameEvents } from '../common/events.js';
-import { PlayerStateType } from '../common/constants.js';
+import { PlayerStateType, TeamID } from '../common/constants.js'; // Import TeamID for context
 
 
 /**
- * 戦闘結果に基づき、戦闘履歴（BattleLog, GameContext）を更新するシステム。
+ * 戦闘結果に基づき、戦闘履歴（BattleLog, BattleHistoryContext）を更新するシステム。
  * StateSystemから責務を分離するために新設されました。
+ * Note: After context separation, this system now updates BattleHistoryContext
+ * instead of the old GameContext for teamLastAttack and leaderLastAttackedBy.
  */
 export class HistorySystem extends BaseSystem {
     constructor(world) {
         super(world);
+        // Use new BattleHistoryContext for battle history data
+        this.battleHistoryContext = this.world.getSingletonComponent(BattleHistoryContext);
 
         // 行動が実行されたイベントをリッスンし、履歴を更新する
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
@@ -72,14 +77,14 @@ export class HistorySystem extends BaseSystem {
         targetLog.lastAttackedBy = attackerId;
 
         // チームの最終攻撃情報を更新 (Assist性格用)
-        this.context.teamLastAttack[attackerInfo.teamId] = {
+        this.battleHistoryContext.teamLastAttack[attackerInfo.teamId] = {
             targetId: targetId,
             partKey: targetPartKey
         };
 
         // ターゲットがリーダーの場合、リーダーへの最終攻撃情報を更新 (Guard性格用)
         if (targetInfo.isLeader) {
-            this.context.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
+            this.battleHistoryContext.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
         }
     }
 

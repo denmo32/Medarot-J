@@ -1,5 +1,6 @@
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
+import { BattlePhaseContext } from '../core/index.js'; // Import new context
 import { GamePhaseType, ModalType } from '../common/constants.js';
 
 /**
@@ -11,15 +12,14 @@ import { GamePhaseType, ModalType } from '../common/constants.js';
 export class ViewSystem {
     constructor(world) {
         this.world = world;
-        this.context = this.world.getSingletonComponent(Components.GameContext);
+        // Use new BattlePhaseContext instead of old GameContext for battlePhase
+        this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
         this.animationStyleElement = null; // 動的に生成したstyle要素への参照
 
         this.dom = {
-            gameStartButton: document.getElementById('gameStartButton'),
         };
 
         this.handlers = {
-            gameStart: null,
         };
 
         this.bindWorldEvents();
@@ -31,9 +31,6 @@ export class ViewSystem {
      * このシステムが管理するDOMイベントリスナーと、動的に追加したスタイルシートを破棄します。
      */
     destroy() {
-        if (this.handlers.gameStart) {
-            this.dom.gameStartButton.removeEventListener('click', this.handlers.gameStart);
-        }
         if (this.animationStyleElement) {
             document.head.removeChild(this.animationStyleElement);
             this.animationStyleElement = null;
@@ -53,25 +50,18 @@ export class ViewSystem {
      * このシステムが管理するDOM要素のイベントリスナーを登録します。
      */
     bindDOMEvents() {
-        this.handlers.gameStart = () => {
-            // ★変更: 直接モーダルを表示するのではなく、表示要求イベントを発行する
-            this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.START_CONFIRM });
-        };
-        this.dom.gameStartButton.addEventListener('click', this.handlers.gameStart);
     }
 
     /**
      * UIの状態をゲーム開始前の状態にリセットします。
      */
     resetView() {
-        this.dom.gameStartButton.style.display = "flex";
     }
 
     /**
      * 毎フレーム実行され、ゲームフェーズに応じてUI要素の表示/非表示を制御します。
      */
     update(deltaTime) {
-        this.dom.gameStartButton.style.display = this.context.battlePhase === GamePhaseType.IDLE ? "flex" : "none";
     }
 
     /**

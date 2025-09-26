@@ -133,48 +133,18 @@ export class Team {
 }
 
 /**
- * ゲーム全体のグローバルな状態を管理するシングルトンコンポーネント
+ * ゲーム全体の結果を管理するシングルトンコンポーネント
  * @class GameContext
  * @description 
- * このコンポーネントは複数の関心事を保持しています：
- * 1. ゲームモード管理（マップ/バトル）
- * 2. バトルフェーズ管理（ゲーム進行状態）
- * 3. モーダル表示制御（UI状態）
- * 4. ゲーム結果（勝利チーム）
- * 5. 戦闘履歴（AIロジック用）
- * 6. メッセージキュー（UI管理用）
- * 
- * 注：現在の実装では、複数の関心事がこの1つのコンポーネントに集約されています。
- * より完全な単一責任原則への準拠を行うには、このコンポーネントを複数の
- * シングルトンコンポーネントに分離できますが、ECSアーキテクチャとの整合性
- * および既存システムとの互換性の観点から、現時点ではこの形態を維持します。
+ * このコンポーネントはゲームの最終結果（勝利チーム）のみを保持します。
+ * 他のグローバルな状態（モード、フェーズ、UI状態、戦闘履歴）は、
+ * 各専用のコンポーネント（GameModeContext, BattlePhaseContext, UIStateContext, BattleHistoryContext）
+ * に分離されました。
  */
 export class GameContext {
     constructor() {
-        // ゲームモード管理
-        this.gameMode = 'map';              // 'map' or 'battle'
-        
-        // バトルフェーズ管理
-        this.battlePhase = GamePhaseType.IDLE;
-        
-        // UI状態管理
-        this.isPausedByModal = false;       // モーダル表示によりゲーム進行が一時停止しているか
-        this.messageQueue = [];             // モーダルの競合を避けるためのメッセージキュー
-        
         // ゲーム結果
         this.winningTeam = null;            // 勝利したチームID
-
-        // 戦闘履歴（AIロジック用）
-        // 各チームの最後の攻撃情報を記録します (Assist性格用)
-        this.teamLastAttack = {
-            [TeamID.TEAM1]: { targetId: null, partKey: null },
-            [TeamID.TEAM2]: { targetId: null, partKey: null }
-        };
-        // 各チームのリーダーを最後に攻撃した敵を記録します (Guard性格用)
-        this.leaderLastAttackedBy = {
-            [TeamID.TEAM1]: null,
-            [TeamID.TEAM2]: null
-        };
     }
 }
 

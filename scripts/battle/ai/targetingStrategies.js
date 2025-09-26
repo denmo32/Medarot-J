@@ -3,9 +3,10 @@
  * このファイルは、AIの「メダルの性格」に基づいた多様なターゲティング戦略（アルゴリズム）を定義します。
  */
 import { Parts, PlayerInfo, GameState, BattleLog, GameContext } from '../core/components.js';
+import { BattleHistoryContext } from '../core/index.js'; // Import new context
 // ★改善: PartInfoを参照することで、ハードコードされた文字列を排除
-import { PlayerStateType, MedalPersonality, PartInfo } from '../common/constants.js';
-import { isValidTarget, selectRandomPart, getAllEnemyParts, selectPartByCondition } from '../utils/queryUtils.js';
+import { PlayerStateType, MedalPersonality, PartInfo, TeamID } from '../common/constants.js'; // Import TeamID for context keys, add BattleHistoryContext import
+import { isValidTarget, selectRandomPart, getAllEnemyParts, selectPartByCondition, getValidEnemies } from '../utils/queryUtils.js';
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。
  * なぜこの形式なのか？
@@ -56,12 +57,20 @@ export const targetingStrategies = {
      * [GUARD]: リーダーを守ることを最優先する、護衛のような性格。
      * 味方チームのリーダーを最後に攻撃した敵を狙います。
      * ★改善: 引数をコンテキストオブジェクトに変更
+     * ★修正: 新しいBattleHistoryContextを使用し、nullチェックを追加
      */
     [MedalPersonality.GUARD]: ({ world, attackerId }) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
-        const context = world.getSingletonComponent(GameContext);
-        const targetId = context.leaderLastAttackedBy[attackerInfo.teamId];
-        return targetId ? selectRandomPart(world, targetId) : null;
+        const context = world.getSingletonComponent(BattleHistoryContext);
+        // Check if BattleHistoryContext and its data are available
+        if (context && context.leaderLastAttackedBy) {
+            const targetId = context.leaderLastAttackedBy[attackerInfo.teamId];
+            return targetId ? selectRandomPart(world, targetId) : null;
+        } else {
+            // Return null if context is not ready; determineTarget will handle fallback
+            console.warn('BattleHistoryContext not ready for GUARD strategy, returning null for fallback.');
+            return null;
+        }
     },
     /**
      * [FOCUS]: 一度狙った獲物は逃さない、執拗な性格。
@@ -77,12 +86,20 @@ export const targetingStrategies = {
      * [ASSIST]: 味方と連携して同じ敵を攻撃する、協調的な性格。
      * 味方が最後に攻撃した敵のパーツを狙い、集中攻撃を仕掛けます。
      * ★改善: 引数をコンテキストオブジェクトに変更
+     * ★修正: 新しいBattleHistoryContextを使用し、nullチェックを追加
      */
     [MedalPersonality.ASSIST]: ({ world, attackerId }) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
-        const context = world.getSingletonComponent(GameContext);
-        const teamLastAttack = context.teamLastAttack[attackerInfo.teamId];
-        return { targetId: teamLastAttack.targetId, targetPartKey: teamLastAttack.partKey };
+        const context = world.getSingletonComponent(BattleHistoryContext);
+        // Check if BattleHistoryContext and its data are available
+        if (context && context.teamLastAttack) {
+            const teamLastAttack = context.teamLastAttack[attackerInfo.teamId];
+            return { targetId: teamLastAttack.targetId, targetPartKey: teamLastAttack.partKey };
+        } else {
+            // Return null if context is not ready; determineTarget will handle fallback
+            console.warn('BattleHistoryContext not ready for ASSIST strategy, returning null for fallback.');
+            return null;
+        }
     },
     /**
      * [LEADER_FOCUS]: リーダーを集中攻撃し、早期決着を狙う、極めて攻撃的な性格。
