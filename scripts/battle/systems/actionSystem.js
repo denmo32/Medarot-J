@@ -10,6 +10,7 @@ import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap }
 import { findBestDefensePart, findNearestEnemy, selectRandomPart } from '../utils/queryUtils.js';
 import { calculateDamage, calculateEvasionChance, calculateDefenseChance, calculateCriticalChance } from '../utils/combatFormulas.js';
 import { BaseSystem } from '../../core/baseSystem.js';
+import { ErrorHandler, GameError, ErrorType } from '../utils/errorHandler.js';
 
 /**
  * 「行動の実行」に特化したシステム。
@@ -30,54 +31,81 @@ export class ActionSystem extends BaseSystem {
 
     /**
      * ★新規: 攻撃宣言モーダルが確認された際に呼び出されます。
-     * @param {object} detail - イベント詳細 ({ entityId })
+     * @param {object} detail - イベント詳細 ({ entityId, damage, resultMessage, targetId, targetPartKey })
      */
     onAttackDeclarationConfirmed(detail) {
-        // ★修正: ペイロードから全情報を取得
-        const { entityId, damage, resultMessage, targetId, targetPartKey } = detail;
+        try {
+            // ★修正: ペイロードから全情報を取得
+            const { entityId, damage, resultMessage, targetId, targetPartKey } = detail;
 
-        // 格闘攻撃が空振りした場合など、ターゲットが存在しない場合はシーケンスを完了させる
-        if (!targetId) {
-            this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId });
-            return;
-        };
+            // パラメータの検証
+            if (typeof entityId !== 'number' || typeof damage !== 'number' || typeof resultMessage !== 'string') {
+                throw new GameError(
+                    `Invalid parameters in attack declaration confirmation: entityId=${entityId}, damage=${damage}, resultMessage=${resultMessage}`,
+                    ErrorType.VALIDATION_ERROR,
+                    { detail, method: 'onAttackDeclarationConfirmed' }
+                );
+            }
 
-        const targetParts = this.getCachedComponent(targetId, Parts);
-        if (!targetParts) return;
+            // 格闘攻撃が空振りした場合など、ターゲットが存在しない場合はシーケンスを完了させる
+            if (!targetId) {
+                this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId });
+                return;
+            }
 
-        const targetPart = targetParts[targetPartKey];
-        const newHp = Math.max(0, targetPart.hp - damage);
-        
-        const isPartBroken = newHp === 0 && !targetPart.isBroken;
-        const isPlayerBroken = targetPartKey === PartInfo.HEAD.key && newHp === 0;
+            const targetParts = this.getCachedComponent(targetId, Parts);
+            if (!targetParts) {
+                throw new GameError(
+                    `Target parts not found for entityId: ${targetId}`,
+                    ErrorType.COMPONENT_ERROR,
+                    { targetId, method: 'onAttackDeclarationConfirmed' }
+                );
+            }
 
-        // 1. ゲームロジックを確定させるイベントを発行
-        this.world.emit(GameEvents.ACTION_EXECUTED, {
-            attackerId: entityId,
-            targetId: targetId,
-            targetPartKey: targetPartKey,
-            damage: damage,
-            isPartBroken: isPartBroken,
-            isPlayerBroken: isPlayerBroken,
-        });
+            if (!targetParts[targetPartKey]) {
+                throw new GameError(
+                    `Target part not found: ${targetPartKey} for entityId: ${targetId}`,
+                    ErrorType.COMPONENT_ERROR,
+                    { targetId, targetPartKey, method: 'onAttackDeclarationConfirmed' }
+                );
+            }
 
-        // ゲームオーバーチェック
-        if (this.context.battlePhase === GamePhaseType.GAME_OVER) {
-            return;
-        }
+            const targetPart = targetParts[targetPartKey];
+            const newHp = Math.max(0, targetPart.hp - damage);
+            
+            const isPartBroken = newHp === 0 && !targetPart.isBroken;
+            const isPlayerBroken = targetPartKey === PartInfo.HEAD.key && newHp === 0;
 
-        // 2. UIに結果を表示するためのモーダル表示を要求
-        this.world.emit(GameEvents.SHOW_MODAL, {
-            type: ModalType.EXECUTION_RESULT,
-            data: {
-                entityId: entityId,
-                message: resultMessage,
+            // 1. ゲームロジックを確定させるイベントを発行
+            this.world.emit(GameEvents.ACTION_EXECUTED, {
+                attackerId: entityId,
                 targetId: targetId,
                 targetPartKey: targetPartKey,
-                damage: damage
-            },
-            immediate: true
-        });
+                damage: damage,
+                isPartBroken: isPartBroken,
+                isPlayerBroken: isPlayerBroken,
+            });
+
+            // ゲームオーバーチェック
+            if (this.context.battlePhase === GamePhaseType.GAME_OVER) {
+                return;
+            }
+
+            // 2. UIに結果を表示するためのモーダル表示を要求
+            this.world.emit(GameEvents.SHOW_MODAL, {
+                type: ModalType.EXECUTION_RESULT,
+                data: {
+                    entityId: entityId,
+                    message: resultMessage,
+                    targetId: targetId,
+                    targetPartKey: targetPartKey,
+                    damage: damage
+                },
+                immediate: true
+            });
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'onAttackDeclarationConfirmed', detail });
+        }
     }
 
     /**
@@ -89,44 +117,55 @@ export class ActionSystem extends BaseSystem {
      * 毎フレーム実行され、「行動実行準備完了」状態のエンティティを探して処理します。
      */
     update(deltaTime) {
-        if (this.context.isPausedByModal) return;
-        const executor = this.world.getEntitiesWith(GameState)
-            .find(id => this.getCachedComponent(id, GameState)?.state === PlayerStateType.READY_EXECUTE);
-        if (executor === undefined || executor === null) return;
-        const action = this.getCachedComponent(executor, Action);
-        const gameState = this.getCachedComponent(executor, GameState);
-        if (!action || !gameState) return;
-        // ★追加: 格闘攻撃の場合、実行直前にターゲットを決定する
-        if (action.type === '格闘' && action.targetId === null) {
-            const nearestEnemyId = findNearestEnemy(this.world, executor);
-            if (nearestEnemyId !== null) {
-                // 最も近い敵にターゲットを設定
-                const targetData = selectRandomPart(this.world, nearestEnemyId);
-                if (targetData) {
-                    action.targetId = targetData.targetId;
-                    action.targetPartKey = targetData.targetPartKey;
+        try {
+            if (this.context.isPausedByModal) return;
+            
+            const entitiesWithState = this.world.getEntitiesWith(GameState);
+            const executor = entitiesWithState.find(id => 
+                this.getCachedComponent(id, GameState)?.state === PlayerStateType.READY_EXECUTE
+            );
+            
+            if (executor === undefined || executor === null) return;
+            
+            const action = this.getCachedComponent(executor, Action);
+            const gameState = this.getCachedComponent(executor, GameState);
+            if (!action || !gameState) return;
+            
+            // ★追加: 格闘攻撃の場合、実行直前にターゲットを決定する
+            if (action.type === '格闘' && action.targetId === null) {
+                const nearestEnemyId = findNearestEnemy(this.world, executor);
+                if (nearestEnemyId !== null) {
+                    // 最も近い敵にターゲットを設定
+                    const targetData = selectRandomPart(this.world, nearestEnemyId);
+                    if (targetData) {
+                        action.targetId = targetData.targetId;
+                        action.targetPartKey = targetData.targetPartKey;
+                    } else {
+                        // ターゲットはいるが、攻撃可能なパーツがない場合
+                        console.warn(`ActionSystem: No valid parts to attack on nearest enemy ${nearestEnemyId}.`);
+                        // ★暫定対応: 行動をスキップしてクールダウンに戻す
+                        this.world.emit(GameEvents.ACTION_EXECUTED, { attackerId: executor, damage: 0 });
+                        return;
+                    }
                 } else {
-                    // ターゲットはいるが、攻撃可能なパーツがない場合
-                    console.warn(`ActionSystem: No valid parts to attack on nearest enemy ${nearestEnemyId}.`);
+                    // 有効な敵がいない場合
+                    console.warn(`ActionSystem: No valid enemies for melee attack by ${executor}.`);
                     // ★暫定対応: 行動をスキップしてクールダウンに戻す
                     this.world.emit(GameEvents.ACTION_EXECUTED, { attackerId: executor, damage: 0 });
                     return;
                 }
-            } else {
-                // 有効な敵がいない場合
-                console.warn(`ActionSystem: No valid enemies for melee attack by ${executor}.`);
-                // ★暫定対応: 行動をスキップしてクールダウンに戻す
-                this.world.emit(GameEvents.ACTION_EXECUTED, { attackerId: executor, damage: 0 });
-                    return;
             }
+            
+            // ★改善: アニメーション要求フローを簡略化。RenderSystemに直接アニメーションを要求する。
+            // これにより、ViewSystemの仲介が不要になり、システム間の連携がシンプルになる。
+            gameState.state = PlayerStateType.AWAITING_ANIMATION;
+            this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
+                attackerId: executor,
+                targetId: action.targetId
+            });
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'update', deltaTime, executor: executor || 'N/A' });
         }
-        // ★改善: アニメーション要求フローを簡略化。RenderSystemに直接アニメーションを要求する。
-        // これにより、ViewSystemの仲介が不要になり、システム間の連携がシンプルになる。
-        gameState.state = PlayerStateType.AWAITING_ANIMATION;
-        this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
-            attackerId: executor,
-            targetId: action.targetId
-        });
     }
 
     /**
@@ -135,92 +174,122 @@ export class ActionSystem extends BaseSystem {
      * @param {object} detail - イベント詳細 ({ entityId })
      */
     onExecutionAnimationCompleted(detail) {
-        const { entityId: executor } = detail;
-        const action = this.getCachedComponent(executor, Action);
-        if (!action) return;
-        const attackerInfo = this.getCachedComponent(executor, PlayerInfo);
-        const targetInfo = this.getCachedComponent(action.targetId, PlayerInfo);
-        const attackerParts = this.getCachedComponent(executor, Parts);
-        const targetParts = this.getCachedComponent(action.targetId, Parts);
-        if (!attackerInfo || !targetInfo || !attackerParts || !targetParts) return;
-        const attackingPart = attackerParts[action.partKey];
-        const targetLegs = targetParts.legs;
-        let finalDamage = 0;
-        let finalTargetPartKey = action.targetPartKey;
-        let resultMessage = '';
-        const declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！　${attackingPart.trait}！`;
-        
-        // --- 1. 回避判定 ---
-        const evasionChance = calculateEvasionChance(targetLegs.mobility, attackingPart.success);
-        const evasionRoll = Math.random();
-
-        if (evasionRoll < evasionChance) {
-            // 回避成功
-            finalDamage = 0;
-            resultMessage = `${targetInfo.name}は攻撃を回避！`;
-        } else {
-            // 回避失敗（命中確定）
+        try {
+            const { entityId: executor } = detail;
+            const action = this.getCachedComponent(executor, Action);
+            if (!action) {
+                console.warn(`ActionSystem: No action component found for executor: ${executor}`);
+                return;
+            }
             
-            // ★新規: 2. クリティカル判定
-            const critChance = calculateCriticalChance(attackingPart, targetLegs);
-            const critRoll = Math.random();
-            const isCritical = critRoll < critChance;
+            const attackerInfo = this.getCachedComponent(executor, PlayerInfo);
+            const targetInfo = this.getCachedComponent(action.targetId, PlayerInfo);
+            const attackerParts = this.getCachedComponent(executor, Parts);
+            const targetParts = this.getCachedComponent(action.targetId, Parts);
+            if (!attackerInfo || !targetInfo || !attackerParts || !targetParts) {
+                console.warn(`ActionSystem: Missing required components for attack calculation between ${executor} and ${action.targetId}`);
+                return;
+            }
+            
+            const attackingPart = attackerParts[action.partKey];
+            const targetLegs = targetParts.legs;
+            
+            // パーツデータの検証
+            if (!attackingPart) {
+                throw new GameError(
+                    `Attacking part not found: ${action.partKey} for entityId: ${executor}`,
+                    ErrorType.COMPONENT_ERROR,
+                    { executor, partKey: action.partKey, method: 'onExecutionAnimationCompleted' }
+                );
+            }
+            
+            if (!targetLegs) {
+                throw new GameError(
+                    `Target legs not found for entityId: ${action.targetId}`,
+                    ErrorType.COMPONENT_ERROR,
+                    { targetId: action.targetId, method: 'onExecutionAnimationCompleted' }
+                );
+            }
+            
+            let finalDamage = 0;
+            let finalTargetPartKey = action.targetPartKey;
+            let resultMessage = '';
+            const declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！　${attackingPart.trait}！`;
+            
+            // --- 1. 回避判定 ---
+            const evasionChance = calculateEvasionChance(targetLegs.mobility, attackingPart.success);
+            const evasionRoll = Math.random();
 
-            let defenseSuccess = false;
-
-            if (isCritical) {
-                // クリティカルヒットの場合、防御判定は行わない
-                resultMessage = 'クリティカル！　';
+            if (evasionRoll < evasionChance) {
+                // 回避成功
+                finalDamage = 0;
+                resultMessage = `${targetInfo.name}は攻撃を回避！`;
             } else {
-                // 通常ヒットの場合のみ、防御判定を行う
-                const defenseChance = calculateDefenseChance(targetLegs.armor);
-                const defenseRoll = Math.random();
-                if (defenseRoll < defenseChance) {
-                    const defensePartKey = findBestDefensePart(this.world, action.targetId);
-                    if (defensePartKey) {
-                        defenseSuccess = true;
-                        finalTargetPartKey = defensePartKey;
+                // 回避失敗（命中確定）
+                
+                // ★新規: 2. クリティカル判定
+                const critChance = calculateCriticalChance(attackingPart, targetLegs);
+                const critRoll = Math.random();
+                const isCritical = critRoll < critChance;
+
+                let defenseSuccess = false;
+
+                if (isCritical) {
+                    // クリティカルヒットの場合、防御判定は行わない
+                    resultMessage = 'クリティカル！　';
+                } else {
+                    // 通常ヒットの場合のみ、防御判定を行う
+                    const defenseChance = calculateDefenseChance(targetLegs.armor);
+                    const defenseRoll = Math.random();
+                    if (defenseRoll < defenseChance) {
+                        const defensePartKey = findBestDefensePart(this.world, action.targetId);
+                        if (defensePartKey) {
+                            defenseSuccess = true;
+                            finalTargetPartKey = defensePartKey;
+                        }
                     }
                 }
-            }
 
-            // --- 3. ダメージ計算 ---
-            // ★変更: isCritical, defenseSuccess の状態に応じて、適切なフラグを立ててダメージ計算を呼び出す
-            finalDamage = calculateDamage(
-                this.world, 
-                executor, 
-                action.targetId, 
-                action, 
-                isCritical, // isCritical: trueなら回避度・防御度を無視
-                !isCritical && !defenseSuccess // isDefenseBypassed: クリティカルでなく、かつ防御失敗時にtrue
-            );
+                // --- 3. ダメージ計算 ---
+                // ★変更: isCritical, defenseSuccess の状態に応じて、適切なフラグを立ててダメージ計算を呼び出す
+                finalDamage = calculateDamage(
+                    this.world, 
+                    executor, 
+                    action.targetId, 
+                    action, 
+                    isCritical, // isCritical: trueなら回避度・防御度を無視
+                    !isCritical && !defenseSuccess // isDefenseBypassed: クリティカルでなく、かつ防御失敗時にtrue
+                );
+                
+                // ★改善: PartKeyToInfoMap を使用して、パーツキーから日本語名を動的に取得
+                const finalTargetPartName = PartKeyToInfoMap[finalTargetPartKey]?.name || '不明な部位';
+                if (defenseSuccess) {
+                    resultMessage = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
+                } else {
+                    // ★変更: クリティカルの場合、既存のresultMessageに追記する
+                    resultMessage += `${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
+                }
+            }
             
-            // ★改善: PartKeyToInfoMap を使用して、パーツキーから日本語名を動的に取得
-            const finalTargetPartName = PartKeyToInfoMap[finalTargetPartKey]?.name || '不明な部位';
-            if (defenseSuccess) {
-                resultMessage = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
-            } else {
-                // ★変更: クリティカルの場合、既存のresultMessageに追記する
-                resultMessage += `${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
-            }
-        }
-        
-        // --- 4. 結果をActionコンポーネントに一時保存 ---        
-        action.targetPartKey = finalTargetPartKey;
+            // --- 4. 結果をActionコンポーネントに一時保存 ---        
+            action.targetPartKey = finalTargetPartKey;
 
-        // ★修正: 計算結果をイベントペイロードで直接渡す
-        this.world.emit(GameEvents.SHOW_MODAL, {
-            type: ModalType.ATTACK_DECLARATION,
-            data: {
-                entityId: executor,
-                message: declarationMessage,
-                // 後続の処理で必要になるデータをペイロードに含める
-                damage: finalDamage,
-                resultMessage: resultMessage,
-                targetId: action.targetId,
-                targetPartKey: finalTargetPartKey,
-            },
-            immediate: true
-        });
+            // ★修正: 計算結果をイベントペイロードで直接渡す
+            this.world.emit(GameEvents.SHOW_MODAL, {
+                type: ModalType.ATTACK_DECLARATION,
+                data: {
+                    entityId: executor,
+                    message: declarationMessage,
+                    // 後続の処理で必要になるデータをペイロードに含める
+                    damage: finalDamage,
+                    resultMessage: resultMessage,
+                    targetId: action.targetId,
+                    targetPartKey: finalTargetPartKey,
+                },
+                immediate: true
+            });
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'onExecutionAnimationCompleted', detail });
+        }
     }
 }
