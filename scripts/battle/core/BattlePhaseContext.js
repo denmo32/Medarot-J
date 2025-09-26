@@ -10,5 +10,7 @@ export class BattlePhaseContext {
     constructor() {
         // Represents the current phase of the battle
         this.battlePhase = GamePhaseType.IDLE;
+        // Stores the winning team ID when the game is over
+        this.winningTeam = null;
     }
 }

@@ -133,22 +133,6 @@ export class Team {
 }
 
 /**
- * ゲーム全体の結果を管理するシングルトンコンポーネント
- * @class GameContext
- * @description 
- * このコンポーネントはゲームの最終結果（勝利チーム）のみを保持します。
- * 他のグローバルな状態（モード、フェーズ、UI状態、戦闘履歴）は、
- * 各専用のコンポーネント（GameModeContext, BattlePhaseContext, UIStateContext, BattleHistoryContext）
- * に分離されました。
- */
-export class GameContext {
-    constructor() {
-        // ゲーム結果
-        this.winningTeam = null;            // 勝利したチームID
-    }
-}
-
-/**
  * メダルの情報を保持するコンポーネント
  */
 export class Medal {

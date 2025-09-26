@@ -2,7 +2,7 @@
 
 import { BaseSystem } from '../../core/baseSystem.js';
 // ★変更: 必要なコンポーネントと定数をインポート
-import { PlayerInfo, BattleLog, GameContext, GameState, Gauge } from '../core/components.js';
+import { PlayerInfo, BattleLog, GameState, Gauge } from '../core/components.js';
 import { BattleHistoryContext } from '../core/index.js'; // Import new context
 import { GameEvents } from '../common/events.js';
 import { PlayerStateType, TeamID } from '../common/constants.js'; // Import TeamID for context

@@ -3,7 +3,7 @@
  * このファイルは、ゲーム内のすべてのエンティティの状態（GameState）を管理・更新する責務を持ちます。
  */
 
-import { Gauge, GameState, Parts, PlayerInfo, Action, GameContext } from '../core/components.js';
+import { Gauge, GameState, Parts, PlayerInfo, Action } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js'; // ★追加
 import { GameEvents } from '../common/events.js';
@@ -24,8 +24,6 @@ export class StateSystem {
         // Use new context components
         this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
         this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
-        // Keep reference to GameContext for winningTeam if needed later in update loop
-        this.gameContext = this.world.getSingletonComponent(GameContext);
 
         // 他のシステムから発行される、状態遷移のきっかけとなるイベントを購読します。
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));

@@ -4,7 +4,7 @@
  */
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
-import { GameState, PlayerInfo, Parts, Action, GameContext } from '../core/components.js';
+import { GameState, PlayerInfo, Parts, Action } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 // ★改善: PartInfo, PartKeyToInfoMapを参照し、定義元を一元化
 import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap } from '../common/constants.js';
@@ -26,7 +26,6 @@ export class ActionSystem extends BaseSystem {
         // Use new context components
         this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
         this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
-        this.gameContext = this.world.getSingletonComponent(GameContext);
         // ★変更: イベント購読を更新
         this.world.on(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.onAttackDeclarationConfirmed.bind(this));
         // ViewSystemからのアニメーション完了通知を購読します。

@@ -1,7 +1,7 @@
 // scripts/systems/gameFlowSystem.js:
 
 import { BaseSystem } from '../../core/baseSystem.js';
-import { GameContext, GameState, Gauge, PlayerInfo } from '../core/components.js';
+import { GameState, Gauge, PlayerInfo } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { GameEvents } from '../common/events.js';
 import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../common/constants.js';
@@ -20,7 +20,6 @@ export class GameFlowSystem extends BaseSystem {
         // Use new context components for their specific responsibilities
         this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
         this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
-        this.gameContext = this.world.getSingletonComponent(GameContext);
         
         this.bindWorldEvents();
     }
@@ -94,7 +93,7 @@ export class GameFlowSystem extends BaseSystem {
             
             // 1. ゲームフェーズを終了に設定 (use BattlePhaseContext)
             this.battlePhaseContext.battlePhase = GamePhaseType.GAME_OVER;
-            this.gameContext.winningTeam = winningTeam; // Use original GameContext for winning team result
+            this.battlePhaseContext.winningTeam = winningTeam; // Use original GameContext for winning team result
 
             // 2. ゲームオーバーモーダルの表示を要求
             this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.GAME_OVER, data: { winningTeam } });

@@ -6,7 +6,6 @@
 import { GameEvents } from './battle/common/events.js';
 import { initializeSystems as initializeBattleSystems } from './battle/core/systemInitializer.js';
 import { createPlayers as createBattlePlayers } from './battle/core/entityFactory.js';
-import { GameContext } from './battle/core/components.js';
 import { GameModeContext } from './battle/core/index.js'; // Import new context for game mode
 import { MAP_EVENTS, CONFIG as MAP_CONFIG, PLAYER_STATES } from './map/constants.js';
 import { World } from './core/world.js';

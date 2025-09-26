@@ -2,7 +2,7 @@
  * @file AIターゲティング戦略定義
  * このファイルは、AIの「メダルの性格」に基づいた多様なターゲティング戦略（アルゴリズム）を定義します。
  */
-import { Parts, PlayerInfo, GameState, BattleLog, GameContext } from '../core/components.js';
+import { Parts, PlayerInfo, GameState, BattleLog } from '../core/components.js';
 import { BattleHistoryContext } from '../core/index.js'; // Import new context
 // ★改善: PartInfoを参照することで、ハードコードされた文字列を排除
 import { PlayerStateType, MedalPersonality, PartInfo, TeamID } from '../common/constants.js'; // Import TeamID for context keys, add BattleHistoryContext import
