@@ -148,5 +148,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     world.on(MAP_EVENTS.BATTLE_TRIGGERED, switchToBattleMode);
 
+    // Zキー入力によるバトルシーンへの移行処理
+    world.on('NPC_INTERACTED', () => {
+        console.log('NPC interacted, switching to battle mode');
+        switchToBattleMode();
+    });
+
     window.focus();
 });

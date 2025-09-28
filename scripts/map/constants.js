@@ -31,6 +31,7 @@ export const KEY_MAP = {
     ArrowDown: 'down',
     ArrowLeft: 'left',
     ArrowRight: 'right',
+    z: 'z', // Zキーを追加
 };
 
 // マップ固有のイベント

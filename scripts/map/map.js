@@ -7,6 +7,7 @@ export class Map {
         this.tileData = mapData.tile_data;
         this.widthTiles = mapData.width_tiles;
         this.heightTiles = mapData.height_tiles;
+        this.npcs = mapData.npcs || [];  // NPC情報を追加
         
         this.wallColor = '#8B4513';
         this.wallBorderColor = '#5d2f0d';
@@ -73,6 +74,16 @@ export class Map {
                     );
                 }
             }
+        }
+
+        // NPCアイコンを描画
+        for (const npc of this.npcs) {
+            renderer.drawCircle(
+                npc.x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2,
+                npc.y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2,
+                CONFIG.TILE_SIZE / 3, // 半径はタイルサイズの1/3
+                '#FF0000' // 赤色でNPCを表現
+            );
         }
     }
 }

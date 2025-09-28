@@ -67,6 +67,33 @@ export class PlayerInputSystem extends BaseSystem {
                     }
                 }
             }
+
+            // Zキー入力によるバトルシーンへの移行処理
+            if (this.input.pressedKeys.has('z')) {
+                // プレイヤーの現在位置を取得
+                const playerEntityId = this.world.getEntitiesWith(MapComponents.PlayerControllable)[0];
+                const position = this.world.getComponent(playerEntityId, MapComponents.Position);
+                const playerTileX = Math.floor((position.x + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
+                const playerTileY = Math.floor((position.y + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
+
+                // NPCの位置を確認し、プレイヤーがNPCの隣にいるかを判定
+                for (const npc of this.map.npcs) {
+                    const npcTileX = npc.x;
+                    const npcTileY = npc.y;
+
+                    // NPCの上下左右のタイルにプレイヤーがいるかを確認
+                    if (
+                        (playerTileX === npcTileX && playerTileY === npcTileY - 1) || // 上
+                        (playerTileX === npcTileX && playerTileY === npcTileY + 1) || // 下
+                        (playerTileX === npcTileX - 1 && playerTileY === npcTileY) || // 左
+                        (playerTileX === npcTileX + 1 && playerTileY === npcTileY)   // 右
+                    ) {
+                        // バトルシーンに移行
+                        this.world.emit('NPC_INTERACTED', npc); // NPCとの接触イベントを発行
+                        break; // 最初に見つかったNPCに対してのみ処理を行う
+                    }
+                }
+            }
         }
     }
 }
