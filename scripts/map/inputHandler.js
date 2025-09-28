@@ -23,8 +23,9 @@ export class InputHandler {
 
     // 現在押されているキーに基づいて移動方向を返す
     get direction() {
-        // 優先順位: 最後に追加されたキーを優先する
-        const lastKey = [...this.pressedKeys].pop();
-        return KEY_MAP[lastKey] || null;
+        // 方向キーのみを抽出して優先順位を適用
+        const directionKeys = [...this.pressedKeys].filter(key => ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key));
+        const lastDirectionKey = directionKeys.pop();
+        return KEY_MAP[lastDirectionKey] || null;
     }
 }

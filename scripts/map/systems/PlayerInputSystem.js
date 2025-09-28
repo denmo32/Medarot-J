@@ -70,23 +70,24 @@ export class PlayerInputSystem extends BaseSystem {
 
             // Zキー入力によるバトルシーンへの移行処理
             if (this.input.pressedKeys.has('z')) {
-                // プレイヤーの現在位置を取得
+                // プレイヤーの現在位置と向きを取得
                 const playerEntityId = this.world.getEntitiesWith(MapComponents.PlayerControllable)[0];
                 const position = this.world.getComponent(playerEntityId, MapComponents.Position);
+                const facingDirection = this.world.getComponent(playerEntityId, MapComponents.FacingDirection);
                 const playerTileX = Math.floor((position.x + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
                 const playerTileY = Math.floor((position.y + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
 
-                // NPCの位置を確認し、プレイヤーがNPCの隣にいるかを判定
+                // NPCの位置を確認し、プレイヤーがNPCの隣にいて、かつNPCの方向を向いているかを判定
                 for (const npc of this.map.npcs) {
                     const npcTileX = npc.x;
                     const npcTileY = npc.y;
 
-                    // NPCの上下左右のタイルにプレイヤーがいるかを確認
+                    // プレイヤーがNPCの隣にいて、かつNPCの方向を向いているかを判定
                     if (
-                        (playerTileX === npcTileX && playerTileY === npcTileY - 1) || // 上
-                        (playerTileX === npcTileX && playerTileY === npcTileY + 1) || // 下
-                        (playerTileX === npcTileX - 1 && playerTileY === npcTileY) || // 左
-                        (playerTileX === npcTileX + 1 && playerTileY === npcTileY)   // 右
+                        (playerTileX === npcTileX && playerTileY === npcTileY - 1 && facingDirection.direction === 'down') || // 上
+                        (playerTileX === npcTileX && playerTileY === npcTileY + 1 && facingDirection.direction === 'up') || // 下
+                        (playerTileX === npcTileX - 1 && playerTileY === npcTileY && facingDirection.direction === 'right') || // 左
+                        (playerTileX === npcTileX + 1 && playerTileY === npcTileY && facingDirection.direction === 'left')   // 右
                     ) {
                         // NPCとのインタラクションをリクエスト (メッセージウィンドウを表示させるため)
                         this.world.emit('NPC_INTERACTION_REQUESTED', npc); // NPCとのインタラクション要求イベントを発行
