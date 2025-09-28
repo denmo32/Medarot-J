@@ -240,5 +240,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     requestAnimationFrame(gameLoop);
 
+    // --- Game Screen Scaling ---
+    // ウィンドウサイズに合わせてゲーム画面全体をスケーリングし、アスペクト比を維持する
+    function applyScaling() {
+        const baseWidth = 1024; // ゲームの基準幅
+        const baseHeight = 576; // ゲームの基準高さ
+
+        // 幅と高さのスケール値を計算し、小さい方を採用して画面内に収める
+        const scale = Math.min(window.innerWidth / baseWidth, window.innerHeight / baseHeight);
+
+        const transformStyle = `scale(${scale})`;
+        
+        // 既存のコンテナ定数に同じスケーリングを適用
+        if (battleContainer) {
+            battleContainer.style.transform = transformStyle;
+        }
+        if (mapContainer) {
+            mapContainer.style.transform = transformStyle;
+        }
+    }
+
+    // ウィンドウリサイズ時と初期ロード時にスケーリングを適用
+    window.addEventListener('resize', applyScaling);
+    applyScaling();
+
+
     window.focus();
 });
