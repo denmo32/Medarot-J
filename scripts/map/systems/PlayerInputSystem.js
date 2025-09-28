@@ -88,8 +88,8 @@ export class PlayerInputSystem extends BaseSystem {
                         (playerTileX === npcTileX - 1 && playerTileY === npcTileY) || // 左
                         (playerTileX === npcTileX + 1 && playerTileY === npcTileY)   // 右
                     ) {
-                        // バトルシーンに移行
-                        this.world.emit('NPC_INTERACTED', npc); // NPCとの接触イベントを発行
+                        // NPCとのインタラクションをリクエスト (メッセージウィンドウを表示させるため)
+                        this.world.emit('NPC_INTERACTION_REQUESTED', npc); // NPCとのインタラクション要求イベントを発行
                         break; // 最初に見つかったNPCに対してのみ処理を行う
                     }
                 }

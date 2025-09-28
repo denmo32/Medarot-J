@@ -154,5 +154,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         switchToBattleMode();
     });
 
+    // NPCとのインタラクション要求イベント (メッセージウィンドウを表示するために追加)
+    world.on('NPC_INTERACTION_REQUESTED', (npc) => {
+        console.log('NPC interaction requested, showing message window');
+        // メッセージウィンドウを表示
+        const messageWindow = document.getElementById('interaction-message-window');
+        messageWindow.classList.remove('hidden');
+
+        // OKボタンのクリックイベント
+        const confirmButton = document.getElementById('confirm-battle-button');
+        confirmButton.onclick = () => {
+            // メッセージウィンドウを非表示
+            messageWindow.classList.add('hidden');
+            // NPC_INTERACTED イベントを発行してバトルモードに移行
+            world.emit('NPC_INTERACTED', npc);
+        };
+
+        // キャンセルボタンのクリックイベント
+        const cancelButton = document.getElementById('cancel-battle-button');
+        cancelButton.onclick = () => {
+            // メッセージウィンドウを非表示
+            messageWindow.classList.add('hidden');
+        };
+
+        // EnterキーでOK、Escapeキーでキャンセル
+        const handleKeydown = (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                confirmButton.click();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelButton.click();
+            }
+        };
+        document.addEventListener('keydown', handleKeydown);
+
+        // メッセージウィンドウが閉じられたらイベントリスナーを削除
+        const removeEventListeners = () => {
+            document.removeEventListener('keydown', handleKeydown);
+            messageWindow.removeEventListener('click', removeEventListeners); // 自分自身を削除
+        };
+        messageWindow.addEventListener('click', removeEventListeners); // ウィンドウ外をクリックした時の処理を追加するならここ
+    });
+
     window.focus();
 });

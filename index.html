@@ -12,6 +12,17 @@
         <canvas id="game-canvas"></canvas>
     </div>
 
+    <!-- ★新規: NPCとのインタラクション確認メッセージウィンドウ -->
+    <div id="interaction-message-window" class="message-window hidden">
+        <div class="message-window-content">
+            <p id="interaction-message">バトルシーンへ移行します</p>
+            <div class="message-window-buttons">
+                <button id="confirm-battle-button" class="message-window-button">OK</button>
+                <button id="cancel-battle-button" class="message-window-button">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
     <div id="battle-container" class="main-container hidden">
         <div id="battlefield" class="battlefield">
             <div class="action-line-1"></div>

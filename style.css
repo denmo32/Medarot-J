@@ -255,3 +255,60 @@ body {
     border: 2px solid #fff;
     background-color: #2a8a2a; /* Grass background color */
 }
+
+/* --- Message Window Styles --- */
+.message-window {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #2d3748;
+    border: 2px solid #718096;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    z-index: 1000; /* 他の要素より前面に表示 */
+}
+
+.message-window-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.message-window p {
+    margin: 0;
+    font-size: 1.2em;
+    text-align: center;
+    color: #e2e8f0;
+}
+
+.message-window-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.message-window-button {
+    background-color: #4299e1;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.message-window-button:hover {
+    background-color: #3182ce;
+}
+
+/* キャンセルボタンのスタイル (オプション) */
+#cancel-battle-button {
+    background-color: #e53e3e;
+}
+
+#cancel-battle-button:hover {
+    background-color: #c53030;
+}
