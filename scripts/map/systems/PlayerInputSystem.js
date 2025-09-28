@@ -58,6 +58,13 @@ export class PlayerInputSystem extends BaseSystem {
                     state.value = PLAYER_STATES.WALKING;
                     // 目標地点コンポーネントを追加
                     this.world.addComponent(entityId, new MapComponents.TargetPosition(targetX, targetY));
+                    // 向きコンポーネントを更新
+                    const existingFacingDirection = this.world.getComponent(entityId, MapComponents.FacingDirection);
+                    if (existingFacingDirection) {
+                        existingFacingDirection.direction = this.input.direction;
+                    } else {
+                        this.world.addComponent(entityId, new MapComponents.FacingDirection(this.input.direction));
+                    }
                 }
             }
         }

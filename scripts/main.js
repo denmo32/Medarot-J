@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         world.addComponent(playerEntityId, new MapComponents.PlayerControllable());
         world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
         world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
+        world.addComponent(playerEntityId, new MapComponents.FacingDirection('down'));
         
         // --- Create Game Context ---
         // The new context components (GameModeContext, BattlePhaseContext, etc.) are created in initializeSystems

@@ -29,6 +29,37 @@ export class RenderSystem extends BaseSystem {
                     renderable.size / 2,
                     renderable.color
                 );
+                
+                // 向きに応じた印（ドット）を描画
+                const facingDirection = this.world.getComponent(entityId, MapComponents.FacingDirection);
+                if (facingDirection) {
+                    const dotRadius = 2;
+                    let dotX, dotY;
+                    
+                    switch (facingDirection.direction) {
+                        case 'up':
+                            dotX = position.x + renderable.size / 2;
+                            dotY = position.y + renderable.size / 4;
+                            break;
+                        case 'down':
+                            dotX = position.x + renderable.size / 2;
+                            dotY = position.y + (3 * renderable.size) / 4;
+                            break;
+                        case 'left':
+                            dotX = position.x + renderable.size / 4;
+                            dotY = position.y + renderable.size / 2;
+                            break;
+                        case 'right':
+                            dotX = position.x + (3 * renderable.size) / 4;
+                            dotY = position.y + renderable.size / 2;
+                            break;
+                        default:
+                            dotX = position.x + renderable.size / 2;
+                            dotY = position.y + renderable.size / 2;
+                    }
+                    
+                    this.renderer.drawCircle(dotX, dotY, dotRadius, '#000');
+                }
             } else if (renderable.shape === 'rect') {
                 this.renderer.drawRect(
                     position.x,
