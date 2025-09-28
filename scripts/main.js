@@ -6,7 +6,7 @@
 import { GameEvents } from './battle/common/events.js';
 import { initializeSystems as initializeBattleSystems } from './battle/core/systemInitializer.js';
 import { createPlayers as createBattlePlayers } from './battle/core/entityFactory.js';
-import { GameModeContext } from './battle/core/index.js'; // Import new context for game mode
+import { GameModeContext, UIStateContext } from './battle/core/index.js'; // Import new context for game mode
 import { MAP_EVENTS, CONFIG as MAP_CONFIG, PLAYER_STATES } from './map/constants.js';
 import { World } from './core/world.js';
 import { Camera } from './map/camera.js';
@@ -71,6 +71,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const mapData = await response.json();
         const map = new Map(mapData);
 
+        // --- Create Game Context ---
+        const contextEntity = world.createEntity();
+        world.addComponent(contextEntity, new GameModeContext()); // Create GameModeContext for map mode
+        world.addComponent(contextEntity, new UIStateContext());
+        const gameModeContext = world.getSingletonComponent(GameModeContext);
+        gameModeContext.gameMode = 'map';
+
         // --- Register Map Systems ---
         world.registerSystem(new PlayerInputSystem(world, input, map));
         world.registerSystem(new MovementSystem(world, map));
@@ -89,16 +96,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
         world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
         world.addComponent(playerEntityId, new MapComponents.FacingDirection('down'));
-        
-        // --- Create Game Context ---
-        // The new context components (GameModeContext, BattlePhaseContext, etc.) are created in initializeSystems
-        // But we still create GameContext here for the gameMode property, which is now managed by GameModeContext
-        // However, since main.js was using GameContext.gameMode, we need to ensure GameModeContext is created.
-        // Let's create GameModeContext here for map mode, assuming systemInitializer.js handles battle mode.
-        const contextEntity = world.createEntity();
-        world.addComponent(contextEntity, new GameModeContext()); // Create GameModeContext for map mode
-        const gameModeContext = world.getSingletonComponent(GameModeContext);
-        gameModeContext.gameMode = 'map';
 
         // NOTE: world.reset()でリスナーがクリアされるため、マップモード設定時に再登録する
         world.on(MAP_EVENTS.BATTLE_TRIGGERED, switchToBattleMode);
@@ -115,6 +112,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const messageWindow = document.getElementById('interaction-message-window');
             const confirmButton = document.getElementById('confirm-battle-button');
             const cancelButton = document.getElementById('cancel-battle-button');
+            const uiStateContext = world.getSingletonComponent(UIStateContext);
+
+            if (uiStateContext) {
+                uiStateContext.isPausedByModal = true;
+            }
 
             // --- イベントリスナーの管理 ---
             // NOTE: リスナーの重複登録と解除漏れを防ぐため、リスナーの登録と解除を1つの関数にまとめ、
@@ -129,6 +131,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 confirmButton.removeEventListener('click', handleConfirm);
                 cancelButton.removeEventListener('click', handleCancel);
                 messageWindow.classList.add('hidden');
+                if (uiStateContext) {
+                    uiStateContext.isPausedByModal = false;
+                }
             };
 
             // --- リスナーの定義 ---

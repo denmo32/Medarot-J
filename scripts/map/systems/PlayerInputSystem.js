@@ -1,6 +1,7 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import * as MapComponents from '../components.js';
 import { CONFIG, PLAYER_STATES } from '../constants.js';
+import { UIStateContext } from '../../battle/core/UIStateContext.js';
 
 /**
  * プレイヤーの入力に基づいて目標タイルを設定し、状態を遷移させるシステム。
@@ -10,9 +11,14 @@ export class PlayerInputSystem extends BaseSystem {
         super(world);
         this.input = input;
         this.map = map;
+        this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
     }
 
     update() {
+        if (this.uiStateContext && this.uiStateContext.isPausedByModal) {
+            return;
+        }
+
         const entities = this.world.getEntitiesWith(
             MapComponents.PlayerControllable, 
             MapComponents.State, 
