@@ -118,18 +118,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 uiStateContext.isPausedByModal = true;
             }
 
-            // --- イベントリスナーの管理 ---
+            // --- リスナーの管理 ---
             // NOTE: リスナーの重複登録と解除漏れを防ぐため、リスナーの登録と解除を1つの関数にまとめ、
             //      インタラクションが完了またはキャンセルされた際に必ず呼び出すように修正。
             let handleKeydown;
             let handleConfirm;
             let handleCancel;
+            let recalculatePosition; // 追加
 
             // リスナーをすべて削除するクリーンアップ関数
             const cleanup = () => {
                 document.removeEventListener('keydown', handleKeydown);
                 confirmButton.removeEventListener('click', handleConfirm);
                 cancelButton.removeEventListener('click', handleCancel);
+                window.removeEventListener('resize', recalculatePosition); // 追加
                 messageWindow.classList.add('hidden');
                 if (uiStateContext) {
                     uiStateContext.isPausedByModal = false;
@@ -166,6 +168,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // --- ウィンドウの表示 ---
             messageWindow.classList.remove('hidden');
+
+            // メッセージウィンドウの位置を動的に設定
+            const canvas = document.getElementById('game-canvas');
+            const canvasRect = canvas.getBoundingClientRect();
+            const messageWindowRect = messageWindow.getBoundingClientRect();
+
+            // メッセージウィンドウの下辺とマップ表示領域の下辺を揃える
+            messageWindow.style.top = `${canvasRect.bottom - messageWindowRect.height}px`; // メッセージウィンドウの高さ分を引く
+            messageWindow.style.left = `${canvasRect.left + (canvasRect.width / 2)}px`; // 横方向の中央揃え
+            messageWindow.style.transform = 'translateX(-50%)';
+
+            // ブラウザサイズ変更時にメッセージウィンドウの位置を再計算・再配置する関数
+            recalculatePosition = () => { // letで宣言済みのため、constは不要
+                const canvas = document.getElementById('game-canvas');
+                const canvasRect = canvas.getBoundingClientRect();
+                const messageWindowRect = messageWindow.getBoundingClientRect();
+
+                messageWindow.style.top = `${canvasRect.bottom - messageWindowRect.height}px`;
+                messageWindow.style.left = `${canvasRect.left + (canvasRect.width / 2)}px`;
+                messageWindow.style.transform = 'translateX(-50%)';
+            }; // cleanup関数内で使用するため、messageWindowなどの要素を参照可能
+
+            // ブラウザサイズ変更イベントリスナーを登録
+            window.addEventListener('resize', recalculatePosition);
         });
     }
 

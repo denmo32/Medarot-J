@@ -249,6 +249,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    position: relative; /* 追加 */
 }
 
 #game-canvas {
@@ -259,9 +260,9 @@ body {
 /* --- Message Window Styles --- */
 .message-window {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    top: unset; /* リセット */
+    left: unset; /* リセット */
+    transform: unset; /* リセット */
     background-color: #2d3748;
     border: 2px solid #718096;
     border-radius: 8px;
