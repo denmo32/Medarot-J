@@ -99,6 +99,69 @@ document.addEventListener('DOMContentLoaded', async () => {
         world.addComponent(contextEntity, new GameModeContext()); // Create GameModeContext for map mode
         const gameModeContext = world.getSingletonComponent(GameModeContext);
         gameModeContext.gameMode = 'map';
+
+        // NOTE: world.reset()でリスナーがクリアされるため、マップモード設定時に再登録する
+        world.on(MAP_EVENTS.BATTLE_TRIGGERED, switchToBattleMode);
+
+        // Zキー入力によるバトルシーンへの移行処理
+        world.on('NPC_INTERACTED', () => {
+            console.log('NPC interacted, switching to battle mode');
+            switchToBattleMode();
+        });
+
+        // NPCとのインタラクション要求イベント (メッセージウィンドウを表示するために追加)
+        world.on('NPC_INTERACTION_REQUESTED', (npc) => {
+            console.log('NPC interaction requested, showing message window');
+            const messageWindow = document.getElementById('interaction-message-window');
+            const confirmButton = document.getElementById('confirm-battle-button');
+            const cancelButton = document.getElementById('cancel-battle-button');
+
+            // --- イベントリスナーの管理 ---
+            // NOTE: リスナーの重複登録と解除漏れを防ぐため、リスナーの登録と解除を1つの関数にまとめ、
+            //      インタラクションが完了またはキャンセルされた際に必ず呼び出すように修正。
+            let handleKeydown;
+            let handleConfirm;
+            let handleCancel;
+
+            // リスナーをすべて削除するクリーンアップ関数
+            const cleanup = () => {
+                document.removeEventListener('keydown', handleKeydown);
+                confirmButton.removeEventListener('click', handleConfirm);
+                cancelButton.removeEventListener('click', handleCancel);
+                messageWindow.classList.add('hidden');
+            };
+
+            // --- リスナーの定義 ---
+            // 確認ボタンが押されたときの処理
+            handleConfirm = () => {
+                cleanup(); // 全てのリスナーを削除
+                world.emit('NPC_INTERACTED', npc); // バトルモードへ移行
+            };
+
+            // キャンセルボタンが押されたときの処理
+            handleCancel = () => {
+                cleanup(); // 全てのリスナーを削除
+            };
+
+            // キー入力があったときの処理
+            handleKeydown = (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleConfirm();
+                } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    handleCancel();
+                }
+            };
+
+            // --- リスナーの登録 ---
+            confirmButton.addEventListener('click', handleConfirm);
+            cancelButton.addEventListener('click', handleCancel);
+            document.addEventListener('keydown', handleKeydown);
+
+            // --- ウィンドウの表示 ---
+            messageWindow.classList.remove('hidden');
+        });
     }
 
     /**
@@ -145,57 +208,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log("Mode Switch: Map Exploration");
 
     requestAnimationFrame(gameLoop);
-
-    world.on(MAP_EVENTS.BATTLE_TRIGGERED, switchToBattleMode);
-
-    // Zキー入力によるバトルシーンへの移行処理
-    world.on('NPC_INTERACTED', () => {
-        console.log('NPC interacted, switching to battle mode');
-        switchToBattleMode();
-    });
-
-    // NPCとのインタラクション要求イベント (メッセージウィンドウを表示するために追加)
-    world.on('NPC_INTERACTION_REQUESTED', (npc) => {
-        console.log('NPC interaction requested, showing message window');
-        // メッセージウィンドウを表示
-        const messageWindow = document.getElementById('interaction-message-window');
-        messageWindow.classList.remove('hidden');
-
-        // OKボタンのクリックイベント
-        const confirmButton = document.getElementById('confirm-battle-button');
-        confirmButton.onclick = () => {
-            // メッセージウィンドウを非表示
-            messageWindow.classList.add('hidden');
-            // NPC_INTERACTED イベントを発行してバトルモードに移行
-            world.emit('NPC_INTERACTED', npc);
-        };
-
-        // キャンセルボタンのクリックイベント
-        const cancelButton = document.getElementById('cancel-battle-button');
-        cancelButton.onclick = () => {
-            // メッセージウィンドウを非表示
-            messageWindow.classList.add('hidden');
-        };
-
-        // EnterキーでOK、Escapeキーでキャンセル
-        const handleKeydown = (event) => {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                confirmButton.click();
-            } else if (event.key === 'Escape') {
-                event.preventDefault();
-                cancelButton.click();
-            }
-        };
-        document.addEventListener('keydown', handleKeydown);
-
-        // メッセージウィンドウが閉じられたらイベントリスナーを削除
-        const removeEventListeners = () => {
-            document.removeEventListener('keydown', handleKeydown);
-            messageWindow.removeEventListener('click', removeEventListeners); // 自分自身を削除
-        };
-        messageWindow.addEventListener('click', removeEventListeners); // ウィンドウ外をクリックした時の処理を追加するならここ
-    });
 
     window.focus();
 });
