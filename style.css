@@ -188,10 +188,9 @@ body {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start; /* ★変更: 上揃えに変更 */
+            justify-content: center; /* ★修正: コンテンツを中央揃えに戻す */
             overflow-y: auto; /* 内容が多い場合はスクロールバーを表示 */
-        }
-        .action-panel-title {
+        }        .action-panel-title {
             font-size: 1.5em; /* モーダルより少し小さく調整 */
             font-weight: bold;
             margin-bottom: 5px; /* ★変更: マージンを縮小 */
@@ -200,6 +199,11 @@ body {
             font-size: 1.1em; /* モーダルより少し小さく調整 */
             margin-bottom: 15px;
             min-height: 1.2em; /* メッセージがない時も高さを保つ */
+        }
+        /* ★新規: 空のタイトルとメッセージ要素をレイアウトから除外する */
+        .action-panel-title:empty,
+        .action-panel-actor:empty {
+            display: none;
         }
         .action-panel-button {
             background: #68d391;

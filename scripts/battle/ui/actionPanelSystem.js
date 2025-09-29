@@ -169,9 +169,8 @@ export class ActionPanelSystem extends BaseSystem {
         if (type === ModalType.ATTACK_DECLARATION || type === ModalType.EXECUTION_RESULT) {
             this.confirmActionEntityId = data.entityId;
         }
-        if (type === ModalType.SELECTION) {
-            this.dom.actionPanelOwner.textContent = data.ownerName || '';
-        }
+
+        this.dom.actionPanelOwner.textContent = data.ownerName || '';
 
         const { actionPanelTitle, actionPanelActor, actionPanelButtons, actionPanelConfirmButton, actionPanelBattleStartButton } = this.dom;
         const getValue = (value) => typeof value === 'function' ? value(data) : value;
