@@ -1,9 +1,3 @@
-/**
- * @file アクションパネル管理システム
- * このファイルは、ゲーム中に表示されるアクションパネル（モーダル）の表示、非表示、
- * コンテンツ生成、および関連するユーザーインタラクションの管理に特化した責務を持ちます。
- * viewSystemから分離されました。
- */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
@@ -24,12 +18,14 @@ export class ActionPanelSystem extends BaseSystem {
             actionPanelActor: document.getElementById('action-panel-actor'),
             actionPanelButtons: document.getElementById('action-panel-buttons'),
             actionPanelConfirmButton: document.getElementById('action-panel-confirm-button'),
-            actionPanelBattleStartButton: document.getElementById('action-panel-battle-start-button')
+            actionPanelBattleStartButton: document.getElementById('action-panel-battle-start-button'),
+            actionPanelIndicator: document.getElementById('action-panel-indicator') // ★追加
         };
 
         this.handlers = {
             panelConfirm: null,
             battleStart: null,
+            panelClick: null // ★追加
         };
 
         this.initializePanelConfigs();
@@ -50,6 +46,10 @@ export class ActionPanelSystem extends BaseSystem {
         }
         if (this.handlers.panelConfirm) {
             this.dom.actionPanelConfirmButton.removeEventListener('click', this.handlers.panelConfirm);
+        }
+        // ★追加
+        if (this.handlers.panelClick) {
+            this.dom.actionPanel.removeEventListener('click', this.handlers.panelClick);
         }
     }
 
@@ -80,13 +80,14 @@ export class ActionPanelSystem extends BaseSystem {
             [ModalType.ATTACK_DECLARATION]: {
                 title: '',
                 actorName: (data) => data.message,
-                confirmButton: { text: 'OK' }
+                clickable: true // ★変更
             },
             [ModalType.EXECUTION_RESULT]: {
                 title: '',
                 actorName: (data) => data.message,
                 contentHTML: '',
                 setupEvents: (container, data) => this.setupExecutionResultEvents(container, data)
+                // ★変更: clickableはsetupEvents内で制御
             },
             [ModalType.BATTLE_START_CONFIRM]: {
                 title: '',
@@ -98,12 +99,12 @@ export class ActionPanelSystem extends BaseSystem {
             [ModalType.MESSAGE]: {
                 title: '',
                 actorName: (data) => data.message,
-                confirmButton: { text: 'OK' }
+                clickable: true // ★変更
             },
             [ModalType.GAME_OVER]: {
                 title: (data) => `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`,
                 actorName: 'ロボトル終了！',
-                confirmButton: { text: 'リセット' }
+                clickable: true // ★変更
             }
         };
     }
@@ -125,29 +126,37 @@ export class ActionPanelSystem extends BaseSystem {
         };
         this.dom.actionPanelBattleStartButton.addEventListener('click', this.handlers.battleStart);
 
+        // ★変更: confirmButtonのクリックもhandlePanelClickに集約
         this.handlers.panelConfirm = () => {
-            switch (this.currentModalType) {
-                case ModalType.GAME_OVER:
-                    this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
-                    break;
-                case ModalType.MESSAGE:
-                    this.hideActionPanel();
-                    break;
-                case ModalType.ATTACK_DECLARATION:
-                    if (this.confirmActionEntityId !== null) {
-                        // ★修正: 保持しておいたモーダルの全データをペイロードとして渡す
-                        this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.currentModalData);
-                    }
-                    break;
-                case ModalType.EXECUTION_RESULT:
-                    if (this.confirmActionEntityId !== null) {
-                        this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: this.confirmActionEntityId });
-                        this.hideActionPanel();
-                    }
-                    break;
-            }
+            this.handlePanelClick();
         };
         this.dom.actionPanelConfirmButton.addEventListener('click', this.handlers.panelConfirm);
+    }
+
+    /**
+     * ★新規: パネル全体がクリックされた際の統一処理
+     */
+    handlePanelClick() {
+        switch (this.currentModalType) {
+            case ModalType.GAME_OVER:
+                this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
+                break;
+            case ModalType.MESSAGE:
+                this.hideActionPanel();
+                break;
+            case ModalType.ATTACK_DECLARATION:
+                if (this.confirmActionEntityId !== null) {
+                    // ★修正: 保持しておいたモーダルの全データをペイロードとして渡す
+                    this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.currentModalData);
+                }
+                break;
+            case ModalType.EXECUTION_RESULT:
+                if (this.confirmActionEntityId !== null) {
+                    this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: this.confirmActionEntityId });
+                    this.hideActionPanel();
+                }
+                break;
+        }
     }
 
     /**
@@ -170,24 +179,38 @@ export class ActionPanelSystem extends BaseSystem {
             this.confirmActionEntityId = data.entityId;
         }
 
-        this.dom.actionPanelOwner.textContent = data.ownerName || '';
-
-        const { actionPanelTitle, actionPanelActor, actionPanelButtons, actionPanelConfirmButton, actionPanelBattleStartButton } = this.dom;
+        const { actionPanel, actionPanelOwner, actionPanelTitle, actionPanelActor, actionPanelButtons, actionPanelConfirmButton, actionPanelBattleStartButton, actionPanelIndicator } = this.dom;
         const getValue = (value) => typeof value === 'function' ? value(data) : value;
 
+        // --- Reset panel state ---
+        actionPanelOwner.textContent = data.ownerName || '';
         actionPanelTitle.textContent = getValue(config.title) || '';
         actionPanelActor.textContent = getValue(config.actorName) || '';
         actionPanelButtons.innerHTML = getValue(config.contentHTML) || '';
         actionPanelConfirmButton.style.display = 'none';
         actionPanelBattleStartButton.style.display = 'none';
+        actionPanelIndicator.classList.add('hidden');
+        actionPanel.classList.remove('clickable');
+        if (this.handlers.panelClick) {
+            actionPanel.removeEventListener('click', this.handlers.panelClick);
+            this.handlers.panelClick = null;
+        }
 
+        // --- Configure based on modal type ---
         if (config.setupEvents) {
             config.setupEvents(actionPanelButtons, data);
         }
-        if (config.confirmButton) {
+
+        if (config.clickable) {
+            actionPanelIndicator.classList.remove('hidden');
+            actionPanel.classList.add('clickable');
+            this.handlers.panelClick = () => this.handlePanelClick();
+            actionPanel.addEventListener('click', this.handlers.panelClick);
+        } else if (config.confirmButton) {
             actionPanelConfirmButton.textContent = getValue(config.confirmButton.text);
             actionPanelConfirmButton.style.display = 'inline-block';
         }
+
         if (config.battleStartButton) {
             actionPanelBattleStartButton.style.display = 'inline-block';
         }
@@ -206,17 +229,27 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentModalType = null;
         this.currentModalData = null; // ★新規: データをクリア
 
+        const { actionPanel, actionPanelOwner, actionPanelTitle, actionPanelActor, actionPanelButtons, actionPanelConfirmButton, actionPanelBattleStartButton, actionPanelIndicator } = this.dom;
+
+        // ★追加: クリックリスナーと関連クラスのクリーンアップ
+        actionPanel.classList.remove('clickable');
+        if (this.handlers.panelClick) {
+            actionPanel.removeEventListener('click', this.handlers.panelClick);
+            this.handlers.panelClick = null;
+        }
+        actionPanelIndicator.classList.add('hidden');
+
         const activeIndicator = document.querySelector('.target-indicator.active');
         if (activeIndicator) {
             activeIndicator.classList.remove('active');
         }
 
-        this.dom.actionPanelOwner.textContent = '';
-        this.dom.actionPanelTitle.textContent = '';
-        this.dom.actionPanelActor.textContent = '待機中...';
-        this.dom.actionPanelButtons.innerHTML = '';
-        this.dom.actionPanelConfirmButton.style.display = 'none';
-        this.dom.actionPanelBattleStartButton.style.display = 'none';
+        actionPanelOwner.textContent = '';
+        actionPanelTitle.textContent = '';
+        actionPanelActor.textContent = '待機中...';
+        actionPanelButtons.innerHTML = '';
+        actionPanelConfirmButton.style.display = 'none';
+        actionPanelBattleStartButton.style.display = 'none';
     }
 
     // --- Event Setup Helpers ---
@@ -246,12 +279,14 @@ export class ActionPanelSystem extends BaseSystem {
     }
 
     setupExecutionResultEvents(container, data) {
-        const confirmButton = this.dom.actionPanelConfirmButton;
-        confirmButton.textContent = 'OK';
-        confirmButton.style.display = 'none';
-
-        const showButton = () => {
-            confirmButton.style.display = 'inline-block';
+        // ★変更: HPバーアニメーション後にパネルをクリック可能にする
+        const showClickable = () => {
+            this.dom.actionPanel.classList.add('clickable');
+            this.dom.actionPanelIndicator.classList.remove('hidden');
+            if (!this.handlers.panelClick) {
+                this.handlers.panelClick = () => this.handlePanelClick();
+                this.dom.actionPanel.addEventListener('click', this.handlers.panelClick);
+            }
             this.world.emit(GameEvents.MODAL_CLOSED, {
                 entityId: data.entityId,
                 modalType: ModalType.EXECUTION_RESULT
@@ -259,13 +294,13 @@ export class ActionPanelSystem extends BaseSystem {
         };
 
         if (!data.damage || data.damage === 0 || !data.targetId || !data.targetPartKey) {
-            showButton();
+            showClickable();
             return;
         }
 
         const targetDomRef = this.world.getComponent(data.targetId, Components.DOMReference);
         if (!targetDomRef || !targetDomRef.partDOMElements[data.targetPartKey]) {
-            showButton();
+            showClickable();
             return;
         }
 
@@ -274,7 +309,7 @@ export class ActionPanelSystem extends BaseSystem {
         requestAnimationFrame(() => {
             const onTransitionEnd = (event) => {
                 if (event.propertyName === 'width') {
-                    showButton();
+                    showClickable();
                     clearTimeout(fallbackTimeout);
                     hpBarElement.removeEventListener('transitionend', onTransitionEnd);
                 }
@@ -282,7 +317,7 @@ export class ActionPanelSystem extends BaseSystem {
             hpBarElement.addEventListener('transitionend', onTransitionEnd);
             const fallbackTimeout = setTimeout(() => {
                 hpBarElement.removeEventListener('transitionend', onTransitionEnd);
-                showButton();
+                showClickable();
             }, 1000);
         });
     }

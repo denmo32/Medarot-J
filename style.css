@@ -171,6 +171,10 @@ body {
             transition: opacity 0.3s ease;
             position: relative; /* ★新規: 子要素の絶対配置のため */
         }
+        /* ★新規: クリック可能なアクションパネル */
+        .action-panel.clickable {
+            cursor: pointer;
+        }
         /* ★新規: アクションパネル左上の所有者表示 */
         .action-panel-owner {
             position: absolute;
@@ -188,7 +192,7 @@ body {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center; /* ★修正: コンテンツを中央揃えに戻す */
+            justify-content: center; /* ★修正: コンテンツを中央揃えに固定 */
             overflow-y: auto; /* 内容が多い場合はスクロールバーを表示 */
         }        .action-panel-title {
             font-size: 1.5em; /* モーダルより少し小さく調整 */
@@ -232,6 +236,21 @@ body {
         button { background-color: #4299e1; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; transition: background-color 0.3s; }
         button:hover { background-color: #3182ce; }
         button:disabled { background-color: #a0aec0; cursor: not-allowed; }
+
+/* ★新規: クリック可能を示すインジケーター */
+.action-panel-indicator {
+    position: absolute;
+    bottom: 10px;
+    right: 20px;
+    font-size: 1.5em;
+    color: #e2e8f0;
+    animation: blink-animation 1.5s infinite;
+}
+
+@keyframes blink-animation {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
 
 /* ★新規: ボタンの三角配置用スタイル */
 .triangle-layout {
