@@ -140,6 +140,7 @@ export class ActionPanelSystem extends BaseSystem {
         switch (this.currentModalType) {
             case ModalType.GAME_OVER:
                 this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
+                this.hideActionPanel();
                 break;
             case ModalType.MESSAGE:
                 this.hideActionPanel();
