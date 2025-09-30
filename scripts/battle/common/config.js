@@ -62,6 +62,12 @@ export const CONFIG = {
         }
     },
     
+    // 画面スケーリングの設定
+    SCALING: {
+        BASE_WIDTH: 1024, // ゲームの基準幅
+        BASE_HEIGHT: 576, // ゲームの基準高さ
+    },
+    
     // パーツタイプ別の補正値
     PART_TYPE_MODIFIERS: {
         '撃つ': {

@@ -8,6 +8,7 @@ import { initializeSystems as initializeBattleSystems } from './battle/core/syst
 import { createPlayers as createBattlePlayers } from './battle/core/entityFactory.js';
 import { GameModeContext, UIStateContext } from './battle/core/index.js'; // Import new context for game mode
 import { MAP_EVENTS, CONFIG as MAP_CONFIG, PLAYER_STATES } from './map/constants.js';
+import { CONFIG as BATTLE_CONFIG } from './battle/common/config.js';
 import { World } from './core/world.js';
 import { Camera } from './map/camera.js';
 import { Renderer } from './map/renderer.js';
@@ -109,116 +110,126 @@ document.addEventListener('DOMContentLoaded', async () => {
         // NPCとのインタラクション要求イベント (メッセージウィンドウを表示するために追加)
         world.on('NPC_INTERACTION_REQUESTED', (npc) => {
             console.log('NPC interaction requested, showing message window');
-            const messageWindow = document.getElementById('interaction-message-window');
-            const confirmButton = document.getElementById('confirm-battle-button');
-            const cancelButton = document.getElementById('cancel-battle-button');
-            const uiStateContext = world.getSingletonComponent(UIStateContext);
+            setupNpcInteractionModal(world, npc, input);
+        });
+    }
 
+    /**
+     * Displays the NPC interaction modal and handles user input.
+     * @param {World} world - The game world instance.
+     * @param {object} npc - The NPC object that triggered the interaction.
+     * @param {InputHandler} input - The input handler instance.
+     */
+    function setupNpcInteractionModal(world, npc, input) {
+        const messageWindow = document.getElementById('interaction-message-window');
+        const confirmButton = document.getElementById('confirm-battle-button');
+        const cancelButton = document.getElementById('cancel-battle-button');
+        const uiStateContext = world.getSingletonComponent(UIStateContext);
+
+        if (uiStateContext) {
+            uiStateContext.isPausedByModal = true;
+        }
+
+        // --- リスナーの管理 ---
+        // NOTE: リスナーの重複登録と解除漏れを防ぐため、リスナーの登録と解除を1つの関数にまとめ、
+        //      インタラクションが完了またはキャンセルされた際に必ず呼び出すように修正。
+        let handleKeydown;
+        let handleConfirm;
+        let handleCancel;
+        let recalculatePosition; // 追加
+
+        // リスナーをすべて削除するクリーンアップ関数
+        const cleanup = () => {
+            document.removeEventListener('keydown', handleKeydown);
+            confirmButton.removeEventListener('click', handleConfirm);
+            cancelButton.removeEventListener('click', handleCancel);
+            window.removeEventListener('resize', recalculatePosition); // 追加
+            messageWindow.classList.add('hidden');
             if (uiStateContext) {
-                uiStateContext.isPausedByModal = true;
+                uiStateContext.isPausedByModal = false;
             }
+        };
 
-            // --- リスナーの管理 ---
-            // NOTE: リスナーの重複登録と解除漏れを防ぐため、リスナーの登録と解除を1つの関数にまとめ、
-            //      インタラクションが完了またはキャンセルされた際に必ず呼び出すように修正。
-            let handleKeydown;
-            let handleConfirm;
-            let handleCancel;
-            let recalculatePosition; // 追加
+        // --- リスナーの定義 ---
+        // 確認ボタンが押されたときの処理
+        handleConfirm = () => {
+            cleanup(); // 全てのリスナーを削除
+            world.emit('NPC_INTERACTED', npc); // バトルモードへ移行
+        };
 
-            // リスナーをすべて削除するクリーンアップ関数
-            const cleanup = () => {
-                document.removeEventListener('keydown', handleKeydown);
-                confirmButton.removeEventListener('click', handleConfirm);
-                cancelButton.removeEventListener('click', handleCancel);
-                window.removeEventListener('resize', recalculatePosition); // 追加
-                messageWindow.classList.add('hidden');
-                if (uiStateContext) {
-                    uiStateContext.isPausedByModal = false;
+        // キャンセルボタンが押されたときの処理
+        handleCancel = () => {
+            cleanup(); // 全てのリスナーを削除
+            // フォーカスをゲームキャンバスに戻す
+            const canvas = document.getElementById('game-canvas');
+            if (canvas) {
+                canvas.focus();
+            }
+        };
+
+        // キー入力があったときの処理
+        handleKeydown = (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handleConfirm();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                handleCancel();
+            } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+                event.preventDefault();
+                // フォーカスを切り替える
+                if (document.activeElement === confirmButton) {
+                    cancelButton.focus();
+                } else {
+                    confirmButton.focus();
                 }
-            };
-
-            // --- リスナーの定義 ---
-            // 確認ボタンが押されたときの処理
-            handleConfirm = () => {
-                cleanup(); // 全てのリスナーを削除
-                world.emit('NPC_INTERACTED', npc); // バトルモードへ移行
-            };
-
-            // キャンセルボタンが押されたときの処理
-            handleCancel = () => {
-                cleanup(); // 全てのリスナーを削除
-                // フォーカスをゲームキャンバスに戻す
-                const canvas = document.getElementById('game-canvas');
-                if (canvas) {
-                    canvas.focus();
-                }
-            };
-
-            // キー入力があったときの処理
-            handleKeydown = (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
+            } else if (event.key === 'z' || event.key === 'Z') {
+                event.preventDefault();
+                event.stopPropagation(); // Zキーのイベントを他のリスナーに伝播させない
+                // メッセージウィンドウ用のキー操作として消費されたことを示す
+                input.pressedKeys.delete('z');
+                // 現在のフォーカス要素に応じて処理を分岐
+                if (document.activeElement === confirmButton) {
                     handleConfirm();
-                } else if (event.key === 'Escape') {
-                    event.preventDefault();
+                } else if (document.activeElement === cancelButton) {
                     handleCancel();
-                } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-                    event.preventDefault();
-                    // フォーカスを切り替える
-                    if (document.activeElement === confirmButton) {
-                        cancelButton.focus();
-                    } else {
-                        confirmButton.focus();
-                    }
-                } else if (event.key === 'z' || event.key === 'Z') {
-                    event.preventDefault();
-                    event.stopPropagation(); // Zキーのイベントを他のリスナーに伝播させない
-                    // メッセージウィンドウ用のキー操作として消費されたことを示す
-                    input.pressedKeys.delete('z');
-                    // 現在のフォーカス要素に応じて処理を分岐
-                    if (document.activeElement === confirmButton) {
-                        handleConfirm();
-                    } else if (document.activeElement === cancelButton) {
-                        handleCancel();
-                    }
                 }
-            };
+            }
+        };
 
-            // --- リスナーの登録 ---
-            confirmButton.addEventListener('click', handleConfirm);
-            cancelButton.addEventListener('click', handleCancel);
-            document.addEventListener('keydown', handleKeydown);
+        // --- リスナーの登録 ---
+        confirmButton.addEventListener('click', handleConfirm);
+        cancelButton.addEventListener('click', handleCancel);
+        document.addEventListener('keydown', handleKeydown);
 
-            // --- ウィンドウの表示 ---
-            messageWindow.classList.remove('hidden');
-            // デフォルトでOKボタンにフォーカス
-            confirmButton.focus();
+        // --- ウィンドウの表示 ---
+        messageWindow.classList.remove('hidden');
+        // デフォルトでOKボタンにフォーカス
+        confirmButton.focus();
 
-            // メッセージウィンドウの位置を動的に設定
+        // メッセージウィンドウの位置を動的に設定
+        const canvas = document.getElementById('game-canvas');
+        const canvasRect = canvas.getBoundingClientRect();
+        const messageWindowRect = messageWindow.getBoundingClientRect();
+
+        // メッセージウィンドウの下辺とマップ表示領域の下辺を揃える
+        messageWindow.style.top = `${canvasRect.bottom - messageWindowRect.height}px`; // メッセージウィンドウの高さ分を引く
+        messageWindow.style.left = `${canvasRect.left + (canvasRect.width / 2)}px`; // 横方向の中央揃え
+        messageWindow.style.transform = 'translateX(-50%)';
+
+        // ブラウザサイズ変更時にメッセージウィンドウの位置を再計算・再配置する関数
+        recalculatePosition = () => { // letで宣言済みのため、constは不要
             const canvas = document.getElementById('game-canvas');
             const canvasRect = canvas.getBoundingClientRect();
             const messageWindowRect = messageWindow.getBoundingClientRect();
 
-            // メッセージウィンドウの下辺とマップ表示領域の下辺を揃える
-            messageWindow.style.top = `${canvasRect.bottom - messageWindowRect.height}px`; // メッセージウィンドウの高さ分を引く
-            messageWindow.style.left = `${canvasRect.left + (canvasRect.width / 2)}px`; // 横方向の中央揃え
+            messageWindow.style.top = `${canvasRect.bottom - messageWindowRect.height}px`;
+            messageWindow.style.left = `${canvasRect.left + (canvasRect.width / 2)}px`;
             messageWindow.style.transform = 'translateX(-50%)';
+        }; // cleanup関数内で使用するため、messageWindowなどの要素を参照可能
 
-            // ブラウザサイズ変更時にメッセージウィンドウの位置を再計算・再配置する関数
-            recalculatePosition = () => { // letで宣言済みのため、constは不要
-                const canvas = document.getElementById('game-canvas');
-                const canvasRect = canvas.getBoundingClientRect();
-                const messageWindowRect = messageWindow.getBoundingClientRect();
-
-                messageWindow.style.top = `${canvasRect.bottom - messageWindowRect.height}px`;
-                messageWindow.style.left = `${canvasRect.left + (canvasRect.width / 2)}px`;
-                messageWindow.style.transform = 'translateX(-50%)';
-            }; // cleanup関数内で使用するため、messageWindowなどの要素を参照可能
-
-            // ブラウザサイズ変更イベントリスナーを登録
-            window.addEventListener('resize', recalculatePosition);
-        });
+        // ブラウザサイズ変更イベントリスナーを登録
+        window.addEventListener('resize', recalculatePosition);
     }
 
     /**
@@ -269,8 +280,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Game Screen Scaling ---
     // ウィンドウサイズに合わせてゲーム画面全体をスケーリングし、アスペクト比を維持する
     function applyScaling() {
-        const baseWidth = 1024; // ゲームの基準幅
-        const baseHeight = 576; // ゲームの基準高さ
+        const baseWidth = BATTLE_CONFIG.SCALING.BASE_WIDTH; // ゲームの基準幅
+        const baseHeight = BATTLE_CONFIG.SCALING.BASE_HEIGHT; // ゲームの基準高さ
 
         // 幅と高さのスケール値を計算し、小さい方を採用して画面内に収める
         const scale = Math.min(window.innerWidth / baseWidth, window.innerHeight / baseHeight);
