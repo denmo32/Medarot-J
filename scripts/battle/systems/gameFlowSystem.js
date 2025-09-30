@@ -1,7 +1,7 @@
 // scripts/systems/gameFlowSystem.js:
 
 import { BaseSystem } from '../../core/baseSystem.js';
-import { GameState, Gauge, PlayerInfo } from '../core/components.js';
+import { GameState, Gauge, PlayerInfo, Action } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { GameEvents } from '../common/events.js';
 import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../common/constants.js';
@@ -27,6 +27,7 @@ export class GameFlowSystem extends BaseSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
+        this.world.on(GameEvents.BATTLE_START_CANCELLED, this.onBattleStartCancelled.bind(this));
         this.world.on(GameEvents.BATTLE_ANIMATION_COMPLETED, this.onBattleAnimationCompleted.bind(this)); // ★新規
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
         // ★新規: UIからのゲーム一時停止/再開イベントを購読し、ゲーム全体のポーズ状態を一元管理します。
@@ -52,21 +53,38 @@ export class GameFlowSystem extends BaseSystem {
         this.uiStateContext.isPausedByModal = false;
     }
 
-    onGameStartConfirmed() {
-        if (this.battlePhaseContext.battlePhase !== GamePhaseType.IDLE) return;
-
-        // 1. ゲームフェーズを初期選択に変更 (use BattlePhaseContext)
+    _startInitialSelection() {
+        // 1. ゲームフェーズを初期選択に変更
         this.battlePhaseContext.battlePhase = GamePhaseType.INITIAL_SELECTION;
 
-        // 2. 全プレイヤーを準備完了状態にし、ゲージを最大にする
+        // 2. 全プレイヤーの状態をリセットし、行動選択可能な状態にする
         const players = this.world.getEntitiesWith(GameState, Gauge);
         players.forEach(id => {
             const gameState = this.world.getComponent(id, GameState);
             const gauge = this.world.getComponent(id, Gauge);
-            gameState.state = PlayerStateType.READY_SELECT;
-            gauge.value = gauge.max;
+            
+            // 破壊されていないプレイヤーのみリセット
+            if (gameState.state !== PlayerStateType.BROKEN) {
+                gameState.state = PlayerStateType.READY_SELECT;
+                gauge.value = gauge.max;
+                gauge.speedMultiplier = 1.0; // 速度補正をリセット
+                // 選択済みのアクションをリセット
+                this.world.addComponent(id, new Action()); 
+            }
         });
     }
+
+    onGameStartConfirmed() {
+        if (this.battlePhaseContext.battlePhase !== GamePhaseType.IDLE) return;
+        this._startInitialSelection();
+    }
+
+    onBattleStartCancelled() {
+        this.world.emit(GameEvents.HIDE_MODAL);
+        this._startInitialSelection();
+    }
+
+
 
     onBattleStartConfirmed() {
         // ★新規: フェーズをアニメーション待ちに変更し、モーダルの再表示を防ぐ

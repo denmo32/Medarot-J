@@ -152,6 +152,17 @@ export class ActionPanelSystem extends BaseSystem {
                     this.confirmSelection();
                 }
             } 
+            // バトル開始確認モーダルでのキー操作
+            else if (this.currentModalType === ModalType.BATTLE_START_CONFIRM) {
+                if (key === 'z') {
+                    event.preventDefault();
+                    this.handlePanelClick();
+                } else if (key === 'x') {
+                    event.preventDefault();
+                    this.world.emit(GameEvents.BATTLE_START_CANCELLED);
+                    this.hideActionPanel();
+                }
+            }
             // それ以外のクリック進行モーダルでのキー操作
             else if (key === 'z' && this.dom.actionPanel.classList.contains('clickable')) {
                 event.preventDefault();

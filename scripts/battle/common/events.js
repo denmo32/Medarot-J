@@ -42,6 +42,14 @@ export const GameEvents = {
      * @payload {}
      */
     BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED',
+    
+    /**
+     * ★新規: 戦闘開始がキャンセルされた
+     * @event BATTLE_START_CANCELLED
+     * @type {string}
+     * @payload {}
+     */
+    BATTLE_START_CANCELLED: 'BATTLE_START_CANCELLED',
 
     /**
      * ★新規: 戦闘開始アニメーションの表示を要求
