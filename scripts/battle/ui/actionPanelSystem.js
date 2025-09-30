@@ -25,12 +25,14 @@ export class ActionPanelSystem extends BaseSystem {
         this.handlers = {
             panelConfirm: null,
             battleStart: null,
-            panelClick: null // ★追加
+            panelClick: null, // ★追加
+            keyDown: null // ★新規
         };
 
         this.initializePanelConfigs();
         this.bindWorldEvents();
         this.bindDOMEvents();
+        this.bindKeyboardEvents(); // ★新規
 
         // 初期状態ではパネルを非表示にする
         this.dom.actionPanel.classList.remove('hidden');
@@ -50,6 +52,10 @@ export class ActionPanelSystem extends BaseSystem {
         // ★追加
         if (this.handlers.panelClick) {
             this.dom.actionPanel.removeEventListener('click', this.handlers.panelClick);
+        }
+        // ★新規
+        if (this.handlers.keyDown) {
+            document.removeEventListener('keydown', this.handlers.keyDown);
         }
     }
 
@@ -131,6 +137,20 @@ export class ActionPanelSystem extends BaseSystem {
             this.handlePanelClick();
         };
         this.dom.actionPanelConfirmButton.addEventListener('click', this.handlers.panelConfirm);
+    }
+
+    /**
+     * ★新規: キーボードイベントを購読します。
+     */
+    bindKeyboardEvents() {
+        this.handlers.keyDown = (event) => {
+            // 'z'キーが押され、かつクリックで進行可能なモーダルが表示されている場合に処理
+            if (event.key.toLowerCase() === 'z' && this.dom.actionPanel.classList.contains('clickable')) {
+                event.preventDefault();
+                this.handlePanelClick();
+            }
+        };
+        document.addEventListener('keydown', this.handlers.keyDown);
     }
 
     /**
