@@ -148,6 +148,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             // キャンセルボタンが押されたときの処理
             handleCancel = () => {
                 cleanup(); // 全てのリスナーを削除
+                // フォーカスをゲームキャンバスに戻す
+                const canvas = document.getElementById('game-canvas');
+                if (canvas) {
+                    canvas.focus();
+                }
             };
 
             // キー入力があったときの処理
@@ -158,6 +163,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else if (event.key === 'Escape') {
                     event.preventDefault();
                     handleCancel();
+                } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+                    event.preventDefault();
+                    // フォーカスを切り替える
+                    if (document.activeElement === confirmButton) {
+                        cancelButton.focus();
+                    } else {
+                        confirmButton.focus();
+                    }
+                } else if (event.key === 'z' || event.key === 'Z') {
+                    event.preventDefault();
+                    event.stopPropagation(); // Zキーのイベントを他のリスナーに伝播させない
+                    // メッセージウィンドウ用のキー操作として消費されたことを示す
+                    input.pressedKeys.delete('z');
+                    // 現在のフォーカス要素に応じて処理を分岐
+                    if (document.activeElement === confirmButton) {
+                        handleConfirm();
+                    } else if (document.activeElement === cancelButton) {
+                        handleCancel();
+                    }
                 }
             };
 
@@ -168,6 +192,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // --- ウィンドウの表示 ---
             messageWindow.classList.remove('hidden');
+            // デフォルトでOKボタンにフォーカス
+            confirmButton.focus();
 
             // メッセージウィンドウの位置を動的に設定
             const canvas = document.getElementById('game-canvas');

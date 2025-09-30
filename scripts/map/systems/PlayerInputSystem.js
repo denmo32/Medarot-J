@@ -77,6 +77,12 @@ export class PlayerInputSystem extends BaseSystem {
 
             // Zキー入力によるバトルシーンへの移行処理
             if (this.input.pressedKeys.has('z')) {
+                // メッセージウィンドウが表示されている間は処理しない
+                // 冒頭でのチェックは、Zキー処理の直前でも必要（イベント発行のタイミング的な問題への対処）
+                if (this.uiStateContext && this.uiStateContext.isPausedByModal) {
+                    // Zキーが押された状態でも、モーダル中は処理しない
+                    continue; // forループの次のイテレーションに進む
+                }
                 // プレイヤーの現在位置と向きを取得
                 const playerEntityId = this.world.getEntitiesWith(MapComponents.PlayerControllable)[0];
                 const position = this.world.getComponent(playerEntityId, MapComponents.Position);
