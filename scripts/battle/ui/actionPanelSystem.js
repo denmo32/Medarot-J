@@ -99,7 +99,7 @@ export class ActionPanelSystem extends BaseSystem {
             [ModalType.BATTLE_START_CONFIRM]: {
                 title: '',
                 actorName: '合意と見てよろしいですね！？',
-                battleStartButton: true,
+                clickable: true, // ★変更
                 contentHTML: '',
                 setupEvents: null
             },
@@ -128,11 +128,6 @@ export class ActionPanelSystem extends BaseSystem {
      * このシステムが管理するDOM要素のイベントリスナーを登録します。
      */
     bindDOMEvents() {
-        this.handlers.battleStart = () => {
-            this.world.emit(GameEvents.BATTLE_START_CONFIRMED);
-        };
-        this.dom.actionPanelBattleStartButton.addEventListener('click', this.handlers.battleStart);
-
         // ★変更: confirmButtonのクリックもhandlePanelClickに集約
         this.handlers.panelConfirm = () => {
             this.handlePanelClick();
@@ -171,6 +166,10 @@ export class ActionPanelSystem extends BaseSystem {
      */
     handlePanelClick() {
         switch (this.currentModalType) {
+            case ModalType.BATTLE_START_CONFIRM: // ★新規
+                this.world.emit(GameEvents.BATTLE_START_CONFIRMED);
+                this.hideActionPanel();
+                break;
             case ModalType.GAME_OVER:
                 this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
                 this.hideActionPanel();

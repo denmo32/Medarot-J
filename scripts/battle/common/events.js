@@ -42,6 +42,22 @@ export const GameEvents = {
      * @payload {}
      */
     BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED',
+
+    /**
+     * ★新規: 戦闘開始アニメーションの表示を要求
+     * @event SHOW_BATTLE_START_ANIMATION
+     * @type {string}
+     * @payload {}
+     */
+    SHOW_BATTLE_START_ANIMATION: 'SHOW_BATTLE_START_ANIMATION',
+
+    /**
+     * ★新規: 戦闘開始アニメーションの完了を通知
+     * @event BATTLE_ANIMATION_COMPLETED
+     * @type {string}
+     * @payload {}
+     */
+    BATTLE_ANIMATION_COMPLETED: 'BATTLE_ANIMATION_COMPLETED',
     
     /**
      * UIによるゲームの一時停止イベント

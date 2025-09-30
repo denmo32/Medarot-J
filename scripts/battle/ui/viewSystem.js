@@ -42,6 +42,7 @@ export class ViewSystem {
      */
     bindWorldEvents() {
         this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
+        this.world.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this)); // ★新規
         // ★廃止: アニメーション要求の仲介は不要になりました。RenderSystemが直接イベントを受け取ります。
         // this.world.on(GameEvents.EXECUTION_ANIMATION_REQUESTED, this.onExecutionAnimationRequested.bind(this));
     }
@@ -50,6 +51,25 @@ export class ViewSystem {
      * このシステムが管理するDOM要素のイベントリスナーを登録します。
      */
     bindDOMEvents() {
+    }
+
+    /**
+     * ★新規: 戦闘開始アニメーションを表示します。
+     */
+    onShowBattleStartAnimation() {
+        const battlefield = document.getElementById('battlefield');
+        if (!battlefield) return;
+
+        const textEl = document.createElement('div');
+        textEl.className = 'battle-start-text';
+        textEl.textContent = 'ロボトルファイト！';
+        battlefield.appendChild(textEl);
+
+        textEl.addEventListener('animationend', () => {
+            textEl.remove();
+            // アニメーション完了を通知
+            this.world.emit(GameEvents.BATTLE_ANIMATION_COMPLETED);
+        });
     }
 
     /**

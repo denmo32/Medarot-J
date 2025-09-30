@@ -58,6 +58,40 @@ body {
             transform: translateX(-50%);
         }
 
+/* ★新規: ロボトルファイト！テキスト */
+.battle-start-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.5);
+    font-size: 2.5em; /* ★変更 */
+    font-weight: bold;
+    color: white;
+    text-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000, 0 0 30px #ff0000;
+    opacity: 0;
+    pointer-events: none;
+    animation: battle-start-anim 2s ease-in-out forwards;
+}
+
+@keyframes battle-start-anim {
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 0;
+    }
+    20% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 1;
+    }
+    80% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0;
+    }
+}
+
         /* ホームポジションマーカー */
         .home-marker {
             position: absolute;

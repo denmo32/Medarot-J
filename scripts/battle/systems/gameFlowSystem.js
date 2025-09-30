@@ -27,6 +27,7 @@ export class GameFlowSystem extends BaseSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
+        this.world.on(GameEvents.BATTLE_ANIMATION_COMPLETED, this.onBattleAnimationCompleted.bind(this)); // ★新規
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
         // ★新規: UIからのゲーム一時停止/再開イベントを購読し、ゲーム全体のポーズ状態を一元管理します。
         this.world.on(GameEvents.GAME_PAUSED, this.onGamePaused.bind(this));
@@ -68,7 +69,20 @@ export class GameFlowSystem extends BaseSystem {
     }
 
     onBattleStartConfirmed() {
-        // 1. フェーズをバトルに移行 (use BattlePhaseContext)
+        // ★新規: フェーズをアニメーション待ちに変更し、モーダルの再表示を防ぐ
+        this.battlePhaseContext.battlePhase = GamePhaseType.PRE_BATTLE_ANIMATION;
+
+        // モーダルを閉じるイベントを発行
+        this.world.emit(GameEvents.HIDE_MODAL);
+        // アニメーション表示を要求
+        this.world.emit(GameEvents.SHOW_BATTLE_START_ANIMATION);
+    }
+
+    /**
+     * ★新規: 戦闘開始アニメーション完了時のハンドラ
+     */
+    onBattleAnimationCompleted() {
+        // 1. フェーズをバトルに移行
         this.battlePhaseContext.battlePhase = GamePhaseType.BATTLE;
         
         // 2. 全プレイヤーのゲージをリセット
@@ -76,9 +90,6 @@ export class GameFlowSystem extends BaseSystem {
             const gauge = this.world.getComponent(id, Gauge);
             if (gauge) gauge.value = 0;
         });
-
-        // 3. モーダルを閉じるイベントを発行
-        this.world.emit(GameEvents.HIDE_MODAL);
     }
 
     onPlayerBroken(detail) {
