@@ -224,7 +224,7 @@ body {
         }
 
         /* 汎用パーツアクションボタンのスタイル (モーダルから流用) */
-        .part-action-button { background: #4299e1; color: white; padding: 4px 15px; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background-color 0.2s ease; border:none; } /* ★変更: 上下パディングを縮小 */
+        .part-action-button { background: #4299e1; color: white; padding: 4px 15px; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease; border:none; } /* ★変更: 上下パディングを縮小 */
         .part-action-button:hover:not(:disabled) { background: #3182ce; }
         .part-action-button:disabled { background: #718096; cursor: not-allowed; opacity: 0.6; }
         
@@ -339,4 +339,9 @@ body {
 
 #cancel-battle-button:hover {
     background-color: #c53030;
+}
+
+.part-action-button.focused {
+    box-shadow: 0 0 0 3px #63b3ed; /* 青いアウトライン */
+    background-color: #3182ce; /* 少し濃い背景色 */
 }

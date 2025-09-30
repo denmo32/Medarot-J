@@ -22,6 +22,7 @@ export class ActionPanelSystem extends BaseSystem {
             actionPanelIndicator: document.getElementById('action-panel-indicator') // ★追加
         };
 
+        this.focusedButtonKey = null; // ★新規: キーボードフォーカス中のボタン
         this.handlers = {
             panelConfirm: null,
             battleStart: null,
@@ -144,8 +145,20 @@ export class ActionPanelSystem extends BaseSystem {
      */
     bindKeyboardEvents() {
         this.handlers.keyDown = (event) => {
-            // 'z'キーが押され、かつクリックで進行可能なモーダルが表示されている場合に処理
-            if (event.key.toLowerCase() === 'z' && this.dom.actionPanel.classList.contains('clickable')) {
+            const key = event.key.toLowerCase();
+
+            // 選択モーダルでのキー操作
+            if (this.currentModalType === ModalType.SELECTION) {
+                if (key.startsWith('arrow')) {
+                    event.preventDefault();
+                    this.handleArrowKeyNavigation(key);
+                } else if (key === 'z') {
+                    event.preventDefault();
+                    this.confirmSelection();
+                }
+            } 
+            // それ以外のクリック進行モーダルでのキー操作
+            else if (key === 'z' && this.dom.actionPanel.classList.contains('clickable')) {
                 event.preventDefault();
                 this.handlePanelClick();
             }
@@ -235,6 +248,21 @@ export class ActionPanelSystem extends BaseSystem {
         if (config.battleStartButton) {
             actionPanelBattleStartButton.style.display = 'inline-block';
         }
+
+        // ★新規: 選択モーダルの場合、キーボード操作のための初期フォーカスを設定
+        if (type === ModalType.SELECTION) {
+            const availableButtons = data.buttons.filter(b => !b.isBroken);
+            // 優先順位: 頭 -> 右腕 -> 左腕
+            const initialFocusKey = 
+                availableButtons.find(b => b.partKey === 'head')?.partKey ||
+                availableButtons.find(b => b.partKey === 'rightArm')?.partKey ||
+                availableButtons.find(b => b.partKey === 'leftArm')?.partKey;
+
+            if (initialFocusKey) {
+                // DOMの描画を待ってからフォーカスを設定
+                setTimeout(() => this.updateFocus(initialFocusKey), 0);
+            }
+        }
     }
 
     /**
@@ -249,6 +277,13 @@ export class ActionPanelSystem extends BaseSystem {
         this.confirmActionEntityId = null;
         this.currentModalType = null;
         this.currentModalData = null; // ★新規: データをクリア
+
+        // ★新規: フォーカスをクリア
+        if (this.focusedButtonKey) {
+            const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
+            if (oldButton) oldButton.classList.remove('focused');
+        }
+        this.focusedButtonKey = null;
 
         const { actionPanel, actionPanelOwner, actionPanelTitle, actionPanelActor, actionPanelButtons, actionPanelConfirmButton, actionPanelBattleStartButton, actionPanelIndicator } = this.dom;
 
@@ -366,5 +401,69 @@ export class ActionPanelSystem extends BaseSystem {
                 <div class="bottom-row">${renderButton(rArmBtn)}${renderButton(lArmBtn)}</div>
             </div>
         `;
+    }
+
+    // --- ★新規: Keyboard Navigation Helpers ---
+
+    /**
+     * 矢印キーによるボタンのフォーカス移動を処理します。
+     * @param {string} key - 押された矢印キー ('arrowup', 'arrowdown', 'arrowleft', 'arrowright')
+     */
+    handleArrowKeyNavigation(key) {
+        if (!this.currentModalData?.buttons) return;
+
+        const availableButtons = this.currentModalData.buttons.filter(b => !b.isBroken);
+        if (availableButtons.length === 0) return;
+
+        let nextFocusKey = this.focusedButtonKey; // 現在のフォーカスをデフォルトとして維持
+        const has = (partKey) => availableButtons.some(b => b.partKey === partKey);
+
+        switch (key) {
+            case 'arrowup':
+                if (has('head')) nextFocusKey = 'head';
+                break;
+            case 'arrowleft':
+                if (has('rightArm')) nextFocusKey = 'rightArm';
+                break;
+            case 'arrowright':
+                if (has('leftArm')) nextFocusKey = 'leftArm';
+                break;
+            // case 'arrowdown': は何もしない
+        }
+
+        this.updateFocus(nextFocusKey);
+    }
+
+    /**
+     * 指定されたキーのボタンにフォーカスを移動します。
+     * @param {string} newKey - 新しくフォーカスするボタンのパーツキー
+     */
+    updateFocus(newKey) {
+        if (this.focusedButtonKey === newKey) return;
+
+        // 古いフォーカスを解除
+        if (this.focusedButtonKey) {
+            const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
+            if (oldButton) oldButton.classList.remove('focused');
+        }
+
+        // 新しいフォーカスを設定
+        const newButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${newKey}`);
+        if (newButton) {
+            newButton.classList.add('focused');
+            this.focusedButtonKey = newKey;
+        }
+    }
+
+    /**
+     * 現在フォーカスされているボタンの選択を決定します。
+     */
+    confirmSelection() {
+        if (!this.focusedButtonKey) return;
+
+        const focusedButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
+        if (focusedButton && !focusedButton.disabled) {
+            focusedButton.click(); // clickイベントを発火させるのが最もシンプルで確実
+        }
     }
 }
