@@ -15,6 +15,18 @@ export class PlayerInputSystem extends BaseSystem {
     }
 
     update() {
+        // メニューが表示されている場合、マップへの入力は無効化
+        const menuElement = document.getElementById('map-menu');
+        if (menuElement && !menuElement.classList.contains('hidden')) {
+            // Xキーのみメニュー閉じるために処理
+            if (this.input.pressedKeys.has('x')) {
+                this.toggleMenu();
+                this.input.pressedKeys.delete('x');
+            }
+            // 他の入力は無視
+            return;
+        }
+
         if (this.uiStateContext && this.uiStateContext.isPausedByModal) {
             return;
         }
@@ -108,6 +120,57 @@ export class PlayerInputSystem extends BaseSystem {
                     }
                 }
             }
+
+            // Xキー入力によるポーズメニューの開閉処理
+            if (this.input.pressedKeys.has('x')) {
+                this.toggleMenu();
+                // Xキーが押されたことを示すフラグを立てる（1フレーム分の入力として扱う）
+                this.input.pressedKeys.delete('x');
+            }
+        }
+    }
+
+    toggleMenu() {
+        const menuElement = document.getElementById('map-menu');
+        if (menuElement) {
+            menuElement.classList.toggle('hidden');
+            if (!menuElement.classList.contains('hidden')) {
+                // メニューが開いたときにイベントリスナーを設定
+                this.setupMenuEventListeners();
+            }
+        }
+    }
+
+    setupMenuEventListeners() {
+        const saveButton = document.querySelector('.map-menu-button[data-action="save"]');
+        if (saveButton) {
+            saveButton.onclick = () => {
+                this.saveGame();
+                this.toggleMenu(); // セーブ後はメニューを閉じる
+            };
+        }
+    }
+
+    saveGame() {
+        const playerEntities = this.world.getEntitiesWith(
+            MapComponents.PlayerControllable,
+            MapComponents.Position
+        );
+
+        if (playerEntities.length > 0) {
+            const playerEntityId = playerEntities[0];
+            const position = this.world.getComponent(playerEntityId, MapComponents.Position);
+
+            const gameState = {
+                position: {
+                    x: position.x,
+                    y: position.y
+                },
+                mapName: 'map.json' // 将来的にはマップ名を動的に取得する
+            };
+
+            localStorage.setItem('medarotJSaveData', JSON.stringify(gameState));
+            console.log('Game saved successfully:', gameState);
         }
     }
 }

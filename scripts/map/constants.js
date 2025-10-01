@@ -32,6 +32,7 @@ export const KEY_MAP = {
     ArrowLeft: 'left',
     ArrowRight: 'right',
     z: 'z', // Zキーを追加
+    x: 'x', // Xキーを追加
 };
 
 // マップ固有のイベント

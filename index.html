@@ -10,6 +10,12 @@
 <body>
     <div id="map-container" class="map-container">
         <canvas id="game-canvas"></canvas>
+        <!-- マップシーン用のポーズメニュー -->
+        <div id="map-menu" class="map-menu hidden">
+            <div class="map-menu-content">
+                <button class="map-menu-button" data-action="save">セーブ</button>
+            </div>
+        </div>
     </div>
 
     <!-- ★新規: NPCとのインタラクション確認メッセージウィンドウ -->
@@ -77,6 +83,15 @@
             </div>
         </div>
     </template>
+
+    <!-- タイトル画面 -->
+    <div id="title-container" class="title-container">
+        <h1 class="title-header">メダロット-J</h1>
+        <div class="title-buttons">
+            <button id="start-new-game" class="title-button">初期データからスタート</button>
+            <button id="start-from-save" class="title-button" style="display: none;">セーブデータからスタート</button>
+        </div>
+    </div>
 
     <script type="module" src="scripts/main.js"></script>
 </body>
