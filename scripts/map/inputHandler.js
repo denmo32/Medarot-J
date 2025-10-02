@@ -7,15 +7,25 @@ export class InputHandler {
         // this.direction = null; // ← この行を削除します
 
         window.addEventListener('keydown', (e) => {
+            // console.log('InputHandler keydown:', e.key, e); // デバッグ用
             if (KEY_MAP[e.key]) {
-                e.preventDefault();
+                // カスタマイズ画面が表示されている場合は、e.preventDefault() を呼び出さない
+                const customizeElement = document.getElementById('customize-container');
+                if (!customizeElement || customizeElement.classList.contains('hidden')) {
+                    e.preventDefault();
+                }
                 this.pressedKeys.add(e.key);
             }
         });
 
         window.addEventListener('keyup', (e) => {
+            // console.log('InputHandler keyup:', e.key, e); // デバッグ用
             if (KEY_MAP[e.key]) {
-                e.preventDefault();
+                // カスタマイズ画面が表示されている場合は、e.preventDefault() を呼び出さない
+                const customizeElement = document.getElementById('customize-container');
+                if (!customizeElement || customizeElement.classList.contains('hidden')) {
+                    e.preventDefault();
+                }
                 this.pressedKeys.delete(e.key);
             }
         });

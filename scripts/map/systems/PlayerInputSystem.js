@@ -27,6 +27,15 @@ export class PlayerInputSystem extends BaseSystem {
             return;
         }
 
+        // カスタマイズ画面が表示されている場合も、マップへの入力は無効化
+        const customizeElement = document.getElementById('customize-container');
+        if (customizeElement && !customizeElement.classList.contains('hidden')) {
+            // console.log('Customize scene open, pressedKeys:', this.input.pressedKeys); // デバッグ用
+            // Xキーでカスタマイズ画面を閉じる処理は、イベントリスナー側で行うため、ここでは何もしない
+            // 他の入力は無効化
+            return;
+        }
+
         if (this.uiStateContext && this.uiStateContext.isPausedByModal) {
             return;
         }
@@ -143,10 +152,19 @@ export class PlayerInputSystem extends BaseSystem {
 
     setupMenuEventListeners() {
         const saveButton = document.querySelector('.map-menu-button[data-action="save"]');
+        const medarotchiButton = document.querySelector('.map-menu-button[data-action="medarotchi"]');
+
         if (saveButton) {
             saveButton.onclick = () => {
                 this.saveGame();
                 this.toggleMenu(); // セーブ後はメニューを閉じる
+            };
+        }
+
+        if (medarotchiButton) {
+            medarotchiButton.onclick = () => {
+                this.openCustomizeScene();
+                this.toggleMenu(); // カスタマイズシーンを開いた後はメニューを閉じる
             };
         }
     }
@@ -172,5 +190,17 @@ export class PlayerInputSystem extends BaseSystem {
             localStorage.setItem('medarotJSaveData', JSON.stringify(gameState));
             console.log('Game saved successfully:', gameState);
         }
+    }
+
+    openCustomizeScene() {
+        // カスタマイズシーンを読み込む
+        import('../../customize/scene.js')
+            .then(module => {
+                module.setupCustomizeMode(this.world);
+                // console.log('Called setupCustomizeMode with world:', this.world);
+            })
+            .catch(err => {
+                console.error('Failed to load customize scene:', err);
+            });
     }
 }

@@ -254,6 +254,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         mapContainer.classList.add('hidden');
     }
 
+    /**
+     * Exports setup functions for external use (e.g., from customize scene).
+     */
+    window.MedarotJS = {
+        setupMapMode,
+        setupMapModeFromSave
+    };
+
     // --- Main Game Loop ---
     let lastTime = 0;
     function gameLoop(timestamp) {

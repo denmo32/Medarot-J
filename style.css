@@ -470,3 +470,29 @@ body {
 .map-menu-button:hover {
     background-color: #3182ce;
 }
+
+/* カスタマイズ画面 */
+.customize-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #1a202c;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #e2e8f0;
+    z-index: 3000;
+    text-align: center;
+}
+
+.customize-container h2 {
+    font-size: 2em;
+    margin-bottom: 20px;
+}
+
+.customize-container p {
+    font-size: 1.2em;
+}
