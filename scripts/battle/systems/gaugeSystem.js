@@ -21,12 +21,29 @@ export class GaugeSystem extends BaseSystem {
             return;
         }
 
+        // ★追加: 行動選択または実行待ちのエンティティが存在する場合、すべてのゲージ進行を停止
+        const entitiesWithState = this.world.getEntitiesWith(GameState);
+        const hasActionQueued = entitiesWithState.some(entityId => {
+            const gameState = this.world.getComponent(entityId, GameState);
+            return gameState.state === PlayerStateType.READY_SELECT || gameState.state === PlayerStateType.READY_EXECUTE;
+        });
+
+        if (hasActionQueued) {
+            return; // すべてのゲージ進行を停止
+        }
+
         const entities = this.world.getEntitiesWith(Gauge, GameState, Parts);
 
         for (const entityId of entities) {
             const gauge = this.world.getComponent(entityId, Gauge);
             const gameState = this.world.getComponent(entityId, GameState);
             const parts = this.world.getComponent(entityId, Parts);
+
+            // ★追加: skipNextUpdateがtrueの場合はこのフレームでの進行をスキップ
+            if (gauge.skipNextUpdate) {
+                gauge.skipNextUpdate = false;
+                continue;
+            }
 
             // ゲージの進行を止めるべき状態かを判定
             const statesToPause = [
