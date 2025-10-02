@@ -44,10 +44,8 @@ async function handleEscapeKey(event) {
     // console.log('handleEscapeKey called with key:', event.key); // 復活
     if (event.key === 'x' || event.key === 'X') {
         // console.log('X key detected, closing customize scene'); // デバッグ用
-        // イベントリスナーを削除
+        // イベントリスナーを削除 (capture: trueを指定して削除)
         window.removeEventListener('keydown', handleEscapeKey, { capture: true });
-        // イベントリスナーを削除
-        window.removeEventListener('keydown', handleEscapeKey);
 
         // カスタマイズ画面を非表示
         const customizeContainer = document.getElementById('customize-container');

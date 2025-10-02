@@ -142,6 +142,15 @@ export class PlayerInputSystem extends BaseSystem {
     toggleMenu() {
         const menuElement = document.getElementById('map-menu');
         if (menuElement) {
+            if (!menuElement.classList.contains('hidden')) {
+                // メニューが開いている場合は閉じる
+                // メニューが閉じるアニメーションの開始時にイベントリスナーを削除
+                this.isMenuClosing = true;
+                this.removeMenuEventListeners();
+            } else {
+                // メニューが開く前にAbortControllerを初期化
+                this.abortController = new AbortController();
+            }
             menuElement.classList.toggle('hidden');
             if (!menuElement.classList.contains('hidden')) {
                 // メニューが開いたときにイベントリスナーを設定
@@ -151,77 +160,79 @@ export class PlayerInputSystem extends BaseSystem {
     }
 
     setupMenuEventListeners() {
+        // AbortControllerを初期化
+        this.abortController = new AbortController();
+
         const saveButton = document.querySelector('.map-menu-button[data-action="save"]');
         const medarotchiButton = document.querySelector('.map-menu-button[data-action="medarotchi"]');
-        const buttons = [medarotchiButton, saveButton]; // フォーカス順にボタンを配列に格納
-        let focusedIndex = 0; // 最初は最初のボタン（メダロッチ）にフォーカス
+        this.buttons = [medarotchiButton, saveButton]; // フォーカス順にボタンを配列に格納
+        this.focusedIndex = 0; // 最初は最初のボタン（メダロッチ）にフォーカス
 
         // 初期フォーカスを設定
-        if (buttons[focusedIndex]) {
-            buttons[focusedIndex].focus();
-            this.addFocusIndicator(buttons[focusedIndex]);
+        if (this.buttons[this.focusedIndex]) {
+            this.buttons[this.focusedIndex].focus();
+            this.addFocusIndicator(this.buttons[this.focusedIndex]);
         }
 
         // キーボードイベントリスナーを設定
-        const handleKeyDown = (e) => {
+        this.handleKeyDown = (e) => {
             switch(e.key) {
                 case 'ArrowUp':
                     // 上キー：フォーカスを前のボタンに移動
-                    if (focusedIndex > 0) {
-                        focusedIndex--;
+                    if (this.focusedIndex > 0) {
+                        this.focusedIndex--;
                     } else {
                         // 最初のボタンの場合は最後のボタンに戻る
-                        focusedIndex = buttons.length - 1;
+                        this.focusedIndex = this.buttons.length - 1;
                     }
                     break;
                 case 'ArrowDown':
                     // 下キー：フォーカスを次のボタンに移動
-                    if (focusedIndex < buttons.length - 1) {
-                        focusedIndex++;
+                    if (this.focusedIndex < this.buttons.length - 1) {
+                        this.focusedIndex++;
                     } else {
                         // 最後のボタンの場合は最初のボタンに戻る
-                        focusedIndex = 0;
+                        this.focusedIndex = 0;
                     }
                     break;
                 case 'z':
                 case 'Z':
                     // Zキー：フォーカス中のボタンをクリック
-                    if (buttons[focusedIndex]) {
-                        buttons[focusedIndex].click();
+                    if (this.buttons[this.focusedIndex]) {
+                        this.buttons[this.focusedIndex].click();
                     }
                     break;
             }
 
             // 新しいフォーカス対象を設定
-            if (buttons[focusedIndex]) {
-                buttons[focusedIndex].focus();
-                this.addFocusIndicator(buttons[focusedIndex]); // 新しいフォーカス対象に三角を追加
+            if (this.buttons[this.focusedIndex]) {
+                this.buttons[this.focusedIndex].focus();
+                this.addFocusIndicator(this.buttons[this.focusedIndex]); // 新しいフォーカス対象に三角を追加
             }
         };
 
         // ボタンにイベントリスナーを追加
-        document.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('keydown', this.handleKeyDown, { signal: this.abortController.signal });
 
         // ボタンのクリックイベントを設定
         if (saveButton) {
             saveButton.addEventListener('click', () => {
                 this.saveGame();
                 this.toggleMenu(); // セーブ後はメニューを閉じる
-            });
+            }, { signal: this.abortController.signal });
         }
 
         if (medarotchiButton) {
             medarotchiButton.addEventListener('click', () => {
                 this.openCustomizeScene();
                 this.toggleMenu(); // カスタマイズシーンを開いた後はメニューを閉じる
-            });
+            }, { signal: this.abortController.signal });
         }
 
         // メニューが閉じるときのイベントリスナーを設定
         const menuElement = document.getElementById('map-menu');
         if (menuElement) {
             const handleMenuClose = () => {
-                document.removeEventListener('keydown', handleKeyDown);
                 // 三角のフォーカスインジケーターをすべて削除
                 this.removeFocusIndicators();
             };
@@ -230,8 +241,25 @@ export class PlayerInputSystem extends BaseSystem {
                 if (menuElement.classList.contains('hidden')) {
                     handleMenuClose();
                 }
-            });
+            }, { signal: this.abortController.signal });
+
+            // メニューが閉じるアニメーションの開始時にイベントリスナーを削除するためのフラグを設定
+            this.isMenuClosing = false;
+            menuElement.addEventListener('transitionstart', () => {
+                this.isMenuClosing = true;
+            }, { signal: this.abortController.signal });
         }
+    }
+
+    removeMenuEventListeners() {
+        if (this.abortController) {
+            this.abortController.abort();
+        }
+        // 三角のフォーカスインジケーターをすべて削除
+        this.removeFocusIndicators();
+        
+        // メニューが閉じるアニメーションの開始時にイベントリスナーを削除するためのフラグをリセット
+        this.isMenuClosing = false;
     }
 
     // 三角(▶)のフォーカスインジケーターを追加する関数
