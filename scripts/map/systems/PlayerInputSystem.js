@@ -153,20 +153,106 @@ export class PlayerInputSystem extends BaseSystem {
     setupMenuEventListeners() {
         const saveButton = document.querySelector('.map-menu-button[data-action="save"]');
         const medarotchiButton = document.querySelector('.map-menu-button[data-action="medarotchi"]');
+        const buttons = [medarotchiButton, saveButton]; // フォーカス順にボタンを配列に格納
+        let focusedIndex = 0; // 最初は最初のボタン（メダロッチ）にフォーカス
 
+        // 初期フォーカスを設定
+        if (buttons[focusedIndex]) {
+            buttons[focusedIndex].focus();
+            this.addFocusIndicator(buttons[focusedIndex]);
+        }
+
+        // キーボードイベントリスナーを設定
+        const handleKeyDown = (e) => {
+            switch(e.key) {
+                case 'ArrowUp':
+                    // 上キー：フォーカスを前のボタンに移動
+                    if (focusedIndex > 0) {
+                        focusedIndex--;
+                    } else {
+                        // 最初のボタンの場合は最後のボタンに戻る
+                        focusedIndex = buttons.length - 1;
+                    }
+                    break;
+                case 'ArrowDown':
+                    // 下キー：フォーカスを次のボタンに移動
+                    if (focusedIndex < buttons.length - 1) {
+                        focusedIndex++;
+                    } else {
+                        // 最後のボタンの場合は最初のボタンに戻る
+                        focusedIndex = 0;
+                    }
+                    break;
+                case 'z':
+                case 'Z':
+                    // Zキー：フォーカス中のボタンをクリック
+                    if (buttons[focusedIndex]) {
+                        buttons[focusedIndex].click();
+                    }
+                    break;
+            }
+
+            // 新しいフォーカス対象を設定
+            if (buttons[focusedIndex]) {
+                buttons[focusedIndex].focus();
+                this.addFocusIndicator(buttons[focusedIndex]); // 新しいフォーカス対象に三角を追加
+            }
+        };
+
+        // ボタンにイベントリスナーを追加
+        document.addEventListener('keydown', handleKeyDown);
+
+        // ボタンのクリックイベントを設定
         if (saveButton) {
-            saveButton.onclick = () => {
+            saveButton.addEventListener('click', () => {
                 this.saveGame();
                 this.toggleMenu(); // セーブ後はメニューを閉じる
-            };
+            });
         }
 
         if (medarotchiButton) {
-            medarotchiButton.onclick = () => {
+            medarotchiButton.addEventListener('click', () => {
                 this.openCustomizeScene();
                 this.toggleMenu(); // カスタマイズシーンを開いた後はメニューを閉じる
-            };
+            });
         }
+
+        // メニューが閉じるときのイベントリスナーを設定
+        const menuElement = document.getElementById('map-menu');
+        if (menuElement) {
+            const handleMenuClose = () => {
+                document.removeEventListener('keydown', handleKeyDown);
+                // 三角のフォーカスインジケーターをすべて削除
+                this.removeFocusIndicators();
+            };
+
+            menuElement.addEventListener('transitionend', () => {
+                if (menuElement.classList.contains('hidden')) {
+                    handleMenuClose();
+                }
+            });
+        }
+    }
+
+    // 三角(▶)のフォーカスインジケーターを追加する関数
+    addFocusIndicator(button) {
+        // 既存のインジケーターを削除
+        this.removeFocusIndicators();
+        // 新しいインジケーターを追加
+        document.querySelector('.map-menu-content').insertAdjacentHTML('afterbegin', '<span class="focus-indicator">▶</span>');
+        // インジケーターの位置を調整
+        const indicator = document.querySelector('.focus-indicator');
+        if (indicator) {
+            const buttonRect = button.getBoundingClientRect();
+            const menuContentRect = document.querySelector('.map-menu-content').getBoundingClientRect();
+            indicator.style.top = `${button.offsetTop + (button.offsetHeight - 20) / 2}px`;
+        }
+    }
+
+    // 全ての三角(▶)のフォーカスインジケーターを削除する関数
+    removeFocusIndicators() {
+        const indicators = document.querySelectorAll('.focus-indicator');
+        indicators.forEach(indicator => indicator.remove());
     }
 
     saveGame() {

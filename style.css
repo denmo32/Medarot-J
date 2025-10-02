@@ -432,10 +432,10 @@ body {
     background-color: #2d3748;
     border: 2px solid #718096;
     border-radius: 8px;
-    padding: 15px;
+    padding: 20px; /* 余白を広げて三角マークの配置に余裕を確保 */
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
     z-index: 1000;
-    width: 200px;
+    width: 220px; /* 横幅を広げて三角マークの左側に余白を確保 */
     max-height: 300px;
     overflow-y: auto;
 }
@@ -443,8 +443,10 @@ body {
 .map-menu-content {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start; /* 左揃えに変更 */
     gap: 10px;
+    position: relative; /* 三角(▶)の位置を調整するために追加 */
+    padding-left: 20px; /* 三角(▶)のためのスペースを確保 */
 }
 
 .map-menu p {
@@ -469,6 +471,16 @@ body {
 
 .map-menu-button:hover {
     background-color: #3182ce;
+}
+
+.focus-indicator {
+    position: absolute;
+    left: 0; /* メニューコンテンツの左端から配置 */
+    top: 0; /* ボタンの上端に配置 */
+    color: #ffd700; /* 三角の色 */
+    font-size: 1em; /* 三角のサイズ */
+    pointer-events: none; /* インジケーターがクリックを妨げないように */
+    z-index: 1001; /* 他の要素より前面に表示 */
 }
 
 /* カスタマイズ画面 */
