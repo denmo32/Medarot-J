@@ -31,20 +31,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const mapContainer = document.getElementById('map-container');
     const battleContainer = document.getElementById('battle-container');
 
-
-
     /**
      * Sets up the systems and entities required for battle mode.
      */
     function setupBattleMode() {
-        // MapEntityを持つエンティティをすべて削除
-        const mapEntities = world.getEntitiesWith(MapComponents.MapEntity);
-        for (const entity of mapEntities) {
-            world.destroyEntity(entity);
-        }
-
-        // world.emit(GameEvents.GAME_WILL_RESET); // 削除
-        // world.reset(); // 削除
+        world.emit(GameEvents.GAME_WILL_RESET);
+        world.reset();
 
         initializeBattleSystems(world);
         createBattlePlayers(world);
@@ -63,14 +55,8 @@ document.addEventListener('DOMContentLoaded', async () => {
      * Sets up the systems and entities for map exploration mode.
      */
     async function setupMapMode() {
-        // BattleEntityを持つエンティティをすべて削除
-        const battleEntities = world.getEntitiesWith(MapComponents.BattleEntity);
-        for (const entity of battleEntities) {
-            world.destroyEntity(entity);
-        }
-
-        // world.emit(GameEvents.GAME_WILL_RESET); // 削除
-        // world.reset(); // 削除
+        world.emit(GameEvents.GAME_WILL_RESET);
+        world.reset();
         
         const canvas = document.getElementById('game-canvas');
         if (!canvas) {
@@ -113,7 +99,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
         world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
         world.addComponent(playerEntityId, new MapComponents.FacingDirection('down'));
-        world.addComponent(playerEntityId, new MapComponents.MapEntity());
 
         // NOTE: world.reset()でリスナーがクリアされるため、マップモード設定時に再登録する
         world.on(MAP_EVENTS.BATTLE_TRIGGERED, switchToBattleMode);
@@ -316,14 +301,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // セーブデータからマップをセットアップする関数
     async function setupMapModeFromSave() {
-        // BattleEntityを持つエンティティをすべて削除
-        const battleEntities = world.getEntitiesWith(MapComponents.BattleEntity);
-        for (const entity of battleEntities) {
-            world.destroyEntity(entity);
-        }
-
-        // world.emit(GameEvents.GAME_WILL_RESET); // 削除
-        // world.reset(); // 削除
+        world.emit(GameEvents.GAME_WILL_RESET);
+        world.reset();
         
         const canvas = document.getElementById('game-canvas');
         if (!canvas) {
@@ -371,7 +350,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
         world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
         world.addComponent(playerEntityId, new MapComponents.FacingDirection('down'));
-        world.addComponent(playerEntityId, new MapComponents.MapEntity());
 
         // NOTE: world.reset()でリスナーがクリアされるため、マップモード設定時に再登録する
         world.on(MAP_EVENTS.BATTLE_TRIGGERED, switchToBattleMode);

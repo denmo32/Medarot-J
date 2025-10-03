@@ -3,9 +3,7 @@ import * as Components from './components.js';
 // ★改善: PartInfoを参照することで、パーツに関する定義元を一元化
 import { TeamID, MedalPersonality, PartInfo } from '../common/constants.js'; 
 import { PARTS_DATA } from '../data/parts.js'; 
-import { MEDAROT_SETS } from '../data/medarotSets.js';
-// BattleEntityを追加するために、map/components.jsをインポート
-import * as MapComponents from '../../map/components.js'; 
+import { MEDAROT_SETS } from '../data/medarotSets.js'; 
 
 /**
  * 単一のプレイヤーエンティティを生成し、その特性を定義するコンポーネント群を追加します。
@@ -50,7 +48,6 @@ function createPlayerEntity(world, teamId, index, totalId) {
     world.addComponent(entityId, new Components.Medal(personality));
     world.addComponent(entityId, new Components.BattleLog());
     world.addComponent(entityId, new Components.Position(initialX, yPos));
-    world.addComponent(entityId, new MapComponents.BattleEntity());
 
     return entityId;
 }
