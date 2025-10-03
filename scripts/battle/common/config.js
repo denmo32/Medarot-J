@@ -128,4 +128,16 @@ export const CONFIG = {
         HOME_POSITION_BONUS: false,    // ホームポジションでの補正効果
         FRIENDLY_FIRE: false,          // チームメイトへのダメージ有効化
     },
+
+    // ★新規: アクションの特性定義
+    ACTION_PROPERTIES: {
+        '射撃': {
+            targetTiming: 'pre-move', // 移動前にターゲットを決定
+        },
+        '格闘': {
+            targetTiming: 'post-move', // 移動後にターゲットを決定
+        },
+        // 将来的に '回復', '補助' などを追加可能
+        // '回復': { targetTiming: 'pre-move', targetScope: 'ally' }
+    },
 };

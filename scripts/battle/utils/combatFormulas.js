@@ -208,64 +208,33 @@ export class DefaultCombatStrategy extends CombatStrategy {
 
     /**
      * ダメージを計算する
-     * @param {World} world
-     * @param {number} attackerId
-     * @param {number} targetId
-     * @param {object} action
-     * @param {boolean} isCritical
-     * @param {boolean} isDefenseBypassed
+     * @param {object} attackingPart - 攻撃側のパーツ
+     * @param {object} attackerLegs - 攻撃側の脚部パーツ
+     * @param {object} targetLegs - ターゲットの脚部パーツ
+     * @param {boolean} isCritical - クリティカルヒットか
+     * @param {boolean} isDefenseBypassed - 防御が貫通されたか
      * @returns {number} 計算されたダメージ値
      */
-    calculateDamage(world, attackerId, targetId, action, isCritical = false, isDefenseBypassed = false) {
+    calculateDamage(attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false) {
         try {
             // パラメータの検証
-            if (!world) {
+            if (!attackingPart || !attackerLegs || !targetLegs) {
                 throw new GameError(
-                    'World instance is required for damage calculation',
+                    'Invalid parts data provided for damage calculation.',
                     ErrorType.VALIDATION_ERROR,
-                    { attackerId, targetId, method: 'calculateDamage' }
+                    { attackingPart: !!attackingPart, attackerLegs: !!attackerLegs, targetLegs: !!targetLegs, method: 'calculateDamage' }
                 );
-            }
-            
-            if (typeof attackerId !== 'number' || typeof targetId !== 'number') {
-                throw new GameError(
-                    `Invalid entity IDs for damage calculation: attackerId=${attackerId}, targetId=${targetId}`,
-                    ErrorType.VALIDATION_ERROR,
-                    { attackerId, targetId, method: 'calculateDamage' }
-                );
-            }
-            
-            if (!action || typeof action !== 'object') {
-                throw new GameError(
-                    `Invalid action parameter for damage calculation: ${action}`,
-                    ErrorType.VALIDATION_ERROR,
-                    { attackerId, targetId, action, method: 'calculateDamage' }
-                );
-            }
-
-            const attackerParts = world.getComponent(attackerId, Parts);
-            const attackingPart = attackerParts[action.partKey];
-            const targetParts = world.getComponent(targetId, Parts);
-            if (!attackingPart || !targetParts) {
-                // 攻撃者またはターゲットのパーツ情報が見つからない場合の警告
-                const error = new GameError(
-                    `Parts information not found: attackerParts=${!!attackerParts}, targetParts=${!!targetParts}`,
-                    ErrorType.COMPONENT_ERROR,
-                    { attackerId, targetId, action, method: 'calculateDamage' }
-                );
-                ErrorHandler.handle(error, { attackerId, targetId, action });
-                return 0;
             }
 
             let success = attackingPart.success || 0;
             let might = attackingPart.might || 0;
-            const mobility = targetParts.legs.mobility || 0;
-            let armor = targetParts.legs.armor || 0;
+            const mobility = targetLegs.mobility || 0;
+            let armor = targetLegs.armor || 0;
 
-            const attackerLegs = attackerParts.legs;
             let bonusType = '';
             let bonusValue = 0;
 
+            // 攻撃タイプに応じたボーナス計算
             switch (attackingPart.type) {
                 case '撃つ':
                     // '撃つ'タイプには特別なボーナスがないため、何もしない
@@ -287,27 +256,30 @@ export class DefaultCombatStrategy extends CombatStrategy {
                     break;
                 default:
                     // 不明な攻撃タイプの場合、警告を出す
-                    console.warn(`[WARNING] Unknown attack type: ${attackingPart.type} for entityId: ${attackerId}`);
+                    console.warn(`[WARNING] Unknown attack type: ${attackingPart.type}`);
             }
 
-            const targetLegs = targetParts.legs;
+            // 防御側の脚部パーツによる防御ボーナス
             const defenseBonus = Math.floor((targetLegs.stability || 0) / 2);
             armor += defenseBonus;
             
             let baseDamage;
             if (isCritical) {
+                // クリティカルヒットの場合、ターゲットの機動力と装甲を無視
                 baseDamage = Math.max(0, success);
             } else {
                 if (isDefenseBypassed) {
+                    // 防御が貫通された場合、装甲を0として計算
                     armor = 0;
                 }
+                // 通常のダメージ計算
                 baseDamage = Math.max(0, success - mobility - armor);
             }
 
             const finalDamage = Math.floor(baseDamage / CONFIG.FORMULAS.DAMAGE.BASE_DAMAGE_DIVISOR) + might;
 
             if (CONFIG.DEBUG) {
-                console.log(`--- ダメージ計算 (Attacker: ${attackerId}, Target: ${targetId}) ---`);
+                console.log(`--- ダメージ計算 ---`);
                 console.log(`  攻撃側: 素の成功=${attackingPart.success}, 素の威力=${attackingPart.might}`);
                 if (bonusType) {
                     console.log(`  - 攻撃タイプボーナス (${attackingPart.type}): ${bonusType}`);
@@ -333,9 +305,9 @@ export class DefaultCombatStrategy extends CombatStrategy {
         } catch (error) {
             ErrorHandler.handle(error, { 
                 method: 'calculateDamage', 
-                attackerId, 
-                targetId, 
-                action,
+                attackingPart,
+                attackerLegs,
+                targetLegs,
                 isCritical,
                 isDefenseBypassed
             });
@@ -434,16 +406,15 @@ export function calculateCriticalChance(attackingPart, targetLegs) {
 
 /**
  * ダメージを計算する（後方互換性のための関数）
- * @param {World} world
- * @param {number} attackerId
- * @param {number} targetId
- * @param {object} action
- * @param {boolean} isCritical
- * @param {boolean} isDefenseBypassed
+ * @param {object} attackingPart - 攻撃側のパーツ
+ * @param {object} attackerLegs - 攻撃側の脚部パーツ
+ * @param {object} targetLegs - ターゲットの脚部パーツ
+ * @param {boolean} isCritical - クリティカルヒットか
+ * @param {boolean} isDefenseBypassed - 防御が貫通されたか
  * @returns {number} 計算されたダメージ値
  */
-export function calculateDamage(world, attackerId, targetId, action, isCritical = false, isDefenseBypassed = false) {
-    return defaultStrategy.calculateDamage(world, attackerId, targetId, action, isCritical, isDefenseBypassed);
+export function calculateDamage(attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false) {
+    return defaultStrategy.calculateDamage(attackingPart, attackerLegs, targetLegs, isCritical, isDefenseBypassed);
 }
 
 /**
@@ -488,8 +459,8 @@ export const CombatCalculator = {
         return this.strategy.calculateCriticalChance(attackingPart, targetLegs);
     },
     
-    calculateDamage(world, attackerId, targetId, action, isCritical = false, isDefenseBypassed = false) {
-        return this.strategy.calculateDamage(world, attackerId, targetId, action, isCritical, isDefenseBypassed);
+    calculateDamage(attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false) {
+        return this.strategy.calculateDamage(attackingPart, attackerLegs, targetLegs, isCritical, isDefenseBypassed);
     },
     
     calculateSpeedMultiplier(part, factorType) {

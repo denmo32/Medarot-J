@@ -5,66 +5,26 @@ import { UIStateContext } from '../../battle/core/UIStateContext.js';
 
 /**
  * プレイヤーの入力に基づいて目標タイルを設定し、状態を遷移させるシステム。
+ * UI関連の処理はイベントを発行し、MapUISystemに委譲する。
  */
-
 export class PlayerInputSystem extends BaseSystem {
     constructor(world, input, map) {
         super(world);
         this.input = input;
         this.map = map;
-        this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
-
-        this.menuButtons = [];
-        this.focusedMenuIndex = 0;
     }
 
     update() {
-        const menuElement = document.getElementById('map-menu');
-        const isMenuOpen = menuElement && !menuElement.classList.contains('hidden');
-
-        // 1. メニューが開いている場合の入力処理
-        if (isMenuOpen) {
-            this.handleMenuInput();
-            return; // メニュー表示中は他の処理をブロック
-        }
-
-        // 2. 他のモーダルやUIが表示されている場合は入力をブロック
-        const customizeElement = document.getElementById('customize-container');
-        if ((customizeElement && !customizeElement.classList.contains('hidden')) || (this.uiStateContext && this.uiStateContext.isPausedByModal)) {
+        const uiStateContext = this.world.getSingletonComponent(UIStateContext);
+        // メニューやモーダル表示中はプレイヤーのマップ操作をブロック
+        if (uiStateContext && uiStateContext.isPausedByModal) {
             return;
         }
 
-        // 3. 通常のマップ操作入力処理
         this.handleMapInput();
     }
 
-    handleMenuInput() {
-        if (this.input.wasKeyJustPressed('x')) {
-            this.toggleMenu();
-            return;
-        }
-        if (this.input.wasKeyJustPressed('ArrowUp')) {
-            this.focusedMenuIndex = (this.focusedMenuIndex > 0) ? this.focusedMenuIndex - 1 : this.menuButtons.length - 1;
-            this.updateMenuFocus();
-        }
-        if (this.input.wasKeyJustPressed('ArrowDown')) {
-            this.focusedMenuIndex = (this.focusedMenuIndex < this.menuButtons.length - 1) ? this.focusedMenuIndex + 1 : 0;
-            this.updateMenuFocus();
-        }
-        if (this.input.wasKeyJustPressed('z')) {
-            if (this.menuButtons[this.focusedMenuIndex]) {
-                this.menuButtons[this.focusedMenuIndex].click();
-            }
-        }
-    }
-
     handleMapInput() {
-        // メニューを開く
-        if (this.input.wasKeyJustPressed('x')) {
-            this.toggleMenu();
-            return;
-        }
-
         const entities = this.world.getEntitiesWith(
             MapComponents.PlayerControllable, 
             MapComponents.State, 
@@ -136,81 +96,5 @@ export class PlayerInputSystem extends BaseSystem {
                 break;
             }
         }
-    }
-
-    toggleMenu() {
-        const menuElement = document.getElementById('map-menu');
-        if (!menuElement) return;
-
-        const willBeOpen = menuElement.classList.contains('hidden');
-        menuElement.classList.toggle('hidden');
-
-        if (willBeOpen) {
-            const saveButton = document.querySelector('.map-menu-button[data-action="save"]');
-            const medarotchiButton = document.querySelector('.map-menu-button[data-action="medarotchi"]');
-            this.menuButtons = [medarotchiButton, saveButton].filter(btn => btn);
-            this.focusedMenuIndex = 0;
-            this.setupMenuClickHandlers();
-            this.updateMenuFocus();
-        } else {
-            this.removeFocusIndicators();
-            this.removeMenuClickHandlers();
-        }
-    }
-
-    updateMenuFocus() {
-        // 古いフォーカスをクリア
-        this.menuButtons.forEach(btn => btn.classList.remove('focused'));
-
-        const button = this.menuButtons[this.focusedMenuIndex];
-        if (button) {
-            button.focus();
-            button.classList.add('focused');
-        }
-    }
-
-    removeFocusIndicators() {
-        this.menuButtons.forEach(btn => btn.classList.remove('focused'));
-    }
-
-    setupMenuClickHandlers() {
-        this.menuClickHandlers = new Map();
-        this.menuButtons.forEach(button => {
-            const action = button.dataset.action;
-            let handler;
-            if (action === 'save') {
-                handler = () => { this.saveGame(); this.toggleMenu(); };
-            } else if (action === 'medarotchi') {
-                handler = () => { this.openCustomizeScene(); this.toggleMenu(); };
-            }
-            if (handler) {
-                button.addEventListener('click', handler);
-                this.menuClickHandlers.set(button, handler);
-            }
-        });
-    }
-
-    removeMenuClickHandlers() {
-        if (this.menuClickHandlers) {
-            this.menuClickHandlers.forEach((handler, button) => {
-                button.removeEventListener('click', handler);
-            });
-            this.menuClickHandlers.clear();
-        }
-    }
-
-    saveGame() {
-        const playerEntity = this.world.getEntitiesWith(MapComponents.PlayerControllable)[0];
-        if (!playerEntity) return;
-        const position = this.world.getComponent(playerEntity, MapComponents.Position);
-
-        // localStorageへの直接書き込みをやめ、イベントを発行する
-        this.world.emit('GAME_SAVE_REQUESTED', { position: { x: position.x, y: position.y } });
-
-        console.log('Game save requested.');
-    }
-
-    openCustomizeScene() {
-        this.world.emit('CUSTOMIZE_SCENE_REQUESTED');
     }
 }

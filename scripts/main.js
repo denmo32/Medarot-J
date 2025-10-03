@@ -19,6 +19,7 @@ import { PlayerInputSystem } from './map/systems/PlayerInputSystem.js';
 import { MovementSystem } from './map/systems/MovementSystem.js';
 import { CameraSystem } from './map/systems/CameraSystem.js';
 import { RenderSystem as MapRenderSystem } from './map/systems/RenderSystem.js';
+import { MapUISystem } from './map/systems/MapUISystem.js';
 import { GameDataManager } from './core/GameDataManager.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -91,8 +92,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const contextEntity = world.createEntity();
         world.addComponent(contextEntity, new GameModeContext());
         world.addComponent(contextEntity, new UIStateContext());
-        const gameModeContext = world.getSingletonComponent(GameModeContext);
-        gameModeContext.gameMode = 'map';
 
         // --- Register Map Systems ---
         const playerInputSystem = new PlayerInputSystem(world, inputManager, map);
@@ -100,6 +99,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         world.registerSystem(new MovementSystem(world, map));
         world.registerSystem(new CameraSystem(world, camera, map));
         world.registerSystem(new MapRenderSystem(world, renderer, map, camera));
+        const mapUISystem = new MapUISystem(world, inputManager);
+        world.registerSystem(mapUISystem);
+
+        // --- Set Game Mode ---
+        const gameModeContext = world.getSingletonComponent(GameModeContext);
+        gameModeContext.gameMode = 'map';
 
         // --- Create Map Entities ---
         const playerEntityId = world.createEntity();
@@ -123,10 +128,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('NPC interacted, switching to battle mode');
             switchToBattleMode();
         });
-        world.on('NPC_INTERACTION_REQUESTED', (npc) => {
-            console.log('NPC interaction requested, showing message window');
-            setupNpcInteractionModal(world, npc);
-        });
         world.on('CUSTOMIZE_SCENE_REQUESTED', switchToCustomizeMode);
         
         // セーブ要求イベントのリスナー
@@ -138,73 +139,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         if (options.restoreMenu) {
-            playerInputSystem.toggleMenu();
+            mapUISystem.toggleMenu();
         }
     }
 
-    /**
-     * Displays the NPC interaction modal and handles user input.
-     * @param {World} world - The game world instance.
-     * @param {object} npc - The NPC object that triggered the interaction.
-     */
-    function setupNpcInteractionModal(world, npc) {
-        const messageWindow = document.getElementById('interaction-message-window');
-        const confirmButton = document.getElementById('confirm-battle-button');
-        const cancelButton = document.getElementById('cancel-battle-button');
-        const uiStateContext = world.getSingletonComponent(UIStateContext);
 
-        if (uiStateContext) {
-            uiStateContext.isPausedByModal = true;
-            uiStateContext.modalJustOpened = true;
-        }
-
-        let handleConfirm;
-        let handleCancel;
-        let recalculatePosition;
-
-        const cleanup = () => {
-            confirmButton.removeEventListener('click', handleConfirm);
-            cancelButton.removeEventListener('click', handleCancel);
-            window.removeEventListener('resize', recalculatePosition);
-            messageWindow.classList.add('hidden');
-            if (uiStateContext) {
-                uiStateContext.isPausedByModal = false;
-            }
-        };
-
-        handleConfirm = () => {
-            cleanup();
-            world.emit('NPC_INTERACTED', npc);
-        };
-
-        handleCancel = () => {
-            cleanup();
-            const canvas = document.getElementById('game-canvas');
-            if (canvas) {
-                canvas.focus();
-            }
-        };
-
-        confirmButton.addEventListener('click', handleConfirm);
-        cancelButton.addEventListener('click', handleCancel);
-
-        messageWindow.classList.remove('hidden');
-        confirmButton.focus();
-
-        recalculatePosition = () => {
-            const canvas = document.getElementById('game-canvas');
-            if (!canvas) return;
-            const canvasRect = canvas.getBoundingClientRect();
-            const messageWindowRect = messageWindow.getBoundingClientRect();
-
-            messageWindow.style.top = `${canvasRect.bottom - messageWindowRect.height}px`;
-            messageWindow.style.left = `${canvasRect.left + (canvasRect.width / 2)}px`;
-            messageWindow.style.transform = 'translateX(-50%)';
-        };
-
-        recalculatePosition();
-        window.addEventListener('resize', recalculatePosition);
-    }
 
     function switchToCustomizeMode() {
         console.log("Mode Switch: Customize");
@@ -307,41 +246,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const deltaTime = timestamp - lastTime;
         lastTime = timestamp;
 
+        // ワールド内の全システムを更新
         world.update(deltaTime);
 
-        const uiStateContext = world.getSingletonComponent(UIStateContext);
-        if (uiStateContext && uiStateContext.isPausedByModal) {
-            if (uiStateContext.modalJustOpened) {
-                uiStateContext.modalJustOpened = false;
-            } else {
-                const messageWindow = document.getElementById('interaction-message-window');
-                if (!messageWindow.classList.contains('hidden')) {
-                    const confirmButton = document.getElementById('confirm-battle-button');
-                    const cancelButton = document.getElementById('cancel-battle-button');
-
-                    if (inputManager.wasKeyJustPressed('ArrowLeft') || inputManager.wasKeyJustPressed('ArrowRight') || inputManager.wasKeyJustPressed('ArrowUp') || inputManager.wasKeyJustPressed('ArrowDown')) {
-                        if (document.activeElement === confirmButton) {
-                            cancelButton.focus();
-                        } else {
-                            confirmButton.focus();
-                        }
-                    }
-
-                    if (inputManager.wasKeyJustPressed('z')) {
-                        if (document.activeElement instanceof HTMLButtonElement) {
-                            document.activeElement.click();
-                        } else {
-                            confirmButton.click();
-                        }
-                    }
-
-                    if (inputManager.wasKeyJustPressed('x')) {
-                        cancelButton.click();
-                    }
-                }
-            }
-        }
-
+        // 入力マネージャーの状態を更新
         inputManager.update();
 
         requestAnimationFrame(gameLoop);

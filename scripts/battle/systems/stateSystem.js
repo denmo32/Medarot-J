@@ -72,6 +72,8 @@ export class StateSystem {
         action.type = actionType;
         action.targetId = targetId; // 格闘の場合はnullが設定される
         action.targetPartKey = targetPartKey; // 格闘の場合はnullが設定される
+        // ★新規: アクションの特性をCONFIGから取得して設定
+        action.properties = CONFIG.ACTION_PROPERTIES[actionType] || {};
 
         // 4. エンティティの状態を「行動選択済みチャージ中」へ遷移させます。
         gameState.state = PlayerStateType.SELECTED_CHARGING;

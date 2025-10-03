@@ -139,8 +139,8 @@ export class ActionSystem extends BaseSystem {
             const gameState = this.getCachedComponent(executor, GameState);
             if (!action || !gameState) return;
             
-            // ★追加: 格闘攻撃の場合、実行直前にターゲットを決定する
-            if (action.type === '格闘' && action.targetId === null) {
+            // ★改善: アクションのプロパティに基づき、実行直前にターゲットを決定する
+            if (action.properties.targetTiming === 'post-move' && action.targetId === null) {
                 const nearestEnemyId = findNearestEnemy(this.world, executor);
                 if (nearestEnemyId !== null) {
                     // 最も近い敵にターゲットを設定
@@ -178,128 +178,156 @@ export class ActionSystem extends BaseSystem {
 
     /**
      * ViewSystemでの実行アニメーションが完了した際に呼び出されます。
-     * ダメージ計算や命中判定を行い、結果をモーダルで表示するよう要求します。
+     * 攻撃の命中判定、ダメージ計算、結果のUI表示要求までの一連の処理を統括します。
      * @param {object} detail - イベント詳細 ({ entityId })
      */
     onExecutionAnimationCompleted(detail) {
         try {
             const { entityId: executor } = detail;
-            const action = this.getCachedComponent(executor, Action);
-            if (!action) {
-                console.warn(`ActionSystem: No action component found for executor: ${executor}`);
+
+            // 手順1: 攻撃に必要なコンポーネント群をまとめて取得します。
+            const components = this._getCombatComponents(executor);
+            if (!components) {
+                console.warn(`ActionSystem: Missing required components for attack calculation involving executor: ${executor}`);
+                // ターゲットがいない（格闘の空振りなど）場合、攻撃シーケンスを完了させる
+                this.world.emit(GameEvents.ACTION_EXECUTED, { attackerId: executor, damage: 0, resultMessage: '攻撃は空を切った！' });
+                this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
                 return;
             }
-            
-            const attackerInfo = this.getCachedComponent(executor, PlayerInfo);
-            const targetInfo = this.getCachedComponent(action.targetId, PlayerInfo);
-            const attackerParts = this.getCachedComponent(executor, Parts);
-            const targetParts = this.getCachedComponent(action.targetId, Parts);
-            if (!attackerInfo || !targetInfo || !attackerParts || !targetParts) {
-                console.warn(`ActionSystem: Missing required components for attack calculation between ${executor} and ${action.targetId}`);
-                return;
-            }
-            
+            const { action, attackerInfo, targetInfo, attackerParts, targetParts } = components;
             const attackingPart = attackerParts[action.partKey];
+            const attackerLegs = attackerParts.legs;
             const targetLegs = targetParts.legs;
-            
-            // パーツデータの検証
-            if (!attackingPart) {
-                throw new GameError(
-                    `Attacking part not found: ${action.partKey} for entityId: ${executor}`,
-                    ErrorType.COMPONENT_ERROR,
-                    { executor, partKey: action.partKey, method: 'onExecutionAnimationCompleted' }
-                );
-            }
-            
-            if (!targetLegs) {
-                throw new GameError(
-                    `Target legs not found for entityId: ${action.targetId}`,
-                    ErrorType.COMPONENT_ERROR,
-                    { targetId: action.targetId, method: 'onExecutionAnimationCompleted' }
-                );
-            }
-            
-            let finalDamage = 0;
-            let finalTargetPartKey = action.targetPartKey;
-            let resultMessage = '';
+
+            // 手順2: 攻撃の命中結果（回避、クリティカル、防御）を決定します。
+            const outcome = this._resolveHitOutcome(attackingPart, targetLegs, action.targetId, action.targetPartKey);
+
+            // 手順3: 命中結果に基づいて最終的なダメージを計算します。
+            const finalDamage = outcome.isHit
+                ? calculateDamage(
+                    attackingPart,
+                    attackerLegs,
+                    targetLegs,
+                    outcome.isCritical,
+                    !outcome.isCritical && !outcome.isDefended // isDefenseBypassed
+                )
+                : 0;
+
+            // 手順4: 結果に基づいたUIメッセージを生成します。
+            const resultMessage = this._generateResultMessage(targetInfo, outcome, finalDamage);
+
+            // 手順5: 結果をActionコンポーネントに一時保存します（防御によるターゲット変更などを反映）。
+            action.targetPartKey = outcome.finalTargetPartKey;
+
+            // 手順6: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
             const declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！　${attackingPart.trait}！`;
-            let isCritical = false;
-            let isDefended = false;
-            
-            // --- 1. 回避判定 ---
-            const evasionChance = calculateEvasionChance(targetLegs.mobility, attackingPart.success);
-            const evasionRoll = Math.random();
-
-            if (evasionRoll < evasionChance) {
-                // 回避成功
-                finalDamage = 0;
-                resultMessage = `${targetInfo.name}は攻撃を回避！`;
-            } else {
-                // 回避失敗（命中確定）
-                
-                // ★新規: 2. クリティカル判定
-                const critChance = calculateCriticalChance(attackingPart, targetLegs);
-                const critRoll = Math.random();
-                isCritical = critRoll < critChance;
-
-                if (isCritical) {
-                    // クリティカルヒットの場合、防御判定は行わない
-                    resultMessage = 'クリティカル！　';
-                } else {
-                    // 通常ヒットの場合のみ、防御判定を行う
-                    const defenseChance = calculateDefenseChance(targetLegs.armor);
-                    const defenseRoll = Math.random();
-                    if (defenseRoll < defenseChance) {
-                        const defensePartKey = findBestDefensePart(this.world, action.targetId);
-                        if (defensePartKey) {
-                            isDefended = true;
-                            finalTargetPartKey = defensePartKey;
-                        }
-                    }
-                }
-
-                // --- 3. ダメージ計算 ---
-                // ★変更: isCritical, isDefended の状態に応じて、適切なフラグを立ててダメージ計算を呼び出す
-                finalDamage = calculateDamage(
-                    this.world, 
-                    executor, 
-                    action.targetId, 
-                    action, 
-                    isCritical, // isCritical: trueなら回避度・防御度を無視
-                    !isCritical && !isDefended // isDefenseBypassed: クリティカルでなく、かつ防御失敗時にtrue
-                );
-                
-                // ★改善: PartKeyToInfoMap を使用して、パーツキーから日本語名を動的に取得
-                const finalTargetPartName = PartKeyToInfoMap[finalTargetPartKey]?.name || '不明な部位';
-                if (isDefended) {
-                    resultMessage = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
-                } else {
-                    // ★変更: クリティカルの場合、既存のresultMessageに追記する
-                    resultMessage += `${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
-                }
-            }
-            
-            // --- 4. 結果をActionコンポーネントに一時保存 ---        
-            action.targetPartKey = finalTargetPartKey;
-
-            // ★修正: 計算結果をイベントペイロードで直接渡す
             this.world.emit(GameEvents.SHOW_MODAL, {
                 type: ModalType.ATTACK_DECLARATION,
                 data: {
                     entityId: executor,
                     message: declarationMessage,
-                    // 後続の処理で必要になるデータをペイロードに含める
                     damage: finalDamage,
                     resultMessage: resultMessage,
                     targetId: action.targetId,
-                    targetPartKey: finalTargetPartKey,
-                    isCritical: isCritical,
-                    isDefended: isDefended,
+                    targetPartKey: outcome.finalTargetPartKey,
+                    isCritical: outcome.isCritical,
+                    isDefended: outcome.isDefended,
                 },
                 immediate: true
             });
+
         } catch (error) {
             ErrorHandler.handle(error, { method: 'onExecutionAnimationCompleted', detail });
         }
+    }
+
+    /**
+     * @private
+     * 攻撃の実行に必要なコンポーネント群をまとめて取得します。
+     * @param {number} executorId - 攻撃者のエンティティID
+     * @returns {object|null} 必要なコンポーネントをまとめたオブジェクト、または取得に失敗した場合null
+     */
+    _getCombatComponents(executorId) {
+        const action = this.getCachedComponent(executorId, Action);
+        if (!action || !this.isValidEntity(action.targetId)) return null;
+
+        const attackerInfo = this.getCachedComponent(executorId, PlayerInfo);
+        const targetInfo = this.getCachedComponent(action.targetId, PlayerInfo);
+        const attackerParts = this.getCachedComponent(executorId, Parts);
+        const targetParts = this.getCachedComponent(action.targetId, Parts);
+
+        if (!attackerInfo || !targetInfo || !attackerParts || !targetParts) {
+            return null;
+        }
+        return { action, attackerInfo, targetInfo, attackerParts, targetParts };
+    }
+
+    /**
+     * @private
+     * 攻撃の命中結果（回避、クリティカル、防御）を判定します。
+     * @param {object} attackingPart - 攻撃側のパーツ
+     * @param {object} targetLegs - ターゲットの脚部パーツ
+     * @param {number} targetId - ターゲットのエンティティID
+     * @param {string} initialTargetPartKey - 当初のターゲットパーツキー
+     * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果オブジェクト
+     */
+    _resolveHitOutcome(attackingPart, targetLegs, targetId, initialTargetPartKey) {
+        // 1. 回避判定
+        const evasionChance = calculateEvasionChance(targetLegs.mobility, attackingPart.success);
+        if (Math.random() < evasionChance) {
+            return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
+        }
+
+        // 命中確定
+        let isCritical = false;
+        let isDefended = false;
+        let finalTargetPartKey = initialTargetPartKey;
+
+        // 2. クリティカル判定
+        const critChance = calculateCriticalChance(attackingPart, targetLegs);
+        isCritical = Math.random() < critChance;
+
+        if (!isCritical) {
+            // 3. 防御判定 (クリティカルでない場合のみ)
+            const defenseChance = calculateDefenseChance(targetLegs.armor);
+            if (Math.random() < defenseChance) {
+                const defensePartKey = findBestDefensePart(this.world, targetId);
+                if (defensePartKey) {
+                    isDefended = true;
+                    finalTargetPartKey = defensePartKey;
+                }
+            }
+        }
+
+        return { isHit: true, isCritical, isDefended, finalTargetPartKey };
+    }
+
+    /**
+     * @private
+     * 攻撃結果に基づいてUIに表示するメッセージを生成します。
+     * @param {PlayerInfo} targetInfo - ターゲットのPlayerInfoコンポーネント
+     * @param {object} outcome - _resolveHitOutcomeからの命中結果
+     * @param {number} finalDamage - 最終ダメージ
+     * @returns {string} 生成された結果メッセージ
+     */
+    _generateResultMessage(targetInfo, outcome, finalDamage) {
+        if (!outcome.isHit) {
+            return `${targetInfo.name}は攻撃を回避！`;
+        }
+
+        const finalTargetPartName = PartKeyToInfoMap[outcome.finalTargetPartKey]?.name || '不明な部位';
+        let message = '';
+
+        if (outcome.isCritical) {
+            message = 'クリティカル！　';
+        }
+
+        if (outcome.isDefended) {
+            message = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
+        } else {
+            message += `${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
+        }
+
+        return message;
     }
 }

@@ -103,6 +103,7 @@ export class Action {
         this.partKey = null;         // 使用するパーツのキー ('head', 'rightArm'など)
         this.targetId = null;        // ターゲットのエンティティID
         this.targetPartKey = null;   // ターゲットとして選択されたパーツのキー
+        this.properties = {};        // ★新規: アクションの特性 (targetTimingなど)
     }
 }
 
