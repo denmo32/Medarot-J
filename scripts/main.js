@@ -31,6 +31,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const mapContainer = document.getElementById('map-container');
     const battleContainer = document.getElementById('battle-container');
 
+    // ★ 変更: 永続化するエンティティのデータを保存する変数
+    let persistentEntityData = null;
+
     /**
      * Sets up the systems and entities required for battle mode.
      */
@@ -54,7 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     /**
      * Sets up the systems and entities for map exploration mode.
      */
-    async function setupMapMode() {
+    async function setupMapMode(options = {}) {
         world.emit(GameEvents.GAME_WILL_RESET);
         world.reset();
         
@@ -82,23 +85,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         gameModeContext.gameMode = 'map';
 
         // --- Register Map Systems ---
-        world.registerSystem(new PlayerInputSystem(world, inputManager, map));
+        const playerInputSystem = new PlayerInputSystem(world, inputManager, map);
+        world.registerSystem(playerInputSystem);
         world.registerSystem(new MovementSystem(world, map));
         world.registerSystem(new CameraSystem(world, camera, map));
         world.registerSystem(new MapRenderSystem(world, renderer, map, camera));
 
         // --- Create Map Entities ---
         const playerEntityId = world.createEntity();
-        const initialX = 1 * MAP_CONFIG.TILE_SIZE + (MAP_CONFIG.TILE_SIZE - MAP_CONFIG.PLAYER_SIZE) / 2;
-        const initialY = 1 * MAP_CONFIG.TILE_SIZE + (MAP_CONFIG.TILE_SIZE - MAP_CONFIG.PLAYER_SIZE) / 2;
 
-        world.addComponent(playerEntityId, new MapComponents.Position(initialX, initialY));
-        world.addComponent(playerEntityId, new MapComponents.Velocity(0, 0));
-        world.addComponent(playerEntityId, new MapComponents.Renderable('circle', 'gold', MAP_CONFIG.PLAYER_SIZE));
-        world.addComponent(playerEntityId, new MapComponents.PlayerControllable());
-        world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
-        world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
-        world.addComponent(playerEntityId, new MapComponents.FacingDirection('down'));
+        // ★ 変更: 永続化データがあれば、それを使ってエンティティを復元
+        if (persistentEntityData) {
+            for (const component of persistentEntityData) {
+                world.addComponent(playerEntityId, component);
+            }
+            persistentEntityData = null; // 使用後はリセット
+        } else {
+            // 永続化データがない場合（新規ゲームなど）はデフォルトで作成
+            const initialX = 1 * MAP_CONFIG.TILE_SIZE + (MAP_CONFIG.TILE_SIZE - MAP_CONFIG.PLAYER_SIZE) / 2;
+            const initialY = 1 * MAP_CONFIG.TILE_SIZE + (MAP_CONFIG.TILE_SIZE - MAP_CONFIG.PLAYER_SIZE) / 2;
+
+            world.addComponent(playerEntityId, new MapComponents.Position(initialX, initialY));
+            world.addComponent(playerEntityId, new MapComponents.Velocity(0, 0));
+            world.addComponent(playerEntityId, new MapComponents.Renderable('circle', 'gold', MAP_CONFIG.PLAYER_SIZE));
+            world.addComponent(playerEntityId, new MapComponents.PlayerControllable());
+            world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
+            world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
+            world.addComponent(playerEntityId, new MapComponents.FacingDirection('down'));
+        }
 
         // NOTE: world.reset()でリスナーがクリアされるため、マップモード設定時に再登録する
         world.on(MAP_EVENTS.BATTLE_TRIGGERED, switchToBattleMode);
@@ -114,6 +128,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('NPC interaction requested, showing message window');
             setupNpcInteractionModal(world, npc);
         });
+
+        // ★新規: カスタマイズシーンへの遷移要求をリッスン
+        world.on('CUSTOMIZE_SCENE_REQUESTED', switchToCustomizeMode);
+
+        // ★追加: オプションに基づいてメニューを復元
+        if (options.restoreMenu) {
+            playerInputSystem.toggleMenu();
+        }
     }
 
     /**
@@ -180,11 +202,79 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.addEventListener('resize', recalculatePosition);
     }
 
+    // ★新規: カスタマイズシーンへの遷移とセットアップ
+    function switchToCustomizeMode() {
+        console.log("Mode Switch: Customize");
+
+        // プレイヤーエンティティの全コンポーネントを保存
+        const playerEntities = world.getEntitiesWith(MapComponents.PlayerControllable);
+        if (playerEntities.length > 0) {
+            const playerEntityId = playerEntities[0];
+            const componentClasses = world.entities.get(playerEntityId);
+            if (componentClasses) {
+                persistentEntityData = [];
+                for (const componentClass of componentClasses) {
+                    const componentInstance = world.getComponent(playerEntityId, componentClass);
+                    if (componentInstance) {
+                        persistentEntityData.push(componentInstance);
+                    }
+                }
+            }
+        }
+        
+        // カスタマイズシーンのセットアップを実行
+        setupCustomizeScene();
+    }
+
+    function setupCustomizeScene() {
+        // ワールドをリセット
+        world.reset();
+        
+        // 必要なコンテキストを再作成
+        const contextEntity = world.createEntity();
+        world.addComponent(contextEntity, new GameModeContext());
+        world.addComponent(contextEntity, new UIStateContext());
+        const gameModeContext = world.getSingletonComponent(GameModeContext);
+        gameModeContext.gameMode = 'customize';
+
+        // UIの表示切り替え
+        mapContainer.classList.add('hidden');
+        battleContainer.classList.add('hidden');
+        
+        let customizeContainer = document.getElementById('customize-container');
+        if (!customizeContainer) {
+            customizeContainer = document.createElement('div');
+            customizeContainer.id = 'customize-container';
+            customizeContainer.className = 'customize-container';
+            customizeContainer.innerHTML = '<h2>カスタマイズ画面</h2><p>実装中</p><p style="margin-top: 20px; font-size: 0.9em;">(Xキーでマップに戻る)</p>';
+            document.body.appendChild(customizeContainer);
+        } else {
+            customizeContainer.classList.remove('hidden');
+        }
+
+        // マップに戻るためのキー入力ハンドラ
+        const handleCustomizeKeyDown = (event) => {
+            if (event.key === 'x' || event.key === 'X') {
+                window.removeEventListener('keydown', handleCustomizeKeyDown);
+                
+                // customizeContainerを非表示にする
+                const customizeContainer = document.getElementById('customize-container');
+                if (customizeContainer) {
+                    customizeContainer.classList.add('hidden');
+                }
+                
+                // マップモードに切り替える
+                switchToMapMode({ restoreMenu: true });
+            }
+        };
+        window.addEventListener('keydown', handleCustomizeKeyDown);
+    }
+
     /**
      * Switches the game to map mode.
      */
-    function switchToMapMode() {
-        setupMapMode().then(() => {
+    function switchToMapMode(options = {}) {
+        setupMapMode(options).then(() => {
             mapContainer.classList.remove('hidden');
             battleContainer.classList.add('hidden');
             console.log("Mode Switch: Map Exploration");
@@ -196,6 +286,23 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     function switchToBattleMode() {
         console.log("Mode Switch: Battle");
+
+        // ★ 変更: プレイヤーエンティティの全コンポーネントを保存
+        const playerEntities = world.getEntitiesWith(MapComponents.PlayerControllable);
+        if (playerEntities.length > 0) {
+            const playerEntityId = playerEntities[0];
+            const componentClasses = world.entities.get(playerEntityId);
+            if (componentClasses) {
+                persistentEntityData = [];
+                for (const componentClass of componentClasses) {
+                    const componentInstance = world.getComponent(playerEntityId, componentClass);
+                    if (componentInstance) {
+                        persistentEntityData.push(componentInstance);
+                    }
+                }
+            }
+        }
+
         setupBattleMode();
         
         battleContainer.classList.remove('hidden');
@@ -286,7 +393,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     startFromSaveButton.addEventListener('click', async () => {
-        await setupMapModeFromSave();
+        await setupMapModeFromSave({});
         titleContainer.classList.add('hidden');
         mapContainer.classList.remove('hidden');
         battleContainer.classList.add('hidden');
@@ -300,7 +407,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     battleContainer.classList.add('hidden');
 
     // セーブデータからマップをセットアップする関数
-    async function setupMapModeFromSave() {
+    async function setupMapModeFromSave(options = {}) {
         world.emit(GameEvents.GAME_WILL_RESET);
         world.reset();
         
@@ -328,7 +435,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         gameModeContext.gameMode = 'map';
 
         // --- Register Map Systems ---
-        world.registerSystem(new PlayerInputSystem(world, inputManager, map));
+        const playerInputSystem = new PlayerInputSystem(world, inputManager, map);
+        world.registerSystem(playerInputSystem);
         world.registerSystem(new MovementSystem(world, map));
         world.registerSystem(new CameraSystem(world, camera, map));
         world.registerSystem(new MapRenderSystem(world, renderer, map, camera));
@@ -365,6 +473,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('NPC interaction requested, showing message window');
             setupNpcInteractionModal(world, npc);
         });
+
+        // ★新規: カスタマイズシーンへの遷移要求をリッスン
+        world.on('CUSTOMIZE_SCENE_REQUESTED', switchToCustomizeMode);
+
+        // ★追加: オプションに基づいてメニューを復元
+        if (options.restoreMenu) {
+            playerInputSystem.toggleMenu();
+        }
     }
 
     // --- Game Screen Scaling ---

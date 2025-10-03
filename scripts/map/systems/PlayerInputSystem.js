@@ -159,22 +159,18 @@ export class PlayerInputSystem extends BaseSystem {
     }
 
     updateMenuFocus() {
-        this.removeFocusIndicators();
+        // 古いフォーカスをクリア
+        this.menuButtons.forEach(btn => btn.classList.remove('focused'));
+
         const button = this.menuButtons[this.focusedMenuIndex];
         if (button) {
             button.focus();
-            const indicator = document.createElement('span');
-            indicator.className = 'focus-indicator';
-            indicator.textContent = '▶';
-            button.parentElement.insertBefore(indicator, button);
-            indicator.style.position = 'absolute';
-            indicator.style.left = (button.offsetLeft - 20) + 'px';
-            indicator.style.top = (button.offsetTop + button.offsetHeight / 2 - indicator.offsetHeight / 2) + 'px';
+            button.classList.add('focused');
         }
     }
 
     removeFocusIndicators() {
-        document.querySelectorAll('.focus-indicator').forEach(el => el.remove());
+        this.menuButtons.forEach(btn => btn.classList.remove('focused'));
     }
 
     setupMenuClickHandlers() {
@@ -213,8 +209,6 @@ export class PlayerInputSystem extends BaseSystem {
     }
 
     openCustomizeScene() {
-        import('../../customize/scene.js')
-            .then(module => module.setupCustomizeMode(this.world))
-            .catch(err => console.error('Failed to load customize scene:', err));
+        this.world.emit('CUSTOMIZE_SCENE_REQUESTED');
     }
 }
