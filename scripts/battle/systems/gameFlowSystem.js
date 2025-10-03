@@ -69,7 +69,9 @@ export class GameFlowSystem extends BaseSystem {
                 gauge.value = gauge.max;
                 gauge.speedMultiplier = 1.0; // 速度補正をリセット
                 // 選択済みのアクションをリセット
-                this.world.addComponent(id, new Action()); 
+                this.world.addComponent(id, new Action());
+                // ★新規: StateSystemのポーリングをなくすため、ここで直接キュー追加を要求
+                this.world.emit(GameEvents.ACTION_QUEUE_REQUEST, { entityId: id });
             }
         });
     }

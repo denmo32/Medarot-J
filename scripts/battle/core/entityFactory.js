@@ -11,15 +11,15 @@ import { MEDAROT_SETS } from '../data/medarotSets.js';
  * @param {string} teamId - チームID
  * @param {number} index - チーム内でのインデックス
  * @param {number} totalId - 全体での通し番号
+ * @param {object | null} medarotData - プレイヤーのメダロットデータ (指定された場合)
  * @returns {number} 生成されたエンティティID
  */
-function createPlayerEntity(world, teamId, index, totalId) {
-    // ★新規: 機体セットをランダムに選択
-    const medarotSet = MEDAROT_SETS[Math.floor(Math.random() * MEDAROT_SETS.length)];
+function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
+    // 機体セットの選択ロジック
+    const medarotSet = medarotData ? medarotData.set : MEDAROT_SETS[Math.floor(Math.random() * MEDAROT_SETS.length)];
+    const name = medarotData ? medarotData.name : `${medarotSet.name} #${totalId}`;
 
     const entityId = world.createEntity();
-    // ★変更: 名前を機体セットから取得し、通し番号を追加
-    const name = `${medarotSet.name} #${totalId}`;
     const isLeader = index === 0;
 
     const personalityTypes = Object.values(MedalPersonality);
@@ -55,12 +55,18 @@ function createPlayerEntity(world, teamId, index, totalId) {
 /**
  * 設定に基づいて、全プレイヤーエンティティを生成します。
  * @param {World} world - ワールドオブジェクト
+ * @param {Array<Object>} [playerTeamData=null] - プレイヤーチームのメダロット構成データ
  */
-export function createPlayers(world) {
+export function createPlayers(world, playerTeamData = null) {
     let idCounter = 0;
     for (const teamId of Object.keys(CONFIG.TEAMS)) {
         for (let i = 0; i < CONFIG.PLAYERS_PER_TEAM; i++) {
-            createPlayerEntity(world, teamId, i, ++idCounter);
+            let medarotData = null;
+            // チーム1 (プレイヤー側) で、かつデータが提供されている場合
+            if (teamId === TeamID.TEAM1 && playerTeamData && playerTeamData[i]) {
+                medarotData = playerTeamData[i];
+            }
+            createPlayerEntity(world, teamId, i, ++idCounter, medarotData); // medarotDataを渡す
         }
     }
 }

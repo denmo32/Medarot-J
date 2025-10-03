@@ -2,7 +2,7 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
-import { ModalType } from '../common/constants.js';
+import { ModalType, PartInfo } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
 
 export class ActionPanelSystem extends BaseSystem {
@@ -118,6 +118,8 @@ export class ActionPanelSystem extends BaseSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showActionPanel(detail.type, detail.data));
         this.world.on(GameEvents.HIDE_MODAL, () => this.hideActionPanel());
+        // ACTION_EXECUTEDイベントを購読し、結果表示モーダルを出す
+        this.world.on(GameEvents.ACTION_EXECUTED, (detail) => this.onActionExecuted(detail));
     }
 
     /**
@@ -200,6 +202,26 @@ export class ActionPanelSystem extends BaseSystem {
     }
 
     /**
+     * ★新規: 行動実行結果を受け取り、結果表示モーダルを表示するハンドラ
+     * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
+     */
+    onActionExecuted(detail) {
+        // ActionSystemから発行されたACTION_EXECUTEDイベントを受け、
+        // UIに結果を表示するためのモーダル表示を要求します。
+        this.world.emit(GameEvents.SHOW_MODAL, {
+            type: ModalType.EXECUTION_RESULT,
+            data: {
+                entityId: detail.attackerId,
+                message: detail.resultMessage,
+                targetId: detail.targetId,
+                targetPartKey: detail.targetPartKey,
+                damage: detail.damage
+            },
+            immediate: true
+        });
+    }
+
+    /**
      * アクションパネルを表示し、指定されたタイプのモーダルを構成します。
      * @param {string} type - 表示するモーダルのタイプ (ModalType)
      * @param {object} data - モーダルのコンテンツを生成するためのデータ
@@ -260,9 +282,9 @@ export class ActionPanelSystem extends BaseSystem {
             const availableButtons = data.buttons.filter(b => !b.isBroken);
             // 優先順位: 頭 -> 右腕 -> 左腕
             const initialFocusKey = 
-                availableButtons.find(b => b.partKey === 'head')?.partKey ||
-                availableButtons.find(b => b.partKey === 'rightArm')?.partKey ||
-                availableButtons.find(b => b.partKey === 'leftArm')?.partKey;
+                availableButtons.find(b => b.partKey === PartInfo.HEAD.key)?.partKey ||
+                availableButtons.find(b => b.partKey === PartInfo.RIGHT_ARM.key)?.partKey ||
+                availableButtons.find(b => b.partKey === PartInfo.LEFT_ARM.key)?.partKey;
 
             if (initialFocusKey) {
                 // DOMの描画を待ってからフォーカスを設定
@@ -425,33 +447,33 @@ export class ActionPanelSystem extends BaseSystem {
         const has = (partKey) => availableButtons.some(b => b.partKey === partKey);
 
         switch (this.focusedButtonKey) {
-            case 'head':
+            case PartInfo.HEAD.key:
                 if (key === 'arrowdown' || key === 'arrowleft') {
-                    if (has('rightArm')) nextFocusKey = 'rightArm';
-                    else if (has('leftArm')) nextFocusKey = 'leftArm';
+                    if (has(PartInfo.RIGHT_ARM.key)) nextFocusKey = PartInfo.RIGHT_ARM.key;
+                    else if (has(PartInfo.LEFT_ARM.key)) nextFocusKey = PartInfo.LEFT_ARM.key;
                 } else if (key === 'arrowright') {
-                    if (has('leftArm')) nextFocusKey = 'leftArm';
-                    else if (has('rightArm')) nextFocusKey = 'rightArm';
+                    if (has(PartInfo.LEFT_ARM.key)) nextFocusKey = PartInfo.LEFT_ARM.key;
+                    else if (has(PartInfo.RIGHT_ARM.key)) nextFocusKey = PartInfo.RIGHT_ARM.key;
                 }
                 break;
-            case 'rightArm':
+            case PartInfo.RIGHT_ARM.key:
                 if (key === 'arrowup') {
-                    if (has('head')) nextFocusKey = 'head';
+                    if (has(PartInfo.HEAD.key)) nextFocusKey = PartInfo.HEAD.key;
                 } else if (key === 'arrowright') {
-                    if (has('leftArm')) nextFocusKey = 'leftArm';
+                    if (has(PartInfo.LEFT_ARM.key)) nextFocusKey = PartInfo.LEFT_ARM.key;
                 }
                 break;
-            case 'leftArm':
+            case PartInfo.LEFT_ARM.key:
                 if (key === 'arrowup') {
-                    if (has('head')) nextFocusKey = 'head';
+                    if (has(PartInfo.HEAD.key)) nextFocusKey = PartInfo.HEAD.key;
                 } else if (key === 'arrowleft') {
-                    if (has('rightArm')) nextFocusKey = 'rightArm';
+                    if (has(PartInfo.RIGHT_ARM.key)) nextFocusKey = PartInfo.RIGHT_ARM.key;
                 }
                 break;
             default: // no focus
-                if (has('head')) nextFocusKey = 'head';
-                else if (has('rightArm')) nextFocusKey = 'rightArm';
-                else if (has('leftArm')) nextFocusKey = 'leftArm';
+                if (has(PartInfo.HEAD.key)) nextFocusKey = PartInfo.HEAD.key;
+                else if (has(PartInfo.RIGHT_ARM.key)) nextFocusKey = PartInfo.RIGHT_ARM.key;
+                else if (has(PartInfo.LEFT_ARM.key)) nextFocusKey = PartInfo.LEFT_ARM.key;
                 break;
         }
 

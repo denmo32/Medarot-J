@@ -34,12 +34,12 @@ export class ActionSystem extends BaseSystem {
 
     /**
      * ★新規: 攻撃宣言モーダルが確認された際に呼び出されます。
-     * @param {object} detail - イベント詳細 ({ entityId, damage, resultMessage, targetId, targetPartKey })
+     * @param {object} detail - イベント詳細 ({ entityId, damage, resultMessage, targetId, targetPartKey, isCritical, isDefended })
      */
     onAttackDeclarationConfirmed(detail) {
         try {
             // ★修正: ペイロードから全情報を取得
-            const { entityId, damage, resultMessage, targetId, targetPartKey } = detail;
+            const { entityId, damage, resultMessage, targetId, targetPartKey, isCritical, isDefended } = detail;
 
             // パラメータの検証
             if (typeof entityId !== 'number' || typeof damage !== 'number' || typeof resultMessage !== 'string') {
@@ -52,6 +52,19 @@ export class ActionSystem extends BaseSystem {
 
             // 格闘攻撃が空振りした場合など、ターゲットが存在しない場合はシーケンスを完了させる
             if (!targetId) {
+                // ACTION_EXECUTEDに空振り情報を詰めて発行
+                this.world.emit(GameEvents.ACTION_EXECUTED, {
+                    attackerId: entityId,
+                    targetId: null,
+                    targetPartKey: null,
+                    damage: 0,
+                    isPartBroken: false,
+                    isPlayerBroken: false,
+                    resultMessage: '攻撃は空を切った！',
+                    isCritical: false,
+                    isDefended: false,
+                });
+                // 空振りでもシーケンス完了イベントを発行
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId });
                 return;
             }
@@ -79,7 +92,7 @@ export class ActionSystem extends BaseSystem {
             const isPartBroken = newHp === 0 && !targetPart.isBroken;
             const isPlayerBroken = targetPartKey === PartInfo.HEAD.key && newHp === 0;
 
-            // 1. ゲームロジックを確定させるイベントを発行
+            // 1. ゲームロジックを確定させるイベントを発行 (UI表示用の情報もペイロードに含める)
             this.world.emit(GameEvents.ACTION_EXECUTED, {
                 attackerId: entityId,
                 targetId: targetId,
@@ -87,6 +100,9 @@ export class ActionSystem extends BaseSystem {
                 damage: damage,
                 isPartBroken: isPartBroken,
                 isPlayerBroken: isPlayerBroken,
+                resultMessage: resultMessage,
+                isCritical: isCritical,
+                isDefended: isDefended,
             });
 
             // ゲームオーバーチェック
@@ -94,18 +110,7 @@ export class ActionSystem extends BaseSystem {
                 return;
             }
 
-            // 2. UIに結果を表示するためのモーダル表示を要求
-            this.world.emit(GameEvents.SHOW_MODAL, {
-                type: ModalType.EXECUTION_RESULT,
-                data: {
-                    entityId: entityId,
-                    message: resultMessage,
-                    targetId: targetId,
-                    targetPartKey: targetPartKey,
-                    damage: damage
-                },
-                immediate: true
-            });
+            // 2. ★削除: UIに結果を表示するためのモーダル表示要求はActionPanelSystemに移管
         } catch (error) {
             ErrorHandler.handle(error, { method: 'onAttackDeclarationConfirmed', detail });
         }
@@ -218,6 +223,8 @@ export class ActionSystem extends BaseSystem {
             let finalTargetPartKey = action.targetPartKey;
             let resultMessage = '';
             const declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！　${attackingPart.trait}！`;
+            let isCritical = false;
+            let isDefended = false;
             
             // --- 1. 回避判定 ---
             const evasionChance = calculateEvasionChance(targetLegs.mobility, attackingPart.success);
@@ -233,9 +240,7 @@ export class ActionSystem extends BaseSystem {
                 // ★新規: 2. クリティカル判定
                 const critChance = calculateCriticalChance(attackingPart, targetLegs);
                 const critRoll = Math.random();
-                const isCritical = critRoll < critChance;
-
-                let defenseSuccess = false;
+                isCritical = critRoll < critChance;
 
                 if (isCritical) {
                     // クリティカルヒットの場合、防御判定は行わない
@@ -247,26 +252,26 @@ export class ActionSystem extends BaseSystem {
                     if (defenseRoll < defenseChance) {
                         const defensePartKey = findBestDefensePart(this.world, action.targetId);
                         if (defensePartKey) {
-                            defenseSuccess = true;
+                            isDefended = true;
                             finalTargetPartKey = defensePartKey;
                         }
                     }
                 }
 
                 // --- 3. ダメージ計算 ---
-                // ★変更: isCritical, defenseSuccess の状態に応じて、適切なフラグを立ててダメージ計算を呼び出す
+                // ★変更: isCritical, isDefended の状態に応じて、適切なフラグを立ててダメージ計算を呼び出す
                 finalDamage = calculateDamage(
                     this.world, 
                     executor, 
                     action.targetId, 
                     action, 
                     isCritical, // isCritical: trueなら回避度・防御度を無視
-                    !isCritical && !defenseSuccess // isDefenseBypassed: クリティカルでなく、かつ防御失敗時にtrue
+                    !isCritical && !isDefended // isDefenseBypassed: クリティカルでなく、かつ防御失敗時にtrue
                 );
                 
                 // ★改善: PartKeyToInfoMap を使用して、パーツキーから日本語名を動的に取得
                 const finalTargetPartName = PartKeyToInfoMap[finalTargetPartKey]?.name || '不明な部位';
-                if (defenseSuccess) {
+                if (isDefended) {
                     resultMessage = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
                 } else {
                     // ★変更: クリティカルの場合、既存のresultMessageに追記する
@@ -288,6 +293,8 @@ export class ActionSystem extends BaseSystem {
                     resultMessage: resultMessage,
                     targetId: action.targetId,
                     targetPartKey: finalTargetPartKey,
+                    isCritical: isCritical,
+                    isDefended: isDefended,
                 },
                 immediate: true
             });

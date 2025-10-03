@@ -203,9 +203,11 @@ export class PlayerInputSystem extends BaseSystem {
         const playerEntity = this.world.getEntitiesWith(MapComponents.PlayerControllable)[0];
         if (!playerEntity) return;
         const position = this.world.getComponent(playerEntity, MapComponents.Position);
-        const gameState = { position: { x: position.x, y: position.y }, mapName: 'map.json' };
-        localStorage.setItem('medarotJSaveData', JSON.stringify(gameState));
-        console.log('Game saved successfully:', gameState);
+
+        // localStorageへの直接書き込みをやめ、イベントを発行する
+        this.world.emit('GAME_SAVE_REQUESTED', { position: { x: position.x, y: position.y } });
+
+        console.log('Game save requested.');
     }
 
     openCustomizeScene() {

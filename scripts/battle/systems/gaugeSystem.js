@@ -4,6 +4,7 @@ import { Gauge, GameState, Parts } from '../core/components.js'; // Import Gauge
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js';
 import { PlayerStateType, GamePhaseType } from '../common/constants.js';
+import { GameEvents } from '../common/events.js';
 import { BaseSystem } from '../../core/baseSystem.js';
 
 export class GaugeSystem extends BaseSystem {
@@ -64,9 +65,12 @@ export class GaugeSystem extends BaseSystem {
             const increment = (propulsion / CONFIG.FORMULAS.GAUGE.GAUGE_INCREMENT_DIVISOR) * (deltaTime / CONFIG.UPDATE_INTERVAL) / speedMultiplier;
             gauge.value += increment;
 
-            // ゲージが最大値を超えないようにする
+            // ★変更: ゲージが最大値に達した際の処理
             if (gauge.value >= gauge.max) {
                 gauge.value = gauge.max;
+                // ★新規: ゲージが満タンになったことを通知するイベントを発行
+                // 状態遷移の責務はStateSystemに移譲する
+                this.world.emit(GameEvents.GAUGE_FULL, { entityId });
             }
         }
     }

@@ -29,6 +29,8 @@ export class StateSystem {
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
         this.world.on(GameEvents.ATTACK_SEQUENCE_COMPLETED, this.onAttackSequenceCompleted.bind(this));
+        // ★新規: GAUGE_FULLイベントを購読
+        this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
     }
 
     /**
@@ -127,6 +129,31 @@ export class StateSystem {
     }
 
     /**
+     * ★新規: ゲージが満タンになった際のハンドラ
+     * @param {object} detail - { entityId }
+     */
+    onGaugeFull(detail) {
+        const { entityId } = detail;
+        const gauge = this.world.getComponent(entityId, Gauge);
+        const gameState = this.world.getComponent(entityId, GameState);
+
+        // 念のためコンポーネントの存在をチェック
+        if (!gauge || !gameState) return;
+
+        // ゲージが満タンになった時が、状態遷移のトリガーです。
+        if (gameState.state === PlayerStateType.CHARGING) {
+            // クールダウン完了 → 行動選択が可能になる
+            gameState.state = PlayerStateType.COOLDOWN_COMPLETE;
+            // ★変更: 即座に行動キューへの追加を要求
+            gameState.state = PlayerStateType.READY_SELECT;
+            this.world.emit(GameEvents.ACTION_QUEUE_REQUEST, { entityId });
+        } else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
+            // 行動チャージ完了 → 行動実行準備が整う
+            gameState.state = PlayerStateType.READY_EXECUTE;
+        }
+    }
+
+    /**
      * ★新規: 攻撃者の状態をチャージ中にリセットし、Actionコンポーネントをクリアします。
      * @param {number} attackerId - 攻撃者のエンティティID
      * @param {object} options - 挙動を制御するオプション
@@ -168,15 +195,14 @@ export class StateSystem {
     }
 
     /**
-     * 時間経過（ゲージの蓄積）による状態遷移を管理します。
+     * 時間経過による状態遷移を管理します。
      */
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(Gauge, GameState);
+        const entities = this.world.getEntitiesWith(Gauge, GameState, Action, Parts, PlayerInfo);
         for (const entityId of entities) {
-            const gauge = this.world.getComponent(entityId, Gauge);
             const gameState = this.world.getComponent(entityId, GameState);
             
-            // ★追加: SELECTED_CHARGING状態のエンティティをチェック
+            // ★維持: チャージ中にパーツやターゲットが破壊された場合のチェックはポーリングが必要なため維持する
             if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
                 const action = this.world.getComponent(entityId, Action);
                 const parts = this.world.getComponent(entityId, Parts);
@@ -204,28 +230,6 @@ export class StateSystem {
                         continue; // このエンティティの以降の処理をスキップ
                     }
                 }
-            }
-            
-            // ゲージが満タンになった時が、状態遷移のトリガーです。
-            if (gauge.value >= gauge.max) {
-                if (gameState.state === PlayerStateType.CHARGING) {
-                    // クールダウン完了 → 行動選択が可能になる
-                    gameState.state = PlayerStateType.COOLDOWN_COMPLETE;
-                } else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
-                    // 行動チャージ完了 → 行動実行準備が整う
-                    gameState.state = PlayerStateType.READY_EXECUTE;
-                }
-            }
-            
-            // 行動選択が可能になったエンティティを検出します。
-            const selectableStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
-            if (selectableStates.includes(gameState.state)) {
-                // 状態を統一し、TurnSystemに行動選択キューへの追加を要求します。
-                // なぜイベントを発行するのか？
-                // StateSystemは「状態を管理する」だけで、「誰が次に行動するか」は知りません。
-                // その決定はTurnSystemの責務なので、関心事を分離するためにイベントで通知します。
-                gameState.state = PlayerStateType.READY_SELECT;
-                this.world.emit(GameEvents.ACTION_QUEUE_REQUEST, { entityId });
             }
         }
     }
