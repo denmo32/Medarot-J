@@ -79,3 +79,15 @@ export class FacingDirection {
         this.direction = direction;
     }
 }
+
+/**
+ * エンティティがマップモード用であることを示すタグコンポーネント。
+ * データは持ちません。
+ */
+export class MapEntity {}
+
+/**
+ * エンティティがバトルモード用であることを示すタグコンポーネント。
+ * データは持ちません。
+ */
+export class BattleEntity {}
