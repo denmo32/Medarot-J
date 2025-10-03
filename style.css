@@ -479,20 +479,22 @@ body {
     transition: background-color 0.3s;
     width: 100%;
     margin-bottom: 5px;
+    position: relative; /* ::before の基準点 */
 }
 
 .map-menu-button:hover {
     background-color: #3182ce;
 }
 
-.focus-indicator {
+/* フォーカスされたボタンの前に三角マークを表示 */
+.map-menu-button.focused::before {
+    content: '▶';
+    color: #ffd700;
     position: absolute;
-    left: 0; /* メニューコンテンツの左端から配置 */
-    top: 0; /* ボタンの上端に配置 */
-    color: #ffd700; /* 三角の色 */
-    font-size: 1em; /* 三角のサイズ */
-    pointer-events: none; /* インジケーターがクリックを妨げないように */
-    z-index: 1001; /* 他の要素より前面に表示 */
+    left: -15px; /* ボタンの少し左に配置 */
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.9em;
 }
 
 /* カスタマイズ画面 */
