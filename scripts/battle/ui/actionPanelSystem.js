@@ -3,13 +3,15 @@ import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
 import { ModalType } from '../common/constants.js';
+import { InputManager } from '../../core/InputManager.js';
 
 export class ActionPanelSystem extends BaseSystem {
     constructor(world) {
         super(world);
+        this.inputManager = new InputManager(); // ★新規: InputManagerのインスタンスを取得
         this.confirmActionEntityId = null;
         this.currentModalType = null;
-        this.currentModalData = null; // ★新規: 表示中モーダルのデータを保持
+        this.currentModalData = null;
 
         this.dom = {
             actionPanel: document.getElementById('action-panel'),
@@ -19,21 +21,19 @@ export class ActionPanelSystem extends BaseSystem {
             actionPanelButtons: document.getElementById('action-panel-buttons'),
             actionPanelConfirmButton: document.getElementById('action-panel-confirm-button'),
             actionPanelBattleStartButton: document.getElementById('action-panel-battle-start-button'),
-            actionPanelIndicator: document.getElementById('action-panel-indicator') // ★追加
+            actionPanelIndicator: document.getElementById('action-panel-indicator')
         };
 
-        this.focusedButtonKey = null; // ★新規: キーボードフォーカス中のボタン
+        this.focusedButtonKey = null;
         this.handlers = {
             panelConfirm: null,
             battleStart: null,
-            panelClick: null, // ★追加
-            keyDown: null // ★新規
+            panelClick: null,
         };
 
         this.initializePanelConfigs();
         this.bindWorldEvents();
         this.bindDOMEvents();
-        this.bindKeyboardEvents(); // ★新規
 
         // 初期状態ではパネルを非表示にする
         this.dom.actionPanel.classList.remove('hidden');
@@ -53,10 +53,6 @@ export class ActionPanelSystem extends BaseSystem {
         // ★追加
         if (this.handlers.panelClick) {
             this.dom.actionPanel.removeEventListener('click', this.handlers.panelClick);
-        }
-        // ★新規
-        if (this.handlers.keyDown) {
-            document.removeEventListener('keydown', this.handlers.keyDown);
         }
     }
 
@@ -135,41 +131,41 @@ export class ActionPanelSystem extends BaseSystem {
         this.dom.actionPanelConfirmButton.addEventListener('click', this.handlers.panelConfirm);
     }
 
-    /**
-     * ★新規: キーボードイベントを購読します。
-     */
-    bindKeyboardEvents() {
-        this.handlers.keyDown = (event) => {
-            const key = event.key.toLowerCase();
+    update(deltaTime) {
+        // アクションパネルが表示されていない場合は何もしない
+        if (!this.currentModalType) return;
 
-            // 選択モーダルでのキー操作
-            if (this.currentModalType === ModalType.SELECTION) {
-                if (key.startsWith('arrow')) {
-                    event.preventDefault();
-                    this.handleArrowKeyNavigation(key);
-                } else if (key === 'z') {
-                    event.preventDefault();
-                    this.confirmSelection();
-                }
-            } 
-            // バトル開始確認モーダルでのキー操作
-            else if (this.currentModalType === ModalType.BATTLE_START_CONFIRM) {
-                if (key === 'z') {
-                    event.preventDefault();
-                    this.handlePanelClick();
-                } else if (key === 'x') {
-                    event.preventDefault();
-                    this.world.emit(GameEvents.BATTLE_START_CANCELLED);
-                    this.hideActionPanel();
-                }
+        // 選択モーダルでのキー操作
+        if (this.currentModalType === ModalType.SELECTION) {
+            if (this.inputManager.wasKeyJustPressed('ArrowUp')) {
+                this.handleArrowKeyNavigation('arrowup');
             }
-            // それ以外のクリック進行モーダルでのキー操作
-            else if (key === 'z' && this.dom.actionPanel.classList.contains('clickable')) {
-                event.preventDefault();
+            if (this.inputManager.wasKeyJustPressed('ArrowDown')) {
+                this.handleArrowKeyNavigation('arrowdown');
+            }
+            if (this.inputManager.wasKeyJustPressed('ArrowLeft')) {
+                this.handleArrowKeyNavigation('arrowleft');
+            }
+            if (this.inputManager.wasKeyJustPressed('ArrowRight')) {
+                this.handleArrowKeyNavigation('arrowright');
+            }
+            if (this.inputManager.wasKeyJustPressed('z')) {
+                this.confirmSelection();
+            }
+        } 
+        // バトル開始確認モーダルでのキー操作
+        else if (this.currentModalType === ModalType.BATTLE_START_CONFIRM) {
+            if (this.inputManager.wasKeyJustPressed('z')) {
                 this.handlePanelClick();
+            } else if (this.inputManager.wasKeyJustPressed('x')) {
+                this.world.emit(GameEvents.BATTLE_START_CANCELLED);
+                this.hideActionPanel();
             }
-        };
-        document.addEventListener('keydown', this.handlers.keyDown);
+        }
+        // それ以外のクリック進行モーダルでのキー操作
+        else if (this.inputManager.wasKeyJustPressed('z') && this.dom.actionPanel.classList.contains('clickable')) {
+            this.handlePanelClick();
+        }
     }
 
     /**
@@ -425,20 +421,38 @@ export class ActionPanelSystem extends BaseSystem {
         const availableButtons = this.currentModalData.buttons.filter(b => !b.isBroken);
         if (availableButtons.length === 0) return;
 
-        let nextFocusKey = this.focusedButtonKey; // 現在のフォーカスをデフォルトとして維持
+        let nextFocusKey = this.focusedButtonKey;
         const has = (partKey) => availableButtons.some(b => b.partKey === partKey);
 
-        switch (key) {
-            case 'arrowup':
+        switch (this.focusedButtonKey) {
+            case 'head':
+                if (key === 'arrowdown' || key === 'arrowleft') {
+                    if (has('rightArm')) nextFocusKey = 'rightArm';
+                    else if (has('leftArm')) nextFocusKey = 'leftArm';
+                } else if (key === 'arrowright') {
+                    if (has('leftArm')) nextFocusKey = 'leftArm';
+                    else if (has('rightArm')) nextFocusKey = 'rightArm';
+                }
+                break;
+            case 'rightArm':
+                if (key === 'arrowup') {
+                    if (has('head')) nextFocusKey = 'head';
+                } else if (key === 'arrowright') {
+                    if (has('leftArm')) nextFocusKey = 'leftArm';
+                }
+                break;
+            case 'leftArm':
+                if (key === 'arrowup') {
+                    if (has('head')) nextFocusKey = 'head';
+                } else if (key === 'arrowleft') {
+                    if (has('rightArm')) nextFocusKey = 'rightArm';
+                }
+                break;
+            default: // no focus
                 if (has('head')) nextFocusKey = 'head';
+                else if (has('rightArm')) nextFocusKey = 'rightArm';
+                else if (has('leftArm')) nextFocusKey = 'leftArm';
                 break;
-            case 'arrowleft':
-                if (has('rightArm')) nextFocusKey = 'rightArm';
-                break;
-            case 'arrowright':
-                if (has('leftArm')) nextFocusKey = 'leftArm';
-                break;
-            // case 'arrowdown': は何もしない
         }
 
         this.updateFocus(nextFocusKey);
@@ -451,6 +465,10 @@ export class ActionPanelSystem extends BaseSystem {
     updateFocus(newKey) {
         if (this.focusedButtonKey === newKey) return;
 
+        const targetDomRef = this.currentModalData?.targetId !== null 
+            ? this.world.getComponent(this.currentModalData.targetId, Components.DOMReference) 
+            : null;
+
         // 古いフォーカスを解除
         if (this.focusedButtonKey) {
             const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
@@ -462,6 +480,21 @@ export class ActionPanelSystem extends BaseSystem {
         if (newButton) {
             newButton.classList.add('focused');
             this.focusedButtonKey = newKey;
+
+            // インジケーターの更新
+            const newButtonData = this.currentModalData?.buttons.find(b => b.partKey === newKey);
+            if (newButtonData?.action === '射撃' && targetDomRef?.targetIndicatorElement) {
+                targetDomRef.targetIndicatorElement.classList.add('active');
+            } else if (targetDomRef?.targetIndicatorElement) {
+                // 新しいフォーカスが射撃でない場合、インジケーターを消す
+                targetDomRef.targetIndicatorElement.classList.remove('active');
+            }
+        } else {
+            // フォーカスが外れた場合
+            this.focusedButtonKey = null;
+            if (targetDomRef?.targetIndicatorElement) {
+                targetDomRef.targetIndicatorElement.classList.remove('active');
+            }
         }
     }
 

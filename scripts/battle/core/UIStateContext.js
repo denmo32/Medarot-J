@@ -10,5 +10,7 @@ export class UIStateContext {
         this.isPausedByModal = false;
         // A queue for managing modal messages to avoid conflicts
         this.messageQueue = [];
+        // Flag to indicate a modal was just opened in the current frame
+        this.modalJustOpened = false;
     }
 }

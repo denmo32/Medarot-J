@@ -34,7 +34,7 @@ export function initializeSystems(world) {
     new InputSystem(world);
     new AiSystem(world);
     new DomFactorySystem(world);
-    new ActionPanelSystem(world); // ★新規: ActionPanelSystemを登録
+    const actionPanelSystem = new ActionPanelSystem(world);
 
     const gameFlowSystem = new GameFlowSystem(world);
     const viewSystem = new ViewSystem(world);
@@ -55,4 +55,5 @@ export function initializeSystems(world) {
     world.registerSystem(movementSystem);
     world.registerSystem(viewSystem);
     world.registerSystem(renderSystem);
+    world.registerSystem(actionPanelSystem);
 }

@@ -13,7 +13,7 @@ import { World } from './core/world.js';
 import { Camera } from './map/camera.js';
 import { Renderer } from './map/renderer.js';
 import { Map } from './map/map.js';
-import { InputHandler } from './map/inputHandler.js';
+import { InputManager } from './core/InputManager.js';
 import * as MapComponents from './map/components.js';
 import { PlayerInputSystem } from './map/systems/PlayerInputSystem.js';
 import { MovementSystem } from './map/systems/MovementSystem.js';
@@ -23,6 +23,9 @@ import { RenderSystem as MapRenderSystem } from './map/systems/RenderSystem.js';
 document.addEventListener('DOMContentLoaded', async () => {
     // --- Global World Instance ---
     const world = new World();
+
+    // --- Global Input Manager ---
+    const inputManager = new InputManager();
 
     // --- UI Elements ---
     const mapContainer = document.getElementById('map-container');
@@ -64,7 +67,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         canvas.height = MAP_CONFIG.VIEWPORT_HEIGHT;
 
         // --- Map Mode Objects (to be passed to systems) ---
-        const input = new InputHandler();
         const camera = new Camera();
         const renderer = new Renderer(canvas);
         
@@ -80,7 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         gameModeContext.gameMode = 'map';
 
         // --- Register Map Systems ---
-        world.registerSystem(new PlayerInputSystem(world, input, map));
+        world.registerSystem(new PlayerInputSystem(world, inputManager, map));
         world.registerSystem(new MovementSystem(world, map));
         world.registerSystem(new CameraSystem(world, camera, map));
         world.registerSystem(new MapRenderSystem(world, renderer, map, camera));
@@ -110,7 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // NPCとのインタラクション要求イベント (メッセージウィンドウを表示するために追加)
         world.on('NPC_INTERACTION_REQUESTED', (npc) => {
             console.log('NPC interaction requested, showing message window');
-            setupNpcInteractionModal(world, npc, input);
+            setupNpcInteractionModal(world, npc);
         });
     }
 
@@ -120,7 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      * @param {object} npc - The NPC object that triggered the interaction.
      * @param {InputHandler} input - The input handler instance.
      */
-    function setupNpcInteractionModal(world, npc, input) {
+    function setupNpcInteractionModal(world, npc) {
         const messageWindow = document.getElementById('interaction-message-window');
         const confirmButton = document.getElementById('confirm-battle-button');
         const cancelButton = document.getElementById('cancel-battle-button');
@@ -128,97 +130,43 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (uiStateContext) {
             uiStateContext.isPausedByModal = true;
+            uiStateContext.modalJustOpened = true;
         }
 
-        // --- リスナーの管理 ---
-        // NOTE: リスナーの重複登録と解除漏れを防ぐため、リスナーの登録と解除を1つの関数にまとめ、
-        //      インタラクションが完了またはキャンセルされた際に必ず呼び出すように修正。
-        let handleKeydown;
         let handleConfirm;
         let handleCancel;
-        let recalculatePosition; // 追加
+        let recalculatePosition;
 
-        // リスナーをすべて削除するクリーンアップ関数
         const cleanup = () => {
-            document.removeEventListener('keydown', handleKeydown);
             confirmButton.removeEventListener('click', handleConfirm);
             cancelButton.removeEventListener('click', handleCancel);
-            window.removeEventListener('resize', recalculatePosition); // 追加
+            window.removeEventListener('resize', recalculatePosition);
             messageWindow.classList.add('hidden');
             if (uiStateContext) {
                 uiStateContext.isPausedByModal = false;
             }
         };
 
-        // --- リスナーの定義 ---
-        // 確認ボタンが押されたときの処理
         handleConfirm = () => {
-            cleanup(); // 全てのリスナーを削除
-            world.emit('NPC_INTERACTED', npc); // バトルモードへ移行
+            cleanup();
+            world.emit('NPC_INTERACTED', npc);
         };
 
-        // キャンセルボタンが押されたときの処理
         handleCancel = () => {
-            cleanup(); // 全てのリスナーを削除
-            // フォーカスをゲームキャンバスに戻す
+            cleanup();
             const canvas = document.getElementById('game-canvas');
             if (canvas) {
                 canvas.focus();
             }
         };
 
-        // キー入力があったときの処理
-        handleKeydown = (event) => {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                handleConfirm();
-            } else if (event.key === 'Escape') {
-                event.preventDefault();
-                handleCancel();
-            } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-                event.preventDefault();
-                // フォーカスを切り替える
-                if (document.activeElement === confirmButton) {
-                    cancelButton.focus();
-                } else {
-                    confirmButton.focus();
-                }
-            } else if (event.key === 'z' || event.key === 'Z') {
-                event.preventDefault();
-                event.stopPropagation(); // Zキーのイベントを他のリスナーに伝播させない
-                // メッセージウィンドウ用のキー操作として消費されたことを示す
-                input.pressedKeys.delete('z');
-                // 現在のフォーカス要素に応じて処理を分岐
-                if (document.activeElement === confirmButton) {
-                    handleConfirm();
-                } else if (document.activeElement === cancelButton) {
-                    handleCancel();
-                }
-            }
-        };
-
-        // --- リスナーの登録 ---
         confirmButton.addEventListener('click', handleConfirm);
         cancelButton.addEventListener('click', handleCancel);
-        document.addEventListener('keydown', handleKeydown);
 
-        // --- ウィンドウの表示 ---
         messageWindow.classList.remove('hidden');
-        // デフォルトでOKボタンにフォーカス
         confirmButton.focus();
 
-        // メッセージウィンドウの位置を動的に設定
-        const canvas = document.getElementById('game-canvas');
-        const canvasRect = canvas.getBoundingClientRect();
-        const messageWindowRect = messageWindow.getBoundingClientRect();
-
-        // メッセージウィンドウの下辺とマップ表示領域の下辺を揃える
-        messageWindow.style.top = `${canvasRect.bottom - messageWindowRect.height}px`; // メッセージウィンドウの高さ分を引く
-        messageWindow.style.left = `${canvasRect.left + (canvasRect.width / 2)}px`; // 横方向の中央揃え
-        messageWindow.style.transform = 'translateX(-50%)';
-
-        // ブラウザサイズ変更時にメッセージウィンドウの位置を再計算・再配置する関数
-        recalculatePosition = () => { // letで宣言済みのため、constは不要
+        recalculatePosition = () => {
             const canvas = document.getElementById('game-canvas');
             const canvasRect = canvas.getBoundingClientRect();
             const messageWindowRect = messageWindow.getBoundingClientRect();
@@ -226,9 +174,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             messageWindow.style.top = `${canvasRect.bottom - messageWindowRect.height}px`;
             messageWindow.style.left = `${canvasRect.left + (canvasRect.width / 2)}px`;
             messageWindow.style.transform = 'translateX(-50%)';
-        }; // cleanup関数内で使用するため、messageWindowなどの要素を参照可能
+        };
 
-        // ブラウザサイズ変更イベントリスナーを登録
+        recalculatePosition();
         window.addEventListener('resize', recalculatePosition);
     }
 
@@ -271,6 +219,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Update all systems in the current mode
         world.update(deltaTime);
+
+        // --- Handle global inputs for modals ---
+        const uiStateContext = world.getSingletonComponent(UIStateContext);
+        if (uiStateContext && uiStateContext.isPausedByModal) {
+            // モーダルが開いたフレームでは入力を無視する
+            if (uiStateContext.modalJustOpened) {
+                uiStateContext.modalJustOpened = false;
+            } else {
+                const messageWindow = document.getElementById('interaction-message-window');
+                if (!messageWindow.classList.contains('hidden')) {
+                    const confirmButton = document.getElementById('confirm-battle-button');
+                    const cancelButton = document.getElementById('cancel-battle-button');
+
+                    // 方向キーでフォーカスを切り替え
+                    if (inputManager.wasKeyJustPressed('ArrowLeft') || inputManager.wasKeyJustPressed('ArrowRight') || inputManager.wasKeyJustPressed('ArrowUp') || inputManager.wasKeyJustPressed('ArrowDown')) {
+                        if (document.activeElement === confirmButton) {
+                            cancelButton.focus();
+                        } else {
+                            confirmButton.focus();
+                        }
+                    }
+
+                    // Zキーで決定
+                    if (inputManager.wasKeyJustPressed('z')) {
+                        if (document.activeElement instanceof HTMLButtonElement) {
+                            document.activeElement.click();
+                        } else {
+                            confirmButton.click();
+                        }
+                    }
+
+                    // Xキーでキャンセル
+                    if (inputManager.wasKeyJustPressed('x')) {
+                        cancelButton.click();
+                    }
+                }
+            }
+        }
+
+        // Update input manager for the next frame
+        inputManager.update();
 
         requestAnimationFrame(gameLoop);
     }
@@ -324,7 +313,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         canvas.height = MAP_CONFIG.VIEWPORT_HEIGHT;
 
         // --- Map Mode Objects (to be passed to systems) ---
-        const input = new InputHandler();
         const camera = new Camera();
         const renderer = new Renderer(canvas);
         
@@ -340,7 +328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         gameModeContext.gameMode = 'map';
 
         // --- Register Map Systems ---
-        world.registerSystem(new PlayerInputSystem(world, input, map));
+        world.registerSystem(new PlayerInputSystem(world, inputManager, map));
         world.registerSystem(new MovementSystem(world, map));
         world.registerSystem(new CameraSystem(world, camera, map));
         world.registerSystem(new MapRenderSystem(world, renderer, map, camera));
@@ -375,7 +363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // NPCとのインタラクション要求イベント (メッセージウィンドウを表示するために追加)
         world.on('NPC_INTERACTION_REQUESTED', (npc) => {
             console.log('NPC interaction requested, showing message window');
-            setupNpcInteractionModal(world, npc, input);
+            setupNpcInteractionModal(world, npc);
         });
     }
 
@@ -403,6 +391,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('resize', applyScaling);
     applyScaling();
 
+    // --- Title Screen Input ---
+    function setupTitleScreenInput() {
+        const titleContainer = document.getElementById('title-container');
+        if (!titleContainer) return;
+
+        const buttons = [
+            document.getElementById('start-new-game'),
+            document.getElementById('start-from-save')
+        ];
+        let focusedIndex = 0;
+
+        function updateFocus() {
+            const visibleButtons = buttons.filter(btn => btn && btn.style.display !== 'none');
+            if (visibleButtons.length === 0) return;
+
+            // focusedIndex が表示されているボタンの範囲に収まるように調整
+            focusedIndex = Math.max(0, Math.min(focusedIndex, visibleButtons.length - 1));
+
+            visibleButtons.forEach((btn, index) => {
+                if (index === focusedIndex) {
+                    btn.focus();
+                }
+            });
+        }
+
+        function handleKeyDown(e) {
+            if (titleContainer.classList.contains('hidden')) {
+                window.removeEventListener('keydown', handleKeyDown);
+                return;
+            }
+
+            const visibleButtons = buttons.filter(btn => btn && btn.style.display !== 'none');
+            if (visibleButtons.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                focusedIndex = (focusedIndex + 1) % visibleButtons.length;
+                updateFocus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                focusedIndex = (focusedIndex - 1 + visibleButtons.length) % visibleButtons.length;
+                updateFocus();
+            } else if (e.key === 'z') {
+                e.preventDefault();
+                visibleButtons[focusedIndex].click();
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown);
+        
+        // 初期フォーカスを設定
+        // セーブボタンが表示されているかどうかにかかわらず、最初の表示ボタンにフォーカス
+        const visibleButtons = buttons.filter(btn => btn && btn.style.display !== 'none');
+        if (visibleButtons.length > 0) {
+            focusedIndex = 0;
+            updateFocus();
+        }
+    }
+
+    setupTitleScreenInput();
 
     window.focus();
 });

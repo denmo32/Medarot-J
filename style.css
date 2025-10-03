@@ -362,8 +362,14 @@ body {
     transition: background-color 0.3s;
 }
 
-.message-window-button:hover {
+.message-window-button:hover,
+.message-window-button:focus {
     background-color: #3182ce;
+}
+
+.message-window-button:focus {
+    outline: 2px solid #e2e8f0;
+    outline-offset: 2px;
 }
 
 /* キャンセルボタンのスタイル (オプション) */
@@ -420,8 +426,14 @@ body {
     min-width: 300px;
 }
 
-.title-button:hover {
+.title-button:hover,
+.title-button:focus {
     background-color: #3182ce;
+}
+
+.title-button:focus {
+    outline: 2px solid #e2e8f0;
+    outline-offset: 2px;
 }
 
 /* マップシーン用のポーズメニュー */
