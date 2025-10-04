@@ -9,6 +9,7 @@ import { createPlayers as createBattlePlayers } from './battle/core/entityFactor
 import { GameModeContext, UIStateContext } from './battle/core/index.js'; // Import new context for game mode
 import { MAP_EVENTS, CONFIG as MAP_CONFIG, PLAYER_STATES } from './map/constants.js';
 import { CONFIG as BATTLE_CONFIG } from './battle/common/config.js';
+import { UI_CONFIG } from './battle/common/UIConfig.js';
 import { World } from './core/world.js';
 import { Camera } from './map/camera.js';
 import { Renderer } from './map/renderer.js';
@@ -294,13 +295,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Game Screen Scaling ---
     function applyScaling() {
-        const baseWidth = BATTLE_CONFIG.SCALING.BASE_WIDTH;
-        const baseHeight = BATTLE_CONFIG.SCALING.BASE_HEIGHT;
+        const baseWidth = UI_CONFIG.SCALING.BASE_WIDTH;
+        const baseHeight = UI_CONFIG.SCALING.BASE_HEIGHT;
         const scale = Math.min(window.innerWidth / baseWidth, window.innerHeight / baseHeight);
-        const transformStyle = `scale(${scale})`;
         
-        if (battleContainer) battleContainer.style.transform = transformStyle;
-        if (mapContainer) mapContainer.style.transform = transformStyle;
+        if (battleContainer) {
+            battleContainer.style.width = `${baseWidth}px`;
+            battleContainer.style.height = `${baseHeight}px`;
+            battleContainer.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        }
+        if (mapContainer) {
+            mapContainer.style.width = `${baseWidth}px`;
+            mapContainer.style.height = `${baseHeight}px`;
+            mapContainer.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        }
     }
 
     window.addEventListener('resize', applyScaling);

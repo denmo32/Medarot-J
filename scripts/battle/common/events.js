@@ -145,7 +145,7 @@ export const GameEvents = {
      * 攻撃宣言モーダルのOKが押された
      * @event ATTACK_DECLARATION_CONFIRMED
      * @type {string}
-     * @payload {{entityId: number, damage: number, resultMessage: string, targetId: number, targetPartKey: string, isCritical: boolean, isDefended: boolean}} - 攻撃者ID、ダメージ、結果メッセージ、ターゲット情報など
+     * @payload {{entityId: number, damage: number, targetId: number, targetPartKey: string, isCritical: boolean, isDefended: boolean}} - 攻撃者ID、ダメージ、ターゲット情報など
      */
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
     
@@ -153,7 +153,7 @@ export const GameEvents = {
      * 行動が実行され、ダメージなどが計算された
      * @event ACTION_EXECUTED
      * @type {string}
-     * @payload {{attackerId: number, targetId: number, targetPartKey: string, damage: number, isPartBroken: boolean, isPlayerBroken: boolean, resultMessage: string, isCritical: boolean, isDefended: boolean}} - 攻撃情報と結果
+     * @payload {{attackerId: number, targetId: number, targetPartKey: string, damage: number, isPartBroken: boolean, isPlayerBroken: boolean, isCritical: boolean, isDefended: boolean}} - 攻撃情報と結果
      */
     ACTION_EXECUTED: 'ACTION_EXECUTED',
     

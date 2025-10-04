@@ -38,13 +38,13 @@ export class ActionSystem extends BaseSystem {
      */
     onAttackDeclarationConfirmed(detail) {
         try {
-            // ★修正: ペイロードから全情報を取得
-            const { entityId, damage, resultMessage, targetId, targetPartKey, isCritical, isDefended } = detail;
+            // ★修正: ペイロードから全情報を取得（resultMessageは削除された）
+            const { entityId, damage, targetId, targetPartKey, isCritical, isDefended } = detail;
 
             // パラメータの検証
-            if (typeof entityId !== 'number' || typeof damage !== 'number' || typeof resultMessage !== 'string') {
+            if (typeof entityId !== 'number' || typeof damage !== 'number') {
                 throw new GameError(
-                    `Invalid parameters in attack declaration confirmation: entityId=${entityId}, damage=${damage}, resultMessage=${resultMessage}`,
+                    `Invalid parameters in attack declaration confirmation: entityId=${entityId}, damage=${damage}`,
                     ErrorType.VALIDATION_ERROR,
                     { detail, method: 'onAttackDeclarationConfirmed' }
                 );
@@ -60,7 +60,6 @@ export class ActionSystem extends BaseSystem {
                     damage: 0,
                     isPartBroken: false,
                     isPlayerBroken: false,
-                    resultMessage: '攻撃は空を切った！',
                     isCritical: false,
                     isDefended: false,
                 });
@@ -92,7 +91,7 @@ export class ActionSystem extends BaseSystem {
             const isPartBroken = newHp === 0 && !targetPart.isBroken;
             const isPlayerBroken = targetPartKey === PartInfo.HEAD.key && newHp === 0;
 
-            // 1. ゲームロジックを確定させるイベントを発行 (UI表示用の情報もペイロードに含める)
+            // 1. ゲームロジックを確定させるイベントを発行 (純粋なゲームデータのみ)
             this.world.emit(GameEvents.ACTION_EXECUTED, {
                 attackerId: entityId,
                 targetId: targetId,
@@ -100,7 +99,6 @@ export class ActionSystem extends BaseSystem {
                 damage: damage,
                 isPartBroken: isPartBroken,
                 isPlayerBroken: isPlayerBroken,
-                resultMessage: resultMessage,
                 isCritical: isCritical,
                 isDefended: isDefended,
             });
@@ -190,7 +188,7 @@ export class ActionSystem extends BaseSystem {
             if (!components) {
                 console.warn(`ActionSystem: Missing required components for attack calculation involving executor: ${executor}`);
                 // ターゲットがいない（格闘の空振りなど）場合、攻撃シーケンスを完了させる
-                this.world.emit(GameEvents.ACTION_EXECUTED, { attackerId: executor, damage: 0, resultMessage: '攻撃は空を切った！' });
+                this.world.emit(GameEvents.ACTION_EXECUTED, { attackerId: executor, damage: 0 });
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
                 return;
             }
@@ -213,13 +211,10 @@ export class ActionSystem extends BaseSystem {
                 )
                 : 0;
 
-            // 手順4: 結果に基づいたUIメッセージを生成します。
-            const resultMessage = this._generateResultMessage(targetInfo, outcome, finalDamage);
-
-            // 手順5: 結果をActionコンポーネントに一時保存します（防御によるターゲット変更などを反映）。
+            // 手順4: 結果をActionコンポーネントに一時保存します（防御によるターゲット変更などを反映）。
             action.targetPartKey = outcome.finalTargetPartKey;
 
-            // 手順6: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
+            // 手順5: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
             const declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！　${attackingPart.trait}！`;
             this.world.emit(GameEvents.SHOW_MODAL, {
                 type: ModalType.ATTACK_DECLARATION,
@@ -227,7 +222,6 @@ export class ActionSystem extends BaseSystem {
                     entityId: executor,
                     message: declarationMessage,
                     damage: finalDamage,
-                    resultMessage: resultMessage,
                     targetId: action.targetId,
                     targetPartKey: outcome.finalTargetPartKey,
                     isCritical: outcome.isCritical,
@@ -315,19 +309,6 @@ export class ActionSystem extends BaseSystem {
             return `${targetInfo.name}は攻撃を回避！`;
         }
 
-        const finalTargetPartName = PartKeyToInfoMap[outcome.finalTargetPartKey]?.name || '不明な部位';
-        let message = '';
-
-        if (outcome.isCritical) {
-            message = 'クリティカル！　';
-        }
-
-        if (outcome.isDefended) {
-            message = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${finalDamage}ダメージ！`;
-        } else {
-            message += `${targetInfo.name}の${finalTargetPartName}に${finalDamage}ダメージ！`;
-        }
-
-        return message;
+        return { isHit: true, isCritical, isDefended, finalTargetPartKey };
     }
 }

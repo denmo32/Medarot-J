@@ -2,7 +2,7 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
-import { ModalType, PartInfo } from '../common/constants.js';
+import { ModalType, PartInfo, PartKeyToInfoMap } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
 import { UIManager } from './UIManager.js';
 
@@ -190,8 +190,10 @@ export class ActionPanelSystem extends BaseSystem {
                 break;
             case ModalType.ATTACK_DECLARATION:
                 if (this.confirmActionEntityId !== null) {
-                    // ★修正: 保持しておいたモーダルの全データをペイロードとして渡す
-                    this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.currentModalData);
+                    // resultMessageを削除したデータをペイロードとして渡す
+                    const payloadData = { ...this.currentModalData };
+                    delete payloadData.resultMessage;
+                    this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, payloadData);
                 }
                 break;
             case ModalType.EXECUTION_RESULT:
@@ -208,19 +210,54 @@ export class ActionPanelSystem extends BaseSystem {
      * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
      */
     onActionExecuted(detail) {
+        // resultMessageをUIシステムで生成する
+        const resultMessage = this._generateResultMessage(detail);
+        
         // ActionSystemから発行されたACTION_EXECUTEDイベントを受け、
         // UIに結果を表示するためのモーダル表示を要求します。
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.EXECUTION_RESULT,
             data: {
                 entityId: detail.attackerId,
-                message: detail.resultMessage,
+                message: resultMessage,
                 targetId: detail.targetId,
                 targetPartKey: detail.targetPartKey,
                 damage: detail.damage
             },
             immediate: true
         });
+    }
+    
+    /**
+     * @private
+     * 攻撃結果に基づいてUIに表示するメッセージを生成します。
+     * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
+     * @returns {string} 生成された結果メッセージ
+     */
+    _generateResultMessage(detail) {
+        if (detail.targetId === null || detail.damage === 0) {
+            return '攻撃は空を切った！';
+        }
+        
+        const targetInfo = this.world.getComponent(detail.targetId, Components.PlayerInfo);
+        if (!targetInfo) {
+            return '不明なターゲット';
+        }
+        
+        const finalTargetPartName = PartKeyToInfoMap[detail.targetPartKey]?.name || '不明な部位';
+        let message = '';
+
+        if (detail.isCritical) {
+            message = 'クリティカル！　';
+        }
+
+        if (detail.isDefended) {
+            message = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${detail.damage}ダメージ！`;
+        } else {
+            message += `${targetInfo.name}の${finalTargetPartName}に${detail.damage}ダメージ！`;
+        }
+
+        return message;
     }
 
     /**
