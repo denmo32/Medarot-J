@@ -92,7 +92,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         // --- Create Game Context ---
         const contextEntity = world.createEntity();
         world.addComponent(contextEntity, new GameModeContext());
-        world.addComponent(contextEntity, new UIStateContext());
+        const uiStateContext = new UIStateContext(); // UIStateContextインスタンスを生成
+        world.addComponent(contextEntity, uiStateContext); // 追加
+
+        // UI状態を初期化
+        uiStateContext.isMapMenuVisible = false;
+        uiStateContext.isPausedByModal = false;
+        uiStateContext.modalJustOpened = false;
 
         // --- Register Map Systems ---
         const playerInputSystem = new PlayerInputSystem(world, inputManager, map);
@@ -139,21 +145,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
+        // optionsがrestoreMenuを要求する場合、メニューを開いた状態にする
         if (options.restoreMenu) {
-            // mapUISystem.toggleMenu(); // 削除
-            // 代わりに、イベント発行でUI状態を変更
-            world.emit('UI_STATE_CHANGED', { context: 'mapUI', property: 'isMapMenuVisible', value: true });
+            mapUISystem.toggleMenu();
         }
 
-        // UIStateContextの変更を監視し、UI要素の表示/非表示を切り替える
-        world.on('UI_STATE_CHANGED', (data) => {
-            if (data.context === 'mapUI' && data.property === 'isMapMenuVisible') {
-                const mapMenu = document.getElementById('map-menu');
-                if (mapMenu) {
-                    mapMenu.classList.toggle('hidden', !data.value);
-                }
-            }
-        });
+
     }
 
 
@@ -220,6 +217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             mapContainer.classList.remove('hidden');
             battleContainer.classList.add('hidden');
             console.log("Mode Switch: Map Exploration");
+            inputManager.update();
         });
     }
 
@@ -283,6 +281,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         gameDataManager.resetToDefault();
         gameDataManager.saveGame();
         await setupMapMode();
+        // ★追加: setupMapMode完了後にInputManagerを更新
+        inputManager.update(); 
         titleContainer.classList.add('hidden');
         mapContainer.classList.remove('hidden');
         battleContainer.classList.add('hidden');
@@ -294,6 +294,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // セーブデータからの開始時はデータをロード
         gameDataManager.loadGame();
         await setupMapMode();
+        // ★追加: setupMapMode完了後にInputManagerを更新
+        inputManager.update();
         titleContainer.classList.add('hidden');
         mapContainer.classList.remove('hidden');
         battleContainer.classList.add('hidden');

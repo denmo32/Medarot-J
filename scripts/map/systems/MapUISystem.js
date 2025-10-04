@@ -35,8 +35,8 @@ export class MapUISystem extends BaseSystem {
     }
 
     update(deltaTime) {
-        // ★ 'x' キーの入力はメニューが開いていなくても常にチェックする
-        if (this.input.wasKeyJustPressed('x')) {
+        // メニューが開いていない場合、かつNPCインタラクションウィンドウが表示されていない場合にのみxキーでメニューを開く
+        if (this.input.wasKeyJustPressed('x') && !this.uiStateContext.isPausedByModal) {
             this.toggleMenu(); // イベントを介さず直接呼ぶ
             return; // メニュー操作をしたら他のUI入力は無視
         }
@@ -99,6 +99,10 @@ export class MapUISystem extends BaseSystem {
             if (this.menuButtons[this.focusedMenuIndex]) {
                 this.menuButtons[this.focusedMenuIndex].click();
             }
+        }
+        // メニューが開いているとき、xキーでメニューを閉じる
+        if (this.input.wasKeyJustPressed('x')) {
+            this.toggleMenu();
         }
     }
 
