@@ -13,12 +13,17 @@ export class GaugeSystem extends BaseSystem {
         // New context references
         this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
         this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
+        this.isPaused = false;  // ゲームの一時停止状態を管理
+        
+        // イベント購読
+        this.world.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
+        this.world.on(GameEvents.GAME_RESUMED, this.onResumeGame.bind(this));
     }
 
     update(deltaTime) {
         // バトルフェーズでない場合、またはモーダル表示によりゲーム全体が一時停止している場合は、
         // ゲージの進行を停止する
-        if (this.battlePhaseContext.battlePhase !== GamePhaseType.BATTLE || this.uiStateContext.isPausedByModal) {
+        if (this.battlePhaseContext.battlePhase !== GamePhaseType.BATTLE || this.isPaused) {
             return;
         }
 
@@ -73,5 +78,15 @@ export class GaugeSystem extends BaseSystem {
                 this.world.emit(GameEvents.GAUGE_FULL, { entityId });
             }
         }
+    }
+    
+    // Game paused event handler
+    onPauseGame() {
+        this.isPaused = true;
+    }
+    
+    // Game resumed event handler
+    onResumeGame() {
+        this.isPaused = false;
     }
 }

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -83,7 +83,15 @@ export const GameEvents = {
      */
     GAME_RESUMED: 'GAME_RESUMED',
 
-    // --- プレイヤー入力 & AIイベント ---
+	/**
+     * ターゲティング戦略実行結果イベント
+	 * @event STRATEGY_EXECUTED
+	 * @type {string}
+	 * @payload {Object} - 戦略実行結果のペイロード
+	 */
+	STRATEGY_EXECUTED: 'STRATEGY_EXECUTED',
+	
+	// --- プレイヤー入力 & AIイベント ---
     /**
      * プレイヤーの行動選択が必要になった
      * @event PLAYER_INPUT_REQUIRED

@@ -29,6 +29,11 @@ export class TurnSystem extends BaseSystem {
         // Use new context components for responsibilities
         this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
         this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
+        this.isPaused = false;  // ゲームの一時停止状態を管理
+        
+        // イベント購読
+        this.world.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
+        this.world.on(GameEvents.GAME_RESUMED, this.onResumeGame.bind(this));
 
         // StateSystemなど、他のシステムからの要求に応じてキューを操作するためのイベントリスナーを登録します。
         this.world.on(GameEvents.ACTION_QUEUE_REQUEST, this.onActionQueueRequest.bind(this));
@@ -76,7 +81,7 @@ export class TurnSystem extends BaseSystem {
 
         // キューに誰もいない、またはモーダル表示などでゲームが一時停止中の場合は、何も行いません。
         // isPausedByModalのチェックは、プレイヤーがUI操作中にターンが進行してしまうことを防ぐために重要です。
-        if (this.actionQueue.length === 0 || this.uiStateContext.isPausedByModal) { // Use UIStateContext
+        if (this.actionQueue.length === 0 || this.isPaused) {
             return;
         }
         
@@ -100,5 +105,15 @@ export class TurnSystem extends BaseSystem {
             : GameEvents.AI_ACTION_REQUIRED;
         
         this.world.emit(eventToEmit, { entityId });
+    }
+    
+    // Game paused event handler
+    onPauseGame() {
+        this.isPaused = true;
+    }
+    
+    // Game resumed event handler
+    onResumeGame() {
+        this.isPaused = false;
     }
 }

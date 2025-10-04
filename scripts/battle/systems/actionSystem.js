@@ -26,10 +26,13 @@ export class ActionSystem extends BaseSystem {
         // Use new context components
         this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
         this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
-        // ★変更: イベント購読を更新
+        this.isPaused = false;  // ゲームの一時停止状態を管理
+        
+        // イベント購読
         this.world.on(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.onAttackDeclarationConfirmed.bind(this));
-        // ViewSystemからのアニメーション完了通知を購読します。
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
+        this.world.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
+        this.world.on(GameEvents.GAME_RESUMED, this.onResumeGame.bind(this));
     }
 
     /**
@@ -124,7 +127,7 @@ export class ActionSystem extends BaseSystem {
      */
     update(deltaTime) {
         try {
-            if (this.uiStateContext.isPausedByModal) return; // Use UIStateContext
+            if (this.isPaused) return;
             
             const entitiesWithState = this.world.getEntitiesWith(GameState);
             const executor = entitiesWithState.find(id => 
@@ -309,6 +312,15 @@ export class ActionSystem extends BaseSystem {
             return `${targetInfo.name}は攻撃を回避！`;
         }
 
-        return { isHit: true, isCritical, isDefended, finalTargetPartKey };
+    }
+    
+    // Game paused event handler
+    onPauseGame() {
+        this.isPaused = true;
+    }
+    
+    // Game resumed event handler
+    onResumeGame() {
+        this.isPaused = false;
     }
 }

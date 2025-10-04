@@ -7,6 +7,7 @@ import { BattleHistoryContext } from '../core/index.js'; // Import new context
 // ★改善: PartInfoを参照することで、ハードコードされた文字列を排除
 import { PlayerStateType, MedalPersonality, PartInfo, TeamID } from '../common/constants.js'; // Import TeamID for context keys, add BattleHistoryContext import
 import { isValidTarget, selectRandomPart, getAllEnemyParts, selectPartByCondition, getValidEnemies } from '../utils/queryUtils.js';
+import { GameEvents } from '../common/events.js';
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。
  * なぜこの形式なのか？
@@ -20,16 +21,34 @@ export const targetingStrategies = {
      * 敵全体のパーツの中で、現在HPが最も低いものを狙います。
      * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.HUNTER]: ({ world, enemies }) => {
-        return selectPartByCondition(world, enemies, (a, b) => a.part.hp - b.part.hp);
+    [MedalPersonality.HUNTER]: ({ world, enemies, attackerId }) => {
+        const target = selectPartByCondition(world, enemies, (a, b) => a.part.hp - b.part.hp);
+        // 戦略実行結果をイベントで通知
+        if (target) {
+            world.emit(GameEvents.STRATEGY_EXECUTED, {
+                strategy: MedalPersonality.HUNTER,
+                attackerId: attackerId,
+                target: target
+            });
+        }
+        return target;
     },
     /**
      * [CRUSHER]: 頑丈なパーツを先に破壊し、敵の耐久力を削ぐ、破壊者のような性格。
      * 敵全体のパーツの中で、現在HPが最も高いものを狙います。
      * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.CRUSHER]: ({ world, enemies }) => {
-        return selectPartByCondition(world, enemies, (a, b) => b.part.hp - a.part.hp);
+    [MedalPersonality.CRUSHER]: ({ world, enemies, attackerId }) => {
+        const target = selectPartByCondition(world, enemies, (a, b) => b.part.hp - a.part.hp);
+        // 戦略実行結果をイベントで通知
+        if (target) {
+            world.emit(GameEvents.STRATEGY_EXECUTED, {
+                strategy: MedalPersonality.CRUSHER,
+                attackerId: attackerId,
+                target: target
+            });
+        }
+        return target;
     },
     /**
      * [JOKER]: 行動が予測不能で、戦況をかき乱す、トリックスターのような性格。
@@ -37,11 +56,20 @@ export const targetingStrategies = {
      * 結果として、健在なパーツを多く持つ敵が狙われやすくなります。
      * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.JOKER]: ({ world, enemies }) => {
+    [MedalPersonality.JOKER]: ({ world, enemies, attackerId }) => {
         const allParts = getAllEnemyParts(world, enemies);
         if (allParts.length === 0) return null;
         const randomIndex = Math.floor(Math.random() * allParts.length);
-        return { targetId: allParts[randomIndex].entityId, targetPartKey: allParts[randomIndex].partKey };
+        const target = { targetId: allParts[randomIndex].entityId, targetPartKey: allParts[randomIndex].partKey };
+        // 戦略実行結果をイベントで通知
+        if (target) {
+            world.emit(GameEvents.STRATEGY_EXECUTED, {
+                strategy: MedalPersonality.JOKER,
+                attackerId: attackerId,
+                target: target
+            });
+        }
+        return target;
     },
     /**
      * [COUNTER]: 受けた攻撃に即座にやり返す、短期的な性格。
@@ -106,9 +134,18 @@ export const targetingStrategies = {
      * 戦略の基本として、敵チームのリーダーを最優先で狙います。
      * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.LEADER_FOCUS]: ({ world, enemies }) => {
+    [MedalPersonality.LEADER_FOCUS]: ({ world, enemies, attackerId }) => {
         const leader = enemies.find(id => world.getComponent(id, PlayerInfo).isLeader);
-        return leader ? selectRandomPart(world, leader) : null;
+        const target = leader ? selectRandomPart(world, leader) : null;
+        // 戦略実行結果をイベントで通知
+        if (target) {
+            world.emit(GameEvents.STRATEGY_EXECUTED, {
+                strategy: MedalPersonality.LEADER_FOCUS,
+                attackerId: attackerId,
+                target: target
+            });
+        }
+        return target;
     },
     /**
      * [RANDOM]: 基本的な性格であり、他の戦略が条件を満たさず実行できない場合の安全策（フォールバック）としての役割も持ちます。
@@ -116,9 +153,18 @@ export const targetingStrategies = {
      * どの敵機体も等しい確率で選ばれます。
      * ★改善: 引数をコンテキストオブジェクトに変更
      */
-    [MedalPersonality.RANDOM]: ({ world, enemies }) => {
+    [MedalPersonality.RANDOM]: ({ world, enemies, attackerId }) => {
         if (enemies.length === 0) return null;
         const targetId = enemies[Math.floor(Math.random() * enemies.length)];
-        return selectRandomPart(world, targetId);
+        const target = selectRandomPart(world, targetId);
+        // 戦略実行結果をイベントで通知
+        if (target) {
+            world.emit(GameEvents.STRATEGY_EXECUTED, {
+                strategy: MedalPersonality.RANDOM,
+                attackerId: attackerId,
+                target: target
+            });
+        }
+        return target;
     }
 };
