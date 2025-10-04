@@ -45,11 +45,7 @@ export class GaugeSystem extends BaseSystem {
             const gameState = this.world.getComponent(entityId, GameState);
             const parts = this.world.getComponent(entityId, Parts);
 
-            // ★追加: skipNextUpdateがtrueの場合はこのフレームでの進行をスキップ
-            if (gauge.skipNextUpdate) {
-                gauge.skipNextUpdate = false;
-                continue;
-            }
+
 
             // ゲージの進行を止めるべき状態かを判定
             const statesToPause = [

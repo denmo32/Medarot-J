@@ -152,7 +152,7 @@ export class StateSystem {
         } else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
             // 行動チャージ完了 → 行動実行準備が整う
             gameState.state = PlayerStateType.READY_EXECUTE;
-            
+
             // ★追加: アイコン位置をアクションラインに強制設定
             const position = this.world.getComponent(entityId, Position);
             const playerInfo = this.world.getComponent(entityId, PlayerInfo);
@@ -198,16 +198,6 @@ export class StateSystem {
             } else {
                 // 正常完了時は、ゲージを0にリセットしてアクションラインから後退を開始
                 attackerGauge.value = 0;
-            }
-            
-            // ★追加: アイコン位置も即座にリセット
-            const position = this.world.getComponent(attackerId, Position);
-            const playerInfo = this.world.getComponent(attackerId, PlayerInfo);
-
-            if (playerInfo.teamId === TeamID.TEAM1) {
-                position.x = CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM1;
-            } else {
-                position.x = CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM2;
             }
         }
         if (attackerAction) {
