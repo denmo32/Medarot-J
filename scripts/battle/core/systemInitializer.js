@@ -16,6 +16,7 @@ import { GameFlowSystem } from '../systems/gameFlowSystem.js';
 import { MovementSystem } from '../systems/movementSystem.js';
 import { HistorySystem } from '../systems/historySystem.js';
 import { TurnSystem } from '../systems/turnSystem.js';
+import { UIManager } from '../ui/UIManager.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -29,6 +30,7 @@ export function initializeSystems(world) {
     world.addComponent(contextEntity, new BattlePhaseContext()); // Manages battle phase (idle, battle, game over)
     world.addComponent(contextEntity, new UIStateContext()); // Manages UI state (paused by modal, message queue)
     world.addComponent(contextEntity, new BattleHistoryContext()); // Manages battle history for AI personalities
+    world.addComponent(contextEntity, new UIManager()); // Manages UI elements mapping to entities
 
     // --- システムの登録 ---
     new InputSystem(world);

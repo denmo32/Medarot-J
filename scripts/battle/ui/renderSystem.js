@@ -1,16 +1,19 @@
-import { PlayerInfo, Position, Gauge, GameState, Parts, DOMReference } from '../core/components.js';
+import { PlayerInfo, Position, Gauge, GameState, Parts } from '../core/components.js';
 import { PlayerStateType, TeamID } from '../common/constants.js'; // TeamIDをインポート
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
+import { UIManager } from './UIManager.js';
+
 export class RenderSystem extends BaseSystem {
     constructor(world) {
         super(world);
+        this.uiManager = this.world.getSingletonComponent(UIManager);
         // ★改善: アニメーション要求イベントを直接購読
         // これにより、ViewSystemの仲介をなくし、システム間の連携をシンプルにします。
         this.world.on(GameEvents.EXECUTE_ATTACK_ANIMATION, this.executeAttackAnimation.bind(this));
     }
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(PlayerInfo, Position, Gauge, GameState, Parts, DOMReference);
+        const entities = this.world.getEntitiesWith(PlayerInfo, Position, Gauge, GameState, Parts);
         for (const entityId of entities) {
             this.updatePosition(entityId);
             this.updateInfoPanel(entityId);
@@ -22,8 +25,8 @@ export class RenderSystem extends BaseSystem {
      * @param {number} entityId 
      */
     updatePosition(entityId) {
-        const domRef = this.getCachedComponent(entityId, DOMReference);
-        if (!domRef || !domRef.iconElement) return;
+        const domElements = this.uiManager.getDOMElements(entityId);
+        if (!domElements || !domElements.iconElement) return;
 
         // 位置と状態のコンポーネントを取得
         const position = this.getCachedComponent(entityId, Position);
@@ -31,33 +34,33 @@ export class RenderSystem extends BaseSystem {
         if (!position || !gameState) return;
 
         // Positionコンポーネントのx座標をDOMのleftスタイルに適用
-        domRef.iconElement.style.left = `${position.x * 100}%`;
-        domRef.iconElement.style.top = `${position.y}%`;
-        domRef.iconElement.style.transform = 'translate(-50%, -50%)';
+        domElements.iconElement.style.left = `${position.x * 100}%`;
+        domElements.iconElement.style.top = `${position.y}%`;
+        domElements.iconElement.style.transform = 'translate(-50%, -50%)';
 
         // ★新規: 状態に応じてアイコンの枠線の色を動的に変更
         switch (gameState.state) {
             case PlayerStateType.SELECTED_CHARGING: // チャージ中
-                domRef.iconElement.style.borderColor = '#f6ad55'; // オレンジ
+                domElements.iconElement.style.borderColor = '#f6ad55'; // オレンジ
                 break;
             case PlayerStateType.CHARGING: // クールダウン中
-                domRef.iconElement.style.borderColor = '#4fd1c5'; // 水色
+                domElements.iconElement.style.borderColor = '#4fd1c5'; // 水色
                 break;
             default: // その他の状態
-                domRef.iconElement.style.borderColor = '#718096'; // デフォルトのグレー
+                domElements.iconElement.style.borderColor = '#718096'; // デフォルトのグレー
                 break;
         }
 
         // 状態に応じたCSSクラスの切り替え
-        domRef.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
-        domRef.iconElement.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
+        domElements.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
+        domElements.iconElement.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
     }
     updateInfoPanel(entityId) {
-        const domRef = this.getCachedComponent(entityId, DOMReference);
+        const domElements = this.uiManager.getDOMElements(entityId);
         const parts = this.getCachedComponent(entityId, Parts);
-        if (!domRef || !parts) return;
+        if (!domElements || !parts) return;
         Object.entries(parts).forEach(([key, part]) => {
-            const elements = domRef.partDOMElements[key];
+            const elements = domElements.partDOMElements[key];
             if (!elements) return;
             const hpPercentage = (part.hp / part.maxHp) * 100;
             elements.bar.style.width = `${hpPercentage}%`;
@@ -78,10 +81,10 @@ export class RenderSystem extends BaseSystem {
      */
     executeAttackAnimation(detail) {
         const { attackerId, targetId } = detail;
-        const attackerDomRef = this.world.getComponent(attackerId, DOMReference);
-        const targetDomRef = this.world.getComponent(targetId, DOMReference);
+        const attackerDomElements = this.uiManager.getDOMElements(attackerId);
+        const targetDomElements = this.uiManager.getDOMElements(targetId);
         // DOM要素の存在確認
-        if (!attackerDomRef || !targetDomRef || !attackerDomRef.iconElement || !targetDomRef.iconElement || !attackerDomRef.targetIndicatorElement) {
+        if (!attackerDomElements || !targetDomElements || !attackerDomElements.iconElement || !targetDomElements.iconElement || !attackerDomElements.targetIndicatorElement) {
             console.warn('RenderSystem: Missing DOM elements for animation. Skipping.', detail);
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
@@ -90,9 +93,9 @@ export class RenderSystem extends BaseSystem {
         // ★新規: アニメーション開始時にゲームの進行を一時停止
         this.world.emit(GameEvents.GAME_PAUSED);
 
-        const indicator = attackerDomRef.targetIndicatorElement;
-        const attackerIcon = attackerDomRef.iconElement;
-        const targetIcon = targetDomRef.iconElement;
+        const indicator = attackerDomElements.targetIndicatorElement;
+        const attackerIcon = attackerDomElements.iconElement;
+        const targetIcon = targetDomElements.iconElement;
         
         const originalParent = indicator.parentNode;
         document.body.appendChild(indicator);

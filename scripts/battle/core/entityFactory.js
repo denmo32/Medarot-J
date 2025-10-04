@@ -43,7 +43,6 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     world.addComponent(entityId, new Components.GameState());
     // ★修正: 正しいパーツデータを渡す
     world.addComponent(entityId, new Components.Parts(partsData.head, partsData.rightArm, partsData.leftArm, partsData.legs));
-    world.addComponent(entityId, new Components.DOMReference());
     world.addComponent(entityId, new Components.Action());
     world.addComponent(entityId, new Components.Medal(personality));
     world.addComponent(entityId, new Components.BattleLog());

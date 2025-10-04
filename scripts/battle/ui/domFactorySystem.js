@@ -4,6 +4,7 @@ import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
 // ★改善: PartKeyToInfoMap, PartInfo を参照し、定義元を一元化
 import { TeamID, PartKeyToInfoMap, PartInfo } from '../common/constants.js';
+import { UIManager } from './UIManager.js';
 
 /**
  * DOM要素の生成、配置、削除に特化したシステム。
@@ -13,6 +14,7 @@ import { TeamID, PartKeyToInfoMap, PartInfo } from '../common/constants.js';
 export class DomFactorySystem extends BaseSystem {
     constructor(world) {
         super(world);
+        this.uiManager = this.world.getSingletonComponent(UIManager);
         
         // テンプレートとコンテナ要素への参照をキャッシュ
         this.playerInfoTemplate = document.getElementById('player-info-template');
@@ -59,7 +61,6 @@ export class DomFactorySystem extends BaseSystem {
      */
     _createPlayerDOM(entityId) {
         const playerInfo = this.world.getComponent(entityId, Components.PlayerInfo);
-        const domRef = this.world.getComponent(entityId, Components.DOMReference);
         const parts = this.world.getComponent(entityId, Components.Parts);
         const position = this.world.getComponent(entityId, Components.Position);
         const teamConfig = CONFIG.TEAMS[playerInfo.teamId];
@@ -73,7 +74,6 @@ export class DomFactorySystem extends BaseSystem {
         marker.className = 'home-marker';
         marker.style.left = `${homeX * 100}%`;
         marker.style.top = `${position.y}%`;
-        domRef.homeMarkerElement = marker;
         this.battlefield.appendChild(marker);
 
         const icon = document.createElement('div');
@@ -81,7 +81,6 @@ export class DomFactorySystem extends BaseSystem {
         icon.className = 'player-icon';
         icon.style.backgroundColor = playerInfo.color;
         icon.textContent = playerInfo.name.substring(playerInfo.name.length - 1);
-        domRef.iconElement = icon;
         this.battlefield.appendChild(icon);
 
         // ターゲット表示用インジケーターをアイコンの子要素として生成
@@ -93,7 +92,6 @@ export class DomFactorySystem extends BaseSystem {
             corner.className = `corner corner-${i + 1}`;
             indicator.appendChild(corner);
         }
-        domRef.targetIndicatorElement = indicator;
         icon.appendChild(indicator);
 
         // --- 2. プレイヤー情報パネルをテンプレートから生成 ---
@@ -114,17 +112,33 @@ export class DomFactorySystem extends BaseSystem {
             const partNameEl = partEl.querySelector('.part-name');
             // ★改善: PartKeyToInfoMapからアイコン情報を取得
             partNameEl.textContent = PartKeyToInfoMap[key]?.icon || '?'; 
-            
-            domRef.partDOMElements[key] = {
-                container: partEl,
-                name: partNameEl,
-                bar: partEl.querySelector('.part-hp-bar')
-            };
         });
 
         // 生成した情報パネルを対応するチームのコンテナに追加
         this.teamContainers[playerInfo.teamId].appendChild(infoPanel);
-        domRef.infoPanel = infoPanel;
+
+        // UIManagerにDOM要素を登録
+        const domElements = {
+            iconElement: icon,
+            homeMarkerElement: marker,
+            infoPanel: infoPanel,
+            targetIndicatorElement: indicator,
+            partDOMElements: {}
+        };
+
+        // 各パーツのDOM要素を設定
+        Object.entries(parts).forEach(([key, part]) => {
+            const partEl = infoPanel.querySelector(`[data-part-key="${key}"]`);
+            if (partEl) {
+                domElements.partDOMElements[key] = {
+                    container: partEl,
+                    name: partEl.querySelector('.part-name'),
+                    bar: partEl.querySelector('.part-hp-bar')
+                };
+            }
+        });
+
+        this.uiManager.registerEntity(entityId, domElements);
     }
 
     // このシステムはイベント駆動なのでupdateは不要

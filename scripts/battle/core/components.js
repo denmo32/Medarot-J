@@ -63,27 +63,7 @@ export class Parts {
     }
 }
 
-/**
- * DOM要素への参照を保持するコンポーネント
- * @class DOMReference
- * @description 
- * UI表示に必要なDOM要素への参照を保持します。
- * ECSアーキテクチャでは、エンティティがUI要素と関連付けられる場合に使用されます。
- * 
- * 注：このコンポーネントはUI層とゲームロジック層を結びつけるブリッジ的な役割を果たします。
- * より厳格な層分けを実現するには、このコンポーネントをUIシステム内でのみ使用し、
- * 他のゲームロジックシステムからは参照しないように構成することが望ましいですが、
- * 現在の実装ではいくつかのシステムがDOM要素を直接必要とするため、この形態を維持します。
- */
-export class DOMReference {
-    constructor() {
-        this.iconElement = null;                    // アイコン表示用要素
-        this.homeMarkerElement = null;              // ホームポジションのマーカー要素
-        this.infoPanel = null;                      // 情報パネル要素
-        this.partDOMElements = {};                  // パーツごとのDOM要素マッピング
-        this.targetIndicatorElement = null;         // ターゲット表示用アニメーション要素
-    }
-}
+
 
 /**
  * 戦闘アクションの情報を保持するコンポーネント

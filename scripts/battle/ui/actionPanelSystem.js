@@ -4,10 +4,12 @@ import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
 import { ModalType, PartInfo } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
+import { UIManager } from './UIManager.js';
 
 export class ActionPanelSystem extends BaseSystem {
     constructor(world) {
         super(world);
+        this.uiManager = this.world.getSingletonComponent(UIManager);
         this.inputManager = new InputManager(); // ★新規: InputManagerのインスタンスを取得
         this.confirmActionEntityId = null;
         this.currentModalType = null;
@@ -339,7 +341,7 @@ export class ActionPanelSystem extends BaseSystem {
     // --- Event Setup Helpers ---
 
     setupSelectionEvents(container, data) {
-        const targetDomRef = data.targetId !== null ? this.world.getComponent(data.targetId, Components.DOMReference) : null;
+        const targetDomElements = data.targetId !== null ? this.uiManager.getDOMElements(data.targetId) : null;
         data.buttons.forEach(btn => {
             if (btn.isBroken) return;
             const buttonEl = container.querySelector(`#panelBtn-${btn.partKey}`);
@@ -355,9 +357,9 @@ export class ActionPanelSystem extends BaseSystem {
                 this.hideActionPanel();
             };
 
-            if (btn.action === '射撃' && targetDomRef && targetDomRef.targetIndicatorElement) {
-                buttonEl.onmouseover = () => targetDomRef.targetIndicatorElement.classList.add('active');
-                buttonEl.onmouseout = () => targetDomRef.targetIndicatorElement.classList.remove('active');
+            if (btn.action === '射撃' && targetDomElements && targetDomElements.targetIndicatorElement) {
+                buttonEl.onmouseover = () => targetDomElements.targetIndicatorElement.classList.add('active');
+                buttonEl.onmouseout = () => targetDomElements.targetIndicatorElement.classList.remove('active');
             }
         });
     }
@@ -382,13 +384,13 @@ export class ActionPanelSystem extends BaseSystem {
             return;
         }
 
-        const targetDomRef = this.world.getComponent(data.targetId, Components.DOMReference);
-        if (!targetDomRef || !targetDomRef.partDOMElements[data.targetPartKey]) {
+        const targetDomElements = this.uiManager.getDOMElements(data.targetId);
+        if (!targetDomElements || !targetDomElements.partDOMElements[data.targetPartKey]) {
             showClickable();
             return;
         }
 
-        const hpBarElement = targetDomRef.partDOMElements[data.targetPartKey].bar;
+        const hpBarElement = targetDomElements.partDOMElements[data.targetPartKey].bar;
 
         requestAnimationFrame(() => {
             const onTransitionEnd = (event) => {
@@ -487,8 +489,8 @@ export class ActionPanelSystem extends BaseSystem {
     updateFocus(newKey) {
         if (this.focusedButtonKey === newKey) return;
 
-        const targetDomRef = this.currentModalData?.targetId !== null 
-            ? this.world.getComponent(this.currentModalData.targetId, Components.DOMReference) 
+        const targetDomElements = this.currentModalData?.targetId !== null 
+            ? this.uiManager.getDOMElements(this.currentModalData.targetId) 
             : null;
 
         // 古いフォーカスを解除
@@ -505,17 +507,17 @@ export class ActionPanelSystem extends BaseSystem {
 
             // インジケーターの更新
             const newButtonData = this.currentModalData?.buttons.find(b => b.partKey === newKey);
-            if (newButtonData?.action === '射撃' && targetDomRef?.targetIndicatorElement) {
-                targetDomRef.targetIndicatorElement.classList.add('active');
-            } else if (targetDomRef?.targetIndicatorElement) {
+            if (newButtonData?.action === '射撃' && targetDomElements?.targetIndicatorElement) {
+                targetDomElements.targetIndicatorElement.classList.add('active');
+            } else if (targetDomElements?.targetIndicatorElement) {
                 // 新しいフォーカスが射撃でない場合、インジケーターを消す
-                targetDomRef.targetIndicatorElement.classList.remove('active');
+                targetDomElements.targetIndicatorElement.classList.remove('active');
             }
         } else {
             // フォーカスが外れた場合
             this.focusedButtonKey = null;
-            if (targetDomRef?.targetIndicatorElement) {
-                targetDomRef.targetIndicatorElement.classList.remove('active');
+            if (targetDomElements?.targetIndicatorElement) {
+                targetDomElements.targetIndicatorElement.classList.remove('active');
             }
         }
     }
