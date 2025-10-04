@@ -17,6 +17,7 @@ import { MovementSystem } from '../systems/movementSystem.js';
 import { HistorySystem } from '../systems/historySystem.js';
 import { TurnSystem } from '../systems/turnSystem.js';
 import { UIManager } from '../ui/UIManager.js';
+import { UISystem } from '../ui/UISystem.js'; // 追加
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -58,4 +59,5 @@ export function initializeSystems(world) {
     world.registerSystem(viewSystem);
     world.registerSystem(renderSystem);
     world.registerSystem(actionPanelSystem);
+    world.registerSystem(new UISystem(world)); // 追加
 }
