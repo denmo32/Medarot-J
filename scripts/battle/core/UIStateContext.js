@@ -12,5 +12,7 @@ export class UIStateContext {
         this.messageQueue = [];
         // Flag to indicate a modal was just opened in the current frame
         this.modalJustOpened = false;
+        // Map UI state
+        this.isMapMenuVisible = false; // マップモードのポーズメニューが表示されているか
     }
 }

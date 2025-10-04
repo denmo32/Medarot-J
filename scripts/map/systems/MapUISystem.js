@@ -42,11 +42,11 @@ export class MapUISystem extends BaseSystem {
         }
 
         // メニューが開いている場合の入力処理
-        if (this.isMenuOpen) {
+        if (this.uiStateContext && this.uiStateContext.isMapMenuVisible) {
             this.handleMenuInput();
         }
         // NPCインタラクションウィンドウが開いている場合の入力処理
-        else if (this.uiStateContext && this.uiStateContext.isPausedByModal) {
+        else if (this.uiStateContext && this.uiStateContext.isPausedByModal && !this.uiStateContext.isMapMenuVisible) {
             this.handleInteractionWindowInput();
         }
     }
@@ -60,17 +60,20 @@ export class MapUISystem extends BaseSystem {
             return;
         }
 
-        this.isMenuOpen = !this.isMenuOpen;
-        this.dom.menu.classList.toggle('hidden', !this.isMenuOpen);
+        this.uiStateContext.isMapMenuVisible = !this.uiStateContext.isMapMenuVisible;
+        this.dom.menu.classList.toggle('hidden', !this.uiStateContext.isMapMenuVisible);
         // console.log('MapUISystem: Menu visibility toggled. New isMenuOpen:', this.isMenuOpen, 'hidden class:', this.dom.menu.classList.contains('hidden')); // ★デバッグログ
 
         const uiStateContext = this.world.getSingletonComponent(UIStateContext);
 
         if (this.uiStateContext) {
-            this.uiStateContext.isPausedByModal = this.isMenuOpen;
+            this.uiStateContext.isPausedByModal = this.uiStateContext.isMapMenuVisible;
         }
 
-        if (this.isMenuOpen) {
+        // UIStateContextの変更を通知
+        this.world.emit('UI_STATE_CHANGED', { context: 'mapUI', property: 'isMapMenuVisible', value: this.uiStateContext.isMapMenuVisible });
+
+        if (this.uiStateContext.isMapMenuVisible) {
             const saveButton = this.dom.menu.querySelector('.map-menu-button[data-action="save"]');
             const medarotchiButton = this.dom.menu.querySelector('.map-menu-button[data-action="medarotchi"]');
             this.menuButtons = [medarotchiButton, saveButton].filter(btn => btn);

@@ -140,8 +140,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         if (options.restoreMenu) {
-            mapUISystem.toggleMenu();
+            // mapUISystem.toggleMenu(); // 削除
+            // 代わりに、イベント発行でUI状態を変更
+            world.emit('UI_STATE_CHANGED', { context: 'mapUI', property: 'isMapMenuVisible', value: true });
         }
+
+        // UIStateContextの変更を監視し、UI要素の表示/非表示を切り替える
+        world.on('UI_STATE_CHANGED', (data) => {
+            if (data.context === 'mapUI' && data.property === 'isMapMenuVisible') {
+                const mapMenu = document.getElementById('map-menu');
+                if (mapMenu) {
+                    mapMenu.classList.toggle('hidden', !data.value);
+                }
+            }
+        });
     }
 
 
