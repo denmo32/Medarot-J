@@ -34,9 +34,21 @@ export class MovementSystem {
             switch(gameState.state) {
                 case PlayerStateType.SELECTED_CHARGING: // 自陣 -> アクションライン
                     positionXRatio = startLine + (actionLine - startLine) * progress;
+                    // 実行ラインを超えないように制限
+                    if (isTeam1) {
+                        positionXRatio = Math.min(positionXRatio, actionLine);
+                    } else {
+                        positionXRatio = Math.max(positionXRatio, actionLine);
+                    }
                     break;
                 case PlayerStateType.CHARGING: // アクションライン -> 自陣
                     positionXRatio = actionLine + (startLine - actionLine) * progress;
+                    // ホームポジションを超えないように制限
+                    if (isTeam1) {
+                        positionXRatio = Math.max(positionXRatio, startLine);
+                    } else {
+                        positionXRatio = Math.min(positionXRatio, startLine);
+                    }
                     break;
                 case PlayerStateType.READY_EXECUTE:
                     positionXRatio = actionLine;
