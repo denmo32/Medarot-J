@@ -26,21 +26,22 @@ body {
             background-color: #2d3748;
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            box-sizing: border-box; /* 追加 */
             display: flex;
-            flex-direction: column;
-            align-items: center;
+            flex-direction: row; /* 変更 */
+            flex-wrap: wrap; /* 追加 */
+            gap: 20px; /* 追加 */
+            align-items: stretch; /* 変更 */
             transform-origin: center center; /* スケーリングの基点を中央に設定 */
         }
 
         /* バトルフィールド */
         .battlefield {
-            width: 100%;
-            height: 250px;
+            flex: 3; /* 変更 */
+            height: 356px; /* 変更 */
             background-color: #4a5568;
             border: 2px solid #718096;
             border-radius: 8px;
-            margin-bottom: 20px;
             position: relative;
             overflow: hidden;
         }
@@ -140,30 +141,27 @@ body {
         
 
         /* 情報表示エリア */
-        .info-panels {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-            gap: 20px;
-        }
+        /* .info-panels は新しいレイアウトでは使用されません */
         .team-info-panel {
-            width: 48%;
+            flex: 1; /* 変更 */
             background-color: #4a5568;
             padding: 15px;
             border-radius: 8px;
         }
-        /* ★変更: チーム内のプレイヤーを横に並べるためのコンテナ */
+        /* ★変更: チーム内のプレイヤーを縦に並べるためのコンテナ */
         .team-players-container {
             display: flex;
+            flex-direction: column; /* 追加 */
             justify-content: space-around;
-            margin-top: 10px;
+            gap: 0px; /* 変更 */
+            margin-top: 0px; /* 変更 */
         }
         /* ★変更: プレイヤー情報を縦に並べる */
         .player-info {
             display: flex;
             flex-direction: column;
-            align-items: flex-start; /* ★変更: 左寄せにする */
-            gap: 2px; /* ★変更: HPバー同士の間隔を小さく */
+            align-items: center; /* ★変更: 中央揃えにする */
+            gap: 0px; /* ★変更: HPバー同士の間隔を小さく */
             font-size: 0.9em;
         }
         .player-name {
@@ -202,11 +200,12 @@ body {
 
         /* ★新規: アクションパネル */
         .action-panel {
+            flex-basis: 100%; /* 追加 */
             width: 100%;
             height: 160px; /* パネルの高さを固定 */
             background-color: #4a5568;
             border-radius: 8px;
-            margin-top: 20px; /* 上の要素とのマージン */
+            /* margin-top: 20px; 上の要素とのマージン */
             padding: 15px; /* パディングを少し調整 */
             box-sizing: border-box;
             transition: opacity 0.3s ease;
