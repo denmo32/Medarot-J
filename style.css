@@ -37,7 +37,7 @@ body {
 
         /* バトルフィールド */
         .battlefield {
-            flex: 3; /* 変更 */
+            flex-grow: 1; /* 変更 */
             height: 356px; /* 変更 */
             background-color: #4a5568;
             border: 2px solid #718096;
@@ -72,8 +72,9 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) scale(0.5);
-    font-size: 2.5em; /* ★変更 */
+    font-size: 2.2em; /* ★変更 */
     font-weight: bold;
+    white-space: nowrap; /* ★追加 */
     color: white;
     text-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000, 0 0 30px #ff0000;
     opacity: 0;
@@ -143,7 +144,6 @@ body {
         /* 情報表示エリア */
         /* .info-panels は新しいレイアウトでは使用されません */
         .team-info-panel {
-            flex: 1; /* 変更 */
             background-color: #4a5568;
             padding: 15px;
             border-radius: 8px;
@@ -152,9 +152,11 @@ body {
         .team-players-container {
             display: flex;
             flex-direction: column; /* 追加 */
-            justify-content: space-around;
+            justify-content: space-between; /* 変更 */
             gap: 0px; /* 変更 */
             margin-top: 0px; /* 変更 */
+            height: 100%; /* 追加 */
+            box-sizing: border-box; /* 追加 */
         }
         /* ★変更: プレイヤー情報を縦に並べる */
         .player-info {
@@ -164,6 +166,10 @@ body {
             gap: 0px; /* ★変更: HPバー同士の間隔を小さく */
             font-size: 0.9em;
         }
+        .player-info > .part-hp + .part-hp {
+            margin-top: -4px;
+        }
+
         .player-name {
             font-weight: normal; /* ★変更: 太字を解除 */
             font-size: 0.8em; /* ★変更: テキストを小さく */
