@@ -58,9 +58,42 @@
             <div id="action-panel-indicator" class="action-panel-indicator hidden">▼</div>
         </div>
     </div>
+
+    <!-- ★新規: カスタマイズ画面 -->
+    <div id="customize-container" class="customize-container hidden">
+
+        <div class="customize-main-layout">
+            <!-- 左パネル: メダロット選択 -->
+            <div id="customize-medarot-select-panel" class="customize-panel">
+                <h2>機体選択</h2>
+                <ul id="medarot-select-list"></ul>
+            </div>
+
+            <!-- 中央パネル: パーツ装備とパーツリスト -->
+            <div class="customize-center-column">
+                <div id="customize-parts-equip-panel" class="customize-panel">
+                    <h2 id="equipped-medarot-name"></h2>
+                    <ul id="equipped-parts-list"></ul>
+                </div>
+                <div id="customize-parts-list-panel" class="customize-panel">
+                    <div class="parts-list-header">
+                        <h2 id="parts-list-title">パーツ一覧</h2>
+                        <div id="parts-filter-tabs"></div>
+                    </div>
+                    <ul id="parts-list"></ul>
+                </div>
+            </div>
+
+            <!-- 右パネル: パーツ詳細 -->
+            <div id="customize-part-details-panel" class="customize-panel">
+                <h2>パーツ詳細</h2>
+                <div id="part-details-content"></div>
+            </div>
+        </div>
+        <div id="customize-footer" class="customize-footer">
+            <p>[↑↓←→]カーソル移動 [Z]決定 [X]戻る/マップへ</p>
+        </div>
     </div>
-
-
     
     <!-- ★新規: プレイヤー情報パネルのテンプレート -->
     <template id="player-info-template">
@@ -84,6 +117,25 @@
             </div>
         </div>
     </template>
+
+    <!-- ★新規: カスタマイズ画面用テンプレート -->
+    <template id="medarot-list-item-template">
+        <li class="medarot-list-item">
+            <span class="medarot-name"></span>
+        </li>
+    </template>
+    <template id="equipped-part-item-template">
+        <li class="equipped-part-item">
+            <span class="part-slot-name"></span>
+            <span class="part-name"></span>
+        </li>
+    </template>
+    <template id="part-list-item-template">
+        <li class="part-list-item">
+            <span class="part-name"></span>
+        </li>
+    </template>
+
 
     <!-- タイトル画面 -->
     <div id="title-container" class="title-container">

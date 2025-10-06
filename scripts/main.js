@@ -22,6 +22,7 @@ import { CameraSystem } from './map/systems/CameraSystem.js';
 import { RenderSystem as MapRenderSystem } from './map/systems/RenderSystem.js';
 import { MapUISystem } from './map/systems/MapUISystem.js';
 import { GameDataManager } from './core/GameDataManager.js';
+import { CustomizeSystem } from './customize/CustomizeSystem.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     // --- Global World Instance ---
@@ -36,6 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- UI Elements ---
     const mapContainer = document.getElementById('map-container');
     const battleContainer = document.getElementById('battle-container');
+    const customizeContainer = document.getElementById('customize-container');
 
     /**
      * Sets up the systems and entities required for battle mode.
@@ -173,40 +175,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function setupCustomizeScene() {
         world.reset();
-        
+
         const contextEntity = world.createEntity();
         world.addComponent(contextEntity, new GameModeContext());
         world.addComponent(contextEntity, new UIStateContext());
         const gameModeContext = world.getSingletonComponent(GameModeContext);
         gameModeContext.gameMode = 'customize';
 
+        // システムを登録
+        const customizeSystem = new CustomizeSystem(world);
+        world.registerSystem(customizeSystem);
+
+        // UI表示
         mapContainer.classList.add('hidden');
         battleContainer.classList.add('hidden');
-        
-        let customizeContainer = document.getElementById('customize-container');
-        if (!customizeContainer) {
-            customizeContainer = document.createElement('div');
-            customizeContainer.id = 'customize-container';
-            customizeContainer.className = 'customize-container';
-            customizeContainer.innerHTML = '<h2>カスタマイズ画面</h2><p>実装中</p><p style="margin-top: 20px; font-size: 0.9em;">(Xキーでマップに戻る)</p>';
-            document.body.appendChild(customizeContainer);
-        } else {
-            customizeContainer.classList.remove('hidden');
-        }
+        customizeContainer.classList.remove('hidden');
 
-        const handleCustomizeKeyDown = (event) => {
-            if (event.key === 'x' || event.key === 'X') {
-                window.removeEventListener('keydown', handleCustomizeKeyDown);
-                
-                const customizeContainer = document.getElementById('customize-container');
-                if (customizeContainer) {
-                    customizeContainer.classList.add('hidden');
-                }
-                
-                switchToMapMode({ restoreMenu: true });
-            }
-        };
-        window.addEventListener('keydown', handleCustomizeKeyDown);
+        // マップに戻るためのイベントリスナー
+        world.on('CUSTOMIZE_EXIT_REQUESTED', () => {
+            //リスナーを一度だけ実行するように変更
+            world.listeners.get('CUSTOMIZE_EXIT_REQUESTED').clear();
+            switchToMapMode({ restoreMenu: true });
+        });
     }
 
     /**
@@ -322,6 +312,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             mapContainer.style.width = `${baseWidth}px`;
             mapContainer.style.height = `${baseHeight}px`;
             mapContainer.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        }
+        if (customizeContainer) {
+            customizeContainer.style.width = `${baseWidth}px`;
+            customizeContainer.style.height = `${baseHeight}px`;
+            customizeContainer.style.transform = `translate(-50%, -50%) scale(${scale})`;
         }
     }
 
