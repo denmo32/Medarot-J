@@ -633,4 +633,6 @@ body {
     font-weight: bold;
 }
 
-
+#customize-parts-list-panel {
+    flex-grow: 1;
+}

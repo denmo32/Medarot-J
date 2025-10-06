@@ -170,17 +170,23 @@ export class CustomizeSystem {
     updateAllFocus() {
         // メダロットリスト
         this.dom.medarotList.querySelectorAll('li').forEach(li => {
-            li.classList.toggle('focused', this.state.focus === 'MEDAROT_SELECT' && parseInt(li.dataset.index) === this.state.selectedMedarotIndex);
+            const isFocused = this.state.focus === 'MEDAROT_SELECT' && parseInt(li.dataset.index) === this.state.selectedMedarotIndex;
+            li.classList.toggle('focused', isFocused);
+            if (isFocused) li.scrollIntoView({ block: 'nearest' });
         });
 
         // 装備パーツリスト
         this.dom.equippedPartsList.querySelectorAll('li').forEach(li => {
-            li.classList.toggle('focused', this.state.focus === 'PART_SLOT' && parseInt(li.dataset.index) === this.state.selectedPartSlotIndex);
+            const isFocused = this.state.focus === 'PART_SLOT' && parseInt(li.dataset.index) === this.state.selectedPartSlotIndex;
+            li.classList.toggle('focused', isFocused);
+            if (isFocused) li.scrollIntoView({ block: 'nearest' });
         });
 
         // パーツリスト
         this.dom.partsList.querySelectorAll('li').forEach(li => {
-            li.classList.toggle('focused', this.state.focus === 'PART_LIST' && parseInt(li.dataset.index) === this.state.selectedPartListIndex);
+            const isFocused = this.state.focus === 'PART_LIST' && parseInt(li.dataset.index) === this.state.selectedPartListIndex;
+            li.classList.toggle('focused', isFocused);
+            if (isFocused) li.scrollIntoView({ block: 'nearest' });
         });
     }
 
