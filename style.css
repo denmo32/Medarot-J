@@ -572,26 +572,7 @@ body {
     align-items: center;
 }
 
-#parts-filter-tabs {
-    display: flex;
-    gap: 5px;
-}
 
-.filter-tab {
-    padding: 4px 8px;
-    font-size: 0.9em;
-    background-color: #4a5568;
-    border: none;
-    color: #cbd5e0;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.filter-tab.focused {
-    background-color: #4299e1;
-    color: white;
-    box-shadow: 0 0 0 2px #63b3ed;
-}
 
 /* リストのスタイル */
 #medarot-select-list, #equipped-parts-list, #parts-list {
@@ -652,12 +633,4 @@ body {
     font-weight: bold;
 }
 
-/* フッター */
-.customize-footer {
-    text-align: center;
-    padding-top: 15px;
-    border-top: 2px solid #4a5568;
-    margin-top: 15px;
-    color: #a0aec0;
-    font-size: 0.9em;
-}
+

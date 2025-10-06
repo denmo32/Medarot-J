@@ -16,11 +16,10 @@ export class CustomizeSystem {
 
         // UIの状態
         this.state = {
-            focus: 'MEDAROT_SELECT', // MEDAROT_SELECT | PART_SLOT | PART_LIST | FILTER
+            focus: 'MEDAROT_SELECT', // MEDAROT_SELECT | PART_SLOT | PART_LIST
             selectedMedarotIndex: 0,
             selectedPartSlotIndex: 0,
             selectedPartListIndex: 0,
-            selectedFilterIndex: 0,
         };
 
         this.partSlots = ['head', 'rightArm', 'leftArm', 'legs'];
@@ -47,7 +46,6 @@ export class CustomizeSystem {
         this.dom.equippedMedarotName = document.getElementById('equipped-medarot-name');
         this.dom.equippedPartsList = document.getElementById('equipped-parts-list');
         this.dom.partsListTitle = document.getElementById('parts-list-title');
-        this.dom.partsFilterTabs = document.getElementById('parts-filter-tabs');
         this.dom.partsList = document.getElementById('parts-list');
         this.dom.partDetailsContent = document.getElementById('part-details-content');
     }
@@ -116,17 +114,6 @@ export class CustomizeSystem {
      * 中央パネルの交換可能パーツリストを描画する。
      */
     renderPartsList() {
-        // フィルタータブを描画
-        this.dom.partsFilterTabs.innerHTML = '';
-        this.partSlots.forEach((slotKey, index) => {
-            const slotInfo = PartInfo[Object.keys(PartInfo).find(k => PartInfo[k].key === slotKey)];
-            const button = document.createElement('button');
-            button.className = 'filter-tab';
-            button.dataset.index = index;
-            button.textContent = slotInfo.icon;
-            this.dom.partsFilterTabs.appendChild(button);
-        });
-
         // 選択中のスロットに基づいてパーツリストを描画
         const selectedSlot = this.partSlots[this.state.selectedPartSlotIndex];
         this.dom.partsListTitle.textContent = `${PartInfo[Object.keys(PartInfo).find(k => PartInfo[k].key === selectedSlot)].name}一覧`;
@@ -191,11 +178,6 @@ export class CustomizeSystem {
             li.classList.toggle('focused', this.state.focus === 'PART_SLOT' && parseInt(li.dataset.index) === this.state.selectedPartSlotIndex);
         });
 
-        // フィルタータブ
-        this.dom.partsFilterTabs.querySelectorAll('button').forEach(btn => {
-            btn.classList.toggle('focused', this.state.focus === 'FILTER' && parseInt(btn.dataset.index) === this.state.selectedFilterIndex);
-        });
-
         // パーツリスト
         this.dom.partsList.querySelectorAll('li').forEach(li => {
             li.classList.toggle('focused', this.state.focus === 'PART_LIST' && parseInt(li.dataset.index) === this.state.selectedPartListIndex);
@@ -223,7 +205,6 @@ export class CustomizeSystem {
                     stateChanged = true;
                     break;
                 case 'PART_LIST':
-                case 'FILTER':
                     this.state.focus = 'PART_SLOT';
                     stateChanged = true;
                     break;
@@ -244,11 +225,6 @@ export class CustomizeSystem {
                 case 'PART_SLOT':
                     this.state.focus = 'PART_LIST';
                     this.state.selectedPartListIndex = 0; // リストの先頭にフォーカス
-                    stateChanged = true;
-                    break;
-                case 'FILTER':
-                    this.state.focus = 'PART_LIST';
-                    this.state.selectedPartListIndex = 0;
                     stateChanged = true;
                     break;
                 case 'PART_LIST':
@@ -272,7 +248,6 @@ export class CustomizeSystem {
                     break;
                 case 'PART_SLOT':
                     this.state.selectedPartSlotIndex = (this.state.selectedPartSlotIndex + verticalMove + this.partSlots.length) % this.partSlots.length;
-                    this.state.selectedFilterIndex = this.state.selectedPartSlotIndex; // フィルターも連動
                     stateChanged = true;
                     break;
                 case 'PART_LIST':
@@ -281,29 +256,11 @@ export class CustomizeSystem {
                     }
                     stateChanged = true;
                     break;
-                case 'FILTER':
-                    if (verticalMove > 0) { // 下キーでパーツリストへ
-                        this.state.focus = 'PART_LIST';
-                        this.state.selectedPartListIndex = 0;
-                        stateChanged = true;
-                    }
-                    break;
             }
         }
 
         if (horizontalMove !== 0) {
-            switch (this.state.focus) {
-                case 'PART_SLOT':
-                    this.state.focus = 'FILTER';
-                    this.state.selectedFilterIndex = this.state.selectedPartSlotIndex;
-                    stateChanged = true;
-                    break;
-                case 'FILTER':
-                    this.state.selectedFilterIndex = (this.state.selectedFilterIndex + horizontalMove + this.partSlots.length) % this.partSlots.length;
-                    this.state.selectedPartSlotIndex = this.state.selectedFilterIndex; // スロットも連動
-                    stateChanged = true;
-                    break;
-            }
+            // 水平移動のロジックは現在PART_SLOTとPART_LISTには不要
         }
 
         if (stateChanged) {
