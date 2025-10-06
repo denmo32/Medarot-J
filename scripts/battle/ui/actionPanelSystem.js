@@ -235,15 +235,25 @@ export class ActionPanelSystem extends BaseSystem {
      * @returns {string} 生成された結果メッセージ
      */
     _generateResultMessage(detail) {
-        if (detail.targetId === null || detail.damage === 0) {
+        const targetInfo = this.world.getComponent(detail.targetId, Components.PlayerInfo);
+
+        // 1. 回避判定を最優先
+        if (detail.isEvaded) {
+            return targetInfo ? `${targetInfo.name}は攻撃を回避！` : '攻撃は回避された！';
+        }
+
+        // 2. ターゲットなし（格闘の空振りなど）または、命中したがダメージ0の場合
+        if (detail.targetId === null || (detail.damage === 0 && !detail.isDefended && !detail.isCritical)) {
+            console.error('予期せぬ状況: 「攻撃は空を切った！」メッセージが生成されました。これは通常発生しないはずです。', { detail });
             return '攻撃は空を切った！';
         }
         
-        const targetInfo = this.world.getComponent(detail.targetId, Components.PlayerInfo);
+        // 3. ターゲット情報がない場合（予期せぬエラー）
         if (!targetInfo) {
-            return '不明なターゲット';
+            return '不明なターゲットへの攻撃';
         }
         
+        // 4. 通常のダメージメッセージ生成
         const finalTargetPartName = PartKeyToInfoMap[detail.targetPartKey]?.name || '不明な部位';
         let message = '';
 

@@ -41,8 +41,8 @@ export class ActionSystem extends BaseSystem {
      */
     onAttackDeclarationConfirmed(detail) {
         try {
-            // ★修正: ペイロードから全情報を取得（resultMessageは削除された）
-            const { entityId, damage, targetId, targetPartKey, isCritical, isDefended } = detail;
+            // ★修正: isEvaded をペイロードから取得
+            const { entityId, damage, targetId, targetPartKey, isCritical, isDefended, isEvaded } = detail;
 
             // パラメータの検証
             if (typeof entityId !== 'number' || typeof damage !== 'number') {
@@ -65,6 +65,7 @@ export class ActionSystem extends BaseSystem {
                     isPlayerBroken: false,
                     isCritical: false,
                     isDefended: false,
+                    isEvaded: false, // 空振りは回避ではない
                 });
                 // 空振りでもシーケンス完了イベントを発行
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId });
@@ -104,6 +105,7 @@ export class ActionSystem extends BaseSystem {
                 isPlayerBroken: isPlayerBroken,
                 isCritical: isCritical,
                 isDefended: isDefended,
+                isEvaded: isEvaded, // ★追加: 回避フラグを渡す
             });
 
             // ゲームオーバーチェック
@@ -229,6 +231,7 @@ export class ActionSystem extends BaseSystem {
                     targetPartKey: outcome.finalTargetPartKey,
                     isCritical: outcome.isCritical,
                     isDefended: outcome.isDefended,
+                    isEvaded: !outcome.isHit, // ★追加: isHitがfalseなら回避とみなす
                 },
                 immediate: true
             });
@@ -272,6 +275,7 @@ export class ActionSystem extends BaseSystem {
         // 1. 回避判定
         const evasionChance = calculateEvasionChance(targetLegs.mobility, attackingPart.success);
         if (Math.random() < evasionChance) {
+            // ★修正: isEvadedフラグはここでは返さない（isHitで代替）
             return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
         }
 
@@ -301,18 +305,9 @@ export class ActionSystem extends BaseSystem {
 
     /**
      * @private
-     * 攻撃結果に基づいてUIに表示するメッセージを生成します。
-     * @param {PlayerInfo} targetInfo - ターゲットのPlayerInfoコンポーネント
-     * @param {object} outcome - _resolveHitOutcomeからの命中結果
-     * @param {number} finalDamage - 最終ダメージ
-     * @returns {string} 生成された結果メッセージ
+     * ★廃止: このメソッドは不要になったため削除します。
      */
-    _generateResultMessage(targetInfo, outcome, finalDamage) {
-        if (!outcome.isHit) {
-            return `${targetInfo.name}は攻撃を回避！`;
-        }
 
-    }
     
     // Game paused event handler
     onPauseGame() {
