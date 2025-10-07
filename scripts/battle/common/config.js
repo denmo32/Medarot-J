@@ -79,8 +79,8 @@ export const CONFIG = {
         HOME_MARGIN_TEAM2: 0.95,      // チーム2のホームポジションのX座標
         ACTION_LINE_TEAM1: 0.45,      // チーム1のアクションライン
         ACTION_LINE_TEAM2: 0.55,      // チーム2のアクションライン
-        PLAYER_INITIAL_Y: 25,         // プレイヤーの初期Y座標
-        PLAYER_Y_STEP: 25,            // プレイヤー間のY座標の間隔
+        PLAYER_INITIAL_Y: 20,         // プレイヤーの初期Y座標
+        PLAYER_Y_STEP: 30,            // プレイヤー間のY座標の間隔
         FIELD_WIDTH: 100,             // フィールドの幅（パーセンテージ）
         FIELD_HEIGHT: 100,            // フィールドの高さ（パーセンテージ）
         MAX_MOVEMENT_DISTANCE: 0.1,   // 1回の移動で移動できる最大距離（フィールド比率）
