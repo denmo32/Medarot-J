@@ -235,6 +235,11 @@ export class ActionPanelSystem extends BaseSystem {
      * @returns {string} 生成された結果メッセージ
      */
     _generateResultMessage(detail) {
+        // 支援行動（スキャン）の場合は特別なメッセージを返す
+        if (detail.isSupport) {
+            return '各機の攻撃成功度上昇！';
+        }
+
         const targetInfo = this.world.getComponent(detail.targetId, Components.PlayerInfo);
 
         // 1. 回避判定を最優先
@@ -243,7 +248,16 @@ export class ActionPanelSystem extends BaseSystem {
         }
 
         // 2. ターゲットなし（格闘の空振りなど）または、命中したがダメージ0の場合
+        // スキャン行動（援護行動）ではtargetIdがnullになるため、この条件を満たす可能性がある
+        // しかし、すでにisSupportがtrueの場合のチェックをしているため、ここには到達しないはず
+        // 万が一到達した場合のために、エラーメッセージを出力
         if (detail.targetId === null || (detail.damage === 0 && !detail.isDefended && !detail.isCritical)) {
+            // スキャン行動（援護行動）ではtargetIdがnullになるため、この条件を満たす可能性がある
+            // しかし、すでにisSupportがtrueの場合のチェックをしているため、ここには到達しないはず
+            // 万が一到達した場合のために、エラーメッセージを出力
+            // isSupportがfalseでもtargetIdがnullの場合は、スキャン行動以外の特殊ケースとして扱う
+            // ただし、現在の実装ではスキャン行動以外でtargetIdがnullになるケースは想定していない
+            // そのため、エラーメッセージを出力して、デフォルトのメッセージを返す
             console.error('予期せぬ状況: 「攻撃は空を切った！」メッセージが生成されました。これは通常発生しないはずです。', { detail });
             return '攻撃は空を切った！';
         }

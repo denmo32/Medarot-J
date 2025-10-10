@@ -37,6 +37,14 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
             targetId: null, 
             targetPartKey: null 
         });
+    } else if (selectedPartAction === '援護') {
+        // 援護行動（スキャン）の場合、ターゲットは設定しない（味方全体が対象）
+        world.emit(GameEvents.ACTION_SELECTED, { 
+            entityId, 
+            partKey, 
+            targetId: null, 
+            targetPartKey: null 
+        });
     } else { // '射撃'
         // 射撃の場合、有効なターゲットが必須です。ターゲットが無効な場合は再選択を要求します。
         if (!target || !isValidTarget(world, target.targetId, target.targetPartKey)) {

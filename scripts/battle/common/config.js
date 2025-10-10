@@ -133,6 +133,9 @@ export const CONFIG = {
         '格闘': {
             targetTiming: 'post-move', // 移動後にターゲットを決定
         },
+        '援護': {
+            targetTiming: 'pre-move', // 移動前にターゲットを決定
+        },
         // 将来的に '回復', '補助' などを追加可能
         // '回復': { targetTiming: 'pre-move', targetScope: 'ally' }
     },

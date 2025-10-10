@@ -127,6 +127,11 @@ export class StateSystem {
      */
     onAttackSequenceCompleted(detail) {
         const { entityId } = detail;
+        // 行動実行時に、その機体のスキャンボーナス値を20%減らす
+        const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+        if (playerInfo) {
+            playerInfo.scanBonus = Math.floor(playerInfo.scanBonus * 0.8);
+        }
         this.resetAttackerState(entityId);
     }
 

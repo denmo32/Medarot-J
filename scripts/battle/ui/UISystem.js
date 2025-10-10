@@ -1,5 +1,5 @@
 import { BaseSystem } from '../../core/baseSystem.js';
-import { PlayerInfo, Position, Gauge, GameState, Parts } from '../core/components.js';
+import { PlayerInfo, Position, Gauge, GameState, Parts, Action } from '../core/components.js';
 import { PlayerStateType } from '../common/constants.js';
 import { UIManager } from './UIManager.js';
 import { GameEvents } from '../common/events.js'; // イベント定義をインポート
@@ -77,6 +77,14 @@ export class UISystem extends BaseSystem {
         // DOM要素の存在確認
         if (!attackerDomElements || !targetDomElements || !attackerDomElements.iconElement || !targetDomElements.iconElement || !attackerDomElements.targetIndicatorElement) {
             console.warn('UISystem: Missing DOM elements for animation. Skipping.', detail);
+            this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
+            return;
+        }
+
+        // 攻撃者のActionコンポーネントを取得して、行動タイプを確認
+        const action = this.getCachedComponent(attackerId, Action);
+        if (action && action.type === '援護') {
+            // 援護行動（スキャン）の場合はアニメーションを実行せず、即座に完了イベントを発行
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
         }

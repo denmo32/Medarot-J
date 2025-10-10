@@ -8,6 +8,7 @@ export class PlayerInfo {
         this.teamId = teamId;
         this.isLeader = isLeader;
         this.color = CONFIG.TEAMS[teamId].color;
+        this.scanBonus = 0; // ★追加: スキャンボーナス値
     }
 }
 

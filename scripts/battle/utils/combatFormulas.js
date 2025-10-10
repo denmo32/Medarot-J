@@ -104,15 +104,35 @@ export class DefaultCombatStrategy extends CombatStrategy {
      * @param {number} success - 攻撃側の成功値
      * @returns {number} 0-1の範囲の確率
      */
-    calculateEvasionChance(mobility, success) {
+    calculateEvasionChance(world, attackerId, mobility, success) {
         try {
             // パラメータの検証
+            // スキャン行動（援護行動）では、mobilityまたはsuccessがundefinedになる可能性がある
+            // その場合は、回避確率を0として返す
+            if (mobility === undefined || success === undefined) {
+                return 0;
+            }
             if (typeof mobility !== 'number' || typeof success !== 'number') {
                 throw new GameError(
                     `Invalid parameters for evasion calculation: mobility=${mobility}, success=${success}`,
                     ErrorType.VALIDATION_ERROR,
                     { mobility, success, method: 'calculateEvasionChance' }
                 );
+            }
+
+            // 攻撃者のチームに所属する全機体のスキャンボーナスを合計
+            let scanBonus = 0;
+            if (world && attackerId !== undefined) {
+                const attackerInfo = world.getComponent(attackerId, PlayerInfo);
+                if (attackerInfo) {
+                    const entities = world.getEntitiesWith(PlayerInfo);
+                    entities.forEach(id => {
+                        const playerInfo = world.getComponent(id, PlayerInfo);
+                        if (playerInfo && playerInfo.teamId === attackerInfo.teamId) {
+                            scanBonus += playerInfo.scanBonus || 0;
+                        }
+                    });
+                }
             }
 
             const formula = CONFIG.FORMULAS.EVASION;
@@ -124,7 +144,9 @@ export class DefaultCombatStrategy extends CombatStrategy {
                 );
             }
 
-            const base = (mobility - success) / formula.DIFFERENCE_DIVISOR + formula.BASE_CHANCE;
+            // スキャンボーナスをsuccess値に加算
+            const adjustedSuccess = success + scanBonus;
+            const base = (mobility - adjustedSuccess) / formula.DIFFERENCE_DIVISOR + formula.BASE_CHANCE;
             return Math.max(0, Math.min(formula.MAX_CHANCE, base));
         } catch (error) {
             ErrorHandler.handle(error, { method: 'calculateEvasionChance', mobility, success });

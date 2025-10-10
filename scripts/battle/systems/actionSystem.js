@@ -53,6 +53,27 @@ export class ActionSystem extends BaseSystem {
                 );
             }
 
+            // 支援行動の場合は、攻撃宣言確認後すぐにシーケンスを完了させる
+            // 支援行動では、実際に攻撃を行うわけではないので、通常の攻撃処理は行わない
+            if (detail.isSupport) {
+                // 支援行動の場合は、処理を完了して次の行動に進む
+                // isSupportフラグがtrueの場合、ACTION_EXECUTEDイベントを発行してからシーケンスを完了させる
+                this.world.emit(GameEvents.ACTION_EXECUTED, {
+                    attackerId: entityId,
+                    targetId: targetId,
+                    targetPartKey: targetPartKey,
+                    damage: 0,
+                    isPartBroken: false,
+                    isPlayerBroken: false,
+                    isCritical: false,
+                    isDefended: false,
+                    isEvaded: false,
+                    isSupport: true // ★追加: 支援行動フラグ
+                });
+                this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId });
+                return;
+            }
+
             // 格闘攻撃が空振りした場合など、ターゲットが存在しない場合はシーケンスを完了させる
             if (!targetId) {
                 // ACTION_EXECUTEDに空振り情報を詰めて発行
@@ -66,6 +87,7 @@ export class ActionSystem extends BaseSystem {
                     isCritical: false,
                     isDefended: false,
                     isEvaded: false, // 空振りは回避ではない
+                    isSupport: false // ★追加: 支援行動フラグ（空振りではfalse）
                 });
                 // 空振りでもシーケンス完了イベントを発行
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId });
@@ -106,6 +128,7 @@ export class ActionSystem extends BaseSystem {
                 isCritical: isCritical,
                 isDefended: isDefended,
                 isEvaded: isEvaded, // ★追加: 回避フラグを渡す
+                isSupport: false // ★追加: 支援行動フラグ（攻撃行動ではfalse）
             });
 
             // ゲームオーバーチェック
@@ -200,27 +223,37 @@ export class ActionSystem extends BaseSystem {
             const { action, attackerInfo, targetInfo, attackerParts, targetParts } = components;
             const attackingPart = attackerParts[action.partKey];
             const attackerLegs = attackerParts.legs;
-            const targetLegs = targetParts.legs;
+            const targetLegs = targetParts ? targetParts.legs : null;
 
             // 手順2: 攻撃の命中結果（回避、クリティカル、防御）を決定します。
-            const outcome = this._resolveHitOutcome(attackingPart, targetLegs, action.targetId, action.targetPartKey);
+            const outcome = this._resolveHitOutcome(attackingPart, targetLegs, action.targetId, action.targetPartKey, executor);
 
-            // 手順3: 命中結果に基づいて最終的なダメージを計算します。
-            const finalDamage = outcome.isHit
-                ? calculateDamage(
+            // ★★★ ここから改善 ★★★
+            // 手順3: 命中結果とアクションタイプに基づいて最終的なダメージを計算します。
+            // 援護行動の場合はダメージ計算をスキップします。
+            const isSupportAction = attackingPart.action === '援護';
+            const finalDamage = isSupportAction || !outcome.isHit
+                ? 0 // 支援行動または攻撃が外れた場合はダメージ0
+                : calculateDamage(
                     attackingPart,
                     attackerLegs,
                     targetLegs,
                     outcome.isCritical,
                     !outcome.isCritical && !outcome.isDefended // isDefenseBypassed
-                )
-                : 0;
+                );
+            // ★★★ ここまで改善 ★★★
 
             // 手順4: 結果をActionコンポーネントに一時保存します（防御によるターゲット変更などを反映）。
             action.targetPartKey = outcome.finalTargetPartKey;
 
             // 手順5: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
-            const declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！　${attackingPart.trait}！`;
+            let declarationMessage;
+            if (isSupportAction) { // ★ 改善に合わせて変数を使用
+                // 支援行動の場合は専用のメッセージを表示
+                declarationMessage = `${attackerInfo.name}の支援行動！　スキャン！`;
+            } else {
+                declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！　${attackingPart.trait}！`;
+            }
             this.world.emit(GameEvents.SHOW_MODAL, {
                 type: ModalType.ATTACK_DECLARATION,
                 data: {
@@ -232,6 +265,7 @@ export class ActionSystem extends BaseSystem {
                     isCritical: outcome.isCritical,
                     isDefended: outcome.isDefended,
                     isEvaded: !outcome.isHit, // ★追加: isHitがfalseなら回避とみなす
+                    isSupport: isSupportAction // ★ 改善に合わせて変数を使用
                 },
                 immediate: true
             });
@@ -249,17 +283,27 @@ export class ActionSystem extends BaseSystem {
      */
     _getCombatComponents(executorId) {
         const action = this.getCachedComponent(executorId, Action);
-        if (!action || !this.isValidEntity(action.targetId)) return null;
+        if (!action) return null;
 
         const attackerInfo = this.getCachedComponent(executorId, PlayerInfo);
-        const targetInfo = this.getCachedComponent(action.targetId, PlayerInfo);
         const attackerParts = this.getCachedComponent(executorId, Parts);
-        const targetParts = this.getCachedComponent(action.targetId, Parts);
-
-        if (!attackerInfo || !targetInfo || !attackerParts || !targetParts) {
+        if (!attackerInfo || !attackerParts) {
             return null;
         }
-        return { action, attackerInfo, targetInfo, attackerParts, targetParts };
+
+        // ターゲットが存在する場合のみ、ターゲットのコンポーネントを取得
+        if (this.isValidEntity(action.targetId)) {
+            const targetInfo = this.getCachedComponent(action.targetId, PlayerInfo);
+            const targetParts = this.getCachedComponent(action.targetId, Parts);
+            // ターゲットIDはあるがコンポーネントがない異常系も考慮
+            if (!targetInfo || !targetParts) {
+                return { action, attackerInfo, attackerParts, targetInfo: null, targetParts: null };
+            }
+            return { action, attackerInfo, attackerParts, targetInfo, targetParts };
+        }
+
+        // ターゲットがいない場合（援護、格闘の空振りなど）
+        return { action, attackerInfo, attackerParts, targetInfo: null, targetParts: null };
     }
 
     /**
@@ -267,13 +311,22 @@ export class ActionSystem extends BaseSystem {
      * 攻撃の命中結果（回避、クリティカル、防御）を判定します。
      * @param {object} attackingPart - 攻撃側のパーツ
      * @param {object} targetLegs - ターゲットの脚部パーツ
-     * @param {number} targetId - ターゲットのエンティティID
+     * @param {number} targetId - ターゲットのエンティID
      * @param {string} initialTargetPartKey - 当初のターゲットパーツキー
+     * @param {number} executorId - 実行者のエンティティID
      * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果オブジェクト
      */
-    _resolveHitOutcome(attackingPart, targetLegs, targetId, initialTargetPartKey) {
-        // 1. 回避判定
-        const evasionChance = calculateEvasionChance(targetLegs.mobility, attackingPart.success);
+    _resolveHitOutcome(attackingPart, targetLegs, targetId, initialTargetPartKey, executorId) {
+        // 支援行動の場合は命中判定を行わず、支援効果を適用する
+        if (attackingPart.action === '援護') {
+            // 支援行動の場合は、ターゲットが存在しない場合でも処理を続行
+            // スキャンボーナスをチーム全体に適用
+            this._applyScanBonus(attackingPart, targetId, executorId);
+            return { isHit: true, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
+        }
+
+        // 通常の回避判定（射撃・格闘）
+        const evasionChance = calculateEvasionChance(this.world, executorId, targetLegs.mobility, attackingPart.success);
         if (Math.random() < evasionChance) {
             // ★修正: isEvadedフラグはここでは返さない（isHitで代替）
             return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
@@ -301,6 +354,31 @@ export class ActionSystem extends BaseSystem {
         }
 
         return { isHit: true, isCritical, isDefended, finalTargetPartKey };
+    }
+
+    /**
+     * @private
+     * スキャンパーツの効果を適用する
+     * @param {object} attackingPart - 攻撃側のパーツ
+     * @param {number} targetId - ターゲットのエンティティID（支援行動では使用しないが引数として受け取る）
+     * @param {number} executorId - 実行者のエンティティID
+     */
+    _applyScanBonus(attackingPart, targetId, executorId) {
+        // スキャンボーナス値を計算 (might/10)
+        const scanBonusValue = Math.floor(attackingPart.might / 10);
+
+        // 攻撃者のチームに所属する全機体にスキャンボーナスを適用
+        const attackerInfo = this.getCachedComponent(executorId, PlayerInfo);
+        if (attackerInfo) {
+            const entities = this.world.getEntitiesWith(PlayerInfo);
+            entities.forEach(id => {
+                const playerInfo = this.getCachedComponent(id, PlayerInfo);
+                if (playerInfo && playerInfo.teamId === attackerInfo.teamId) {
+                    // 各機体が行動実行する度に、その機体のスキャンボーナス値を20%減らす
+                    playerInfo.scanBonus = scanBonusValue;
+                }
+            });
+        }
     }
 
     /**
