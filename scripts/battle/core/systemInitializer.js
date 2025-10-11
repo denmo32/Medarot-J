@@ -6,7 +6,8 @@ import { BattleHistoryContext } from './BattleHistoryContext.js';
 import { ViewSystem } from '../ui/viewSystem.js';
 import { DomFactorySystem } from '../ui/domFactorySystem.js';
 import { ActionPanelSystem } from '../ui/actionPanelSystem.js'; // ★新規: ActionPanelSystemをインポート
-import { RenderSystem } from '../ui/renderSystem.js';
+// ★削除: RenderSystemは廃止されたためインポートしない
+// import { RenderSystem } from '../ui/renderSystem.js';
 import { GaugeSystem } from '../systems/gaugeSystem.js';
 import { StateSystem } from '../systems/stateSystem.js';
 import { InputSystem } from '../ui/inputSystem.js';
@@ -42,8 +43,9 @@ export function initializeSystems(world) {
     const actionPanelSystem = new ActionPanelSystem(world);
 
     const gameFlowSystem = new GameFlowSystem(world);
-    const viewSystem = new ViewSystem(world);
-    const renderSystem = new RenderSystem(world);
+    const viewSystem = new ViewSystem(world); // アニメーション担当
+    // ★削除: RenderSystemは廃止
+    // const renderSystem = new RenderSystem(world);
     const gaugeSystem = new GaugeSystem(world);
     const stateSystem = new StateSystem(world);
     const turnSystem = new TurnSystem(world);
@@ -64,7 +66,8 @@ export function initializeSystems(world) {
     // ★新規: EffectSystemを登録 (ActionSystemの後、UI系Systemの前が適切)
     world.registerSystem(effectSystem);
     world.registerSystem(viewSystem);
-    world.registerSystem(renderSystem);
+    // ★削除: RenderSystemの登録を削除
+    // world.registerSystem(renderSystem);
     world.registerSystem(actionPanelSystem);
-    world.registerSystem(new UISystem(world)); // 追加
+    world.registerSystem(new UISystem(world)); // DOM更新担当
 }

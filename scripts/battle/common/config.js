@@ -125,20 +125,6 @@ export const CONFIG = {
         FRIENDLY_FIRE: false,          // チームメイトへのダメージ有効化
     },
 
-    // ★新規: アクションの特性定義
-    ACTION_PROPERTIES: {
-        '射撃': {
-            targetTiming: 'pre-move', // 移動前にターゲットを決定
-        },
-        '格闘': {
-            targetTiming: 'post-move', // 移動後にターゲットを決定
-        },
-        '援護': {
-            targetTiming: 'pre-move', // 移動前にターゲットを決定
-        },
-        '回復': {
-            // ★修正: リペアを格闘と同じ「直前ターゲット」方式に変更
-            targetTiming: 'post-move',
-        },
-    },
+    // ★廃止: アクションの特性定義 (parts.jsに統合)
+    // ACTION_PROPERTIES: { ... },
 };

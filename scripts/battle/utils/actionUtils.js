@@ -34,8 +34,8 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
         console.warn(`decideAndEmitAction: No valid target found for a single-target action by ${entityId}. The action will be treated as a miss.`);
     }
 
-    // ★修正: 格闘攻撃と回復は移動後にターゲットを決めるため、常にnullで予約する
-    if (['格闘', '回復'].includes(selectedPart.action)) {
+    // ★修正: 'post-move'アクションは移動後にターゲットを決めるため、常にnullで予約する
+    if (selectedPart.targetTiming === 'post-move') {
         world.emit(GameEvents.ACTION_SELECTED, {
             entityId,
             partKey,

@@ -7,16 +7,14 @@ import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 // ★改善: PartInfo, PartKeyToInfoMapを参照し、定義元を一元化
-import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType, MedalPersonality } from '../common/constants.js';
-// ★修正: getValidAllies をインポート
-import { findBestDefensePart, findNearestEnemy, selectRandomPart, getValidAllies } from '../utils/queryUtils.js';
+import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType } from '../common/constants.js';
+// ★修正: findMostDamagedAllyPart をインポート
+import { findBestDefensePart, findNearestEnemy, selectRandomPart, getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
 import { calculateEvasionChance, calculateDefenseChance, calculateCriticalChance } from '../utils/combatFormulas.js';
 import { BaseSystem } from '../../core/baseSystem.js';
 import { ErrorHandler, GameError, ErrorType } from '../utils/errorHandler.js';
 // ★新規: アクション効果の戦略をインポート
 import { effectStrategies } from '../effects/effectStrategies.js';
-// ★追加: ターゲティング戦略をインポート
-import { targetingStrategies } from '../ai/targetingStrategies.js';
 
 /**
  * 「行動の実行」に特化したシステム。
@@ -111,15 +109,10 @@ export class ActionSystem extends BaseSystem {
                     }
                 } else if (action.type === '回復') {
                     // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-                    // HEALER戦略に必要な味方リスト(candidates)を渡すように修正
                     // 1. 回復対象となりうる味方（自分自身も含む）のリストを取得する
                     const allies = getValidAllies(this.world, executor, true);
-                    // 2. HEALER戦略を再利用し、最もダメージを受けた味方をターゲットする
-                    targetData = targetingStrategies[MedalPersonality.HEALER]({
-                        world: this.world,
-                        candidates: allies, // 取得した味方リストを'candidates'として渡す
-                        attackerId: executor
-                    });
+                    // 2. ★修正: AI戦略(HEALER)への依存をなくし、汎用的なクエリ関数を呼び出す
+                    targetData = findMostDamagedAllyPart(this.world, allies);
                     // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
                 }
 

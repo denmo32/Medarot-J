@@ -5,7 +5,8 @@ import { ModalType } from '../common/constants.js';
 import { getAllActionParts } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
-import { CONFIG } from '../common/config.js';
+// ★削除: CONFIGは不要になったため削除
+// import { CONFIG } from '../common/config.js';
 
 /**
  * プレイヤーからの入力を処理し、行動を決定するシステム。
@@ -38,7 +39,9 @@ export class InputSystem extends BaseSystem {
             // 各パーツに対してターゲットを決定する。
             // targetTimingが'post-move'のアクション（格闘、回復）は、この時点ではターゲットを決定しない。
             let target = null;
-            if (CONFIG.ACTION_PROPERTIES[part.action]?.targetTiming === 'pre-move') {
+            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // ★修正: CONFIG.ACTION_PROPERTIES を参照せず、パーツ自身のプロパティを見る
+            if (part.targetTiming === 'pre-move') {
                 target = determineTarget(this.world, entityId, partKey);
             }
 
@@ -48,7 +51,9 @@ export class InputSystem extends BaseSystem {
                 isBroken: part.isBroken,
                 action: part.action,
                 targetScope: part.targetScope,
-                targetTiming: CONFIG.ACTION_PROPERTIES[part.action]?.targetTiming || 'pre-move',
+                // ★修正: CONFIG.ACTION_PROPERTIES を参照せず、パーツ自身のプロパティを見る
+                targetTiming: part.targetTiming || 'pre-move',
+                // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
                 // ★追加: 各ボタンに固有のターゲット情報を持たせる
                 target: target 
             };

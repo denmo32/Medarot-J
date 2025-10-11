@@ -6,8 +6,8 @@ import { Parts, PlayerInfo, GameState, BattleLog } from '../core/components.js';
 import { BattleHistoryContext } from '../core/index.js'; // Import new context
 // ★改善: PartInfoを参照することで、ハードコードされた文字列を排除
 import { PlayerStateType, MedalPersonality, PartInfo, TeamID } from '../common/constants.js'; // Import TeamID for context keys, add BattleHistoryContext import
-// ★変更: getAllPartsFromCandidates, selectPartByCondition をインポート (旧 getAllEnemyParts)
-import { isValidTarget, selectRandomPart, getAllPartsFromCandidates, selectPartByCondition, getValidEnemies, getValidAllies } from '../utils/queryUtils.js';
+// ★変更: findMostDamagedAllyPart をインポート
+import { isValidTarget, selectRandomPart, getAllPartsFromCandidates, selectPartByCondition, getValidEnemies, getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
 import { GameEvents } from '../common/events.js';
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。
@@ -178,33 +178,15 @@ export const targetingStrategies = {
     /**
      * ★新規: [HEALER]: 味方を回復することに専念する、支援的な性格。
      * 味方全体のパーツの中で、最もHPの減りが大きい（最大HP - 現在HP が最大）ものを狙います。
-     * ★修正: 内部で味方リストを再取得せず、渡された候補リスト(candidates)を尊重するように変更
+     * ★修正: 候補(candidates)が渡されない場合、自律的に味方全体を検索するよう改善。
+     * ★修正: 実際の探索ロジックを再利用可能な queryUtils.findMostDamagedAllyPart に移譲。
      */
     [MedalPersonality.HEALER]: ({ world, candidates, attackerId }) => {
-        if (!candidates || candidates.length === 0) return null;
-
-        let mostDamagedPart = null;
-        let maxDamage = -1;
-
-        // ★変更: 内部で味方を探すのではなく、渡された候補リストを走査する
-        candidates.forEach(allyId => {
-            const parts = world.getComponent(allyId, Parts);
-            if (!parts) return;
-            Object.entries(parts).forEach(([partKey, part]) => {
-                if (part && !part.isBroken) {
-                    const damageTaken = part.maxHp - part.hp;
-                    if (damageTaken > maxDamage) {
-                        maxDamage = damageTaken;
-                        mostDamagedPart = { targetId: allyId, targetPartKey: partKey };
-                    }
-                }
-            });
-        });
+        // 候補リストが指定されていない場合は、自分を含む全ての味方を候補とする
+        const targetCandidates = candidates || getValidAllies(world, attackerId, true);
         
-        // 誰もダメージを受けていない場合はターゲットなし
-        if (maxDamage <= 0) return null;
-
-        return mostDamagedPart;
+        // 汎用的なクエリ関数を呼び出して、最も損害の大きい味方パーツを見つける
+        return findMostDamagedAllyPart(world, targetCandidates);
     },
 
     /**

@@ -4,23 +4,33 @@ import { PlayerStateType } from '../common/constants.js';
 import { UIManager } from './UIManager.js';
 import { GameEvents } from '../common/events.js'; // イベント定義をインポート
 
+/**
+ * @file DOM更新システム
+ * @description ECSのコンポーネントの状態を、実際のDOM要素のスタイルや内容に反映させる責務を持つシステム。
+ * アニメーションの再生はViewSystemが担当する。
+ */
 export class UISystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
-        // RenderSystem同様、アニメーションイベントを購読
-        this.world.on(GameEvents.EXECUTE_ATTACK_ANIMATION, this.executeAttackAnimation.bind(this));
+        // ★削除: アニメーションイベントの購読はViewSystemに移管
     }
 
+    /**
+     * 毎フレーム実行され、全エンティティのUIを最新の状態に更新します。
+     * @param {number} deltaTime
+     */
     update(deltaTime) {
-        // UIの更新処理をここに記述します。
-        // 例: DOM要素の取得と更新
-        const entities = this.world.getEntitiesWith(PlayerInfo, Position, Gauge, GameState, Parts);
+        const entities = this.world.getEntitiesWith(PlayerInfo, Position, GameState, Parts);
         for (const entityId of entities) {
             this.updatePlayerUI(entityId);
         }
     }
 
+    /**
+     * 指定されたエンティティIDに対応するDOM要素を、現在のコンポーネント状態に基づいて更新します。
+     * @param {number} entityId
+     */
     updatePlayerUI(entityId) {
         const domElements = this.uiManager.getDOMElements(entityId);
         if (!domElements || !domElements.iconElement) return;
@@ -29,12 +39,12 @@ export class UISystem extends BaseSystem {
         const gameState = this.getCachedComponent(entityId, GameState);
         if (!position || !gameState) return;
 
-        // 位置の更新 (RenderSystemから移動)
+        // 位置の更新
         domElements.iconElement.style.left = `${position.x * 100}%`;
         domElements.iconElement.style.top = `${position.y}%`;
         domElements.iconElement.style.transform = 'translate(-50%, -50%)';
 
-        // 状態に応じたスタイル変更 (RenderSystemから移動)
+        // 状態に応じたスタイル変更
         switch (gameState.state) {
             case PlayerStateType.SELECTED_CHARGING:
                 domElements.iconElement.style.borderColor = '#f6ad55';
@@ -50,7 +60,7 @@ export class UISystem extends BaseSystem {
         domElements.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
         domElements.iconElement.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
 
-        // HPゲージの更新 (RenderSystemから移動)
+        // HPゲージの更新
         const parts = this.getCachedComponent(entityId, Parts);
         if (!parts) return;
         Object.entries(parts).forEach(([key, part]) => {
@@ -69,77 +79,5 @@ export class UISystem extends BaseSystem {
         });
     }
 
-    // RenderSystemからメソッドを移動
-    executeAttackAnimation(detail) {
-        const { attackerId, targetId } = detail;
-        const attackerDomElements = this.uiManager.getDOMElements(attackerId);
-        const action = this.getCachedComponent(attackerId, Action);
-
-        // ターゲットがいない、または回復・援護行動の場合はアニメーションをスキップ
-        if (!targetId || !attackerDomElements || (action && ['援護', '回復'].includes(action.type))) {
-            this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
-            return;
-        }
-
-        const targetDomElements = this.uiManager.getDOMElements(targetId);
-        // DOM要素の存在確認
-        // ★修正: targetIndicatorElement のチェックを削除
-        if (!attackerDomElements.iconElement || !targetDomElements?.iconElement) {
-            console.warn('UISystem: Missing DOM elements for animation. Skipping.', detail);
-            this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
-            return;
-        }
-
-        // ★新規: アニメーション開始時にゲームの進行を一時停止
-        this.world.emit(GameEvents.GAME_PAUSED);
-        
-        // ★修正: アニメーション用の要素を動的に生成する
-        const indicator = document.createElement('div');
-        indicator.className = 'target-indicator';
-        for (let i = 0; i < 4; i++) {
-            const corner = document.createElement('div');
-            corner.className = `corner corner-${i + 1}`;
-            indicator.appendChild(corner);
-        }
-        document.body.appendChild(indicator);
-        
-        const attackerIcon = attackerDomElements.iconElement;
-        const targetIcon = targetDomElements.iconElement;
-        
-        setTimeout(() => {
-            const attackerRect = attackerIcon.getBoundingClientRect();
-            const targetRect = targetIcon.getBoundingClientRect();
-            
-            indicator.style.position = 'fixed';
-            indicator.style.zIndex = '100';
-            indicator.style.opacity = '1';
-            
-            const startX = attackerRect.left + attackerRect.width / 2;
-            const startY = attackerRect.top + attackerRect.height / 2;
-            const endX = targetRect.left + targetRect.width / 2;
-            const endY = targetRect.top + targetRect.height / 2;
-            
-            indicator.style.left = `${startX}px`;
-            indicator.style.top = `${startY}px`;
-            
-            const animation = indicator.animate([
-                { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1, offset: 0 },
-                { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 1, offset: 0.2 },
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(1.5)`, opacity: 1, offset: 0.5 },
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 1, offset: 0.65 },
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(2.0)`, opacity: 1, offset: 0.8 },
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0, offset: 1 }
-            ], {
-                duration: 1200, 
-                easing: 'ease-in-out'
-            });
-            animation.finished.then(() => {
-                // アニメーション完了後に要素を削除
-                indicator.remove();
-                
-                // ActionSystemにアニメーション完了を通知
-                this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
-            });
-        }, 110);
-    }
+    // ★削除: executeAttackAnimationメソッドはViewSystemに移管されました。
 }

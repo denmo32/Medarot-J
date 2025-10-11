@@ -63,7 +63,10 @@ export class StateSystem {
         action.type = actionType;
         action.targetId = targetId;
         action.targetPartKey = targetPartKey;
-        action.properties = CONFIG.ACTION_PROPERTIES[actionType] || {};
+        // ★修正: アクションの特性を、configからではなくパーツデータ自体から取得する
+        action.properties = {
+            targetTiming: selectedPart.targetTiming || 'pre-move'
+        };
 
         // 4. エンティティの状態を「行動選択済みチャージ中」へ遷移させます。
         gameState.state = PlayerStateType.SELECTED_CHARGING;

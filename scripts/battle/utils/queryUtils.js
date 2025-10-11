@@ -103,6 +103,40 @@ export function getValidAllies(world, sourceId, includeSelf = false) {
 }
 
 /**
+ * ★新規: 味方チーム内で最も損害を受けているパーツを検索します。
+ * HEALER戦略や回復アクションのターゲット決定に利用されます。
+ * @param {World} world - ワールドオブジェクト
+ * @param {number[]} candidates - 検索対象となるエンティティIDの配列
+ * @returns {{targetId: number, targetPartKey: string} | null} - 最も損害の大きいパーツを持つターゲット情報、またはnull
+ */
+export function findMostDamagedAllyPart(world, candidates) {
+    if (!candidates || candidates.length === 0) return null;
+
+    let mostDamagedPart = null;
+    let maxDamage = -1;
+
+    candidates.forEach(allyId => {
+        const parts = world.getComponent(allyId, Parts);
+        if (!parts) return;
+        Object.entries(parts).forEach(([partKey, part]) => {
+            if (part && !part.isBroken) {
+                const damageTaken = part.maxHp - part.hp;
+                if (damageTaken > maxDamage) {
+                    maxDamage = damageTaken;
+                    mostDamagedPart = { targetId: allyId, targetPartKey: partKey };
+                }
+            }
+        });
+    });
+    
+    // 誰もダメージを受けていない場合はターゲットなし
+    if (maxDamage <= 0) return null;
+
+    return mostDamagedPart;
+}
+
+
+/**
  * 指定されたターゲットIDやパーツキーが現在有効（生存・未破壊）か検証します。
  * @param {World} world
  * @param {number} targetId
