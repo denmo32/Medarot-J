@@ -25,6 +25,7 @@ export const PARTS_DATA = {
         'rarm_003': { name: 'ライトガトリング', maxHp: 45, action: '射撃', type: '狙い撃ち', trait: 'ガトリング', success: 75, might: 20, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.DAMAGE }] },
         'rarm_004': { name: 'ライトハンマー', maxHp: 40, action: '格闘', type: '我武者羅', trait: 'ハンマー', success: 80, might: 18, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.DAMAGE }] },
 		'rarm_005': { name: 'ライトスキャン', maxHp: 50, action: '援護', type: '支援', trait: 'スキャン', success: 50, might: 50, targetScope: EffectScope.ALLY_TEAM, effects: [{ strategy: EffectType.APPLY_SCAN }] },
+		'rarm_006': { name: 'ライトリペア', maxHp: 50, action: '回復', type: '修復', trait: 'リペア', success: 50, might: 40, targetScope: EffectScope.ALLY_SINGLE, effects: [{ strategy: EffectType.HEAL }] },
     },
     // --- 左腕パーツ ---
     [PartInfo.LEFT_ARM.key]: {
@@ -33,6 +34,8 @@ export const PARTS_DATA = {
         'larm_003': { name: 'レフトガトリング', maxHp: 45, action: '射撃', type: '撃つ', trait: 'ガトリング', success: 60, might: 28, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.DAMAGE }] },
         'larm_004': { name: 'レフトハンマー', maxHp: 70, action: '格闘', type: '殴る', trait: 'ハンマー', success: 40, might: 10, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.DAMAGE }] },
     	'larm_005': { name: 'レフトスキャン', maxHp: 50, action: '援護', type: '支援', trait: 'スキャン', success: 50, might: 50, targetScope: EffectScope.ALLY_TEAM, effects: [{ strategy: EffectType.APPLY_SCAN }] },
+    	'larm_006': { name: 'レフトリペア', maxHp: 50, action: '回復', type: '修復', trait: 'リペア', success: 50, might: 40, targetScope: EffectScope.ALLY_SINGLE, effects: [{ strategy: EffectType.HEAL }] },
+
     },
     // --- 脚部パーツ ---
     [PartInfo.LEGS.key]: {
@@ -41,5 +44,6 @@ export const PARTS_DATA = {
         'legs_003': { name: 'ガトリングレッグ', maxHp: 50, mobility: 40, armor: 15, propulsion: 30, stability: 20 },
         'legs_004': { name: 'ハンマーレッグ', maxHp: 45, mobility: 50, armor: 10, propulsion: 35, stability: 15 },
     	'legs_005': { name: 'スキャンレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
+    	'legs_006': { name: 'リペアレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
     }
 }
