@@ -94,9 +94,9 @@ export class StateSystem {
         // ★変更: isPlayerBroken を削除。責務をHistorySystemに移管。
         const { attackerId, targetId, targetPartKey, damage, isPartBroken } = detail;
 
-        // ターゲットがいない場合（格闘の空振りなど）は攻撃者の状態をリセットして終了
+        // ターゲットがいない場合は、ダメージ適用ロジックをスキップして終了。
+        // 状態リセットは onAttackSequenceCompleted に一本化されているため、ここでは何もしない。
         if (!targetId) {
-            this.resetAttackerState(attackerId);
             return;
         }
 

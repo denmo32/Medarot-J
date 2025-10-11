@@ -210,11 +210,9 @@ export class ActionPanelSystem extends BaseSystem {
      * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
      */
     onActionExecuted(detail) {
-        // resultMessageをUIシステムで生成する
         const resultMessage = this._generateResultMessage(detail);
         
-        // ActionSystemから発行されたACTION_EXECUTEDイベントを受け、
-        // UIに結果を表示するためのモーダル表示を要求します。
+        // ACTION_EXECUTED イベントを受け、UIに結果を表示するためのモーダル表示を要求する
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.EXECUTION_RESULT,
             data: {
@@ -226,6 +224,7 @@ export class ActionPanelSystem extends BaseSystem {
             },
             immediate: true
         });
+        // ★ ここで ATTACK_SEQUENCE_COMPLETED を発行するロジックは完全に削除
     }
     
     /**
