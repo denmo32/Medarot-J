@@ -79,6 +79,7 @@ export const MedalPersonality = {
     GUARD: 'GUARD',               // 味方リーダーを最後に攻撃してきた敵を狙う
     FOCUS: 'FOCUS',               // 前回攻撃したパーツを集中攻撃
     ASSIST: 'ASSIST',             // 味方が最後に攻撃した敵のパーツを狙う
+    HEALER: 'HEALER',             // ★新規: 最もHPが減っている味方を狙う
 };
 
 /**
@@ -88,8 +89,8 @@ export const MedalPersonality = {
 export const EffectType = {
     DAMAGE: 'DAMAGE',           // ダメージを与える
     APPLY_SCAN: 'APPLY_SCAN',   // スキャン効果を適用する
+    HEAL: 'HEAL',               // ★新規: 回復
     // 今後追加予定の効果:
-    // HEAL: 'HEAL',               // 回復
     // APPLY_SMOKE: 'APPLY_SMOKE', // 煙幕効果
     // SETUP_TRAP: 'SETUP_TRAP',   // トラップ設置
 };

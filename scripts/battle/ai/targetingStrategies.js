@@ -6,7 +6,8 @@ import { Parts, PlayerInfo, GameState, BattleLog } from '../core/components.js';
 import { BattleHistoryContext } from '../core/index.js'; // Import new context
 // ★改善: PartInfoを参照することで、ハードコードされた文字列を排除
 import { PlayerStateType, MedalPersonality, PartInfo, TeamID } from '../common/constants.js'; // Import TeamID for context keys, add BattleHistoryContext import
-import { isValidTarget, selectRandomPart, getAllEnemyParts, selectPartByCondition, getValidEnemies } from '../utils/queryUtils.js';
+// ★変更: getAllPartsFromCandidates, selectPartByCondition をインポート (旧 getAllEnemyParts)
+import { isValidTarget, selectRandomPart, getAllPartsFromCandidates, selectPartByCondition, getValidEnemies, getValidAllies } from '../utils/queryUtils.js';
 import { GameEvents } from '../common/events.js';
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。
@@ -20,9 +21,10 @@ export const targetingStrategies = {
      * [HUNTER]: 弱った敵から確実に仕留める、狩人のような性格。
      * 敵全体のパーツの中で、現在HPが最も低いものを狙います。
      * ★改善: 引数をコンテキストオブジェクトに変更
+     * ★修正: candidates を使用
      */
-    [MedalPersonality.HUNTER]: ({ world, enemies, attackerId }) => {
-        const target = selectPartByCondition(world, enemies, (a, b) => a.part.hp - b.part.hp);
+    [MedalPersonality.HUNTER]: ({ world, candidates, attackerId }) => {
+        const target = selectPartByCondition(world, candidates, (a, b) => a.part.hp - b.part.hp);
         // 戦略実行結果をイベントで通知
         if (target) {
             world.emit(GameEvents.STRATEGY_EXECUTED, {
@@ -37,9 +39,10 @@ export const targetingStrategies = {
      * [CRUSHER]: 頑丈なパーツを先に破壊し、敵の耐久力を削ぐ、破壊者のような性格。
      * 敵全体のパーツの中で、現在HPが最も高いものを狙います。
      * ★改善: 引数をコンテキストオブジェクトに変更
+     * ★修正: candidates を使用
      */
-    [MedalPersonality.CRUSHER]: ({ world, enemies, attackerId }) => {
-        const target = selectPartByCondition(world, enemies, (a, b) => b.part.hp - a.part.hp);
+    [MedalPersonality.CRUSHER]: ({ world, candidates, attackerId }) => {
+        const target = selectPartByCondition(world, candidates, (a, b) => b.part.hp - a.part.hp);
         // 戦略実行結果をイベントで通知
         if (target) {
             world.emit(GameEvents.STRATEGY_EXECUTED, {
@@ -55,9 +58,11 @@ export const targetingStrategies = {
      * 敵全体の「攻撃可能な全パーツ」を一つの大きなリストとみなし、その中から完全にランダムで1つをターゲットとします。
      * 結果として、健在なパーツを多く持つ敵が狙われやすくなります。
      * ★改善: 引数をコンテキストオブジェクトに変更
+     * ★修正: candidates を使用
      */
-    [MedalPersonality.JOKER]: ({ world, enemies, attackerId }) => {
-        const allParts = getAllEnemyParts(world, enemies);
+    [MedalPersonality.JOKER]: ({ world, candidates, attackerId }) => {
+        // ★変更: getAllEnemyParts -> getAllPartsFromCandidates
+        const allParts = getAllPartsFromCandidates(world, candidates);
         if (allParts.length === 0) return null;
         const randomIndex = Math.floor(Math.random() * allParts.length);
         const target = { targetId: allParts[randomIndex].entityId, targetPartKey: allParts[randomIndex].partKey };
@@ -133,9 +138,10 @@ export const targetingStrategies = {
      * [LEADER_FOCUS]: リーダーを集中攻撃し、早期決着を狙う、極めて攻撃的な性格。
      * 戦略の基本として、敵チームのリーダーを最優先で狙います。
      * ★改善: 引数をコンテキストオブジェクトに変更
+     * ★修正: candidates を使用
      */
-    [MedalPersonality.LEADER_FOCUS]: ({ world, enemies, attackerId }) => {
-        const leader = enemies.find(id => world.getComponent(id, PlayerInfo).isLeader);
+    [MedalPersonality.LEADER_FOCUS]: ({ world, candidates, attackerId }) => {
+        const leader = candidates.find(id => world.getComponent(id, PlayerInfo).isLeader);
         const target = leader ? selectRandomPart(world, leader) : null;
         // 戦略実行結果をイベントで通知
         if (target) {
@@ -152,10 +158,11 @@ export const targetingStrategies = {
      * まず「敵1体」をランダムに選び、次にその敵のパーツをランダムに狙います。
      * どの敵機体も等しい確率で選ばれます。
      * ★改善: 引数をコンテキストオブジェクトに変更
+     * ★修正: candidates を使用
      */
-    [MedalPersonality.RANDOM]: ({ world, enemies, attackerId }) => {
-        if (enemies.length === 0) return null;
-        const targetId = enemies[Math.floor(Math.random() * enemies.length)];
+    [MedalPersonality.RANDOM]: ({ world, candidates, attackerId }) => {
+        if (!candidates || candidates.length === 0) return null;
+        const targetId = candidates[Math.floor(Math.random() * candidates.length)];
         const target = selectRandomPart(world, targetId);
         // 戦略実行結果をイベントで通知
         if (target) {
@@ -166,5 +173,43 @@ export const targetingStrategies = {
             });
         }
         return target;
-    }
+    },
+
+    /**
+     * ★新規: [HEALER]: 味方を回復することに専念する、支援的な性格。
+     * 味方全体のパーツの中で、最もHPの減りが大きい（最大HP - 現在HP が最大）ものを狙います。
+     * ★修正: 内部で味方リストを再取得せず、渡された候補リスト(candidates)を尊重するように変更
+     */
+    [MedalPersonality.HEALER]: ({ world, candidates, attackerId }) => {
+        if (!candidates || candidates.length === 0) return null;
+
+        let mostDamagedPart = null;
+        let maxDamage = -1;
+
+        // ★変更: 内部で味方を探すのではなく、渡された候補リストを走査する
+        candidates.forEach(allyId => {
+            const parts = world.getComponent(allyId, Parts);
+            if (!parts) return;
+            Object.entries(parts).forEach(([partKey, part]) => {
+                if (part && !part.isBroken) {
+                    const damageTaken = part.maxHp - part.hp;
+                    if (damageTaken > maxDamage) {
+                        maxDamage = damageTaken;
+                        mostDamagedPart = { targetId: allyId, targetPartKey: partKey };
+                    }
+                }
+            });
+        });
+        
+        // 誰もダメージを受けていない場合はターゲットなし
+        if (maxDamage <= 0) return null;
+
+        return mostDamagedPart;
+    },
+
+    /**
+     * ★新規: [DO_NOTHING]: ターゲット選択に失敗した場合に、意図的に行動をキャンセルさせるための戦略。
+     * 常にnullを返すことで、フォールバックアクションを防ぎます。
+     */
+    DO_NOTHING: () => null,
 };

@@ -43,8 +43,8 @@ export class AiSystem extends BaseSystem {
             // 3. ★改善: パーツ選択戦略を実行し、使用するパーツを決定します。
             const [partKey, part] = strategies.partSelection({ world: this.world, entityId, availableParts });
             
-            // 4. ターゲット決定とイベント発行をユーティリティ関数に委譲します。
-            const target = determineTarget(this.world, entityId);
+            // 4. ★変更: 選択したパーツを基にターゲットを決定します。
+            const target = determineTarget(this.world, entityId, partKey);
             decideAndEmitAction(this.world, entityId, partKey, target);
 
         } else {

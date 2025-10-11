@@ -47,6 +47,8 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     world.addComponent(entityId, new Components.Medal(personality));
     world.addComponent(entityId, new Components.BattleLog());
     world.addComponent(entityId, new Components.Position(initialX, yPos));
+    // ★新規: ActiveEffectsコンポーネントを追加
+    world.addComponent(entityId, new Components.ActiveEffects());
 
     return entityId;
 }

@@ -167,18 +167,20 @@ export function findNearestEnemy(world, attackerId) {
 }
 
 /**
- * 全ての敵パーツを取得する
+ * ★変更: 指定された候補エンティティリストから、破壊されていない全パーツを取得する
+ * (旧: getAllEnemyParts)
  * @param {World} world
- * @param {number[]} enemyIds
+ * @param {number[]} candidateIds - 候補エンティティIDの配列
  * @returns {{entityId: number, partKey: string, part: object}[]}
  */
-export function getAllEnemyParts(world, enemyIds) {
+export function getAllPartsFromCandidates(world, candidateIds) {
     let allParts = [];
-    for (const id of enemyIds) {
+    if (!candidateIds) return []; // 候補がいない場合は空配列を返す
+    for (const id of candidateIds) {
         const parts = world.getComponent(id, Parts);
-        if (!parts) continue; // ★追加: パーツがないエンティティをスキップ
+        if (!parts) continue;
         Object.entries(parts).forEach(([key, part]) => {
-            if (part && !part.isBroken) { // ★追加: part自体の存在チェック
+            if (part && !part.isBroken) {
                 allParts.push({ entityId: id, partKey: key, part: part });
             }
         });
@@ -189,12 +191,13 @@ export function getAllEnemyParts(world, enemyIds) {
 /**
  * 条件に基づいて最適なパーツを選択するための汎用関数
  * @param {World} world
- * @param {number[]} enemies - 敵エンティティIDの配列
+ * @param {number[]} candidates - 候補エンティティIDの配列
  * @param {function} sortFn - パーツを評価・ソートするための比較関数
  * @returns {{targetId: number, targetPartKey: string} | null}
  */
-export function selectPartByCondition(world, enemies, sortFn) {
-    const allParts = getAllEnemyParts(world, enemies);
+export function selectPartByCondition(world, candidates, sortFn) {
+    // ★変更: getAllEnemyParts -> getAllPartsFromCandidates
+    const allParts = getAllPartsFromCandidates(world, candidates);
     if (allParts.length === 0) return null;
     allParts.sort(sortFn);
     const selectedPart = allParts[0];

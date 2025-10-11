@@ -136,7 +136,9 @@ export const CONFIG = {
         '援護': {
             targetTiming: 'pre-move', // 移動前にターゲットを決定
         },
-        // 将来的に '回復', '補助' などを追加可能
-        // '回復': { targetTiming: 'pre-move', targetScope: 'ally' }
+        '回復': {
+            // ★修正: リペアを格闘と同じ「直前ターゲット」方式に変更
+            targetTiming: 'post-move',
+        },
     },
 };

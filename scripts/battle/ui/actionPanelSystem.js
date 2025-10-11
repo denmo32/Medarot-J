@@ -2,8 +2,7 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
-// ★変更: EffectType をインポート
-import { ModalType, PartInfo, PartKeyToInfoMap, EffectType } from '../common/constants.js';
+import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
 import { UIManager } from './UIManager.js';
 
@@ -224,7 +223,8 @@ export class ActionPanelSystem extends BaseSystem {
                 message: resultMessage,
                 // ★変更: HPバーアニメーションに必要な情報をペイロードから取得
                 entityId: detail.attackerId,
-                damageEffect: detail.resolvedEffects.find(e => e.type === EffectType.DAMAGE)
+                damageEffect: detail.resolvedEffects.find(e => e.type === EffectType.DAMAGE),
+                healEffect: detail.resolvedEffects.find(e => e.type === EffectType.HEAL) // ★新規
             },
             immediate: true
         });
@@ -237,18 +237,26 @@ export class ActionPanelSystem extends BaseSystem {
      * @returns {string} 生成された結果メッセージ
      */
     _generateResultMessage(detail) {
-        const { resolvedEffects, isEvaded, isSupport } = detail;
+        const { resolvedEffects, isEvaded, isSupport, attackerId } = detail;
         
         // 支援行動の場合
         if (isSupport) {
+            // ★修正: isSupportの場合、まず回復効果を探し、次点でスキャン効果を探すようにする
+            const healEffect = resolvedEffects.find(e => e.type === EffectType.HEAL);
+            if (healEffect?.message) {
+                return healEffect.message;
+            }
             const scanEffect = resolvedEffects.find(e => e.type === EffectType.APPLY_SCAN);
-            return scanEffect?.message || '支援行動成功！';
+            if (scanEffect?.message) {
+                return scanEffect.message;
+            }
+            return '支援行動成功！'; // どちらのメッセージも見つからない場合のフォールバック
         }
 
         // 回避された場合
         if (isEvaded) {
-            const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
-            const targetId = damageEffect ? damageEffect.targetId : null;
+            const attackerAction = this.world.getComponent(attackerId, Components.Action);
+            const targetId = attackerAction ? attackerAction.targetId : null;
             const targetInfo = targetId ? this.world.getComponent(targetId, Components.PlayerInfo) : null;
             return targetInfo ? `${targetInfo.name}は攻撃を回避！` : '攻撃は回避された！';
         }
@@ -273,7 +281,7 @@ export class ActionPanelSystem extends BaseSystem {
             }
             return message;
         }
-
+        
         // 上記のいずれでもない場合（空振りなど）
         return '攻撃は空を切った！';
     }
@@ -364,7 +372,17 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentModalType = null;
         this.currentModalData = null; // ★新規: データをクリア
 
-        // ★新規: フォーカスをクリア
+        // ★修正: モーダルが閉じる際に、全プレイヤーアイコンのハイライトを確実にリセットする。
+        // これにより、マウスホバー中にキーボードで行動決定した場合などにハイライトが残る問題を完全に防ぐ。
+        const allPlayerIds = this.world.getEntitiesWith(Components.PlayerInfo);
+        for (const entityId of allPlayerIds) {
+            const dom = this.uiManager.getDOMElements(entityId);
+            if (dom?.iconElement) {
+                dom.iconElement.style.boxShadow = '';
+            }
+        }
+
+        // フォーカスされていたボタンのクラスを解除
         if (this.focusedButtonKey) {
             const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
             if (oldButton) oldButton.classList.remove('focused');
@@ -381,11 +399,6 @@ export class ActionPanelSystem extends BaseSystem {
         }
         actionPanelIndicator.classList.add('hidden');
 
-        const activeIndicator = document.querySelector('.target-indicator.active');
-        if (activeIndicator) {
-            activeIndicator.classList.remove('active');
-        }
-
         actionPanelOwner.textContent = '';
         actionPanelTitle.textContent = '';
         actionPanelActor.textContent = '待機中...';
@@ -397,28 +410,32 @@ export class ActionPanelSystem extends BaseSystem {
     // --- Event Setup Helpers ---
 
     setupSelectionEvents(container, data) {
-        const targetDomElements = data.targetId !== null ? this.uiManager.getDOMElements(data.targetId) : null;
-        data.buttons.forEach(btn => {
-            if (btn.isBroken) return;
-            const buttonEl = container.querySelector(`#panelBtn-${btn.partKey}`);
+        data.buttons.forEach(btnData => {
+            if (btnData.isBroken) return;
+            const buttonEl = container.querySelector(`#panelBtn-${btnData.partKey}`);
             if (!buttonEl) return;
-
+    
             buttonEl.onclick = () => {
+                // ★修正: 各ボタンが持つ事前計算済みのターゲット情報をそのまま利用する
+                const target = btnData.target;
                 this.world.emit(GameEvents.PART_SELECTED, {
                     entityId: data.entityId,
-                    partKey: btn.partKey,
-                    targetId: data.targetId,
-                    targetPartKey: data.targetPartKey
+                    partKey: btnData.partKey,
+                    // ★修正: 事前計算されたターゲット情報をイベントに含める
+                    targetId: target ? target.targetId : null,
+                    targetPartKey: target ? target.targetPartKey : null,
                 });
                 this.hideActionPanel();
             };
-
-            if (btn.action === '射撃' && targetDomElements && targetDomElements.targetIndicatorElement) {
-                buttonEl.onmouseover = () => targetDomElements.targetIndicatorElement.classList.add('active');
-                buttonEl.onmouseout = () => targetDomElements.targetIndicatorElement.classList.remove('active');
+    
+            // 「事前ターゲット(pre-move)」のアクションのみハイライト処理を追加する
+            if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(btnData.targetScope) && btnData.targetTiming === 'pre-move') {
+                buttonEl.onmouseover = () => this._updateTargetHighlight(btnData.partKey, true);
+                buttonEl.onmouseout = () => this._updateTargetHighlight(btnData.partKey, false);
             }
         });
     }
+
 
     setupExecutionResultEvents(container, data) {
         const showClickable = () => {
@@ -434,14 +451,13 @@ export class ActionPanelSystem extends BaseSystem {
             });
         };
         
-        // ★変更: damageEffect を参照してHPバーアニメーションを制御
-        const { damageEffect } = data;
-        if (!damageEffect || damageEffect.value === 0) {
+        const effect = data.damageEffect || data.healEffect;
+        if (!effect || effect.value === 0) {
             showClickable();
             return;
         }
 
-        const { targetId, partKey } = damageEffect;
+        const { targetId, partKey } = effect;
         const targetDomElements = this.uiManager.getDOMElements(targetId);
         if (!targetDomElements || !targetDomElements.partDOMElements[partKey]) {
             showClickable();
@@ -465,7 +481,6 @@ export class ActionPanelSystem extends BaseSystem {
             }, 1000);
         });
     }
-
 
     createSimpleEventHandler(buttonConfigs) {
         return (container) => {
@@ -492,7 +507,32 @@ export class ActionPanelSystem extends BaseSystem {
         `;
     }
 
-    // --- ★新規: Keyboard Navigation Helpers ---
+    // --- ★新規: Keyboard Navigation & Highlight Helpers ---
+
+    /**
+     * ターゲットアイコンのハイライトを更新するヘルパー関数
+     * @param {string} partKey - 関連するパーツのキー
+     * @param {boolean} show - ハイライトを表示するかどうか
+     * @private
+     */
+    _updateTargetHighlight(partKey, show) {
+        const buttonData = this.currentModalData?.buttons.find(b => b.partKey === partKey);
+    
+        if (!buttonData || buttonData.targetTiming !== 'pre-move') {
+            return;
+        }
+    
+        // ★修正: 各ボタンが持つ固有のターゲット情報を利用する
+        const target = buttonData.target;
+    
+        if (target && target.targetId !== null) {
+            const targetDom = this.uiManager.getDOMElements(target.targetId);
+            if (targetDom?.iconElement) {
+                targetDom.iconElement.style.boxShadow = show ? '0 0 15px cyan' : '';
+            }
+        }
+    }
+
 
     /**
      * 矢印キーによるボタンのフォーカス移動を処理します。
@@ -547,39 +587,25 @@ export class ActionPanelSystem extends BaseSystem {
      */
     updateFocus(newKey) {
         if (this.focusedButtonKey === newKey) return;
-
-        const targetDomElements = this.currentModalData?.targetId !== null 
-            ? this.uiManager.getDOMElements(this.currentModalData.targetId) 
-            : null;
-
-        // 古いフォーカスを解除
+    
+        // 以前のフォーカスを解除
         if (this.focusedButtonKey) {
+            this._updateTargetHighlight(this.focusedButtonKey, false); // ハイライト解除
             const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
             if (oldButton) oldButton.classList.remove('focused');
         }
-
+    
         // 新しいフォーカスを設定
+        this._updateTargetHighlight(newKey, true); // ハイライト設定
         const newButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${newKey}`);
         if (newButton) {
             newButton.classList.add('focused');
             this.focusedButtonKey = newKey;
-
-            // インジケーターの更新
-            const newButtonData = this.currentModalData?.buttons.find(b => b.partKey === newKey);
-            if (newButtonData?.action === '射撃' && targetDomElements?.targetIndicatorElement) {
-                targetDomElements.targetIndicatorElement.classList.add('active');
-            } else if (targetDomElements?.targetIndicatorElement) {
-                // 新しいフォーカスが射撃でない場合、インジケーターを消す
-                targetDomElements.targetIndicatorElement.classList.remove('active');
-            }
         } else {
-            // フォーカスが外れた場合
             this.focusedButtonKey = null;
-            if (targetDomElements?.targetIndicatorElement) {
-                targetDomElements.targetIndicatorElement.classList.remove('active');
-            }
         }
     }
+
 
     /**
      * 現在フォーカスされているボタンの選択を決定します。

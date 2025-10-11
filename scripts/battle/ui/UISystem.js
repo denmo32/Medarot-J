@@ -55,7 +55,7 @@ export class UISystem extends BaseSystem {
         if (!parts) return;
         Object.entries(parts).forEach(([key, part]) => {
             const elements = domElements.partDOMElements[key];
-            if (!elements) return;
+            if (!elements || !part) return;
             const hpPercentage = (part.hp / part.maxHp) * 100;
             elements.bar.style.width = `${hpPercentage}%`;
             elements.container.classList.toggle('broken', part.isBroken);
@@ -73,49 +73,46 @@ export class UISystem extends BaseSystem {
     executeAttackAnimation(detail) {
         const { attackerId, targetId } = detail;
         const attackerDomElements = this.uiManager.getDOMElements(attackerId);
-        const targetDomElements = this.uiManager.getDOMElements(targetId);
-        // DOM要素の存在確認
-        if (!attackerDomElements || !targetDomElements || !attackerDomElements.iconElement || !targetDomElements.iconElement || !attackerDomElements.targetIndicatorElement) {
-            console.warn('UISystem: Missing DOM elements for animation. Skipping.', detail);
+        const action = this.getCachedComponent(attackerId, Action);
+
+        // ターゲットがいない、または回復・援護行動の場合はアニメーションをスキップ
+        if (!targetId || !attackerDomElements || (action && ['援護', '回復'].includes(action.type))) {
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
         }
 
-        // 攻撃者のActionコンポーネントを取得して、行動タイプを確認
-        const action = this.getCachedComponent(attackerId, Action);
-        if (action && action.type === '援護') {
-            // 援護行動（スキャン）の場合はアニメーションを実行せず、即座に完了イベントを発行
+        const targetDomElements = this.uiManager.getDOMElements(targetId);
+        // DOM要素の存在確認
+        // ★修正: targetIndicatorElement のチェックを削除
+        if (!attackerDomElements.iconElement || !targetDomElements?.iconElement) {
+            console.warn('UISystem: Missing DOM elements for animation. Skipping.', detail);
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
         }
 
         // ★新規: アニメーション開始時にゲームの進行を一時停止
         this.world.emit(GameEvents.GAME_PAUSED);
-
-        const indicator = attackerDomElements.targetIndicatorElement;
+        
+        // ★修正: アニメーション用の要素を動的に生成する
+        const indicator = document.createElement('div');
+        indicator.className = 'target-indicator';
+        for (let i = 0; i < 4; i++) {
+            const corner = document.createElement('div');
+            corner.className = `corner corner-${i + 1}`;
+            indicator.appendChild(corner);
+        }
+        document.body.appendChild(indicator);
+        
         const attackerIcon = attackerDomElements.iconElement;
         const targetIcon = targetDomElements.iconElement;
-        
-        const originalParent = indicator.parentNode;
-        document.body.appendChild(indicator);
         
         setTimeout(() => {
             const attackerRect = attackerIcon.getBoundingClientRect();
             const targetRect = targetIcon.getBoundingClientRect();
             
-            const originalStyle = {
-                position: indicator.style.position,
-                top: indicator.style.top,
-                left: indicator.style.left,
-                transform: indicator.style.transform,
-                transition: indicator.style.transition,
-                zIndex: indicator.style.zIndex
-            };
-            indicator.style.transition = 'none'; 
             indicator.style.position = 'fixed';
             indicator.style.zIndex = '100';
-            
-            indicator.classList.add('active');
+            indicator.style.opacity = '1';
             
             const startX = attackerRect.left + attackerRect.width / 2;
             const startY = attackerRect.top + attackerRect.height / 2;
@@ -137,21 +134,11 @@ export class UISystem extends BaseSystem {
                 easing: 'ease-in-out'
             });
             animation.finished.then(() => {
-                if(originalParent) originalParent.appendChild(indicator);
-                
-                indicator.style.position = originalStyle.position;
-                indicator.style.top = originalStyle.top;
-                indicator.style.left = originalStyle.left;
-                indicator.style.transform = originalStyle.transform;
-                indicator.style.transition = originalStyle.transition;
-                indicator.style.zIndex = originalStyle.zIndex;
-                indicator.classList.remove('active');
+                // アニメーション完了後に要素を削除
+                indicator.remove();
                 
                 // ActionSystemにアニメーション完了を通知
                 this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
-                // ★修正: アニメーション完了時にゲームを再開しない。
-                // ゲームの再開は、後続のメッセージモーダルが全て閉じられた後、ActionPanelSystemによって行われる。
-                // this.world.emit(GameEvents.GAME_RESUMED);
             });
         }, 110);
     }

@@ -7,13 +7,16 @@ import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 // ★改善: PartInfo, PartKeyToInfoMapを参照し、定義元を一元化
-import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType } from '../common/constants.js';
-import { findBestDefensePart, findNearestEnemy, selectRandomPart } from '../utils/queryUtils.js';
+import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType, MedalPersonality } from '../common/constants.js';
+// ★修正: getValidAllies をインポート
+import { findBestDefensePart, findNearestEnemy, selectRandomPart, getValidAllies } from '../utils/queryUtils.js';
 import { calculateEvasionChance, calculateDefenseChance, calculateCriticalChance } from '../utils/combatFormulas.js';
 import { BaseSystem } from '../../core/baseSystem.js';
 import { ErrorHandler, GameError, ErrorType } from '../utils/errorHandler.js';
 // ★新規: アクション効果の戦略をインポート
 import { effectStrategies } from '../effects/effectStrategies.js';
+// ★追加: ターゲティング戦略をインポート
+import { targetingStrategies } from '../ai/targetingStrategies.js';
 
 /**
  * 「行動の実行」に特化したシステム。
@@ -97,38 +100,44 @@ export class ActionSystem extends BaseSystem {
             const gameState = this.getCachedComponent(executor, GameState);
             if (!action || !gameState) return;
             
+            // ★修正: post-moveのアクションタイプに応じてターゲット決定ロジックを分岐
             if (action.properties.targetTiming === 'post-move' && action.targetId === null) {
-                const nearestEnemyId = findNearestEnemy(this.world, executor);
-                if (nearestEnemyId !== null) {
-                    const targetData = selectRandomPart(this.world, nearestEnemyId);
-                    if (targetData) {
-                        action.targetId = targetData.targetId;
-                        action.targetPartKey = targetData.targetPartKey;
-                    } else {
-                        console.warn(`ActionSystem: No valid parts to attack on nearest enemy ${nearestEnemyId}.`);
-                        gameState.state = PlayerStateType.AWAITING_ANIMATION;
-                        this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
-                            attackerId: executor,
-                            targetId: null
-                        });
-                        return;
+                let targetData = null;
+
+                if (action.type === '格闘') {
+                    const nearestEnemyId = findNearestEnemy(this.world, executor);
+                    if (nearestEnemyId !== null) {
+                        targetData = selectRandomPart(this.world, nearestEnemyId);
                     }
-                } else {
-                    console.warn(`ActionSystem: No valid enemies for melee attack by ${executor}.`);
-                    gameState.state = PlayerStateType.AWAITING_ANIMATION;
-                    this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
-                        attackerId: executor,
-                        targetId: null
+                } else if (action.type === '回復') {
+                    // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+                    // HEALER戦略に必要な味方リスト(candidates)を渡すように修正
+                    // 1. 回復対象となりうる味方（自分自身も含む）のリストを取得する
+                    const allies = getValidAllies(this.world, executor, true);
+                    // 2. HEALER戦略を再利用し、最もダメージを受けた味方をターゲットする
+                    targetData = targetingStrategies[MedalPersonality.HEALER]({
+                        world: this.world,
+                        candidates: allies, // 取得した味方リストを'candidates'として渡す
+                        attackerId: executor
                     });
-                    return;
+                    // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
                 }
-            } else {
-                gameState.state = PlayerStateType.AWAITING_ANIMATION;
-                this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
-                    attackerId: executor,
-                    targetId: action.targetId
-                });
+
+                if (targetData) {
+                    action.targetId = targetData.targetId;
+                    action.targetPartKey = targetData.targetPartKey;
+                } else {
+                    // ターゲットが見つからなかった場合（格闘対象がいない、回復対象がいない）
+                    // ターゲットはnullのままアニメーションへ移行し、「空振り」として処理される
+                    console.warn(`ActionSystem: No valid target for post-move action '${action.type}' by ${executor}.`);
+                }
             }
+
+            gameState.state = PlayerStateType.AWAITING_ANIMATION;
+            this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
+                attackerId: executor,
+                targetId: action.targetId
+            });
         } catch (error) {
             ErrorHandler.handle(error, { method: 'update', deltaTime, executor: executor || 'N/A' });
         }
@@ -188,7 +197,8 @@ export class ActionSystem extends BaseSystem {
 
             // 手順4: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
             const primaryEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE) || resolvedEffects[0] || {};
-            const isSupportAction = attackingPart.action === '援護';
+            // ★修正: 援護・回復アクションをまとめてisSupportActionとして扱う
+            const isSupportAction = ['援護', '回復'].includes(attackingPart.action);
             
             let declarationMessage;
             if (isSupportAction) {
@@ -259,8 +269,8 @@ export class ActionSystem extends BaseSystem {
      * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果オブジェクト
      */
     _resolveHitOutcome(attackingPart, targetLegs, targetId, initialTargetPartKey, executorId) {
-        // 援護行動は必ず「命中」する
-        if (attackingPart.action === '援護') {
+        // ★修正: 援護・回復行動は必ず「命中」する
+        if (['援護', '回復'].includes(attackingPart.action)) {
             return { isHit: true, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
         }
 

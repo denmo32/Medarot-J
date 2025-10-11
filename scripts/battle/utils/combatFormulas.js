@@ -9,9 +9,12 @@
  */
 
 import { CONFIG } from '../common/config.js';
-import { Parts } from '../core/components.js';
+// ★修正: PlayerInfo, ActiveEffects をインポート
+import { Parts, PlayerInfo, ActiveEffects } from '../core/components.js';
 import { findBestDefensePart } from './queryUtils.js'; // ★注意: 依存関係の変更
 import { ErrorHandler, GameError, ErrorType } from './errorHandler.js';
+// ★新規: EffectType をインポート
+import { EffectType } from '../common/constants.js';
 
 /**
  * 戦闘計算戦略のインターフェース
@@ -100,6 +103,8 @@ export class CombatStrategy {
 export class DefaultCombatStrategy extends CombatStrategy {
     /**
      * 回避確率を計算する
+     * @param {World} world - ワールドオブジェクト
+     * @param {number} attackerId - 攻撃者のエンティティID
      * @param {number} mobility - ターゲットの機動値
      * @param {number} success - 攻撃側の成功値
      * @returns {number} 0-1の範囲の確率
@@ -107,8 +112,6 @@ export class DefaultCombatStrategy extends CombatStrategy {
     calculateEvasionChance(world, attackerId, mobility, success) {
         try {
             // パラメータの検証
-            // スキャン行動（援護行動）では、mobilityまたはsuccessがundefinedになる可能性がある
-            // その場合は、回避確率を0として返す
             if (mobility === undefined || success === undefined) {
                 return 0;
             }
@@ -120,18 +123,14 @@ export class DefaultCombatStrategy extends CombatStrategy {
                 );
             }
 
-            // 攻撃者のチームに所属する全機体のスキャンボーナスを合計
+            // ★変更: ActiveEffectsコンポーネントからスキャンボーナスを合計する
             let scanBonus = 0;
             if (world && attackerId !== undefined) {
-                const attackerInfo = world.getComponent(attackerId, PlayerInfo);
-                if (attackerInfo) {
-                    const entities = world.getEntitiesWith(PlayerInfo);
-                    entities.forEach(id => {
-                        const playerInfo = world.getComponent(id, PlayerInfo);
-                        if (playerInfo && playerInfo.teamId === attackerInfo.teamId) {
-                            scanBonus += playerInfo.scanBonus || 0;
-                        }
-                    });
+                const activeEffects = world.getComponent(attackerId, ActiveEffects);
+                if (activeEffects) {
+                    scanBonus = activeEffects.effects
+                        .filter(e => e.type === EffectType.APPLY_SCAN)
+                        .reduce((total, e) => total + e.value, 0);
                 }
             }
 
@@ -153,6 +152,7 @@ export class DefaultCombatStrategy extends CombatStrategy {
             return 0; // 通常、回避確率が計算できない場合は0を返す
         }
     }
+
 
     /**
      * 防御確率を計算する
@@ -399,13 +399,16 @@ const defaultStrategy = new DefaultCombatStrategy();
 // 旧式の関数形式（後方互換性のため）
 /**
  * 回避確率を計算する（後方互換性のための関数）
+ * @param {World} world - ワールドオブジェクト
+ * @param {number} attackerId - 攻撃者のエンティティID
  * @param {number} mobility - ターゲットの機動値
  * @param {number} success - 攻撃側の成功値
  * @returns {number} 0-1の範囲の確率
  */
-export function calculateEvasionChance(mobility, success) {
-    return defaultStrategy.calculateEvasionChance(mobility, success);
+export function calculateEvasionChance(world, attackerId, mobility, success) {
+    return defaultStrategy.calculateEvasionChance(world, attackerId, mobility, success);
 }
+
 
 /**
  * 防御確率を計算する（後方互換性のための関数）
@@ -469,8 +472,8 @@ export const CombatCalculator = {
         }
     },
     
-    calculateEvasionChance(mobility, success) {
-        return this.strategy.calculateEvasionChance(mobility, success);
+    calculateEvasionChance(world, attackerId, mobility, success) {
+        return this.strategy.calculateEvasionChance(world, attackerId, mobility, success);
     },
     
     calculateDefenseChance(armor) {

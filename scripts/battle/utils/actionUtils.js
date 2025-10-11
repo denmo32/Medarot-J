@@ -10,53 +10,46 @@ import { isValidTarget } from './queryUtils.js';
 /**
  * 選択されたパーツに基づき、適切な行動決定イベントを発行します。
  * この関数は、aiSystemとinputSystemの重複ロジックを共通化するために作成されました。
- * パーツのアクションタイプ（格闘/射撃）を判別し、必要な検証を行った上で、
+ * パーツのアクションタイプ（格闘/射撃/回復など）を判別し、必要な検証を行った上で、
  * 適切なパラメータと共に `ACTION_SELECTED` イベントを発行します。
  * @param {World} world - ワールドオブジェクト
  * @param {number} entityId - 行動主体のエンティティID
  * @param {string} partKey - 選択されたパーツのキー
- * @param {{targetId: number, targetPartKey: string} | null} target - (射撃の場合) 事前に決定されたターゲット情報
+ * @param {{targetId: number, targetPartKey: string} | null} target - 事前に決定されたターゲット情報
  */
 export function decideAndEmitAction(world, entityId, partKey, target = null) {
     const parts = world.getComponent(entityId, Parts);
 
-    // ★追加: 選択されたパーツが無効、または破壊されている場合は行動を中断し、再選択を要求します。
     if (!parts || !parts[partKey] || parts[partKey].isBroken) {
         console.warn(`decideAndEmitAction: Invalid or broken part selected for entity ${entityId}. Re-queueing.`);
         world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
         return;
     }
 
-    const selectedPartAction = parts[partKey].action;
+    const selectedPart = parts[partKey];
 
-    if (selectedPartAction === '格闘') {
-        // 格闘の場合、ターゲットはActionSystemで移動後に決定されるため、ここではnullで発行します。
-        world.emit(GameEvents.ACTION_SELECTED, { 
-            entityId, 
-            partKey, 
-            targetId: null, 
-            targetPartKey: null 
-        });
-    } else if (selectedPartAction === '援護') {
-        // 援護行動（スキャン）の場合、ターゲットは設定しない（味方全体が対象）
-        world.emit(GameEvents.ACTION_SELECTED, { 
-            entityId, 
-            partKey, 
-            targetId: null, 
-            targetPartKey: null 
-        });
-    } else { // '射撃'
-        // 射撃の場合、有効なターゲットが必須です。ターゲットが無効な場合は再選択を要求します。
-        if (!target || !isValidTarget(world, target.targetId, target.targetPartKey)) {
-             console.warn(`decideAndEmitAction: Invalid or missing target for shooting action by ${entityId}. Re-queueing.`);
-             world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
-             return;
-        }
-        world.emit(GameEvents.ACTION_SELECTED, { 
-            entityId, 
-            partKey, 
-            targetId: target.targetId, 
-            targetPartKey: target.targetPartKey 
-        });
+    // ★修正: 単体ターゲットが必要なアクションでターゲットが見つからなくても、
+    // 再選択を要求せず「空振り」として行動を許可する。
+    if (selectedPart.targetScope?.endsWith('_SINGLE') && !target) {
+        console.warn(`decideAndEmitAction: No valid target found for a single-target action by ${entityId}. The action will be treated as a miss.`);
     }
+
+    // ★修正: 格闘攻撃と回復は移動後にターゲットを決めるため、常にnullで予約する
+    if (['格闘', '回復'].includes(selectedPart.action)) {
+        world.emit(GameEvents.ACTION_SELECTED, {
+            entityId,
+            partKey,
+            targetId: null,
+            targetPartKey: null
+        });
+        return;
+    }
+
+    // それ以外のアクションは、決定されたターゲット情報と共にイベントを発行
+    world.emit(GameEvents.ACTION_SELECTED, {
+        entityId,
+        partKey,
+        targetId: target ? target.targetId : null,
+        targetPartKey: target ? target.targetPartKey : null
+    });
 }

@@ -62,6 +62,13 @@ export const personalityRegistry = {
         partSelection: partSelectionStrategies.RANDOM,
         fallbackTargeting: targetingStrategies.RANDOM,
     },
+    // ★新規: HEALER性格の定義
+    [MedalPersonality.HEALER]: {
+        primaryTargeting: targetingStrategies[MedalPersonality.HEALER],
+        partSelection: partSelectionStrategies.POWER_FOCUS, // 回復パーツの中で最も効果の高いものを選ぶ
+        // ★修正: プライマリ戦略（回復対象探し）が失敗した場合、ランダムな敵を攻撃する戦略にフォールバックする
+        fallbackTargeting: targetingStrategies.RANDOM,
+    },
 };
 
 /**
