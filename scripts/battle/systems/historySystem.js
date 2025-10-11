@@ -2,10 +2,11 @@
 
 import { BaseSystem } from '../../core/baseSystem.js';
 // ★変更: 必要なコンポーネントと定数をインポート
-import { PlayerInfo, BattleLog, GameState, Gauge } from '../core/components.js';
+import { PlayerInfo, BattleLog, GameState, Gauge, Parts } from '../core/components.js';
 import { BattleHistoryContext } from '../core/index.js'; // Import new context
 import { GameEvents } from '../common/events.js';
-import { PlayerStateType, TeamID } from '../common/constants.js'; // Import TeamID for context
+// ★変更: EffectType, PartInfo をインポート
+import { PlayerStateType, TeamID, EffectType, PartInfo } from '../common/constants.js';
 
 
 /**
@@ -31,24 +32,36 @@ export class HistorySystem extends BaseSystem {
      * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
      */
     onActionExecuted(detail) {
-        const { attackerId, targetId, targetPartKey, isPlayerBroken } = detail;
+        // ★変更: 新しいペイロード構造に対応
+        const { attackerId, resolvedEffects } = detail;
+        
+        // 主なターゲット情報をダメージ効果から抽出
+        const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
 
-        // 履歴ログを更新
-        this.updateBattleLogs(attackerId, targetId, targetPartKey);
+        if (damageEffect) {
+            const { targetId, partKey } = damageEffect;
 
-        // プレイヤー自体が機能停止（頭部破壊）した場合の処理
-        if (isPlayerBroken) {
-            const gameState = this.world.getComponent(targetId, GameState);
-            const gauge = this.world.getComponent(targetId, Gauge);
+            // 履歴ログを更新
+            this.updateBattleLogs(attackerId, targetId, partKey);
             
-            // 状態を「破壊」に即時変更し、以降の行動をすべて不能にします。
-            if (gameState) gameState.state = PlayerStateType.BROKEN;
-            if (gauge) gauge.value = 0; 
-            
-            // GameFlowSystemにプレイヤー破壊を通知し、ゲームオーバー判定を促します。
-            this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId });
+            // プレイヤー自体が機能停止（頭部破壊）した場合の処理
+            const targetParts = this.world.getComponent(targetId, Parts);
+            const isPlayerBroken = partKey === PartInfo.HEAD.key && targetParts[partKey].hp === 0;
+
+            if (isPlayerBroken) {
+                const gameState = this.world.getComponent(targetId, GameState);
+                const gauge = this.world.getComponent(targetId, Gauge);
+                
+                // 状態を「破壊」に即時変更し、以降の行動をすべて不能にします。
+                if (gameState) gameState.state = PlayerStateType.BROKEN;
+                if (gauge) gauge.value = 0; 
+                
+                // GameFlowSystemにプレイヤー破壊を通知し、ゲームオーバー判定を促します。
+                this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId });
+            }
         }
     }
+
 
     /**
      * 攻撃の実行結果に基づき、戦闘履歴を更新します。

@@ -7,7 +7,8 @@ import { Gauge, GameState, Parts, PlayerInfo, Action, Position } from '../core/c
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js'; // ★追加
 import { GameEvents } from '../common/events.js';
-import { PlayerStateType, ModalType, GamePhaseType, TeamID } from '../common/constants.js';
+// ★変更: EffectTypeをインポート
+import { PlayerStateType, ModalType, GamePhaseType, TeamID, EffectType } from '../common/constants.js';
 import { isValidTarget } from '../utils/queryUtils.js';
 import { calculateSpeedMultiplier } from '../utils/combatFormulas.js';
 
@@ -91,35 +92,42 @@ export class StateSystem {
      * @param {object} detail - 行動の実行結果
      */
     onActionExecuted(detail) {
-        // ★変更: isPlayerBroken を削除。責務をHistorySystemに移管。
-        const { attackerId, targetId, targetPartKey, damage, isPartBroken } = detail;
-
-        // ターゲットがいない場合は、ダメージ適用ロジックをスキップして終了。
-        // 状態リセットは onAttackSequenceCompleted に一本化されているため、ここでは何もしない。
-        if (!targetId) {
+        // ★変更: resolvedEffects を受け取り、効果を適用する
+        const { resolvedEffects } = detail;
+        if (!resolvedEffects || resolvedEffects.length === 0) {
             return;
         }
 
-        // 1. ダメージをターゲットのパーツHPに反映させます。
-        const targetParts = this.world.getComponent(targetId, Parts);
-        // ★追加: ターゲットパーツが存在しない場合は早期リターン
-        if (!targetParts || !targetParts[targetPartKey]) return;
-        const part = targetParts[targetPartKey];
-        part.hp = Math.max(0, part.hp - damage);
+        // 適用された効果をループ処理
+        for (const effect of resolvedEffects) {
+            // ダメージ効果の場合
+            if (effect.type === EffectType.DAMAGE) {
+                const { targetId, partKey, value: damage } = effect;
+                
+                // ターゲットがいない場合はスキップ
+                if (targetId === null || targetId === undefined) continue;
 
-        // 2. パーツが破壊された場合の状態更新とイベント発行
-        if (isPartBroken) {
-            part.isBroken = true;
-            // 他のシステム（UIなど）にパーツ破壊を通知します。
-            this.world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey: targetPartKey });
+                // 1. ダメージをターゲットのパーツHPに反映させます。
+                const targetParts = this.world.getComponent(targetId, Parts);
+                if (!targetParts || !targetParts[partKey]) continue;
+
+                const part = targetParts[partKey];
+                const oldHp = part.hp;
+                part.hp = Math.max(0, part.hp - damage);
+
+                // 2. パーツが破壊された場合の状態更新とイベント発行
+                const isPartBroken = oldHp > 0 && part.hp === 0;
+                if (isPartBroken) {
+                    part.isBroken = true;
+                    this.world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey: partKey });
+                }
+            }
+
+            // 今後、回復や他の効果もここに追加
+            // if (effect.type === EffectType.HEAL) { ... }
         }
-
-        // ★削除: プレイヤー破壊処理はHistorySystemに移動しました。
-        // これにより、StateSystemは純粋な状態遷移とパーツHPの管理に集中し、
-        // HistorySystemが戦闘結果（ログ、プレイヤー破壊）をまとめて扱う体制が整います。
-
-        // 攻撃者の状態リセットは onAttackSequenceCompleted に移動
     }
+
 
     /**
      * ★新規: 攻撃シーケンス完了後、攻撃者の状態をリセットします。

@@ -82,6 +82,32 @@ export const MedalPersonality = {
 };
 
 /**
+ * ★新規: アクションの効果種別を定義する定数
+ * ActionSystemがこの定義を元に、effectStrategiesから適切な処理を呼び出します。
+ */
+export const EffectType = {
+    DAMAGE: 'DAMAGE',           // ダメージを与える
+    APPLY_SCAN: 'APPLY_SCAN',   // スキャン効果を適用する
+    // 今後追加予定の効果:
+    // HEAL: 'HEAL',               // 回復
+    // APPLY_SMOKE: 'APPLY_SMOKE', // 煙幕効果
+    // SETUP_TRAP: 'SETUP_TRAP',   // トラップ設置
+};
+
+/**
+ * ★新規: アクションの効果範囲を定義する定数
+ * ターゲット選択や効果適用ロジックが、この定義を元に対象を決定します。
+ */
+export const EffectScope = {
+    ENEMY_SINGLE: 'ENEMY_SINGLE', // 敵単体
+    ALLY_SINGLE: 'ALLY_SINGLE',   // 味方単体
+    ALLY_TEAM: 'ALLY_TEAM',     // 味方全体
+    SELF: 'SELF',                 // 自分自身
+    // 今後追加予定の範囲:
+    // ENEMY_TEAM: 'ENEMY_TEAM',   // 敵全体
+};
+
+/**
  * ★廃止: PartInfoに統合されたため不要になりました。
  */
 // export const PartNameJp = { ... };

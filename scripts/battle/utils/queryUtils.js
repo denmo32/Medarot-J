@@ -74,11 +74,31 @@ export function findBestDefensePart(world, entityId) {
  */
 export function getValidEnemies(world, attackerId) {
     const attackerInfo = world.getComponent(attackerId, PlayerInfo);
+    if (!attackerInfo) return [];
     return world.getEntitiesWith(PlayerInfo, GameState)
         .filter(id => {
             const pInfo = world.getComponent(id, PlayerInfo);
             const gState = world.getComponent(id, GameState);
             return id !== attackerId && pInfo.teamId !== attackerInfo.teamId && gState.state !== PlayerStateType.BROKEN;
+        });
+}
+
+/**
+ * ★新規: 生存している味方エンティティのリストを取得します
+ * @param {World} world
+ * @param {number} sourceId - 基準となるエンティティID
+ * @param {boolean} [includeSelf=false] - 結果に自分自身を含めるか
+ * @returns {number[]}
+ */
+export function getValidAllies(world, sourceId, includeSelf = false) {
+    const sourceInfo = world.getComponent(sourceId, PlayerInfo);
+    if (!sourceInfo) return [];
+    return world.getEntitiesWith(PlayerInfo, GameState)
+        .filter(id => {
+            if (!includeSelf && id === sourceId) return false;
+            const pInfo = world.getComponent(id, PlayerInfo);
+            const gState = world.getComponent(id, GameState);
+            return pInfo.teamId === sourceInfo.teamId && gState.state !== PlayerStateType.BROKEN;
         });
 }
 
@@ -156,8 +176,9 @@ export function getAllEnemyParts(world, enemyIds) {
     let allParts = [];
     for (const id of enemyIds) {
         const parts = world.getComponent(id, Parts);
+        if (!parts) continue; // ★追加: パーツがないエンティティをスキップ
         Object.entries(parts).forEach(([key, part]) => {
-            if (!part.isBroken) {
+            if (part && !part.isBroken) { // ★追加: part自体の存在チェック
                 allParts.push({ entityId: id, partKey: key, part: part });
             }
         });

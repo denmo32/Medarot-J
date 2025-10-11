@@ -2,7 +2,8 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
-import { ModalType, PartInfo, PartKeyToInfoMap } from '../common/constants.js';
+// ★変更: EffectType をインポート
+import { ModalType, PartInfo, PartKeyToInfoMap, EffectType } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
 import { UIManager } from './UIManager.js';
 
@@ -190,10 +191,14 @@ export class ActionPanelSystem extends BaseSystem {
                 break;
             case ModalType.ATTACK_DECLARATION:
                 if (this.confirmActionEntityId !== null) {
-                    // resultMessageを削除したデータをペイロードとして渡す
-                    const payloadData = { ...this.currentModalData };
-                    delete payloadData.resultMessage;
-                    this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, payloadData);
+                    // ATTACK_DECLARATION_CONFIRMEDに必要なデータを再構築
+                    const { entityId, resolvedEffects, isEvaded, isSupport } = this.currentModalData;
+                    this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, {
+                        entityId,
+                        resolvedEffects,
+                        isEvaded,
+                        isSupport,
+                    });
                 }
                 break;
             case ModalType.EXECUTION_RESULT:
@@ -216,15 +221,13 @@ export class ActionPanelSystem extends BaseSystem {
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.EXECUTION_RESULT,
             data: {
-                entityId: detail.attackerId,
                 message: resultMessage,
-                targetId: detail.targetId,
-                targetPartKey: detail.targetPartKey,
-                damage: detail.damage
+                // ★変更: HPバーアニメーションに必要な情報をペイロードから取得
+                entityId: detail.attackerId,
+                damageEffect: detail.resolvedEffects.find(e => e.type === EffectType.DAMAGE)
             },
             immediate: true
         });
-        // ★ ここで ATTACK_SEQUENCE_COMPLETED を発行するロジックは完全に削除
     }
     
     /**
@@ -234,54 +237,47 @@ export class ActionPanelSystem extends BaseSystem {
      * @returns {string} 生成された結果メッセージ
      */
     _generateResultMessage(detail) {
-        // 支援行動（スキャン）の場合は特別なメッセージを返す
-        if (detail.isSupport) {
-            return '各機の攻撃成功度上昇！';
+        const { resolvedEffects, isEvaded, isSupport } = detail;
+        
+        // 支援行動の場合
+        if (isSupport) {
+            const scanEffect = resolvedEffects.find(e => e.type === EffectType.APPLY_SCAN);
+            return scanEffect?.message || '支援行動成功！';
         }
 
-        const targetInfo = this.world.getComponent(detail.targetId, Components.PlayerInfo);
-
-        // 1. 回避判定を最優先
-        if (detail.isEvaded) {
+        // 回避された場合
+        if (isEvaded) {
+            const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
+            const targetId = damageEffect ? damageEffect.targetId : null;
+            const targetInfo = targetId ? this.world.getComponent(targetId, Components.PlayerInfo) : null;
             return targetInfo ? `${targetInfo.name}は攻撃を回避！` : '攻撃は回避された！';
         }
 
-        // 2. ターゲットなし（格闘の空振りなど）または、命中したがダメージ0の場合
-        // スキャン行動（援護行動）ではtargetIdがnullになるため、この条件を満たす可能性がある
-        // しかし、すでにisSupportがtrueの場合のチェックをしているため、ここには到達しないはず
-        // 万が一到達した場合のために、エラーメッセージを出力
-        if (detail.targetId === null || (detail.damage === 0 && !detail.isDefended && !detail.isCritical)) {
-            // スキャン行動（援護行動）ではtargetIdがnullになるため、この条件を満たす可能性がある
-            // しかし、すでにisSupportがtrueの場合のチェックをしているため、ここには到達しないはず
-            // 万が一到達した場合のために、エラーメッセージを出力
-            // isSupportがfalseでもtargetIdがnullの場合は、スキャン行動以外の特殊ケースとして扱う
-            // ただし、現在の実装ではスキャン行動以外でtargetIdがnullになるケースは想定していない
-            // そのため、エラーメッセージを出力して、デフォルトのメッセージを返す
-            console.error('予期せぬ状況: 「攻撃は空を切った！」メッセージが生成されました。これは通常発生しないはずです。', { detail });
-            return '攻撃は空を切った！';
-        }
-        
-        // 3. ターゲット情報がない場合（予期せぬエラー）
-        if (!targetInfo) {
-            return '不明なターゲットへの攻撃';
-        }
-        
-        // 4. 通常のダメージメッセージ生成
-        const finalTargetPartName = PartKeyToInfoMap[detail.targetPartKey]?.name || '不明な部位';
-        let message = '';
+        // ダメージ効果がある場合
+        const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
+        if (damageEffect) {
+            const { targetId, partKey, value: damage, isCritical, isDefended } = damageEffect;
+            const targetInfo = this.world.getComponent(targetId, Components.PlayerInfo);
+            
+            if (!targetInfo) return '不明なターゲットへの攻撃';
 
-        if (detail.isCritical) {
-            message = 'クリティカル！　';
+            const finalTargetPartName = PartKeyToInfoMap[partKey]?.name || '不明な部位';
+            let message = '';
+
+            if (isCritical) message = 'クリティカル！ ';
+            
+            if (isDefended) {
+                message += `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${damage}ダメージ！`;
+            } else {
+                message += `${targetInfo.name}の${finalTargetPartName}に${damage}ダメージ！`;
+            }
+            return message;
         }
 
-        if (detail.isDefended) {
-            message = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${detail.damage}ダメージ！`;
-        } else {
-            message += `${targetInfo.name}の${finalTargetPartName}に${detail.damage}ダメージ！`;
-        }
-
-        return message;
+        // 上記のいずれでもない場合（空振りなど）
+        return '攻撃は空を切った！';
     }
+
 
     /**
      * アクションパネルを表示し、指定されたタイプのモーダルを構成します。
@@ -425,7 +421,6 @@ export class ActionPanelSystem extends BaseSystem {
     }
 
     setupExecutionResultEvents(container, data) {
-        // ★変更: HPバーアニメーション後にパネルをクリック可能にする
         const showClickable = () => {
             this.dom.actionPanel.classList.add('clickable');
             this.dom.actionPanelIndicator.classList.remove('hidden');
@@ -438,19 +433,22 @@ export class ActionPanelSystem extends BaseSystem {
                 modalType: ModalType.EXECUTION_RESULT
             });
         };
-
-        if (!data.damage || data.damage === 0 || !data.targetId || !data.targetPartKey) {
+        
+        // ★変更: damageEffect を参照してHPバーアニメーションを制御
+        const { damageEffect } = data;
+        if (!damageEffect || damageEffect.value === 0) {
             showClickable();
             return;
         }
 
-        const targetDomElements = this.uiManager.getDOMElements(data.targetId);
-        if (!targetDomElements || !targetDomElements.partDOMElements[data.targetPartKey]) {
+        const { targetId, partKey } = damageEffect;
+        const targetDomElements = this.uiManager.getDOMElements(targetId);
+        if (!targetDomElements || !targetDomElements.partDOMElements[partKey]) {
             showClickable();
             return;
         }
 
-        const hpBarElement = targetDomElements.partDOMElements[data.targetPartKey].bar;
+        const hpBarElement = targetDomElements.partDOMElements[partKey].bar;
 
         requestAnimationFrame(() => {
             const onTransitionEnd = (event) => {
@@ -467,6 +465,7 @@ export class ActionPanelSystem extends BaseSystem {
             }, 1000);
         });
     }
+
 
     createSimpleEventHandler(buttonConfigs) {
         return (container) => {
