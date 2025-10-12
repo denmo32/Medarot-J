@@ -2,7 +2,7 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
-import { ModalType, PartInfo, PartKeyToInfoMap } from '../common/constants.js';
+import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
 import { UIManager } from './UIManager.js';
 
@@ -190,10 +190,14 @@ export class ActionPanelSystem extends BaseSystem {
                 break;
             case ModalType.ATTACK_DECLARATION:
                 if (this.confirmActionEntityId !== null) {
-                    // resultMessageを削除したデータをペイロードとして渡す
-                    const payloadData = { ...this.currentModalData };
-                    delete payloadData.resultMessage;
-                    this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, payloadData);
+                    // ATTACK_DECLARATION_CONFIRMEDに必要なデータを再構築
+                    const { entityId, resolvedEffects, isEvaded, isSupport } = this.currentModalData;
+                    this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, {
+                        entityId,
+                        resolvedEffects,
+                        isEvaded,
+                        isSupport,
+                    });
                 }
                 break;
             case ModalType.EXECUTION_RESULT:
@@ -210,19 +214,17 @@ export class ActionPanelSystem extends BaseSystem {
      * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
      */
     onActionExecuted(detail) {
-        // resultMessageをUIシステムで生成する
         const resultMessage = this._generateResultMessage(detail);
         
-        // ActionSystemから発行されたACTION_EXECUTEDイベントを受け、
-        // UIに結果を表示するためのモーダル表示を要求します。
+        // ACTION_EXECUTED イベントを受け、UIに結果を表示するためのモーダル表示を要求する
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.EXECUTION_RESULT,
             data: {
-                entityId: detail.attackerId,
                 message: resultMessage,
-                targetId: detail.targetId,
-                targetPartKey: detail.targetPartKey,
-                damage: detail.damage
+                // ★変更: HPバーアニメーションに必要な情報をペイロードから取得
+                entityId: detail.attackerId,
+                damageEffect: detail.resolvedEffects.find(e => e.type === EffectType.DAMAGE),
+                healEffect: detail.resolvedEffects.find(e => e.type === EffectType.HEAL) // ★新規
             },
             immediate: true
         });
@@ -235,40 +237,59 @@ export class ActionPanelSystem extends BaseSystem {
      * @returns {string} 生成された結果メッセージ
      */
     _generateResultMessage(detail) {
-        const targetInfo = this.world.getComponent(detail.targetId, Components.PlayerInfo);
+        const { resolvedEffects, isEvaded, isSupport, attackerId } = detail;
+        
+        // 支援・妨害行動の場合
+        if (isSupport) {
+            // ★修正: isSupportの場合、優先順位をつけてメッセージを探す
+            const glitchEffect = resolvedEffects.find(e => e.type === EffectType.APPLY_GLITCH);
+            if (glitchEffect?.message) {
+                return glitchEffect.message;
+            }
+            const healEffect = resolvedEffects.find(e => e.type === EffectType.HEAL);
+            if (healEffect?.message) {
+                return healEffect.message;
+            }
+            const scanEffect = resolvedEffects.find(e => e.type === EffectType.APPLY_SCAN);
+            if (scanEffect?.message) {
+                return scanEffect.message;
+            }
+            return '支援行動成功！'; // どのメッセージも見つからない場合のフォールバック
+        }
 
-        // 1. 回避判定を最優先
-        if (detail.isEvaded) {
+        // 回避された場合
+        if (isEvaded) {
+            const attackerAction = this.world.getComponent(attackerId, Components.Action);
+            const targetId = attackerAction ? attackerAction.targetId : null;
+            const targetInfo = targetId ? this.world.getComponent(targetId, Components.PlayerInfo) : null;
             return targetInfo ? `${targetInfo.name}は攻撃を回避！` : '攻撃は回避された！';
         }
 
-        // 2. ターゲットなし（格闘の空振りなど）または、命中したがダメージ0の場合
-        if (detail.targetId === null || (detail.damage === 0 && !detail.isDefended && !detail.isCritical)) {
-            console.error('予期せぬ状況: 「攻撃は空を切った！」メッセージが生成されました。これは通常発生しないはずです。', { detail });
-            return '攻撃は空を切った！';
+        // ダメージ効果がある場合
+        const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
+        if (damageEffect) {
+            const { targetId, partKey, value: damage, isCritical, isDefended } = damageEffect;
+            const targetInfo = this.world.getComponent(targetId, Components.PlayerInfo);
+            
+            if (!targetInfo) return '不明なターゲットへの攻撃';
+
+            const finalTargetPartName = PartKeyToInfoMap[partKey]?.name || '不明な部位';
+            let message = '';
+
+            if (isCritical) message = 'クリティカル！ ';
+            
+            if (isDefended) {
+                message += `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${damage}ダメージ！`;
+            } else {
+                message += `${targetInfo.name}の${finalTargetPartName}に${damage}ダメージ！`;
+            }
+            return message;
         }
         
-        // 3. ターゲット情報がない場合（予期せぬエラー）
-        if (!targetInfo) {
-            return '不明なターゲットへの攻撃';
-        }
-        
-        // 4. 通常のダメージメッセージ生成
-        const finalTargetPartName = PartKeyToInfoMap[detail.targetPartKey]?.name || '不明な部位';
-        let message = '';
-
-        if (detail.isCritical) {
-            message = 'クリティカル！　';
-        }
-
-        if (detail.isDefended) {
-            message = `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${detail.damage}ダメージ！`;
-        } else {
-            message += `${targetInfo.name}の${finalTargetPartName}に${detail.damage}ダメージ！`;
-        }
-
-        return message;
+        // 上記のいずれでもない場合（空振りなど）
+        return '攻撃は空を切った！';
     }
+
 
     /**
      * アクションパネルを表示し、指定されたタイプのモーダルを構成します。
@@ -355,7 +376,17 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentModalType = null;
         this.currentModalData = null; // ★新規: データをクリア
 
-        // ★新規: フォーカスをクリア
+        // ★修正: モーダルが閉じる際に、全プレイヤーアイコンのハイライトを確実にリセットする。
+        // これにより、マウスホバー中にキーボードで行動決定した場合などにハイライトが残る問題を完全に防ぐ。
+        const allPlayerIds = this.world.getEntitiesWith(Components.PlayerInfo);
+        for (const entityId of allPlayerIds) {
+            const dom = this.uiManager.getDOMElements(entityId);
+            if (dom?.iconElement) {
+                dom.iconElement.style.boxShadow = '';
+            }
+        }
+
+        // フォーカスされていたボタンのクラスを解除
         if (this.focusedButtonKey) {
             const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
             if (oldButton) oldButton.classList.remove('focused');
@@ -372,11 +403,6 @@ export class ActionPanelSystem extends BaseSystem {
         }
         actionPanelIndicator.classList.add('hidden');
 
-        const activeIndicator = document.querySelector('.target-indicator.active');
-        if (activeIndicator) {
-            activeIndicator.classList.remove('active');
-        }
-
         actionPanelOwner.textContent = '';
         actionPanelTitle.textContent = '';
         actionPanelActor.textContent = '待機中...';
@@ -388,31 +414,34 @@ export class ActionPanelSystem extends BaseSystem {
     // --- Event Setup Helpers ---
 
     setupSelectionEvents(container, data) {
-        const targetDomElements = data.targetId !== null ? this.uiManager.getDOMElements(data.targetId) : null;
-        data.buttons.forEach(btn => {
-            if (btn.isBroken) return;
-            const buttonEl = container.querySelector(`#panelBtn-${btn.partKey}`);
+        data.buttons.forEach(btnData => {
+            if (btnData.isBroken) return;
+            const buttonEl = container.querySelector(`#panelBtn-${btnData.partKey}`);
             if (!buttonEl) return;
-
+    
             buttonEl.onclick = () => {
+                // ★修正: 各ボタンが持つ事前計算済みのターゲット情報をそのまま利用する
+                const target = btnData.target;
                 this.world.emit(GameEvents.PART_SELECTED, {
                     entityId: data.entityId,
-                    partKey: btn.partKey,
-                    targetId: data.targetId,
-                    targetPartKey: data.targetPartKey
+                    partKey: btnData.partKey,
+                    // ★修正: 事前計算されたターゲット情報をイベントに含める
+                    targetId: target ? target.targetId : null,
+                    targetPartKey: target ? target.targetPartKey : null,
                 });
                 this.hideActionPanel();
             };
-
-            if (btn.action === '射撃' && targetDomElements && targetDomElements.targetIndicatorElement) {
-                buttonEl.onmouseover = () => targetDomElements.targetIndicatorElement.classList.add('active');
-                buttonEl.onmouseout = () => targetDomElements.targetIndicatorElement.classList.remove('active');
+    
+            // 「事前ターゲット(pre-move)」のアクションのみハイライト処理を追加する
+            if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(btnData.targetScope) && btnData.targetTiming === 'pre-move') {
+                buttonEl.onmouseover = () => this._updateTargetHighlight(btnData.partKey, true);
+                buttonEl.onmouseout = () => this._updateTargetHighlight(btnData.partKey, false);
             }
         });
     }
 
+
     setupExecutionResultEvents(container, data) {
-        // ★変更: HPバーアニメーション後にパネルをクリック可能にする
         const showClickable = () => {
             this.dom.actionPanel.classList.add('clickable');
             this.dom.actionPanelIndicator.classList.remove('hidden');
@@ -425,19 +454,21 @@ export class ActionPanelSystem extends BaseSystem {
                 modalType: ModalType.EXECUTION_RESULT
             });
         };
-
-        if (!data.damage || data.damage === 0 || !data.targetId || !data.targetPartKey) {
+        
+        const effect = data.damageEffect || data.healEffect;
+        if (!effect || effect.value === 0) {
             showClickable();
             return;
         }
 
-        const targetDomElements = this.uiManager.getDOMElements(data.targetId);
-        if (!targetDomElements || !targetDomElements.partDOMElements[data.targetPartKey]) {
+        const { targetId, partKey } = effect;
+        const targetDomElements = this.uiManager.getDOMElements(targetId);
+        if (!targetDomElements || !targetDomElements.partDOMElements[partKey]) {
             showClickable();
             return;
         }
 
-        const hpBarElement = targetDomElements.partDOMElements[data.targetPartKey].bar;
+        const hpBarElement = targetDomElements.partDOMElements[partKey].bar;
 
         requestAnimationFrame(() => {
             const onTransitionEnd = (event) => {
@@ -480,7 +511,32 @@ export class ActionPanelSystem extends BaseSystem {
         `;
     }
 
-    // --- ★新規: Keyboard Navigation Helpers ---
+    // --- ★新規: Keyboard Navigation & Highlight Helpers ---
+
+    /**
+     * ターゲットアイコンのハイライトを更新するヘルパー関数
+     * @param {string} partKey - 関連するパーツのキー
+     * @param {boolean} show - ハイライトを表示するかどうか
+     * @private
+     */
+    _updateTargetHighlight(partKey, show) {
+        const buttonData = this.currentModalData?.buttons.find(b => b.partKey === partKey);
+    
+        if (!buttonData || buttonData.targetTiming !== 'pre-move') {
+            return;
+        }
+    
+        // ★修正: 各ボタンが持つ固有のターゲット情報を利用する
+        const target = buttonData.target;
+    
+        if (target && target.targetId !== null) {
+            const targetDom = this.uiManager.getDOMElements(target.targetId);
+            if (targetDom?.iconElement) {
+                targetDom.iconElement.style.boxShadow = show ? '0 0 15px cyan' : '';
+            }
+        }
+    }
+
 
     /**
      * 矢印キーによるボタンのフォーカス移動を処理します。
@@ -535,39 +591,25 @@ export class ActionPanelSystem extends BaseSystem {
      */
     updateFocus(newKey) {
         if (this.focusedButtonKey === newKey) return;
-
-        const targetDomElements = this.currentModalData?.targetId !== null 
-            ? this.uiManager.getDOMElements(this.currentModalData.targetId) 
-            : null;
-
-        // 古いフォーカスを解除
+    
+        // 以前のフォーカスを解除
         if (this.focusedButtonKey) {
+            this._updateTargetHighlight(this.focusedButtonKey, false); // ハイライト解除
             const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
             if (oldButton) oldButton.classList.remove('focused');
         }
-
+    
         // 新しいフォーカスを設定
+        this._updateTargetHighlight(newKey, true); // ハイライト設定
         const newButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${newKey}`);
         if (newButton) {
             newButton.classList.add('focused');
             this.focusedButtonKey = newKey;
-
-            // インジケーターの更新
-            const newButtonData = this.currentModalData?.buttons.find(b => b.partKey === newKey);
-            if (newButtonData?.action === '射撃' && targetDomElements?.targetIndicatorElement) {
-                targetDomElements.targetIndicatorElement.classList.add('active');
-            } else if (targetDomElements?.targetIndicatorElement) {
-                // 新しいフォーカスが射撃でない場合、インジケーターを消す
-                targetDomElements.targetIndicatorElement.classList.remove('active');
-            }
         } else {
-            // フォーカスが外れた場合
             this.focusedButtonKey = null;
-            if (targetDomElements?.targetIndicatorElement) {
-                targetDomElements.targetIndicatorElement.classList.remove('active');
-            }
         }
     }
+
 
     /**
      * 現在フォーカスされているボタンの選択を決定します。

@@ -1,18 +1,19 @@
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
 import { BattlePhaseContext } from '../core/index.js'; // Import new context
-import { GamePhaseType, ModalType } from '../common/constants.js';
+import { GamePhaseType, ModalType, EffectScope } from '../common/constants.js'; // ★修正: EffectScopeをインポート
+import { UIManager } from './UIManager.js'; // ★新規: UIManagerをインポート
+import { BaseSystem } from '../../core/baseSystem.js'; // ★追加: 継承元となるBaseSystemをインポート
 
 /**
- * ユーザーインタラクションの起点となり、UIの状態変化を監視するシステム。
- * アクションパネル（モーダル）の具体的なDOM操作はActionPanelSystemに分離されました。
- * このシステムは、UIイベント（ボタンクリックなど）をトリガーとして、
- * 他のシステム（ActionPanelSystem, GameFlowSystemなど）に処理を要求するイベントを発行する責務を持ちます。
+ * アニメーションと視覚効果の再生に特化したシステム。
+ * 旧ViewSystemのアニメーション関連の責務を引き継ぎ、より専門化されています。
+ * DOM要素の更新は行わず、アニメーションの開始、管理、完了通知を発行します。
  */
-export class ViewSystem {
+export class ViewSystem extends BaseSystem {
     constructor(world) {
-        this.world = world;
-        // Use new BattlePhaseContext instead of old GameContext for battlePhase
+        super(world);
+        this.uiManager = this.world.getSingletonComponent(UIManager); // ★新規: UIManagerの参照を取得
         this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
         this.animationStyleElement = null; // 動的に生成したstyle要素への参照
 
@@ -42,9 +43,9 @@ export class ViewSystem {
      */
     bindWorldEvents() {
         this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
-        this.world.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this)); // ★新規
-        // ★廃止: アニメーション要求の仲介は不要になりました。RenderSystemが直接イベントを受け取ります。
-        // this.world.on(GameEvents.EXECUTION_ANIMATION_REQUESTED, this.onExecutionAnimationRequested.bind(this));
+        this.world.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this));
+        // ★変更: アニメーション実行要求を直接購読
+        this.world.on(GameEvents.EXECUTE_ATTACK_ANIMATION, this.executeAttackAnimation.bind(this));
     }
 
     /**
@@ -85,11 +86,90 @@ export class ViewSystem {
     }
 
     /**
-     * ★廃止: このメソッドと関連ロジックはRenderSystemに移管されました。
-     * ActionSystemが直接RenderSystemにアニメーションを要求するフローに変更されたため、
-     * ViewSystemがアニメーション処理を仲介する必要がなくなりました。
+     * ★新規: 攻撃アニメーションを実行します (UISystemから移管)。
+     * @param {object} detail - イベントペイロード { attackerId, targetId }
      */
-    // onExecutionAnimationRequested(detail) { ... }
+    executeAttackAnimation(detail) {
+        const { attackerId, targetId } = detail;
+        const attackerDomElements = this.uiManager.getDOMElements(attackerId);
+        const action = this.getCachedComponent(attackerId, Components.Action);
+        const parts = this.getCachedComponent(attackerId, Components.Parts);
+
+        let isSingleTargetAction = false;
+        // ActionとPartsコンポーネントから、行動が単体対象かどうかを判断する
+        if (action && action.partKey && parts && parts[action.partKey]) {
+            const selectedPart = parts[action.partKey];
+            const scope = selectedPart.targetScope;
+            // 味方単体または敵単体が対象のアクションの場合にtrue
+            isSingleTargetAction = scope === EffectScope.ALLY_SINGLE || scope === EffectScope.ENEMY_SINGLE;
+        }
+        
+        // ターゲットがいない、攻撃者のDOM要素がない、またはアクションが単体対象でない場合は、アニメーションをスキップ
+        if (!targetId || !attackerDomElements || !isSingleTargetAction) {
+            this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
+            return;
+        }
+
+        const targetDomElements = this.uiManager.getDOMElements(targetId);
+        if (!attackerDomElements.iconElement || !targetDomElements?.iconElement) {
+            console.warn('ViewSystem (Animation): Missing DOM elements for animation. Skipping.', detail);
+            this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
+            return;
+        }
+
+        // ★新規: アニメーション開始時にゲームの進行を一時停止
+        this.world.emit(GameEvents.GAME_PAUSED);
+        
+        const indicator = document.createElement('div');
+        indicator.className = 'target-indicator';
+        for (let i = 0; i < 4; i++) {
+            const corner = document.createElement('div');
+            corner.className = `corner corner-${i + 1}`;
+            indicator.appendChild(corner);
+        }
+        document.body.appendChild(indicator);
+        
+        const attackerIcon = attackerDomElements.iconElement;
+        const targetIcon = targetDomElements.iconElement;
+        
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // ★修正: 意図的な遅延をsetTimeoutで追加する。
+        // これにより、ブラウザがDOMのレイアウト計算を完了させるための時間を確保し、
+        // getBoundingClientRect()が最新の正しい座標を返すことを保証する。
+        setTimeout(() => {
+            const attackerRect = attackerIcon.getBoundingClientRect();
+            const targetRect = targetIcon.getBoundingClientRect();
+            
+            indicator.style.position = 'fixed';
+            indicator.style.zIndex = '100';
+            indicator.style.opacity = '1';
+            
+            const startX = attackerRect.left + attackerRect.width / 2;
+            const startY = attackerRect.top + attackerRect.height / 2;
+            const endX = targetRect.left + targetRect.width / 2;
+            const endY = targetRect.top + targetRect.height / 2;
+            
+            indicator.style.left = `${startX}px`;
+            indicator.style.top = `${startY}px`;
+            
+            const animation = indicator.animate([
+                { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1, offset: 0 },
+                { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 1, offset: 0.2 },
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(1.5)`, opacity: 1, offset: 0.5 },
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 1, offset: 0.65 },
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(2.0)`, opacity: 1, offset: 0.8 },
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0, offset: 1 }
+            ], {
+                duration: 1200, 
+                easing: 'ease-in-out'
+            });
+            animation.finished.then(() => {
+                indicator.remove();
+                this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
+            });
+        }, 100); // 100ミリ秒の遅延。レンダリングエンジンに十分な時間を与える。
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+    }
 
     /**
      * ターゲット表示用アニメーションのCSSを動的に<head>へ注入します。

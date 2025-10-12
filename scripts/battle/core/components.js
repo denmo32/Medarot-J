@@ -8,6 +8,8 @@ export class PlayerInfo {
         this.teamId = teamId;
         this.isLeader = isLeader;
         this.color = CONFIG.TEAMS[teamId].color;
+        // ★削除: scanBonusプロパティはActiveEffectsコンポーネントで管理されるため不要
+        // this.scanBonus = 0; 
     }
 }
 
@@ -137,5 +139,15 @@ export class BattleLog {
             targetId: null,
             partKey: null
         };
+    }
+}
+
+/**
+ * ★新規: エンティティに適用されている効果（バフ・デバフ）を管理するコンポーネント
+ */
+export class ActiveEffects {
+    constructor() {
+        // 例: [{ type: 'SCAN', value: 5, duration: 3 }, { type: 'ATTACK_UP', value: 1.2, duration: 2 }]
+        this.effects = [];
     }
 }

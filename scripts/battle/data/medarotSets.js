@@ -43,4 +43,14 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_004'
         }
     },
+    // ★新規: グリッチパーツを装備したテスト機体
+    {
+        name: 'グリッチテスト',
+        parts: {
+            [PartInfo.HEAD.key]: 'head_007',
+            [PartInfo.RIGHT_ARM.key]: 'rarm_007',
+            [PartInfo.LEFT_ARM.key]: 'larm_007',
+            [PartInfo.LEGS.key]: 'legs_007'
+        }
+    },
 ];

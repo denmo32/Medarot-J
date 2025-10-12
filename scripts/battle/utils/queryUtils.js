@@ -74,6 +74,7 @@ export function findBestDefensePart(world, entityId) {
  */
 export function getValidEnemies(world, attackerId) {
     const attackerInfo = world.getComponent(attackerId, PlayerInfo);
+    if (!attackerInfo) return [];
     return world.getEntitiesWith(PlayerInfo, GameState)
         .filter(id => {
             const pInfo = world.getComponent(id, PlayerInfo);
@@ -81,6 +82,59 @@ export function getValidEnemies(world, attackerId) {
             return id !== attackerId && pInfo.teamId !== attackerInfo.teamId && gState.state !== PlayerStateType.BROKEN;
         });
 }
+
+/**
+ * ★新規: 生存している味方エンティティのリストを取得します
+ * @param {World} world
+ * @param {number} sourceId - 基準となるエンティティID
+ * @param {boolean} [includeSelf=false] - 結果に自分自身を含めるか
+ * @returns {number[]}
+ */
+export function getValidAllies(world, sourceId, includeSelf = false) {
+    const sourceInfo = world.getComponent(sourceId, PlayerInfo);
+    if (!sourceInfo) return [];
+    return world.getEntitiesWith(PlayerInfo, GameState)
+        .filter(id => {
+            if (!includeSelf && id === sourceId) return false;
+            const pInfo = world.getComponent(id, PlayerInfo);
+            const gState = world.getComponent(id, GameState);
+            return pInfo.teamId === sourceInfo.teamId && gState.state !== PlayerStateType.BROKEN;
+        });
+}
+
+/**
+ * ★新規: 味方チーム内で最も損害を受けているパーツを検索します。
+ * HEALER戦略や回復アクションのターゲット決定に利用されます。
+ * @param {World} world - ワールドオブジェクト
+ * @param {number[]} candidates - 検索対象となるエンティティIDの配列
+ * @returns {{targetId: number, targetPartKey: string} | null} - 最も損害の大きいパーツを持つターゲット情報、またはnull
+ */
+export function findMostDamagedAllyPart(world, candidates) {
+    if (!candidates || candidates.length === 0) return null;
+
+    let mostDamagedPart = null;
+    let maxDamage = -1;
+
+    candidates.forEach(allyId => {
+        const parts = world.getComponent(allyId, Parts);
+        if (!parts) return;
+        Object.entries(parts).forEach(([partKey, part]) => {
+            if (part && !part.isBroken) {
+                const damageTaken = part.maxHp - part.hp;
+                if (damageTaken > maxDamage) {
+                    maxDamage = damageTaken;
+                    mostDamagedPart = { targetId: allyId, targetPartKey: partKey };
+                }
+            }
+        });
+    });
+    
+    // 誰もダメージを受けていない場合はターゲットなし
+    if (maxDamage <= 0) return null;
+
+    return mostDamagedPart;
+}
+
 
 /**
  * 指定されたターゲットIDやパーツキーが現在有効（生存・未破壊）か検証します。
@@ -147,17 +201,20 @@ export function findNearestEnemy(world, attackerId) {
 }
 
 /**
- * 全ての敵パーツを取得する
+ * ★変更: 指定された候補エンティティリストから、破壊されていない全パーツを取得する
+ * (旧: getAllEnemyParts)
  * @param {World} world
- * @param {number[]} enemyIds
+ * @param {number[]} candidateIds - 候補エンティティIDの配列
  * @returns {{entityId: number, partKey: string, part: object}[]}
  */
-export function getAllEnemyParts(world, enemyIds) {
+export function getAllPartsFromCandidates(world, candidateIds) {
     let allParts = [];
-    for (const id of enemyIds) {
+    if (!candidateIds) return []; // 候補がいない場合は空配列を返す
+    for (const id of candidateIds) {
         const parts = world.getComponent(id, Parts);
+        if (!parts) continue;
         Object.entries(parts).forEach(([key, part]) => {
-            if (!part.isBroken) {
+            if (part && !part.isBroken) {
                 allParts.push({ entityId: id, partKey: key, part: part });
             }
         });
@@ -168,12 +225,13 @@ export function getAllEnemyParts(world, enemyIds) {
 /**
  * 条件に基づいて最適なパーツを選択するための汎用関数
  * @param {World} world
- * @param {number[]} enemies - 敵エンティティIDの配列
+ * @param {number[]} candidates - 候補エンティティIDの配列
  * @param {function} sortFn - パーツを評価・ソートするための比較関数
  * @returns {{targetId: number, targetPartKey: string} | null}
  */
-export function selectPartByCondition(world, enemies, sortFn) {
-    const allParts = getAllEnemyParts(world, enemies);
+export function selectPartByCondition(world, candidates, sortFn) {
+    // ★変更: getAllEnemyParts -> getAllPartsFromCandidates
+    const allParts = getAllPartsFromCandidates(world, candidates);
     if (allParts.length === 0) return null;
     allParts.sort(sortFn);
     const selectedPart = allParts[0];

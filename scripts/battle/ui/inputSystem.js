@@ -1,14 +1,12 @@
-// scripts/systems/inputSystem.js:
-
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-// ★追加: Partsコンポーネントをインポート
 import { PlayerInfo, Parts } from '../core/components.js';
 import { ModalType } from '../common/constants.js';
-// ★変更: 新しいユーティリティ関数 decideAndEmitAction をインポート
 import { getAllActionParts } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
+// ★削除: CONFIGは不要になったため削除
+// import { CONFIG } from '../common/config.js';
 
 /**
  * プレイヤーからの入力を処理し、行動を決定するシステム。
@@ -33,49 +31,66 @@ export class InputSystem extends BaseSystem {
         const { entityId } = detail;
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         
-        // 破壊状態に関わらず、全ての攻撃パーツを取得する
+        // 破壊状態に関わらず、全ての行動可能パーツを取得する
         const allActionParts = getAllActionParts(this.world, entityId);
         
-        // ターゲットを事前に決定
-        const target = determineTarget(this.world, entityId);
+        // ★修正: 各ボタン（パーツ）に対応するターゲットを事前にすべて計算する
+        const buttonsWithTargets = allActionParts.map(([partKey, part]) => {
+            // 各パーツに対してターゲットを決定する。
+            // targetTimingが'post-move'のアクション（格闘、回復）は、この時点ではターゲットを決定しない。
+            let target = null;
+            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // ★修正: CONFIG.ACTION_PROPERTIES を参照せず、パーツ自身のプロパティを見る
+            if (part.targetTiming === 'pre-move') {
+                target = determineTarget(this.world, entityId, partKey);
+            }
+
+            return {
+                text: `${part.name} (${part.type})`,
+                partKey: partKey,
+                isBroken: part.isBroken,
+                action: part.action,
+                targetScope: part.targetScope,
+                // ★修正: CONFIG.ACTION_PROPERTIES を参照せず、パーツ自身のプロパティを見る
+                targetTiming: part.targetTiming || 'pre-move',
+                // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+                // ★追加: 各ボタンに固有のターゲット情報を持たせる
+                target: target 
+            };
+        });
 
         // UIシステムにパネル表示を要求
         const panelData = {
             entityId: entityId,
-            title: '', // ★修正: タイトルは空文字にして、所有者名を別途表示
+            title: '',
             ownerName: playerInfo.name,
-            buttons: allActionParts.map(([partKey, part]) => ({
-                text: `${part.name} (${part.type})`,
-                partKey: partKey,
-                isBroken: part.isBroken,
-                action: part.action // ★追加: ViewSystemが参照するためにアクションタイプを渡す
-            })),
-            // 決定したターゲット情報をパネルデータに含める
-            targetId: target ? target.targetId : null,
-            targetPartKey: target ? target.targetPartKey : null
+            // ★修正: 計算済みのボタン情報を渡す
+            buttons: buttonsWithTargets,
         };
         
-        // ★修正: 即座にモーダルを表示（シーケンス管理をスキップ）
         this.world.emit(GameEvents.SHOW_MODAL, { 
             type: ModalType.SELECTION, 
             data: panelData,
-            immediate: true // ★追加: 即座表示フラグ
+            immediate: true
         });
     }
 
     /**
      * プレイヤーがUIでパーツを選択した際のハンドラ。
      * 選択されたパーツに基づき、ターゲットを決定して完全な行動内容をStateSystemに通知します。
-     * @param {object} detail - イベントの詳細 ({ entityId, partKey })
+     * @param {object} detail - イベントの詳細 ({ entityId, partKey, targetId, targetPartKey })
      */
     onPartSelected(detail) {
-        // ViewSystemから渡された、事前に決定済みのターゲット情報を含む詳細を受け取る
+        // ★変更: detailから targetId, targetPartKey を直接受け取る
         const { entityId, partKey, targetId, targetPartKey } = detail;
 
-        // ★変更: イベント発行のロジックを共通化されたユーティリティ関数に委譲します。
-        // UIから渡されたターゲット情報をそのまま関数に渡します。
-        decideAndEmitAction(this.world, entityId, partKey, { targetId, targetPartKey });
+        // ★変更: ターゲットを再決定せず、イベントで渡された情報をそのまま使う
+        const target = { targetId, targetPartKey };
+
+        // イベント発行のロジックを共通化されたユーティリティ関数に委譲
+        decideAndEmitAction(this.world, entityId, partKey, target);
     }
+
 
     // このシステムはイベント駆動なので、updateループでの処理は不要
     update(deltaTime) {}

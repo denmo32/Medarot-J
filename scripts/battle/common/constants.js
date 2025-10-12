@@ -79,6 +79,34 @@ export const MedalPersonality = {
     GUARD: 'GUARD',               // 味方リーダーを最後に攻撃してきた敵を狙う
     FOCUS: 'FOCUS',               // 前回攻撃したパーツを集中攻撃
     ASSIST: 'ASSIST',             // 味方が最後に攻撃した敵のパーツを狙う
+    HEALER: 'HEALER',             // ★新規: 最もHPが減っている味方を狙う
+};
+
+/**
+ * ★新規: アクションの効果種別を定義する定数
+ * ActionSystemがこの定義を元に、effectStrategiesから適切な処理を呼び出します。
+ */
+export const EffectType = {
+    DAMAGE: 'DAMAGE',           // ダメージを与える
+    APPLY_SCAN: 'APPLY_SCAN',   // スキャン効果を適用する
+    HEAL: 'HEAL',               // ★新規: 回復
+    APPLY_GLITCH: 'APPLY_GLITCH', // ★新規: 妨害（グリッチ）
+    // 今後追加予定の効果:
+    // APPLY_SMOKE: 'APPLY_SMOKE', // 煙幕効果
+    // SETUP_TRAP: 'SETUP_TRAP',   // トラップ設置
+};
+
+/**
+ * ★新規: アクションの効果範囲を定義する定数
+ * ターゲット選択や効果適用ロジックが、この定義を元に対象を決定します。
+ */
+export const EffectScope = {
+    ENEMY_SINGLE: 'ENEMY_SINGLE', // 敵単体
+    ALLY_SINGLE: 'ALLY_SINGLE',   // 味方単体
+    ALLY_TEAM: 'ALLY_TEAM',     // 味方全体
+    SELF: 'SELF',                 // 自分自身
+    // 今後追加予定の範囲:
+    // ENEMY_TEAM: 'ENEMY_TEAM',   // 敵全体
 };
 
 /**
