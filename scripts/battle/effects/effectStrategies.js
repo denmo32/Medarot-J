@@ -101,7 +101,14 @@ export const effectStrategies = {
      * ★新規: [回復効果]: ターゲットのパーツHPを回復します。
      */
     [EffectType.HEAL]: ({ world, sourceId, targetId, effect, part }) => {
-        if (targetId === null || targetId === undefined) return null;
+        // ターゲットがいない（＝回復対象がいない）場合
+        if (targetId === null || targetId === undefined) {
+            return {
+                type: EffectType.HEAL,
+                value: 0,
+                message: '行動失敗！　誰もダメージを受けていない！'
+            };
+        }
 
         const targetParts = world.getComponent(targetId, Parts);
         if (!targetParts) return null;
