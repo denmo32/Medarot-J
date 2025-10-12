@@ -1,7 +1,7 @@
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
 import { BattlePhaseContext } from '../core/index.js'; // Import new context
-import { GamePhaseType, ModalType } from '../common/constants.js';
+import { GamePhaseType, ModalType, EffectScope } from '../common/constants.js'; // ★修正: EffectScopeをインポート
 import { UIManager } from './UIManager.js'; // ★新規: UIManagerをインポート
 import { BaseSystem } from '../../core/baseSystem.js'; // ★追加: 継承元となるBaseSystemをインポート
 
@@ -93,9 +93,19 @@ export class ViewSystem extends BaseSystem {
         const { attackerId, targetId } = detail;
         const attackerDomElements = this.uiManager.getDOMElements(attackerId);
         const action = this.getCachedComponent(attackerId, Components.Action);
+        const parts = this.getCachedComponent(attackerId, Components.Parts);
 
-        // ★修正: ターゲットがいない、または回復・援護・妨害行動の場合はアニメーションをスキップ
-        if (!targetId || !attackerDomElements || (action && ['援護', '回復', '妨害'].includes(action.type))) {
+        let isSingleTargetAction = false;
+        // ActionとPartsコンポーネントから、行動が単体対象かどうかを判断する
+        if (action && action.partKey && parts && parts[action.partKey]) {
+            const selectedPart = parts[action.partKey];
+            const scope = selectedPart.targetScope;
+            // 味方単体または敵単体が対象のアクションの場合にtrue
+            isSingleTargetAction = scope === EffectScope.ALLY_SINGLE || scope === EffectScope.ENEMY_SINGLE;
+        }
+        
+        // ターゲットがいない、攻撃者のDOM要素がない、またはアクションが単体対象でない場合は、アニメーションをスキップ
+        if (!targetId || !attackerDomElements || !isSingleTargetAction) {
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
         }
