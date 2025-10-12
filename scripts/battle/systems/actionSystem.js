@@ -102,7 +102,8 @@ export class ActionSystem extends BaseSystem {
             if (action.properties.targetTiming === 'post-move' && action.targetId === null) {
                 let targetData = null;
 
-                if (action.type === '格闘') {
+                // ★修正: 格闘と妨害は最も近い敵をターゲットにする
+                if (action.type === '格闘' || action.type === '妨害') {
                     const nearestEnemyId = findNearestEnemy(this.world, executor);
                     if (nearestEnemyId !== null) {
                         targetData = selectRandomPart(this.world, nearestEnemyId);
@@ -190,11 +191,14 @@ export class ActionSystem extends BaseSystem {
 
             // 手順4: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
             const primaryEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE) || resolvedEffects[0] || {};
-            // ★修正: 援護・回復アクションをまとめてisSupportActionとして扱う
-            const isSupportAction = ['援護', '回復'].includes(attackingPart.action);
+            // ★修正: 援護・回復・妨害アクションをまとめてisSupportActionとして扱う
+            const isSupportAction = ['援護', '回復', '妨害'].includes(attackingPart.action);
             
             let declarationMessage;
-            if (isSupportAction) {
+            // ★修正: 妨害アクションのメッセージを追加
+            if (attackingPart.action === '妨害') {
+                declarationMessage = `${attackerInfo.name}の妨害行動！ ${attackingPart.trait}！`;
+            } else if (isSupportAction) {
                 declarationMessage = `${attackerInfo.name}の${attackingPart.type}行動！ ${attackingPart.trait}！`;
             } else if (!action.targetId) {
                 declarationMessage = `${attackerInfo.name}の攻撃は空を切った！`;
@@ -262,8 +266,8 @@ export class ActionSystem extends BaseSystem {
      * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果オブジェクト
      */
     _resolveHitOutcome(attackingPart, targetLegs, targetId, initialTargetPartKey, executorId) {
-        // ★修正: 援護・回復行動は必ず「命中」する
-        if (['援護', '回復'].includes(attackingPart.action)) {
+        // ★修正: 援護・回復・妨害行動は必ず「命中」する
+        if (['援護', '回復', '妨害'].includes(attackingPart.action)) {
             return { isHit: true, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
         }
 

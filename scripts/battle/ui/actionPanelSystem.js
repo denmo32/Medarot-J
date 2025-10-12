@@ -239,9 +239,13 @@ export class ActionPanelSystem extends BaseSystem {
     _generateResultMessage(detail) {
         const { resolvedEffects, isEvaded, isSupport, attackerId } = detail;
         
-        // 支援行動の場合
+        // 支援・妨害行動の場合
         if (isSupport) {
-            // ★修正: isSupportの場合、まず回復効果を探し、次点でスキャン効果を探すようにする
+            // ★修正: isSupportの場合、優先順位をつけてメッセージを探す
+            const glitchEffect = resolvedEffects.find(e => e.type === EffectType.APPLY_GLITCH);
+            if (glitchEffect?.message) {
+                return glitchEffect.message;
+            }
             const healEffect = resolvedEffects.find(e => e.type === EffectType.HEAL);
             if (healEffect?.message) {
                 return healEffect.message;
@@ -250,7 +254,7 @@ export class ActionPanelSystem extends BaseSystem {
             if (scanEffect?.message) {
                 return scanEffect.message;
             }
-            return '支援行動成功！'; // どちらのメッセージも見つからない場合のフォールバック
+            return '支援行動成功！'; // どのメッセージも見つからない場合のフォールバック
         }
 
         // 回避された場合

@@ -90,6 +90,7 @@ export const EffectType = {
     DAMAGE: 'DAMAGE',           // ダメージを与える
     APPLY_SCAN: 'APPLY_SCAN',   // スキャン効果を適用する
     HEAL: 'HEAL',               // ★新規: 回復
+    APPLY_GLITCH: 'APPLY_GLITCH', // ★新規: 妨害（グリッチ）
     // 今後追加予定の効果:
     // APPLY_SMOKE: 'APPLY_SMOKE', // 煙幕効果
     // SETUP_TRAP: 'SETUP_TRAP',   // トラップ設置

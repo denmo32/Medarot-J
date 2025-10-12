@@ -94,8 +94,8 @@ export class ViewSystem extends BaseSystem {
         const attackerDomElements = this.uiManager.getDOMElements(attackerId);
         const action = this.getCachedComponent(attackerId, Components.Action);
 
-        // ターゲットがいない、または回復・援護行動の場合はアニメーションをスキップ
-        if (!targetId || !attackerDomElements || (action && ['援護', '回復'].includes(action.type))) {
+        // ★修正: ターゲットがいない、または回復・援護・妨害行動の場合はアニメーションをスキップ
+        if (!targetId || !attackerDomElements || (action && ['援護', '回復', '妨害'].includes(action.type))) {
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
         }

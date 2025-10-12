@@ -5,10 +5,10 @@
  * 「ストラテジーパターン」を採用しており、新しい効果を追加する際は、
  * このファイルに新しい関数を追加し、パーツデータでそれを指定するだけで済みます。
  */
-// ★修正: Action をインポート
-import { PlayerInfo, Parts, ActiveEffects, Action } from '../core/components.js';
-// ★修正: PartKeyToInfoMap をインポート
-import { EffectType, EffectScope, PartKeyToInfoMap } from '../common/constants.js';
+// ★修正: Action, GameState をインポート
+import { PlayerInfo, Parts, ActiveEffects, Action, GameState } from '../core/components.js';
+// ★修正: PartKeyToInfoMap, PlayerStateType をインポート
+import { EffectType, EffectScope, PartKeyToInfoMap, PlayerStateType } from '../common/constants.js';
 import { calculateDamage } from '../utils/combatFormulas.js';
 import { getValidAllies } from '../utils/queryUtils.js';
 
@@ -119,6 +119,36 @@ export const effectStrategies = {
             partKey: targetPartKey,
             value: healAmount,
             message: `${world.getComponent(targetId, PlayerInfo).name}の${PartKeyToInfoMap[targetPartKey]?.name}を${healAmount}回復！`
+        };
+    },
+
+    /**
+     * ★新規: [妨害効果]: ターゲットの行動予約を中断させ、強制的にクールダウンへ移行させます。
+     */
+    [EffectType.APPLY_GLITCH]: ({ world, targetId }) => {
+        if (targetId === null || targetId === undefined) return null;
+
+        const targetInfo = world.getComponent(targetId, PlayerInfo);
+        const targetState = world.getComponent(targetId, GameState);
+        if (!targetInfo || !targetState) return null;
+
+        let wasSuccessful = false;
+        let message = '';
+
+        // ターゲットが行動予約中の場合のみ成功
+        if (targetState.state === PlayerStateType.SELECTED_CHARGING) {
+            wasSuccessful = true;
+            message = `${targetInfo.name}は放熱へ移行！`;
+        } else {
+            wasSuccessful = false;
+            message = '妨害失敗！　放熱中機体には効果がない！';
+        }
+
+        return {
+            type: EffectType.APPLY_GLITCH,
+            targetId: targetId,
+            wasSuccessful: wasSuccessful,
+            message: message,
         };
     },
 };

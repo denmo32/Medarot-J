@@ -17,6 +17,7 @@ export const PARTS_DATA = {
         'head_004': { name: 'ヘッドハンマー', maxHp: 30, action: '格闘', type: '我武者羅', trait: 'ハンマー', success: 50, might: 30, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.DAMAGE }], targetTiming: 'post-move' },
         'head_005': { name: 'ヘッドスキャン', maxHp: 50, action: '援護', type: '支援', trait: 'スキャン', success: 50, might: 50, targetScope: EffectScope.ALLY_TEAM, effects: [{ strategy: EffectType.APPLY_SCAN }], targetTiming: 'pre-move' },
         'head_006': { name: 'ヘッドリペア', maxHp: 50, action: '回復', type: '修復', trait: 'リペア', success: 50, might: 40, targetScope: EffectScope.ALLY_SINGLE, effects: [{ strategy: EffectType.HEAL }], targetTiming: 'post-move' },
+        'head_007': { name: 'ヘッドグリッチ', maxHp: 45, action: '妨害', type: '妨害', trait: 'グリッチ', success: 70, might: 0, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.APPLY_GLITCH }], targetTiming: 'post-move' },
     },
     // --- 右腕パーツ ---
     [PartInfo.RIGHT_ARM.key]: {
@@ -26,6 +27,7 @@ export const PARTS_DATA = {
         'rarm_004': { name: 'ライトハンマー', maxHp: 40, action: '格闘', type: '我武者羅', trait: 'ハンマー', success: 80, might: 18, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.DAMAGE }], targetTiming: 'post-move' },
 		'rarm_005': { name: 'ライトスキャン', maxHp: 50, action: '援護', type: '支援', trait: 'スキャン', success: 50, might: 50, targetScope: EffectScope.ALLY_TEAM, effects: [{ strategy: EffectType.APPLY_SCAN }], targetTiming: 'pre-move' },
 		'rarm_006': { name: 'ライトリペア', maxHp: 50, action: '回復', type: '修復', trait: 'リペア', success: 50, might: 40, targetScope: EffectScope.ALLY_SINGLE, effects: [{ strategy: EffectType.HEAL }], targetTiming: 'post-move' },
+        'rarm_007': { name: 'ライトグリッチ', maxHp: 55, action: '妨害', type: '妨害', trait: 'グリッチ', success: 80, might: 0, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.APPLY_GLITCH }], targetTiming: 'post-move' },
     },
     // --- 左腕パーツ ---
     [PartInfo.LEFT_ARM.key]: {
@@ -35,7 +37,7 @@ export const PARTS_DATA = {
         'larm_004': { name: 'レフトハンマー', maxHp: 70, action: '格闘', type: '殴る', trait: 'ハンマー', success: 40, might: 10, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.DAMAGE }], targetTiming: 'post-move' },
     	'larm_005': { name: 'レフトスキャン', maxHp: 50, action: '援護', type: '支援', trait: 'スキャン', success: 50, might: 50, targetScope: EffectScope.ALLY_TEAM, effects: [{ strategy: EffectType.APPLY_SCAN }], targetTiming: 'pre-move' },
     	'larm_006': { name: 'レフトリペア', maxHp: 50, action: '回復', type: '修復', trait: 'リペア', success: 50, might: 40, targetScope: EffectScope.ALLY_SINGLE, effects: [{ strategy: EffectType.HEAL }], targetTiming: 'post-move' },
-
+        'larm_007': { name: 'レフトグリッチ', maxHp: 55, action: '妨害', type: '妨害', trait: 'グリッチ', success: 80, might: 0, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.APPLY_GLITCH }], targetTiming: 'post-move' },
     },
     // --- 脚部パーツ ---
     [PartInfo.LEGS.key]: {
@@ -45,5 +47,6 @@ export const PARTS_DATA = {
         'legs_004': { name: 'ハンマーレッグ', maxHp: 45, mobility: 50, armor: 10, propulsion: 35, stability: 15 },
     	'legs_005': { name: 'スキャンレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
     	'legs_006': { name: 'リペアレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
+    	'legs_007': { name: 'グリッチレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
     }
 }

@@ -1,8 +1,3 @@
-/**
- * @file 状態管理システム
- * このファイルは、ゲーム内のすべてのエンティティの状態（GameState）を管理・更新する責務を持ちます。
- */
-
 import { Gauge, GameState, Parts, PlayerInfo, Action, Position } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js'; // ★追加
@@ -118,6 +113,12 @@ export class StateSystem {
                 if (!part.isBroken) {
                     part.hp = Math.min(part.maxHp, part.hp + healAmount);
                 }
+            } else if (effect.type === EffectType.APPLY_GLITCH) {
+                // ★新規: グリッチ効果の処理
+                if (effect.wasSuccessful) {
+                    // 成功した場合、ターゲットの行動を中断させクールダウンに移行
+                    this.resetEntityStateToCooldown(effect.targetId, { interrupted: true });
+                }
             }
         }
     }
@@ -128,7 +129,7 @@ export class StateSystem {
      */
     onAttackSequenceCompleted(detail) {
         const { entityId } = detail;
-        this.resetAttackerState(entityId);
+        this.resetEntityStateToCooldown(entityId);
     }
 
     /**
@@ -161,38 +162,46 @@ export class StateSystem {
     }
 
     /**
-     * ★新規: 攻撃者の状態をチャージ中にリセットし、Actionコンポーネントをクリアします。
-     * @param {number} attackerId - 攻撃者のエンティティID
+     * ★修正: 攻撃者だけでなく、任意のエンティティの状態をクールダウン中にリセットする汎用関数。
+     * Actionコンポーネントをクリアします。
+     * @param {number} entityId - 状態をリセットするエンティティのID
      * @param {object} options - 挙動を制御するオプション
      * @param {boolean} options.interrupted - 行動が中断されたかどうかのフラグ
      */
-    resetAttackerState(attackerId, options = {}) {
+    resetEntityStateToCooldown(entityId, options = {}) {
         const { interrupted = false } = options;
-        const attackerGameState = this.world.getComponent(attackerId, GameState);
-        const attackerGauge = this.world.getComponent(attackerId, Gauge);
-        const attackerAction = this.world.getComponent(attackerId, Action);
-        const attackerParts = this.world.getComponent(attackerId, Parts);
+        const gameState = this.world.getComponent(entityId, GameState);
+        const gauge = this.world.getComponent(entityId, Gauge);
+        const action = this.world.getComponent(entityId, Action);
+        const parts = this.world.getComponent(entityId, Parts);
 
-        if (attackerGameState && attackerGameState.state === PlayerStateType.BROKEN) {
+        if (gameState && gameState.state === PlayerStateType.BROKEN) {
             return;
         }
 
-        if (attackerAction && attackerAction.partKey && attackerParts && attackerGauge) {
-            const usedPart = attackerParts[attackerAction.partKey];
-            attackerGauge.speedMultiplier = calculateSpeedMultiplier(usedPart, 'cooldown');
-        } else if (attackerGauge) {
-            attackerGauge.speedMultiplier = 1.0;
-        }
-        if (attackerGameState) attackerGameState.state = PlayerStateType.CHARGING;
-        if (attackerGauge) {
-            if (interrupted) {
-                attackerGauge.value = attackerGauge.max - attackerGauge.value;
+        if (action && action.partKey && parts && gauge) {
+            const usedPart = parts[action.partKey];
+            // ★修正: usedPartが存在する場合のみ速度補正を計算
+            if (usedPart) {
+                gauge.speedMultiplier = calculateSpeedMultiplier(usedPart, 'cooldown');
             } else {
-                attackerGauge.value = 0;
+                gauge.speedMultiplier = 1.0;
+            }
+        } else if (gauge) {
+            gauge.speedMultiplier = 1.0;
+        }
+        if (gameState) gameState.state = PlayerStateType.CHARGING;
+        if (gauge) {
+            if (interrupted) {
+                // 中断された場合、チャージした分がそのままクールダウンの残り時間になる
+                gauge.value = gauge.max - gauge.value;
+            } else {
+                gauge.value = 0;
             }
         }
-        if (attackerAction) {
-            this.world.addComponent(attackerId, new Action());
+        if (action) {
+            // Actionコンポーネントをリセット
+            this.world.addComponent(entityId, new Action());
         }
     }
 
@@ -211,7 +220,7 @@ export class StateSystem {
                 if (action.partKey && parts[action.partKey] && parts[action.partKey].isBroken) {
                     const message = "行動予約パーツが破壊されたため、放熱に移行！";
                     this.uiStateContext.messageQueue.push(message);
-                    this.resetAttackerState(entityId, { interrupted: true });
+                    this.resetEntityStateToCooldown(entityId, { interrupted: true });
                     continue;
                 }
                 
@@ -221,7 +230,7 @@ export class StateSystem {
                         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
                         const message = `ターゲットロスト！ ${playerInfo.name}は放熱に移行！`;
                         this.uiStateContext.messageQueue.push(message);
-                        this.resetAttackerState(entityId, { interrupted: true });
+                        this.resetEntityStateToCooldown(entityId, { interrupted: true });
                         continue;
                     }
                 }
