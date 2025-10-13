@@ -20,7 +20,8 @@ export const PlayerStateType = {
     READY_EXECUTE: 'ready_execute',
     AWAITING_ANIMATION: 'awaiting_animation', // ★追加: 実行アニメーション待ち
     COOLDOWN_COMPLETE: 'cooldown_complete',
-    BROKEN: 'broken'
+    BROKEN: 'broken',
+    GUARDING: 'guarding', // ★新規: ガード中状態
 };
 
 /**
@@ -91,6 +92,7 @@ export const EffectType = {
     APPLY_SCAN: 'APPLY_SCAN',   // スキャン効果を適用する
     HEAL: 'HEAL',               // ★新規: 回復
     APPLY_GLITCH: 'APPLY_GLITCH', // ★新規: 妨害（グリッチ）
+    APPLY_GUARD: 'APPLY_GUARD', // ★新規: ガード
     // 今後追加予定の効果:
     // APPLY_SMOKE: 'APPLY_SMOKE', // 煙幕効果
     // SETUP_TRAP: 'SETUP_TRAP',   // トラップ設置

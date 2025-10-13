@@ -50,8 +50,8 @@ export class EffectSystem extends BaseSystem {
                 effect.duration--;
             }
 
-            // durationがまだ残っている効果だけを次の配列に追加
-            if (effect.duration > 0 || effect.duration === Infinity) {
+            // [修正] durationが未定義（回数制など）か、まだ残っている効果だけを次の配列に追加します。
+            if (effect.duration === undefined || effect.duration > 0 || effect.duration === Infinity) {
                 nextEffects.push(effect);
             } else {
                 // TODO: 効果が切れたことを通知するイベントを発行する可能性

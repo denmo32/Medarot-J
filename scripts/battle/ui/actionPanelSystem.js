@@ -190,14 +190,23 @@ export class ActionPanelSystem extends BaseSystem {
                 break;
             case ModalType.ATTACK_DECLARATION:
                 if (this.confirmActionEntityId !== null) {
-                    // ATTACK_DECLARATION_CONFIRMEDに必要なデータを再構築
-                    const { entityId, resolvedEffects, isEvaded, isSupport } = this.currentModalData;
+                    const { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo } = this.currentModalData;
+
+                    // ★新規: ガードが発動する場合、メッセージを段階的に表示
+                    if (guardianInfo && !this.dom.actionPanelActor.dataset.guardMessageShown) {
+                        this.dom.actionPanelActor.textContent = `${guardianInfo.name}のガード発動！`;
+                        this.dom.actionPanelActor.dataset.guardMessageShown = 'true';
+                        return; // ここで処理を中断し、次のクリックを待つ
+                    }
+
                     this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, {
                         entityId,
                         resolvedEffects,
                         isEvaded,
                         isSupport,
+                        guardianInfo, // ★新規
                     });
+                    // hideActionPanelは呼ばない。結果表示モーダルに置き換わるため。
                 }
                 break;
             case ModalType.EXECUTION_RESULT:
@@ -224,7 +233,8 @@ export class ActionPanelSystem extends BaseSystem {
                 // ★変更: HPバーアニメーションに必要な情報をペイロードから取得
                 entityId: detail.attackerId,
                 damageEffect: detail.resolvedEffects.find(e => e.type === EffectType.DAMAGE),
-                healEffect: detail.resolvedEffects.find(e => e.type === EffectType.HEAL) // ★新規
+                healEffect: detail.resolvedEffects.find(e => e.type === EffectType.HEAL), // ★新規
+                guardianInfo: detail.guardianInfo, // ★新規
             },
             immediate: true
         });
@@ -237,11 +247,16 @@ export class ActionPanelSystem extends BaseSystem {
      * @returns {string} 生成された結果メッセージ
      */
     _generateResultMessage(detail) {
-        const { resolvedEffects, isEvaded, isSupport, attackerId } = detail;
+        const { resolvedEffects, isEvaded, isSupport, attackerId, guardianInfo } = detail;
         
         // 支援・妨害行動の場合
         if (isSupport) {
             // ★修正: isSupportの場合、優先順位をつけてメッセージを探す
+            // ★新規: ガード効果のメッセージを追加
+            const guardEffect = resolvedEffects.find(e => e.type === EffectType.APPLY_GUARD);
+            if (guardEffect?.message) {
+                return guardEffect.message;
+            }
             const glitchEffect = resolvedEffects.find(e => e.type === EffectType.APPLY_GLITCH);
             if (glitchEffect?.message) {
                 return glitchEffect.message;
@@ -278,7 +293,10 @@ export class ActionPanelSystem extends BaseSystem {
 
             if (isCritical) message = 'クリティカル！ ';
             
-            if (isDefended) {
+            // ★修正: ガードされた場合のメッセージを追加
+            if (guardianInfo) {
+                message += `味方への攻撃を庇う！ ${guardianInfo.name}の${finalTargetPartName}に${damage}ダメージ！`;
+            } else if (isDefended) {
                 message += `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${damage}ダメージ！`;
             } else {
                 message += `${targetInfo.name}の${finalTargetPartName}に${damage}ダメージ！`;
@@ -318,6 +336,8 @@ export class ActionPanelSystem extends BaseSystem {
         actionPanelOwner.textContent = data.ownerName || '';
         actionPanelTitle.textContent = getValue(config.title) || '';
         actionPanelActor.textContent = getValue(config.actorName) || '';
+        // ★新規: ガードメッセージ表示済みフラグをリセット
+        delete actionPanelActor.dataset.guardMessageShown;
         actionPanelButtons.innerHTML = getValue(config.contentHTML) || '';
         actionPanelConfirmButton.style.display = 'none';
         actionPanelBattleStartButton.style.display = 'none';

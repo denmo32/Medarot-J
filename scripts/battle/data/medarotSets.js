@@ -16,6 +16,7 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_001'
         }
     },
+
     {
         name: 'ソードテスト',
         parts: {
@@ -25,6 +26,7 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_002'
         }
     },
+
     {
         name: 'ガトリングテスト',
         parts: {
@@ -34,6 +36,7 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_003'
         }
     },
+
     {
         name: 'ハンマーテスト',
         parts: {
@@ -43,7 +46,27 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_004'
         }
     },
-    // ★新規: グリッチパーツを装備したテスト機体
+
+    {
+        name: 'スキャンテスト',
+        parts: {
+            [PartInfo.HEAD.key]: 'head_005',
+            [PartInfo.RIGHT_ARM.key]: 'rarm_005',
+            [PartInfo.LEFT_ARM.key]: 'larm_005',
+            [PartInfo.LEGS.key]: 'legs_005'
+        }
+    },
+
+    {
+        name: 'リペアテスト',
+        parts: {
+            [PartInfo.HEAD.key]: 'head_006',
+            [PartInfo.RIGHT_ARM.key]: 'rarm_006',
+            [PartInfo.LEFT_ARM.key]: 'larm_006',
+            [PartInfo.LEGS.key]: 'legs_006'
+        }
+    },
+
     {
         name: 'グリッチテスト',
         parts: {
@@ -51,6 +74,16 @@ export const MEDAROT_SETS = [
             [PartInfo.RIGHT_ARM.key]: 'rarm_007',
             [PartInfo.LEFT_ARM.key]: 'larm_007',
             [PartInfo.LEGS.key]: 'legs_007'
+        }
+    },
+
+    {
+        name: 'ガードテスト',
+        parts: {
+            [PartInfo.HEAD.key]: 'head_008',
+            [PartInfo.RIGHT_ARM.key]: 'rarm_008',
+            [PartInfo.LEFT_ARM.key]: 'larm_008',
+            [PartInfo.LEGS.key]: 'legs_008'
         }
     },
 ];

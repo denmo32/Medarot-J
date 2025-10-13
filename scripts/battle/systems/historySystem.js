@@ -2,7 +2,7 @@
 
 import { BaseSystem } from '../../core/baseSystem.js';
 // ★変更: 必要なコンポーネントと定数をインポート
-import { PlayerInfo, BattleLog, GameState, Gauge, Parts } from '../core/components.js';
+import { PlayerInfo, BattleLog, GameState, Gauge, Parts, ActiveEffects } from '../core/components.js';
 import { BattleHistoryContext } from '../core/index.js'; // Import new context
 import { GameEvents } from '../common/events.js';
 // ★変更: EffectType, PartInfo をインポート
@@ -33,7 +33,19 @@ export class HistorySystem extends BaseSystem {
      */
     onActionExecuted(detail) {
         // ★変更: 新しいペイロード構造に対応
-        const { attackerId, resolvedEffects } = detail;
+        const { attackerId, resolvedEffects, guardianInfo } = detail;
+
+        // ★新規: ガードが発動した場合、ガード回数を減らす
+        if (guardianInfo) {
+            const guardianEffects = this.world.getComponent(guardianInfo.id, ActiveEffects);
+            if (guardianEffects) {
+                const guardEffect = guardianEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
+                if (guardEffect) {
+                    // ガード回数を1減らす。効果の削除と状態遷移はStateSystemが担当する。
+                    guardEffect.count--;
+                }
+            }
+        }
         
         // 主なターゲット情報をダメージ効果から抽出
         const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);

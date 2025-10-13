@@ -1,5 +1,3 @@
-// scripts/systems/gaugeSystem.js:
-
 import { Gauge, GameState, Parts } from '../core/components.js'; // Import Gauge, GameState, Parts from components
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js';
@@ -52,7 +50,8 @@ export class GaugeSystem extends BaseSystem {
                 PlayerStateType.READY_SELECT, 
                 PlayerStateType.READY_EXECUTE, 
                 PlayerStateType.COOLDOWN_COMPLETE, 
-                PlayerStateType.BROKEN
+                PlayerStateType.BROKEN,
+                PlayerStateType.GUARDING, // ★新規: ガード中もゲージを停止
             ];
             if (statesToPause.includes(gameState.state)) {
                 continue;

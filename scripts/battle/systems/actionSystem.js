@@ -4,7 +4,7 @@
  */
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
-import { GameState, PlayerInfo, Parts, Action } from '../core/components.js';
+import { GameState, PlayerInfo, Parts, Action, ActiveEffects } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 // ★改善: PartInfo, PartKeyToInfoMapを参照し、定義元を一元化
 import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType } from '../common/constants.js';
@@ -44,8 +44,8 @@ export class ActionSystem extends BaseSystem {
      */
     onAttackDeclarationConfirmed(detail) {
         try {
-            // ★変更: ペイロードから resolvedEffects を受け取る
-            const { entityId, resolvedEffects, isEvaded, isSupport } = detail;
+            // ★変更: ペイロードから resolvedEffects, guardianInfo を受け取る
+            const { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo } = detail;
 
             // パラメータの検証
             if (typeof entityId !== 'number') {
@@ -56,12 +56,13 @@ export class ActionSystem extends BaseSystem {
                 );
             }
 
-            // ★変更: resolvedEffects を含んだ新しいペイロードで ACTION_EXECUTED を発行
+            // ★変更: resolvedEffects, guardianInfo を含んだ新しいペイロードで ACTION_EXECUTED を発行
             this.world.emit(GameEvents.ACTION_EXECUTED, {
                 attackerId: entityId,
                 resolvedEffects: resolvedEffects || [], // 効果がなくても空配列を渡す
                 isEvaded: isEvaded || false,
                 isSupport: isSupport || false,
+                guardianInfo: guardianInfo || null, // ★新規: ガード情報を引き継ぐ
             });
 
             // ゲームオーバーチェック
@@ -154,11 +155,28 @@ export class ActionSystem extends BaseSystem {
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
                 return;
             }
-            const { action, attackerInfo, attackerParts, targetInfo, targetParts } = components;
+            let { action, attackerInfo, attackerParts, targetInfo, targetParts } = components;
             
             // ★★★ ここからが新しいロジック ★★★
             const attackingPart = attackerParts[action.partKey];
-            const targetLegs = targetParts ? targetParts.legs : null;
+            let targetLegs = targetParts ? targetParts.legs : null;
+
+            // ★新規: ガード役の索敵とターゲットの上書き
+            let guardian = null; // ガードを実行する機体情報
+            const isSingleDamageAction = ['射撃', '格闘'].includes(attackingPart.action) && action.targetId !== null;
+
+            if (isSingleDamageAction) {
+                guardian = this._findGuardian(action.targetId);
+                if (guardian) {
+                    // ターゲットをガード役に上書き
+                    action.targetId = guardian.id;
+                    action.targetPartKey = guardian.partKey;
+                    // 上書き後のターゲット情報を再取得
+                    targetParts = this.getCachedComponent(guardian.id, Parts);
+                    targetLegs = targetParts ? targetParts.legs : null;
+                }
+            }
+            // --- ガード処理ここまで ---
 
             // 手順2: 攻撃の命中結果（回避、クリティカル、防御）を決定します。
             const outcome = this._resolveHitOutcome(attackingPart, targetLegs, action.targetId, action.targetPartKey, executor);
@@ -191,12 +209,14 @@ export class ActionSystem extends BaseSystem {
 
             // 手順4: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
             const primaryEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE) || resolvedEffects[0] || {};
-            // ★修正: 援護・回復・妨害アクションをまとめてisSupportActionとして扱う
-            const isSupportAction = ['援護', '回復', '妨害'].includes(attackingPart.action);
+            // ★修正: 援護・回復・妨害・防御アクションをまとめてisSupportActionとして扱う
+            const isSupportAction = ['援護', '回復', '妨害', '防御'].includes(attackingPart.action);
             
             let declarationMessage;
-            // ★修正: 妨害アクションのメッセージを追加
-            if (attackingPart.action === '妨害') {
+            // ★修正: 防御アクションのメッセージを追加
+            if (attackingPart.action === '防御') {
+                declarationMessage = `${attackerInfo.name}の守る行動！ ${attackingPart.trait}！`;
+            } else if (attackingPart.action === '妨害') {
                 declarationMessage = `${attackerInfo.name}の妨害行動！ ${attackingPart.trait}！`;
             } else if (isSupportAction) {
                 declarationMessage = `${attackerInfo.name}の${attackingPart.type}行動！ ${attackingPart.trait}！`;
@@ -214,6 +234,7 @@ export class ActionSystem extends BaseSystem {
                     isEvaded: !outcome.isHit,
                     isSupport: isSupportAction,
                     resolvedEffects: resolvedEffects, // ★変更: 計算された効果のリストを渡す
+                    guardianInfo: guardian, // ★新規: ガード役の情報をUIに渡す
                 },
                 immediate: true
             });
@@ -222,6 +243,59 @@ export class ActionSystem extends BaseSystem {
         } catch (error) {
             ErrorHandler.handle(error, { method: 'onExecutionAnimationCompleted', detail });
         }
+    }
+    
+    /**
+     * @private
+     * ★新規: 指定されたターゲットのチームから、ガード状態の機体を探します。
+     * 複数いる場合は、ガードパーツのHPが最も高い機体を返します。
+     * @param {number} originalTargetId - 本来の攻撃ターゲットのエンティティID
+     * @returns {{id: number, partKey: string, name: string} | null} ガード役の情報、またはnull
+     */
+    _findGuardian(originalTargetId) {
+        const targetInfo = this.getCachedComponent(originalTargetId, PlayerInfo);
+        if (!targetInfo) return null;
+
+        const potentialGuardians = this.world.getEntitiesWith(PlayerInfo, GameState, ActiveEffects, Parts)
+            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            .filter(id => {
+                // [修正] ガード役は、本来の攻撃対象自身であってはなりません。
+                if (id === originalTargetId) return false;
+
+                const info = this.getCachedComponent(id, PlayerInfo);
+                const state = this.getCachedComponent(id, GameState);
+                // 状態(state)ではなく、ActiveEffectsにガード効果があるかで判定します。
+                const activeEffects = this.getCachedComponent(id, ActiveEffects);
+                const hasGuardEffect = activeEffects && activeEffects.effects.some(e => e.type === EffectType.APPLY_GUARD);
+                
+                // チームが同じで、破壊されておらず、ガード効果を持っている必要があります。
+                return info.teamId === targetInfo.teamId && state.state !== PlayerStateType.BROKEN && hasGuardEffect;
+            })
+            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+            .map(id => {
+                const activeEffects = this.getCachedComponent(id, ActiveEffects);
+                const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
+                const parts = this.getCachedComponent(id, Parts);
+                const info = this.getCachedComponent(id, PlayerInfo);
+
+                if (guardEffect && parts[guardEffect.partKey] && !parts[guardEffect.partKey].isBroken) {
+                    return {
+                        id: id,
+                        partKey: guardEffect.partKey,
+                        partHp: parts[guardEffect.partKey].hp,
+                        name: info.name,
+                    };
+                }
+                return null;
+            })
+            .filter(g => g !== null);
+
+        if (potentialGuardians.length === 0) return null;
+
+        // ガードパーツのHPが最も高い機体を優先
+        potentialGuardians.sort((a, b) => b.partHp - a.partHp);
+        
+        return potentialGuardians[0];
     }
 
     /**
@@ -266,8 +340,8 @@ export class ActionSystem extends BaseSystem {
      * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果オブジェクト
      */
     _resolveHitOutcome(attackingPart, targetLegs, targetId, initialTargetPartKey, executorId) {
-        // ★修正: 援護・回復・妨害行動は必ず「命中」する
-        if (['援護', '回復', '妨害'].includes(attackingPart.action)) {
+        // ★修正: 援護・回復・妨害・防御行動は必ず「命中」する
+        if (['援護', '回復', '妨害', '防御'].includes(attackingPart.action)) {
             return { isHit: true, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
         }
 

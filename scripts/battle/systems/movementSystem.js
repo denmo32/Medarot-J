@@ -1,5 +1,3 @@
-// scripts/systems/movementSystem.js:
-
 import { Position, Gauge, GameState, PlayerInfo } from '../core/components.js';
 import { PlayerStateType, TeamID } from '../common/constants.js';
 import { CONFIG } from '../common/config.js';
@@ -51,6 +49,9 @@ export class MovementSystem {
                     }
                     break;
                 case PlayerStateType.READY_EXECUTE:
+                    positionXRatio = actionLine;
+                    break;
+                case PlayerStateType.GUARDING: // ★新規: ガード中はアクションラインに留まる
                     positionXRatio = actionLine;
                     break;
                 case PlayerStateType.COOLDOWN_COMPLETE:

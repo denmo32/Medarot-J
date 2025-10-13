@@ -9,7 +9,6 @@ import { PartInfo, EffectType, EffectScope } from '../common/constants.js';
 
 export const PARTS_DATA = {
     // --- 頭部パーツ ---
-    // ★改善: hp, isBroken を削除し、マスターデータを不変に保つ
     [PartInfo.HEAD.key]: {
         'head_001': { name: 'ヘッドライフル', maxHp: 40, action: '射撃', type: '撃つ', trait: 'ライフル', success: 70, might: 15, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.DAMAGE }], targetTiming: 'pre-move' },
         'head_002': { name: 'ヘッドソード', maxHp: 50, action: '格闘', type: '殴る', trait: 'ソード', success: 60, might: 10, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.DAMAGE }], targetTiming: 'post-move' },
@@ -18,6 +17,7 @@ export const PARTS_DATA = {
         'head_005': { name: 'ヘッドスキャン', maxHp: 50, action: '援護', type: '支援', trait: 'スキャン', success: 50, might: 50, targetScope: EffectScope.ALLY_TEAM, effects: [{ strategy: EffectType.APPLY_SCAN }], targetTiming: 'pre-move' },
         'head_006': { name: 'ヘッドリペア', maxHp: 50, action: '回復', type: '修復', trait: 'リペア', success: 50, might: 40, targetScope: EffectScope.ALLY_SINGLE, effects: [{ strategy: EffectType.HEAL }], targetTiming: 'post-move' },
         'head_007': { name: 'ヘッドグリッチ', maxHp: 45, action: '妨害', type: '妨害', trait: 'グリッチ', success: 70, might: 0, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.APPLY_GLITCH }], targetTiming: 'post-move' },
+        'head_008': { name: 'ヘッドガード', maxHp: 120, action: '防御', type: '守る', trait: 'ガード', success: 0, might: 30, targetScope: EffectScope.SELF, effects: [{ strategy: EffectType.APPLY_GUARD }], targetTiming: 'post-move' },
     },
     // --- 右腕パーツ ---
     [PartInfo.RIGHT_ARM.key]: {
@@ -28,6 +28,7 @@ export const PARTS_DATA = {
 		'rarm_005': { name: 'ライトスキャン', maxHp: 50, action: '援護', type: '支援', trait: 'スキャン', success: 50, might: 50, targetScope: EffectScope.ALLY_TEAM, effects: [{ strategy: EffectType.APPLY_SCAN }], targetTiming: 'pre-move' },
 		'rarm_006': { name: 'ライトリペア', maxHp: 50, action: '回復', type: '修復', trait: 'リペア', success: 50, might: 40, targetScope: EffectScope.ALLY_SINGLE, effects: [{ strategy: EffectType.HEAL }], targetTiming: 'post-move' },
         'rarm_007': { name: 'ライトグリッチ', maxHp: 55, action: '妨害', type: '妨害', trait: 'グリッチ', success: 80, might: 0, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.APPLY_GLITCH }], targetTiming: 'post-move' },
+        'rarm_008': { name: 'ライトガード', maxHp: 120, action: '防御', type: '守る', trait: 'ガード', success: 0, might: 30, targetScope: EffectScope.SELF, effects: [{ strategy: EffectType.APPLY_GUARD }], targetTiming: 'post-move' },
     },
     // --- 左腕パーツ ---
     [PartInfo.LEFT_ARM.key]: {
@@ -38,6 +39,7 @@ export const PARTS_DATA = {
     	'larm_005': { name: 'レフトスキャン', maxHp: 50, action: '援護', type: '支援', trait: 'スキャン', success: 50, might: 50, targetScope: EffectScope.ALLY_TEAM, effects: [{ strategy: EffectType.APPLY_SCAN }], targetTiming: 'pre-move' },
     	'larm_006': { name: 'レフトリペア', maxHp: 50, action: '回復', type: '修復', trait: 'リペア', success: 50, might: 40, targetScope: EffectScope.ALLY_SINGLE, effects: [{ strategy: EffectType.HEAL }], targetTiming: 'post-move' },
         'larm_007': { name: 'レフトグリッチ', maxHp: 55, action: '妨害', type: '妨害', trait: 'グリッチ', success: 80, might: 0, targetScope: EffectScope.ENEMY_SINGLE, effects: [{ strategy: EffectType.APPLY_GLITCH }], targetTiming: 'post-move' },
+        'larm_008': { name: 'レフトガード', maxHp: 120, action: '防御', type: '守る', trait: 'ガード', success: 0, might: 30, targetScope: EffectScope.SELF, effects: [{ strategy: EffectType.APPLY_GUARD }], targetTiming: 'post-move' },
     },
     // --- 脚部パーツ ---
     [PartInfo.LEGS.key]: {
@@ -48,5 +50,6 @@ export const PARTS_DATA = {
     	'legs_005': { name: 'スキャンレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
     	'legs_006': { name: 'リペアレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
     	'legs_007': { name: 'グリッチレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
+    	'legs_008': { name: 'ガードレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
     }
 }

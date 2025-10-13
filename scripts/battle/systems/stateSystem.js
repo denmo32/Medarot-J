@@ -1,4 +1,4 @@
-import { Gauge, GameState, Parts, PlayerInfo, Action, Position } from '../core/components.js';
+import { Gauge, GameState, Parts, PlayerInfo, Action, Position, ActiveEffects } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js'; // ★追加
 import { GameEvents } from '../common/events.js';
@@ -119,6 +119,22 @@ export class StateSystem {
                     // 成功した場合、ターゲットの行動を中断させクールダウンに移行
                     this.resetEntityStateToCooldown(effect.targetId, { interrupted: true });
                 }
+            } else if (effect.type === EffectType.APPLY_GUARD) {
+                // ★新規: ガード効果の処理
+                const { targetId } = effect;
+                const gameState = this.world.getComponent(targetId, GameState);
+                if (gameState) {
+                    gameState.state = PlayerStateType.GUARDING;
+                    
+                    // 実行ラインに留まるため、位置を固定
+                    const position = this.world.getComponent(targetId, Position);
+                    const playerInfo = this.world.getComponent(targetId, PlayerInfo);
+                    if (position && playerInfo) {
+                        position.x = playerInfo.teamId === TeamID.TEAM1
+                            ? CONFIG.BATTLEFIELD.ACTION_LINE_TEAM1
+                            : CONFIG.BATTLEFIELD.ACTION_LINE_TEAM2;
+                    }
+                }
             }
         }
     }
@@ -129,6 +145,16 @@ export class StateSystem {
      */
     onAttackSequenceCompleted(detail) {
         const { entityId } = detail;
+        const gameState = this.world.getComponent(entityId, GameState);
+
+        // [修正] ガード状態の機体は行動完了後もクールダウンに移行せず、状態を維持します。
+        // これにより、行動実行ラインに留まり、味方を庇うことができます。
+        if (gameState && gameState.state === PlayerStateType.GUARDING) {
+            // Actionコンポーネントのみをリセットし、次のガードに備えます。
+            this.world.addComponent(entityId, new Action());
+            return; // クールダウン処理をスキップします。
+        }
+
         this.resetEntityStateToCooldown(entityId);
     }
 
@@ -179,6 +205,14 @@ export class StateSystem {
             return;
         }
 
+        // ★新規: ガード状態を解除
+        if (gameState && gameState.state === PlayerStateType.GUARDING) {
+            const activeEffects = this.world.getComponent(entityId, ActiveEffects);
+            if (activeEffects) {
+                activeEffects.effects = activeEffects.effects.filter(e => e.type !== EffectType.APPLY_GUARD);
+            }
+        }
+
         if (action && action.partKey && parts && gauge) {
             const usedPart = parts[action.partKey];
             // ★修正: usedPartが存在する場合のみ速度補正を計算
@@ -209,7 +243,7 @@ export class StateSystem {
      * 時間経過による状態遷移を管理します。
      */
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(Gauge, GameState, Action, Parts, PlayerInfo);
+        const entities = this.world.getEntitiesWith(Gauge, GameState, Action, Parts, PlayerInfo, ActiveEffects);
         for (const entityId of entities) {
             const gameState = this.world.getComponent(entityId, GameState);
             
@@ -233,6 +267,23 @@ export class StateSystem {
                         this.resetEntityStateToCooldown(entityId, { interrupted: true });
                         continue;
                     }
+                }
+            }
+            
+            // ★新規: ガード状態の監視
+            if (gameState.state === PlayerStateType.GUARDING) {
+                const activeEffects = this.world.getComponent(entityId, ActiveEffects);
+                const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
+                const parts = this.world.getComponent(entityId, Parts);
+
+                // ガード効果が存在しない、回数が0以下、またはガードパーツが破壊された場合、ガードを解除してクールダウンへ
+                if (!guardEffect || guardEffect.count <= 0 || (guardEffect.partKey && parts[guardEffect.partKey]?.isBroken)) {
+                    if (guardEffect && parts[guardEffect.partKey]?.isBroken) {
+                        const message = "ガードパーツ破壊！ ガード解除！";
+                        this.uiStateContext.messageQueue.push(message);
+                    }
+                    this.resetEntityStateToCooldown(entityId);
+                    continue;
                 }
             }
         }

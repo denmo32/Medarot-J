@@ -1,6 +1,6 @@
 import { BaseSystem } from '../../core/baseSystem.js';
-import { PlayerInfo, Position, Gauge, GameState, Parts, Action } from '../core/components.js';
-import { PlayerStateType } from '../common/constants.js';
+import { PlayerInfo, Position, Gauge, GameState, Parts, Action, ActiveEffects } from '../core/components.js';
+import { PlayerStateType, EffectType } from '../common/constants.js';
 import { UIManager } from './UIManager.js';
 import { GameEvents } from '../common/events.js'; // イベント定義をインポート
 
@@ -77,6 +77,21 @@ export class UISystem extends BaseSystem {
                 else elements.bar.style.backgroundColor = '#f56565';
             }
         });
+
+        // ★新規: ガードインジケーターの更新
+        const activeEffects = this.getCachedComponent(entityId, ActiveEffects);
+        const guardIndicator = domElements.guardIndicatorElement;
+
+        if (activeEffects && guardIndicator) {
+            const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
+
+            if (guardEffect && guardEffect.count > 0) {
+                guardIndicator.textContent = `🛡${guardEffect.count}`;
+                guardIndicator.style.display = 'block';
+            } else {
+                guardIndicator.style.display = 'none';
+            }
+        }
     }
 
     // ★削除: executeAttackAnimationメソッドはViewSystemに移管されました。

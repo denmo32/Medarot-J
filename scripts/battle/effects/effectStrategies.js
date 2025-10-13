@@ -142,8 +142,8 @@ export const effectStrategies = {
         let wasSuccessful = false;
         let message = '';
 
-        // ターゲットが行動予約中の場合のみ成功
-        if (targetState.state === PlayerStateType.SELECTED_CHARGING) {
+        // ★修正: ターゲットが行動予約中またはガード中の場合のみ成功
+        if (targetState.state === PlayerStateType.SELECTED_CHARGING || targetState.state === PlayerStateType.GUARDING) {
             wasSuccessful = true;
             message = `${targetInfo.name}は放熱へ移行！`;
         } else {
@@ -156,6 +156,36 @@ export const effectStrategies = {
             targetId: targetId,
             wasSuccessful: wasSuccessful,
             message: message,
+        };
+    },
+
+    /**
+     * ★新規: [ガード効果]: 自身に「ガード」状態を付与します。
+     * 行動実行後、指定回数だけ味方への攻撃を肩代わりする状態になります。
+     */
+    [EffectType.APPLY_GUARD]: ({ world, sourceId, effect, part }) => {
+        // ガード回数はパーツの威力(might)をベースに計算
+        const guardCount = Math.floor(part.might / 10);
+        const sourceAction = world.getComponent(sourceId, Action);
+        if (!sourceAction) return null;
+        
+        // ガード効果をActiveEffectsコンポーネントに追加
+        const activeEffects = world.getComponent(sourceId, ActiveEffects);
+        if (activeEffects) {
+            // 既存のガード効果は上書き
+            activeEffects.effects = activeEffects.effects.filter(e => e.type !== EffectType.APPLY_GUARD);
+            activeEffects.effects.push({
+                type: EffectType.APPLY_GUARD,
+                count: guardCount,
+                partKey: sourceAction.partKey, // ガードに使用したパーツ
+            });
+        }
+        
+        return {
+            type: EffectType.APPLY_GUARD,
+            targetId: sourceId,
+            value: guardCount,
+            message: `味方への攻撃を${guardCount}回庇う！`
         };
     },
 };

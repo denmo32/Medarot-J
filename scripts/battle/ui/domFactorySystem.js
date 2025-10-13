@@ -94,6 +94,11 @@ export class DomFactorySystem extends BaseSystem {
         }
         icon.appendChild(indicator);
 
+        // ★新規: ガード状態表示用のインジケーターを生成
+        const guardIndicator = document.createElement('div');
+        guardIndicator.className = 'guard-indicator';
+        icon.appendChild(guardIndicator);
+
         // --- 2. プレイヤー情報パネルをテンプレートから生成 ---
         const templateClone = this.playerInfoTemplate.content.cloneNode(true);
         const infoPanel = templateClone.querySelector('.player-info');
@@ -123,6 +128,7 @@ export class DomFactorySystem extends BaseSystem {
             homeMarkerElement: marker,
             infoPanel: infoPanel,
             targetIndicatorElement: indicator,
+            guardIndicatorElement: guardIndicator, // ★新規: ガードインジケーターを登録
             partDOMElements: {}
         };
 
