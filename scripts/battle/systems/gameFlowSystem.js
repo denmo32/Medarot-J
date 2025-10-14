@@ -1,5 +1,3 @@
-// scripts/systems/gameFlowSystem.js:
-
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameState, Gauge, PlayerInfo, Action } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
@@ -114,13 +112,17 @@ export class GameFlowSystem extends BaseSystem {
 
     onPlayerBroken(detail) {
         // リーダーが破壊されたかどうかをチェックし、ゲームオーバー判定を行う
-        const { entityId } = detail;
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // ★修正: teamIdをペイロードから直接受け取る
+        const { entityId, teamId } = detail;
+        // ★修正: 破壊されたエンティティがリーダーかどうかをPlayerInfoコンポーネントから確認する
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
         // リーダー破壊、かつ、まだゲームオーバーになっていなければ処理
         if (playerInfo && playerInfo.isLeader && this.battlePhaseContext.battlePhase !== GamePhaseType.GAME_OVER) { // Use BattlePhaseContext
             // 敵チームを勝者とする
-            const winningTeam = playerInfo.teamId === TeamID.TEAM1 ? TeamID.TEAM2 : TeamID.TEAM1;
+            const winningTeam = teamId === TeamID.TEAM1 ? TeamID.TEAM2 : TeamID.TEAM1;
             
             // 1. ゲームフェーズを終了に設定 (use BattlePhaseContext)
             this.battlePhaseContext.battlePhase = GamePhaseType.GAME_OVER;

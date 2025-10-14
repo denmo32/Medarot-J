@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -157,6 +157,16 @@ export const GameEvents = {
      */
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
     
+    /**
+     * ★新規: ActionSystemがアクション効果の計算を完了したことを通知する内部イベント。
+     * EffectApplicatorSystem, StateSystem, HistorySystemがこれを購読し、それぞれの責務を遂行する。
+     * これにより、効果の「計算」と「適用」が明確に分離される。
+     * @event EFFECTS_RESOLVED
+     * @type {string}
+     * @payload {{attackerId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null}} - 計算された効果、命中結果、ガード情報など
+     */
+    EFFECTS_RESOLVED: 'EFFECTS_RESOLVED',
+
     /**
      * 行動が実行され、ダメージなどが計算された
      * @event ACTION_EXECUTED

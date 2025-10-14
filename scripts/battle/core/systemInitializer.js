@@ -19,6 +19,8 @@ import { HistorySystem } from '../systems/historySystem.js';
 import { TurnSystem } from '../systems/turnSystem.js';
 // ★新規: EffectSystemをインポート
 import { EffectSystem } from '../systems/effectSystem.js';
+// ★新規: EffectApplicatorSystemをインポート
+import { EffectApplicatorSystem } from '../systems/effectApplicatorSystem.js';
 import { UIManager } from '../ui/UIManager.js';
 import { UISystem } from '../ui/UISystem.js'; // 追加
 
@@ -54,6 +56,8 @@ export function initializeSystems(world) {
     const historySystem = new HistorySystem(world);
     // ★新規: EffectSystemのインスタンスを作成
     const effectSystem = new EffectSystem(world);
+    // ★新規: EffectApplicatorSystemのインスタンスを作成
+    const effectApplicatorSystem = new EffectApplicatorSystem(world);
 
 
     world.registerSystem(gameFlowSystem);
@@ -63,6 +67,8 @@ export function initializeSystems(world) {
     world.registerSystem(gaugeSystem);
     world.registerSystem(actionSystem);
     world.registerSystem(movementSystem);
+    // ★新規: EffectApplicatorSystemを登録。ActionSystemの後、他の結果処理系システムの前が適切。
+    world.registerSystem(effectApplicatorSystem);
     // ★新規: EffectSystemを登録 (ActionSystemの後、UI系Systemの前が適切)
     world.registerSystem(effectSystem);
     world.registerSystem(viewSystem);

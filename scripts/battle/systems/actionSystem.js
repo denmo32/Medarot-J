@@ -151,7 +151,10 @@ export class ActionSystem extends BaseSystem {
             const components = this._getCombatComponents(executor);
             if (!components) {
                 console.warn(`ActionSystem: Missing required components for attack calculation involving executor: ${executor}`);
-                this.world.emit(GameEvents.ACTION_EXECUTED, { attackerId: executor, resolvedEffects: [] });
+                // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+                // ★修正: 失敗した場合でも、後続システムのために空のEFFECTS_RESOLVEDを発行する
+                this.world.emit(GameEvents.EFFECTS_RESOLVED, { attackerId: executor, resolvedEffects: [], isEvaded: false, isSupport: false, guardianInfo: null });
+                // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
                 return;
             }
@@ -206,6 +209,19 @@ export class ActionSystem extends BaseSystem {
                     }
                 }
             }
+            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // ★★★ リファクタリングの核心部 ★★★
+            // 手順3.5: 効果の「解決」が完了したことを、他のシステム（EffectApplicator, State, History）に通知します。
+            // これにより、UIの表示を待たずに、ゲームロジックが先行して状態を更新できます。
+            const resolvedPayload = {
+                attackerId: executor,
+                resolvedEffects: resolvedEffects,
+                isEvaded: !outcome.isHit,
+                isSupport: ['援護', '回復', '妨害', '防御'].includes(attackingPart.action),
+                guardianInfo: guardian,
+            };
+            this.world.emit(GameEvents.EFFECTS_RESOLVED, resolvedPayload);
+            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
             // 手順4: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
             const primaryEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE) || resolvedEffects[0] || {};

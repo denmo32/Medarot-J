@@ -23,7 +23,11 @@ export class StateSystem {
 
         // 他のシステムから発行される、状態遷移のきっかけとなるイベントを購読します。
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
-        this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // ★修正: ACTION_EXECUTED の代わりに EFFECTS_RESOLVED を購読します。
+        // これにより、HP増減などの「データ適用」と、「状態遷移」のロジックを分離します。
+        this.world.on(GameEvents.EFFECTS_RESOLVED, this.onEffectsResolved.bind(this));
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
         this.world.on(GameEvents.ATTACK_SEQUENCE_COMPLETED, this.onAttackSequenceCompleted.bind(this));
         // ★新規: GAUGE_FULLイベントを購読
         this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
@@ -78,42 +82,19 @@ export class StateSystem {
      * ActionSystemによって行動が実行され、その結果が通知された際に呼び出されます。
      * @param {object} detail - 行動の実行結果
      */
-    onActionExecuted(detail) {
+    onEffectsResolved(detail) {
         const { resolvedEffects } = detail;
         if (!resolvedEffects || resolvedEffects.length === 0) {
             return;
         }
 
         for (const effect of resolvedEffects) {
-            if (effect.type === EffectType.DAMAGE) {
-                const { targetId, partKey, value: damage } = effect;
-                if (targetId === null || targetId === undefined) continue;
-
-                const targetParts = this.world.getComponent(targetId, Parts);
-                if (!targetParts || !targetParts[partKey]) continue;
-
-                const part = targetParts[partKey];
-                const oldHp = part.hp;
-                part.hp = Math.max(0, part.hp - damage);
-
-                const isPartBroken = oldHp > 0 && part.hp === 0;
-                if (isPartBroken) {
-                    part.isBroken = true;
-                    this.world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey: partKey });
-                }
-            } else if (effect.type === EffectType.HEAL) {
-                const { targetId, partKey, value: healAmount } = effect;
-                if (targetId === null || targetId === undefined) continue;
-
-                const targetParts = this.world.getComponent(targetId, Parts);
-                if (!targetParts || !targetParts[partKey]) continue;
-
-                const part = targetParts[partKey];
-                // 回復は破壊されたパーツには無効
-                if (!part.isBroken) {
-                    part.hp = Math.min(part.maxHp, part.hp + healAmount);
-                }
-            } else if (effect.type === EffectType.APPLY_GLITCH) {
+            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // ★削除: DAMAGE と HEAL の効果適用ロジックは EffectApplicatorSystem に移譲されました。
+            // これにより、このシステムは「状態遷移」に集中します。
+            
+            if (effect.type === EffectType.APPLY_GLITCH) {
+            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
                 // ★新規: グリッチ効果の処理
                 if (effect.wasSuccessful) {
                     // 成功した場合、ターゲットの行動を中断させクールダウンに移行
@@ -124,6 +105,7 @@ export class StateSystem {
                 const { targetId } = effect;
                 const gameState = this.world.getComponent(targetId, GameState);
                 if (gameState) {
+                    // ★修正: APPLY_GUARD効果の適用はEffectApplicatorSystemが行うため、ここでは状態遷移のみを担当
                     gameState.state = PlayerStateType.GUARDING;
                     
                     // 実行ラインに留まるため、位置を固定

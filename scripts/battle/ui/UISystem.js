@@ -3,6 +3,8 @@ import { PlayerInfo, Position, Gauge, GameState, Parts, Action, ActiveEffects } 
 import { PlayerStateType, EffectType } from '../common/constants.js';
 import { UIManager } from './UIManager.js';
 import { GameEvents } from '../common/events.js'; // イベント定義をインポート
+// ★新規: UIStateContextをインポートして、UIの状態（ポーズ中かなど）を確認できるようにする
+import { UIStateContext } from '../core/index.js';
 
 /**
  * @file DOM更新システム
@@ -13,6 +15,8 @@ export class UISystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
+        // ★新規: UIStateContextへの参照を取得
+        this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
         // ★削除: アニメーションイベントの購読はViewSystemに移管
     }
 
@@ -60,23 +64,32 @@ export class UISystem extends BaseSystem {
         domElements.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
         domElements.iconElement.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
 
-        // HPゲージの更新
-        const parts = this.getCachedComponent(entityId, Parts);
-        if (!parts) return;
-        Object.entries(parts).forEach(([key, part]) => {
-            const elements = domElements.partDOMElements[key];
-            if (!elements || !part) return;
-            const hpPercentage = (part.hp / part.maxHp) * 100;
-            elements.bar.style.width = `${hpPercentage}%`;
-            elements.container.classList.toggle('broken', part.isBroken);
-            if (part.isBroken) {
-                elements.bar.style.backgroundColor = '#4a5568';
-            } else {
-                if (hpPercentage > 50) elements.bar.style.backgroundColor = '#68d391';
-                else if (hpPercentage > 20) elements.bar.style.backgroundColor = '#f6e05e';
-                else elements.bar.style.backgroundColor = '#f56565';
-            }
-        });
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // ★修正: モーダル表示中はHPバーの更新をスキップする
+        // これにより、宣言メッセージ表示中にHPバーが（アニメーションなしで）変化するのを防ぐ。
+        // HPバーのアニメーションはActionPanelSystemが手動で適切なタイミングで実行する。
+        if (this.uiStateContext && this.uiStateContext.isPausedByModal) {
+            // ガードインジケーターなど、HP以外のUIは更新を続ける
+        } else {
+            // HPゲージの更新
+            const parts = this.getCachedComponent(entityId, Parts);
+            if (!parts) return;
+            Object.entries(parts).forEach(([key, part]) => {
+                const elements = domElements.partDOMElements[key];
+                if (!elements || !part) return;
+                const hpPercentage = (part.hp / part.maxHp) * 100;
+                elements.bar.style.width = `${hpPercentage}%`;
+                elements.container.classList.toggle('broken', part.isBroken);
+                if (part.isBroken) {
+                    elements.bar.style.backgroundColor = '#4a5568';
+                } else {
+                    if (hpPercentage > 50) elements.bar.style.backgroundColor = '#68d391';
+                    else if (hpPercentage > 20) elements.bar.style.backgroundColor = '#f6e05e';
+                    else elements.bar.style.backgroundColor = '#f56565';
+                }
+            });
+        }
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
         // ★新規: ガードインジケーターの更新
         const activeEffects = this.getCachedComponent(entityId, ActiveEffects);

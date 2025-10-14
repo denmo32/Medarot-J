@@ -1,4 +1,3 @@
-// scripts/systems/historySystem.js:
 
 import { BaseSystem } from '../../core/baseSystem.js';
 // ★変更: 必要なコンポーネントと定数をインポート
@@ -21,31 +20,24 @@ export class HistorySystem extends BaseSystem {
         // Use new BattleHistoryContext for battle history data
         this.battleHistoryContext = this.world.getSingletonComponent(BattleHistoryContext);
 
-        // 行動が実行されたイベントをリッスンし、履歴を更新する
-        this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // ★修正: 行動が実行された時ではなく、効果が「解決」された時点で履歴を更新するように変更。
+        // これにより、UIの進行を待たずに、戦闘の論理的な結果を即座に記録できます。
+        this.world.on(GameEvents.EFFECTS_RESOLVED, this.onEffectsResolved.bind(this));
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
     }
 
     /**
      * ★新規: プレイヤー破壊処理を責務として追加
      * 戦闘の最も重要な結果であるプレイヤー破壊をこのシステムで処理することで、
      * StateSystemを状態遷移に集中させ、責務を明確にします。
-     * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
+     * @param {object} detail - EFFECTS_RESOLVED イベントのペイロード
      */
-    onActionExecuted(detail) {
+    onEffectsResolved(detail) {
         // ★変更: 新しいペイロード構造に対応
-        const { attackerId, resolvedEffects, guardianInfo } = detail;
-
-        // ★新規: ガードが発動した場合、ガード回数を減らす
-        if (guardianInfo) {
-            const guardianEffects = this.world.getComponent(guardianInfo.id, ActiveEffects);
-            if (guardianEffects) {
-                const guardEffect = guardianEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
-                if (guardEffect) {
-                    // ガード回数を1減らす。効果の削除と状態遷移はStateSystemが担当する。
-                    guardEffect.count--;
-                }
-            }
-        }
+        const { attackerId, resolvedEffects } = detail;
+        
+        // ★削除: ガード回数を減らす処理は EffectApplicatorSystem に移譲されました。
         
         // 主なターゲット情報をダメージ効果から抽出
         const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
@@ -56,21 +48,8 @@ export class HistorySystem extends BaseSystem {
             // 履歴ログを更新
             this.updateBattleLogs(attackerId, targetId, partKey);
             
-            // プレイヤー自体が機能停止（頭部破壊）した場合の処理
-            const targetParts = this.world.getComponent(targetId, Parts);
-            const isPlayerBroken = partKey === PartInfo.HEAD.key && targetParts[partKey].hp === 0;
-
-            if (isPlayerBroken) {
-                const gameState = this.world.getComponent(targetId, GameState);
-                const gauge = this.world.getComponent(targetId, Gauge);
-                
-                // 状態を「破壊」に即時変更し、以降の行動をすべて不能にします。
-                if (gameState) gameState.state = PlayerStateType.BROKEN;
-                if (gauge) gauge.value = 0; 
-                
-                // GameFlowSystemにプレイヤー破壊を通知し、ゲームオーバー判定を促します。
-                this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId });
-            }
+            // ★削除: プレイヤー破壊判定と状態変更ロジックは EffectApplicatorSystem に移譲されました。
+            // これにより、このシステムは「履歴の更新」という単一の責務に集中します。
         }
     }
 

@@ -113,10 +113,22 @@ export class DomFactorySystem extends BaseSystem {
         // 各パーツの情報を設定し、DOM参照をキャッシュ
         Object.entries(parts).forEach(([key, part]) => {
             const partEl = infoPanel.querySelector(`[data-part-key="${key}"]`);
-            if (!partEl) return;
+            if (!partEl || !part) return;
             const partNameEl = partEl.querySelector('.part-name');
             // ★改善: PartKeyToInfoMapからアイコン情報を取得
             partNameEl.textContent = PartKeyToInfoMap[key]?.icon || '?'; 
+
+            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // ★新規: DOM生成時にHPバーの初期状態（幅と色）を直接設定する
+            // これにより、バトル開始直後にHPゲージが正しく表示されることを保証する
+            const barEl = partEl.querySelector('.part-hp-bar');
+            const hpPercentage = (part.hp / part.maxHp) * 100;
+            barEl.style.width = `${hpPercentage}%`;
+
+            if (hpPercentage > 50) barEl.style.backgroundColor = '#68d391';
+            else if (hpPercentage > 20) barEl.style.backgroundColor = '#f6e05e';
+            else barEl.style.backgroundColor = '#f56565';
+            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
         });
 
         // 生成した情報パネルを対応するチームのコンテナに追加

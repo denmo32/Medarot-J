@@ -475,7 +475,10 @@ export class ActionPanelSystem extends BaseSystem {
             });
         };
         
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // ★修正: HPバーのアニメーションを手動でトリガーするロジックに変更
         const effect = data.damageEffect || data.healEffect;
+        // 効果がない、または効果量が0の場合は即座にクリック可能にする
         if (!effect || effect.value === 0) {
             showClickable();
             return;
@@ -483,27 +486,53 @@ export class ActionPanelSystem extends BaseSystem {
 
         const { targetId, partKey } = effect;
         const targetDomElements = this.uiManager.getDOMElements(targetId);
+        // DOM要素が見つからない場合も即座にクリック可能に
         if (!targetDomElements || !targetDomElements.partDOMElements[partKey]) {
             showClickable();
             return;
         }
 
         const hpBarElement = targetDomElements.partDOMElements[partKey].bar;
+        const targetParts = this.world.getComponent(targetId, Components.Parts);
+        const targetPart = targetParts[partKey];
+        // ターゲットパーツデータが不正な場合
+        if (!targetPart) {
+            showClickable();
+            return;
+        }
+        const newHpPercentage = (targetPart.hp / targetPart.maxHp) * 100;
 
+        // アニメーション完了後に実行するクリーンアップ処理
+        const cleanupAnimation = () => {
+            hpBarElement.style.transition = ''; // transitionをリセット
+            showClickable();
+            hpBarElement.removeEventListener('transitionend', onTransitionEnd);
+            clearTimeout(fallbackTimeout);
+        };
+
+        const onTransitionEnd = (event) => {
+            // widthプロパティのアニメーション完了時のみ反応
+            if (event.propertyName === 'width') {
+                cleanupAnimation();
+            }
+        };
+
+        hpBarElement.addEventListener('transitionend', onTransitionEnd);
+        // 何らかの理由でtransitionendが発火しない場合に備えたフォールバックタイマー
+        const fallbackTimeout = setTimeout(cleanupAnimation, 1000); // アニメーション時間(800ms)より少し長く設定
+
+        // アニメーションのトリガー
         requestAnimationFrame(() => {
-            const onTransitionEnd = (event) => {
-                if (event.propertyName === 'width') {
-                    showClickable();
-                    clearTimeout(fallbackTimeout);
-                    hpBarElement.removeEventListener('transitionend', onTransitionEnd);
-                }
-            };
-            hpBarElement.addEventListener('transitionend', onTransitionEnd);
-            const fallbackTimeout = setTimeout(() => {
-                hpBarElement.removeEventListener('transitionend', onTransitionEnd);
-                showClickable();
-            }, 1000);
+            // 1. まずJSでtransitionプロパティを設定する
+            hpBarElement.style.transition = 'width 0.8s ease';
+            
+            // 2. 次のフレームでwidthを変更し、アニメーションを開始させる
+            // (これにより、ブラウザがtransitionの適用を認識してからwidthが変更される)
+            requestAnimationFrame(() => {
+                hpBarElement.style.width = `${newHpPercentage}%`;
+            });
         });
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
     }
 
     createSimpleEventHandler(buttonConfigs) {
