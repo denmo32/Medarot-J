@@ -69,8 +69,8 @@ export const effectStrategies = {
 
         //効果量はパーツの威力(might)をベースに計算
         const scanBonusValue = Math.floor(part.might / 10);
-        // ★新規: 効果の持続ターン数を設定（ここでは仮に3ターンとする）
-        const duration = 3;
+        // ★リファクタリング: 効果の持続ターン数をデータ定義(effect.duration)から取得
+        const duration = effect.duration || 3; // データに定義がなければデフォルトで3
 
         // 味方全体を取得
         const allies = getValidAllies(world, sourceId, true); // trueで自分自身も含む
@@ -166,8 +166,11 @@ export const effectStrategies = {
      * 行動実行後、指定回数だけ味方への攻撃を肩代わりする状態になります。
      */
     [EffectType.APPLY_GUARD]: ({ world, sourceId, effect, part }) => {
-        // ガード回数はパーツの威力(might)をベースに計算
-        const guardCount = Math.floor(part.might / 10);
+        // ★リファクタリング: ガード回数の計算をデータ駆動に変更
+        // effectに定義された倍率(countMultiplier)を使い、パーツの威力(might)に基づいて回数を算出
+        const countMultiplier = effect.countMultiplier || 0.1; // データに定義がなければデフォルトで0.1 (mightの10%)
+        const guardCount = Math.floor(part.might * countMultiplier);
+        
         const sourceAction = world.getComponent(sourceId, Action);
         if (!sourceAction) return null;
         

@@ -49,12 +49,35 @@ export class Parts {
          */
         const initializePart = (partData) => {
             if (!partData) return null;
-            // マスターデータをコピーし、戦闘中に変動する状態を追加
-            const partInstance = { ...partData };
-            // HPは最大HPで初期化
+
+            // ★リファクタリング: ロールのデフォルト値とパーツ固有の値をマージする
+            // これにより、parts.jsの記述を簡潔に保ちつつ、完全なデータ構造を構築する
+            // partData.roleが存在し、それがオブジェクトであることを確認
+            const roleDefaults = (partData.role && typeof partData.role === 'object') ? { ...partData.role } : {};
+            
+            // マージの順序が重要: partDataがroleDefaultsを上書きする
+            // これにより、パーツデータで定義された`effects`などがロールのデフォルトをオーバーライドできる
+            const partInstance = { ...roleDefaults, ...partData };
+
+            // HPはマスターデータから取得して初期化
             partInstance.hp = partData.maxHp;
             // 破壊状態は'false'で初期化
             partInstance.isBroken = false;
+            
+            // ★リファクタリング: effectの 'strategy' プロパティを 'type' に統一する
+            // データ定義の互換性を保ちつつ、内部的には 'type' を使用する
+            if (partInstance.effects && Array.isArray(partInstance.effects)) {
+                partInstance.effects = partInstance.effects.map(effect => {
+                    // strategyプロパティが存在すれば、typeにコピーして元のプロパティを削除
+                    if (effect.strategy) {
+                        const newEffect = { ...effect, type: effect.strategy };
+                        delete newEffect.strategy;
+                        return newEffect;
+                    }
+                    return effect;
+                });
+            }
+
             return partInstance;
         };
 

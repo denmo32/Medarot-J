@@ -183,7 +183,8 @@ export class ActionSystem extends BaseSystem {
             if (outcome.isHit || !action.targetId) {
                 if (attackingPart.effects && Array.isArray(attackingPart.effects)) {
                     for (const effect of attackingPart.effects) {
-                        const strategy = effectStrategies[effect.strategy];
+                        // ★リファクタリング: effect.strategy の代わりに effect.type を使用
+                        const strategy = effectStrategies[effect.type];
                         if (strategy) {
                             const effectContext = {
                                 world: this.world,

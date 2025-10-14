@@ -12,9 +12,10 @@ import { MedalPersonality } from '../common/constants.js';
  * @returns {Array} フィルタリングされたパーツリスト
  */
 const filterByRole = (parts, roleCondition) => {
+    // ★リファクタリング: part.roleがオブジェクトであることを前提とし、そのkeyプロパティを比較する
     const predicate = typeof roleCondition === 'function'
-        ? ([, part]) => roleCondition(part.role)
-        : ([, part]) => part.role === roleCondition;
+        ? ([, part]) => part.role && roleCondition(part.role.key)
+        : ([, part]) => part.role && part.role.key === roleCondition;
 
     const filtered = parts.filter(predicate);
     return filtered.length > 0 ? filtered : parts;
@@ -39,7 +40,7 @@ export const partSelectionStrategies = {
         if (!availableParts || availableParts.length === 0) {
             return [null, null];
         }
-        // ★新規: まず'damage'ロールを持つパーツに絞り込む。なければ全パーツを対象とする。
+        // ★修正: 'damage'という文字列は role.key と比較される
         const damageParts = filterByRole(availableParts, 'damage');
         // 威力が高い順にソート
         const sortedParts = [...damageParts].sort(([, partA], [, partB]) => partB.might - partA.might);
@@ -55,8 +56,8 @@ export const partSelectionStrategies = {
         if (!availableParts || availableParts.length === 0) {
             return [null, null];
         }
-        // 'heal'ロールを持つパーツのみを対象とする
-        const healParts = availableParts.filter(([, part]) => part.role === 'heal');
+        // ★リファクタリング: part.roleがオブジェクトであることを前提とし、そのkeyプロパティを比較する
+        const healParts = availableParts.filter(([, part]) => part.role && part.role.key === 'heal');
         if (healParts.length === 0) {
             return [null, null]; // 回復パーツがなければ選択不可
         }
