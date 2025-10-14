@@ -146,10 +146,8 @@ export class ActionSystem extends BaseSystem {
             const components = this._getCombatComponents(executor);
             if (!components) {
                 console.warn(`ActionSystem: Missing required components for attack calculation involving executor: ${executor}`);
-                // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
                 // ★修正: 失敗した場合でも、後続システムのために空のEFFECTS_RESOLVEDを発行する
                 this.world.emit(GameEvents.EFFECTS_RESOLVED, { attackerId: executor, resolvedEffects: [], isEvaded: false, isSupport: false, guardianInfo: null });
-                // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
                 return;
             }
@@ -204,7 +202,6 @@ export class ActionSystem extends BaseSystem {
                     }
                 }
             }
-            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
             // ★★★ リファクタリングの核心部 ★★★
             // 手順3.5: 効果の「解決」が完了したことを、他のシステム（EffectApplicator, State, History）に通知します。
             // これにより、UIの表示を待たずに、ゲームロジックが先行して状態を更新できます。
@@ -216,6 +213,15 @@ export class ActionSystem extends BaseSystem {
                 guardianInfo: guardian,
             };
             this.world.emit(GameEvents.EFFECTS_RESOLVED, resolvedPayload);
+
+            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // ★修正: リーダーが破壊されゲームオーバーになった場合、後続のモーダル表示処理などをスキップする
+            // このチェックにより、ゲームオーバーモーダルと攻撃宣言モーダルの競合を防ぎます。
+            if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
+                // 攻撃シーケンスを完了させ（攻撃者の状態をリセットするため）、この後の処理を中断します。
+                this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
+                return;
+            }
             // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
             // 手順4: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
@@ -268,7 +274,6 @@ export class ActionSystem extends BaseSystem {
         if (!targetInfo) return null;
 
         const potentialGuardians = this.world.getEntitiesWith(PlayerInfo, GameState, ActiveEffects, Parts)
-            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
             .filter(id => {
                 // [修正] ガード役は、本来の攻撃対象自身であってはなりません。
                 if (id === originalTargetId) return false;
@@ -282,7 +287,6 @@ export class ActionSystem extends BaseSystem {
                 // チームが同じで、破壊されておらず、ガード効果を持っている必要があります。
                 return info.teamId === targetInfo.teamId && state.state !== PlayerStateType.BROKEN && hasGuardEffect;
             })
-            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
             .map(id => {
                 const activeEffects = this.getCachedComponent(id, ActiveEffects);
                 const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
