@@ -1,12 +1,11 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 import { PlayerInfo, Parts, Medal } from '../core/components.js'; // ★ Medalをインポート
-import { ModalType, EffectScope } from '../common/constants.js'; // ★ EffectScopeをインポート
-import { getAllActionParts, getValidEnemies, getValidAllies } from '../utils/queryUtils.js'; // ★ getValid...をインポート
+import { ModalType, EffectScope, TargetTiming } from '../common/constants.js'; // ★ EffectScope, TargetTimingをインポート
+import { getAllActionParts } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
-import { determineTarget } from '../ai/targetingUtils.js';
-import { getStrategiesFor } from '../ai/personalityRegistry.js'; // ★ getStrategiesForをインポート
-import { targetingStrategies } from '../ai/targetingStrategies.js'; // ★新規: targetingStrategiesをインポート
+// ★リファクタリング: `determineTarget` と新関数 `determineRecommendedTarget` を `utils/targetingUtils` からインポート
+import { determineRecommendedTarget } from '../utils/targetingUtils.js';
 
 /**
  * プレイヤーからの入力を処理し、行動を決定するシステム。
@@ -30,41 +29,16 @@ export class InputSystem extends BaseSystem {
     onPlayerInputRequired(detail) {
         const { entityId } = detail;
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        const playerMedal = this.world.getComponent(entityId, Medal);
-        const strategies = getStrategiesFor(playerMedal.personality);
         
         const allActionParts = getAllActionParts(this.world, entityId);
         
+        // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
+        // ★リファクタリング: ターゲットの事前計算ロジックを `targetingUtils` の共通関数に委譲
         const buttonsWithTargets = allActionParts.map(([partKey, part]) => {
             let target = null;
-            // ターゲットを事前に決定する必要があるアクション（射撃など）の場合
-            if (part.targetTiming === 'pre-move') {
-                const isAllyTargeting = part.targetScope.startsWith('ALLY_');
-                
-                // ★リファクタリング: AIの思考ロジック変更に伴い、ターゲット候補の決定方法を更新。
-                // 性格に定義された思考ルーチンの「最初の」ターゲット戦略を、プレイヤーの補助機能（推奨ターゲット）として使用します。
-                
-                // Step 1: プライマリ戦略（ルーチンの最初の戦略）でターゲットを試行
-                let primaryTargetingFunc = null;
-                if (strategies.routines && strategies.routines.length > 0) {
-                    const primaryTargetStrategyKey = strategies.routines[0].targetStrategy;
-                    primaryTargetingFunc = targetingStrategies[primaryTargetStrategyKey];
-                }
-
-                if (primaryTargetingFunc) {
-                    // パーツが味方対象か敵対象かに応じて、適切な候補リストを作成
-                    const primaryCandidates = isAllyTargeting
-                        ? getValidAllies(this.world, entityId, true)
-                        : getValidEnemies(this.world, entityId);
-                    target = determineTarget(this.world, entityId, primaryTargetingFunc, primaryCandidates);
-                }
-                
-                // Step 2: プライマリ戦略が失敗した場合、フォールバック戦略を試行
-                if (!target) {
-                    // フォールバックは通常、敵を対象とする
-                    const fallbackCandidates = getValidEnemies(this.world, entityId);
-                    target = determineTarget(this.world, entityId, strategies.fallbackTargeting, fallbackCandidates);
-                }
+            // ターゲットを事前に決定する必要があるアクション（射撃など）の場合のみ計算
+            if (part.targetTiming === TargetTiming.PRE_MOVE) {
+                target = determineRecommendedTarget(this.world, entityId, part);
             }
 
             return {
@@ -73,10 +47,11 @@ export class InputSystem extends BaseSystem {
                 isBroken: part.isBroken,
                 action: part.action,
                 targetScope: part.targetScope,
-                targetTiming: part.targetTiming || 'pre-move',
+                targetTiming: part.targetTiming || TargetTiming.PRE_MOVE,
                 target: target 
             };
         });
+        // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
 
         // UIシステムにパネル表示を要求
         const panelData = {

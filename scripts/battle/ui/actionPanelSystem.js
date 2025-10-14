@@ -6,544 +6,333 @@ import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '
 import { InputManager } from '../../core/InputManager.js';
 import { UIManager } from './UIManager.js';
 
+/**
+ * @class ActionPanelSystem
+ * @description UIのモーダル（アクションパネル）の表示とインタラクションを管理するシステム。
+ * このシステムは、モーダルの種類に応じたロジックを`modalHandlers`に集約し、
+ * 自身はそれらを呼び出すディスパッチャーとして機能します。
+ */
 export class ActionPanelSystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
-        this.inputManager = new InputManager(); // ★新規: InputManagerのインスタンスを取得
-        this.confirmActionEntityId = null;
-        this.currentModalType = null;
-        this.currentModalData = null;
-
+        this.inputManager = new InputManager();
+        
+        // --- DOM References ---
         this.dom = {
             actionPanel: document.getElementById('action-panel'),
             actionPanelOwner: document.getElementById('action-panel-owner'),
             actionPanelTitle: document.getElementById('action-panel-title'),
             actionPanelActor: document.getElementById('action-panel-actor'),
             actionPanelButtons: document.getElementById('action-panel-buttons'),
-            actionPanelConfirmButton: document.getElementById('action-panel-confirm-button'),
-            actionPanelBattleStartButton: document.getElementById('action-panel-battle-start-button'),
             actionPanelIndicator: document.getElementById('action-panel-indicator')
         };
 
+        // --- State ---
+        this.currentModalType = null;
+        this.currentModalData = null;
+        this.currentHandler = null;
         this.focusedButtonKey = null;
-        this.handlers = {
-            panelConfirm: null,
-            battleStart: null,
-            panelClick: null,
-        };
 
-        this.initializePanelConfigs();
+        // --- Event Handlers ---
+        this.boundHandlePanelClick = null;
+
+        this.setupModalHandlers();
         this.bindWorldEvents();
-        this.bindDOMEvents();
 
-        // 初期状態ではパネルを非表示にする
-        this.dom.actionPanel.classList.remove('hidden');
+        // ★修正: パネル自体は常に表示するため、内容のリセットのみを行う
+        // 初期状態ではパネルの内容をリセットする
         this.hideActionPanel();
     }
-
+    
     /**
      * このシステムが管理するDOMイベントリスナーを全て破棄します。
      */
     destroy() {
-        if (this.handlers.battleStart) {
-            this.dom.actionPanelBattleStartButton.removeEventListener('click', this.handlers.battleStart);
-        }
-        if (this.handlers.panelConfirm) {
-            this.dom.actionPanelConfirmButton.removeEventListener('click', this.handlers.panelConfirm);
-        }
-        // ★追加
-        if (this.handlers.panelClick) {
-            this.dom.actionPanel.removeEventListener('click', this.handlers.panelClick);
+        if (this.boundHandlePanelClick) {
+            this.dom.actionPanel.removeEventListener('click', this.boundHandlePanelClick);
         }
     }
-
-    /**
-     * 各モーダルタイプに対応する設定を初期化します。
-     */
-    initializePanelConfigs() {
-        this.panelConfigs = {
-            [ModalType.START_CONFIRM]: {
-                title: '',
-                actorName: 'ロボトルを開始しますか？',
-                contentHTML: `
-                    <div class="buttons-center">
-                        <button id="panelBtnYes" class="action-panel-button">OK</button>
-                        <button id="panelBtnNo" class="action-panel-button bg-red-500 hover:bg-red-600">キャンセル</button>
-                    </div>`,
-                setupEvents: this.createSimpleEventHandler([
-                    { id: 'panelBtnYes', action: () => { this.world.emit(GameEvents.GAME_START_CONFIRMED); this.hideActionPanel(); } },
-                    { id: 'panelBtnNo', action: () => this.hideActionPanel() }
-                ])
-            },
-            [ModalType.SELECTION]: {
-                title: (data) => data.title,
-                actorName: '',
-                contentHTML: (data) => this.generateTriangleLayoutHTML(data.buttons),
-                setupEvents: (container, data) => this.setupSelectionEvents(container, data)
-            },
-            [ModalType.ATTACK_DECLARATION]: {
-                title: '',
-                actorName: (data) => data.message,
-                clickable: true // ★変更
-            },
-            [ModalType.EXECUTION_RESULT]: {
-                title: '',
-                actorName: (data) => data.message,
-                contentHTML: '',
-                setupEvents: (container, data) => this.setupExecutionResultEvents(container, data)
-                // ★変更: clickableはsetupEvents内で制御
-            },
-            [ModalType.BATTLE_START_CONFIRM]: {
-                title: '',
-                actorName: '合意と見てよろしいですね！？',
-                clickable: true, // ★変更
-                contentHTML: '',
-                setupEvents: null
-            },
-            [ModalType.MESSAGE]: {
-                title: '',
-                actorName: (data) => data.message,
-                clickable: true // ★変更
-            },
-            [ModalType.GAME_OVER]: {
-                title: (data) => `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`,
-                actorName: 'ロボトル終了！',
-                clickable: true // ★変更
-            }
-        };
-    }
-
+    
     /**
      * Worldから発行されるイベントを購読します。
      */
     bindWorldEvents() {
         this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showActionPanel(detail.type, detail.data));
         this.world.on(GameEvents.HIDE_MODAL, () => this.hideActionPanel());
-        // ACTION_EXECUTEDイベントを購読し、結果表示モーダルを出す
         this.world.on(GameEvents.ACTION_EXECUTED, (detail) => this.onActionExecuted(detail));
     }
 
     /**
-     * このシステムが管理するDOM要素のイベントリスナーを登録します。
+     * 毎フレームの更新処理。主にキーボード入力を処理します。
      */
-    bindDOMEvents() {
-        // ★変更: confirmButtonのクリックもhandlePanelClickに集約
-        this.handlers.panelConfirm = () => {
-            this.handlePanelClick();
-        };
-        this.dom.actionPanelConfirmButton.addEventListener('click', this.handlers.panelConfirm);
-    }
-
     update(deltaTime) {
-        // アクションパネルが表示されていない場合は何もしない
-        if (!this.currentModalType) return;
+        if (!this.currentHandler) return;
 
-        // 選択モーダルでのキー操作
-        if (this.currentModalType === ModalType.SELECTION) {
-            if (this.inputManager.wasKeyJustPressed('ArrowUp')) {
-                this.handleArrowKeyNavigation('arrowup');
-            }
-            if (this.inputManager.wasKeyJustPressed('ArrowDown')) {
-                this.handleArrowKeyNavigation('arrowdown');
-            }
-            if (this.inputManager.wasKeyJustPressed('ArrowLeft')) {
-                this.handleArrowKeyNavigation('arrowleft');
-            }
-            if (this.inputManager.wasKeyJustPressed('ArrowRight')) {
-                this.handleArrowKeyNavigation('arrowright');
-            }
-            if (this.inputManager.wasKeyJustPressed('z')) {
-                this.confirmSelection();
-            }
-        } 
-        // バトル開始確認モーダルでのキー操作
-        else if (this.currentModalType === ModalType.BATTLE_START_CONFIRM) {
-            if (this.inputManager.wasKeyJustPressed('z')) {
-                this.handlePanelClick();
-            } else if (this.inputManager.wasKeyJustPressed('x')) {
-                this.world.emit(GameEvents.BATTLE_START_CANCELLED);
-                this.hideActionPanel();
-            }
+        // ★リファクタリング: キー入力を現在のモーダルハンドラに委譲する
+        if (this.currentHandler.handleNavigation) {
+            if (this.inputManager.wasKeyJustPressed('ArrowUp')) this.currentHandler.handleNavigation(this, 'arrowup');
+            if (this.inputManager.wasKeyJustPressed('ArrowDown')) this.currentHandler.handleNavigation(this, 'arrowdown');
+            if (this.inputManager.wasKeyJustPressed('ArrowLeft')) this.currentHandler.handleNavigation(this, 'arrowleft');
+            if (this.inputManager.wasKeyJustPressed('ArrowRight')) this.currentHandler.handleNavigation(this, 'arrowright');
         }
-        // それ以外のクリック進行モーダルでのキー操作
-        else if (this.inputManager.wasKeyJustPressed('z') && this.dom.actionPanel.classList.contains('clickable')) {
-            this.handlePanelClick();
+        if (this.inputManager.wasKeyJustPressed('z')) {
+            this.currentHandler.handleConfirm?.(this, this.currentModalData);
         }
-    }
-
-    /**
-     * ★新規: パネル全体がクリックされた際の統一処理
-     */
-    handlePanelClick() {
-        switch (this.currentModalType) {
-            case ModalType.BATTLE_START_CONFIRM: // ★新規
-                this.world.emit(GameEvents.BATTLE_START_CONFIRMED);
-                this.hideActionPanel();
-                break;
-            case ModalType.GAME_OVER:
-                this.world.emit(GameEvents.RESET_BUTTON_CLICKED);
-                this.hideActionPanel();
-                break;
-            case ModalType.MESSAGE:
-                this.hideActionPanel();
-                break;
-            case ModalType.ATTACK_DECLARATION:
-                if (this.confirmActionEntityId !== null) {
-                    const { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo } = this.currentModalData;
-
-                    // ★新規: ガードが発動する場合、メッセージを段階的に表示
-                    if (guardianInfo && !this.dom.actionPanelActor.dataset.guardMessageShown) {
-                        this.dom.actionPanelActor.textContent = `${guardianInfo.name}のガード発動！`;
-                        this.dom.actionPanelActor.dataset.guardMessageShown = 'true';
-                        return; // ここで処理を中断し、次のクリックを待つ
-                    }
-
-                    this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, {
-                        entityId,
-                        resolvedEffects,
-                        isEvaded,
-                        isSupport,
-                        guardianInfo, // ★新規
-                    });
-                    // hideActionPanelは呼ばない。結果表示モーダルに置き換わるため。
-                }
-                break;
-            case ModalType.EXECUTION_RESULT:
-                if (this.confirmActionEntityId !== null) {
-                    this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: this.confirmActionEntityId });
-                    this.hideActionPanel();
-                }
-                break;
+        if (this.inputManager.wasKeyJustPressed('x')) {
+            this.currentHandler.handleCancel?.(this, this.currentModalData);
         }
-    }
-
-    /**
-     * ★新規: 行動実行結果を受け取り、結果表示モーダルを表示するハンドラ
-     * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
-     */
-    onActionExecuted(detail) {
-        const resultMessage = this._generateResultMessage(detail);
-        
-        // ACTION_EXECUTED イベントを受け、UIに結果を表示するためのモーダル表示を要求する
-        this.world.emit(GameEvents.SHOW_MODAL, {
-            type: ModalType.EXECUTION_RESULT,
-            data: {
-                message: resultMessage,
-                // ★変更: HPバーアニメーションに必要な情報をペイロードから取得
-                entityId: detail.attackerId,
-                damageEffect: detail.resolvedEffects.find(e => e.type === EffectType.DAMAGE),
-                healEffect: detail.resolvedEffects.find(e => e.type === EffectType.HEAL), // ★新規
-                guardianInfo: detail.guardianInfo, // ★新規
-            },
-            immediate: true
-        });
     }
     
     /**
-     * @private
-     * 攻撃結果に基づいてUIに表示するメッセージを生成します。
-     * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
-     * @returns {string} 生成された結果メッセージ
-     */
-    _generateResultMessage(detail) {
-        const { resolvedEffects, isEvaded, isSupport, attackerId, guardianInfo } = detail;
-        
-        // 支援・妨害行動の場合
-        if (isSupport) {
-            // ★修正: isSupportの場合、優先順位をつけてメッセージを探す
-            // ★新規: ガード効果のメッセージを追加
-            const guardEffect = resolvedEffects.find(e => e.type === EffectType.APPLY_GUARD);
-            if (guardEffect?.message) {
-                return guardEffect.message;
-            }
-            const glitchEffect = resolvedEffects.find(e => e.type === EffectType.APPLY_GLITCH);
-            if (glitchEffect?.message) {
-                return glitchEffect.message;
-            }
-            const healEffect = resolvedEffects.find(e => e.type === EffectType.HEAL);
-            if (healEffect?.message) {
-                return healEffect.message;
-            }
-            const scanEffect = resolvedEffects.find(e => e.type === EffectType.APPLY_SCAN);
-            if (scanEffect?.message) {
-                return scanEffect.message;
-            }
-            return '支援行動成功！'; // どのメッセージも見つからない場合のフォールバック
-        }
-
-        // 回避された場合
-        if (isEvaded) {
-            const attackerAction = this.world.getComponent(attackerId, Components.Action);
-            const targetId = attackerAction ? attackerAction.targetId : null;
-            const targetInfo = targetId ? this.world.getComponent(targetId, Components.PlayerInfo) : null;
-            return targetInfo ? `${targetInfo.name}は攻撃を回避！` : '攻撃は回避された！';
-        }
-
-        // ダメージ効果がある場合
-        const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
-        if (damageEffect) {
-            const { targetId, partKey, value: damage, isCritical, isDefended } = damageEffect;
-            const targetInfo = this.world.getComponent(targetId, Components.PlayerInfo);
-            
-            if (!targetInfo) return '不明なターゲットへの攻撃';
-
-            const finalTargetPartName = PartKeyToInfoMap[partKey]?.name || '不明な部位';
-            let message = '';
-
-            if (isCritical) message = 'クリティカル！ ';
-            
-            // ★修正: ガードされた場合のメッセージを追加
-            if (guardianInfo) {
-                message += `味方への攻撃を庇う！ ${guardianInfo.name}の${finalTargetPartName}に${damage}ダメージ！`;
-            } else if (isDefended) {
-                message += `${targetInfo.name}は${finalTargetPartName}で防御！ ${finalTargetPartName}に${damage}ダメージ！`;
-            } else {
-                message += `${targetInfo.name}の${finalTargetPartName}に${damage}ダメージ！`;
-            }
-            return message;
-        }
-        
-        // 上記のいずれでもない場合（空振りなど）
-        return '攻撃は空を切った！';
-    }
-
-
-    /**
      * アクションパネルを表示し、指定されたタイプのモーダルを構成します。
-     * @param {string} type - 表示するモーダルのタイプ (ModalType)
-     * @param {object} data - モーダルのコンテンツを生成するためのデータ
      */
     showActionPanel(type, data) {
-        const config = this.panelConfigs[type];
-        if (!config) {
+        this.currentHandler = this.modalHandlers[type];
+        if (!this.currentHandler) {
+            console.warn(`ActionPanelSystem: No handler found for modal type "${type}"`);
             this.hideActionPanel();
             return;
         }
 
         this.world.emit(GameEvents.GAME_PAUSED);
         this.currentModalType = type;
-        this.currentModalData = data; // ★新規: データを保持
+        this.currentModalData = data;
+        
+        // --- Reset Panel State ---
+        this.resetPanelDOM();
 
-        if (type === ModalType.ATTACK_DECLARATION || type === ModalType.EXECUTION_RESULT) {
-            this.confirmActionEntityId = data.entityId;
-        }
+        // --- Configure Panel using Handler ---
+        const { dom } = this;
+        const handler = this.currentHandler;
+        
+        // テキストコンテンツを設定
+        dom.actionPanelOwner.textContent = handler.getOwnerName?.(data) || '';
+        dom.actionPanelTitle.textContent = handler.getTitle?.(data) || '';
+        dom.actionPanelActor.textContent = handler.getActorName?.(data) || '';
+        dom.actionPanelButtons.innerHTML = handler.getContentHTML?.(data) || '';
 
-        const { actionPanel, actionPanelOwner, actionPanelTitle, actionPanelActor, actionPanelButtons, actionPanelConfirmButton, actionPanelBattleStartButton, actionPanelIndicator } = this.dom;
-        const getValue = (value) => typeof value === 'function' ? value(data) : value;
+        // イベントリスナーを設定
+        handler.setupEvents?.(this, dom.actionPanelButtons, data);
 
-        // --- Reset panel state ---
-        actionPanelOwner.textContent = data.ownerName || '';
-        actionPanelTitle.textContent = getValue(config.title) || '';
-        actionPanelActor.textContent = getValue(config.actorName) || '';
-        // ★新規: ガードメッセージ表示済みフラグをリセット
-        delete actionPanelActor.dataset.guardMessageShown;
-        actionPanelButtons.innerHTML = getValue(config.contentHTML) || '';
-        actionPanelConfirmButton.style.display = 'none';
-        actionPanelBattleStartButton.style.display = 'none';
-        actionPanelIndicator.classList.add('hidden');
-        actionPanel.classList.remove('clickable');
-        if (this.handlers.panelClick) {
-            actionPanel.removeEventListener('click', this.handlers.panelClick);
-            this.handlers.panelClick = null;
-        }
-
-        // --- Configure based on modal type ---
-        if (config.setupEvents) {
-            config.setupEvents(actionPanelButtons, data);
-        }
-
-        if (config.clickable) {
-            actionPanelIndicator.classList.remove('hidden');
-            actionPanel.classList.add('clickable');
-            this.handlers.panelClick = () => this.handlePanelClick();
-            actionPanel.addEventListener('click', this.handlers.panelClick);
-        } else if (config.confirmButton) {
-            actionPanelConfirmButton.textContent = getValue(config.confirmButton.text);
-            actionPanelConfirmButton.style.display = 'inline-block';
-        }
-
-        if (config.battleStartButton) {
-            actionPanelBattleStartButton.style.display = 'inline-block';
-        }
-
-        // ★新規: 選択モーダルの場合、キーボード操作のための初期フォーカスを設定
-        if (type === ModalType.SELECTION) {
-            const availableButtons = data.buttons.filter(b => !b.isBroken);
-            // 優先順位: 頭 -> 右腕 -> 左腕
-            const initialFocusKey = 
-                availableButtons.find(b => b.partKey === PartInfo.HEAD.key)?.partKey ||
-                availableButtons.find(b => b.partKey === PartInfo.RIGHT_ARM.key)?.partKey ||
-                availableButtons.find(b => b.partKey === PartInfo.LEFT_ARM.key)?.partKey;
-
-            if (initialFocusKey) {
-                // DOMの描画を待ってからフォーカスを設定
-                setTimeout(() => this.updateFocus(initialFocusKey), 0);
+        // クリック可能かどうかの設定
+        if (handler.isClickable) {
+            dom.actionPanelIndicator.classList.remove('hidden');
+            dom.actionPanel.classList.add('clickable');
+            // イベントリスナーを一度だけバインド
+            if (!this.boundHandlePanelClick) {
+                this.boundHandlePanelClick = () => this.currentHandler?.handleConfirm?.(this, this.currentModalData);
             }
+            dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
         }
-    }
 
+        // 初期フォーカスを設定
+        handler.init?.(this, data);
+    }
+    
     /**
      * アクションパネルを非表示にし、関連する状態をリセットします。
      */
     hideActionPanel() {
         if (this.currentModalType) {
             this.world.emit(GameEvents.MODAL_CLOSED, { modalType: this.currentModalType });
+            this.world.emit(GameEvents.GAME_RESUMED);
         }
-
-        this.world.emit(GameEvents.GAME_RESUMED);
-        this.confirmActionEntityId = null;
+        
         this.currentModalType = null;
-        this.currentModalData = null; // ★新規: データをクリア
+        this.currentModalData = null;
+        this.currentHandler = null;
 
-        // ★修正: モーダルが閉じる際に、全プレイヤーアイコンのハイライトを確実にリセットする。
-        // これにより、マウスホバー中にキーボードで行動決定した場合などにハイライトが残る問題を完全に防ぐ。
-        const allPlayerIds = this.world.getEntitiesWith(Components.PlayerInfo);
-        for (const entityId of allPlayerIds) {
-            const dom = this.uiManager.getDOMElements(entityId);
-            if (dom?.iconElement) {
-                dom.iconElement.style.boxShadow = '';
-            }
+        this.resetPanelDOM();
+        this.resetHighlightsAndFocus();
+    }
+
+    // --- Event Handlers from World ---
+
+    /**
+     * 行動実行結果を受け取り、結果表示モーダルを表示します。
+     */
+    onActionExecuted(detail) {
+        const resultMessage = this._generateResultMessage(detail);
+        this.world.emit(GameEvents.SHOW_MODAL, {
+            type: ModalType.EXECUTION_RESULT,
+            data: {
+                message: resultMessage,
+                entityId: detail.attackerId,
+                effect: detail.resolvedEffects.find(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL),
+                guardianInfo: detail.guardianInfo,
+            },
+            immediate: true
+        });
+    }
+
+    // --- Helper Methods used by Handlers ---
+
+    /**
+     * パネルのDOM要素を初期状態にリセットします。
+     */
+    resetPanelDOM() {
+        const { dom } = this;
+        dom.actionPanelOwner.textContent = '';
+        dom.actionPanelTitle.textContent = '';
+        dom.actionPanelActor.textContent = '待機中...';
+        dom.actionPanelButtons.innerHTML = '';
+        dom.actionPanelIndicator.classList.add('hidden');
+        dom.actionPanel.classList.remove('clickable');
+        if (this.boundHandlePanelClick) {
+            dom.actionPanel.removeEventListener('click', this.boundHandlePanelClick);
+            this.boundHandlePanelClick = null;
         }
+    }
+    
+    /**
+     * 全てのハイライトとフォーカスをリセットします。
+     */
+    resetHighlightsAndFocus() {
+        const allPlayerIds = this.world.getEntitiesWith(Components.PlayerInfo);
+        allPlayerIds.forEach(id => {
+            const dom = this.uiManager.getDOMElements(id);
+            if (dom?.iconElement) dom.iconElement.style.boxShadow = '';
+        });
 
-        // フォーカスされていたボタンのクラスを解除
         if (this.focusedButtonKey) {
             const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
             if (oldButton) oldButton.classList.remove('focused');
         }
         this.focusedButtonKey = null;
-
-        const { actionPanel, actionPanelOwner, actionPanelTitle, actionPanelActor, actionPanelButtons, actionPanelConfirmButton, actionPanelBattleStartButton, actionPanelIndicator } = this.dom;
-
-        // ★追加: クリックリスナーと関連クラスのクリーンアップ
-        actionPanel.classList.remove('clickable');
-        if (this.handlers.panelClick) {
-            actionPanel.removeEventListener('click', this.handlers.panelClick);
-            this.handlers.panelClick = null;
-        }
-        actionPanelIndicator.classList.add('hidden');
-
-        actionPanelOwner.textContent = '';
-        actionPanelTitle.textContent = '';
-        actionPanelActor.textContent = '待機中...';
-        actionPanelButtons.innerHTML = '';
-        actionPanelConfirmButton.style.display = 'none';
-        actionPanelBattleStartButton.style.display = 'none';
     }
 
-    // --- Event Setup Helpers ---
+    /**
+     * 攻撃結果メッセージを生成します。
+     */
+    _generateResultMessage(detail) {
+        const { resolvedEffects, isEvaded, isSupport, attackerId, guardianInfo } = detail;
+        if (isSupport) {
+            const effect = resolvedEffects[0] || {};
+            return effect.message || '支援行動成功！';
+        }
+        if (isEvaded) {
+            const targetId = this.world.getComponent(attackerId, Components.Action)?.targetId;
+            const targetName = targetId ? this.world.getComponent(targetId, Components.PlayerInfo)?.name : null;
+            return targetName ? `${targetName}は攻撃を回避！` : '攻撃は回避された！';
+        }
+        const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
+        if (damageEffect) {
+            const { targetId, partKey, value: damage, isCritical, isDefended } = damageEffect;
+            const targetInfo = this.world.getComponent(targetId, Components.PlayerInfo);
+            if (!targetInfo) return '不明なターゲットへの攻撃';
 
-    setupSelectionEvents(container, data) {
-        data.buttons.forEach(btnData => {
-            if (btnData.isBroken) return;
-            const buttonEl = container.querySelector(`#panelBtn-${btnData.partKey}`);
-            if (!buttonEl) return;
-    
-            buttonEl.onclick = () => {
-                // ★修正: 各ボタンが持つ事前計算済みのターゲット情報をそのまま利用する
-                const target = btnData.target;
-                this.world.emit(GameEvents.PART_SELECTED, {
-                    entityId: data.entityId,
-                    partKey: btnData.partKey,
-                    // ★修正: 事前計算されたターゲット情報をイベントに含める
-                    targetId: target ? target.targetId : null,
-                    targetPartKey: target ? target.targetPartKey : null,
-                });
-                this.hideActionPanel();
-            };
-    
-            // 「事前ターゲット(pre-move)」のアクションのみハイライト処理を追加する
-            if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(btnData.targetScope) && btnData.targetTiming === 'pre-move') {
-                buttonEl.onmouseover = () => this._updateTargetHighlight(btnData.partKey, true);
-                buttonEl.onmouseout = () => this._updateTargetHighlight(btnData.partKey, false);
+            const partName = PartKeyToInfoMap[partKey]?.name || '不明な部位';
+            let message = isCritical ? 'クリティカル！ ' : '';
+            if (guardianInfo) {
+                message += `味方への攻撃を庇う！ ${guardianInfo.name}の${partName}に${damage}ダメージ！`;
+            } else if (isDefended) {
+                message += `${targetInfo.name}は${partName}で防御！ ${partName}に${damage}ダメージ！`;
+            } else {
+                message += `${targetInfo.name}の${partName}に${damage}ダメージ！`;
             }
-        });
+            return message;
+        }
+        return '攻撃は空を切った！';
     }
 
-
-    setupExecutionResultEvents(container, data) {
-        const showClickable = () => {
-            this.dom.actionPanel.classList.add('clickable');
-            this.dom.actionPanelIndicator.classList.remove('hidden');
-            if (!this.handlers.panelClick) {
-                this.handlers.panelClick = () => this.handlePanelClick();
-                this.dom.actionPanel.addEventListener('click', this.handlers.panelClick);
+    /**
+     * ★リファクタリング: 全てのモーダルタイプごとの振る舞いをこのオブジェクトに集約します。
+     * これにより、`update`や`handlePanelClick`などのメソッドがシンプルになります。
+     */
+    setupModalHandlers() {
+        this.modalHandlers = {
+            // --- スタート確認 ---
+            [ModalType.START_CONFIRM]: {
+                getActorName: () => 'ロボトルを開始しますか？',
+                getContentHTML: () => `
+                    <div class="buttons-center">
+                        <button id="panelBtnYes" class="action-panel-button">OK</button>
+                        <button id="panelBtnNo" class="action-panel-button bg-red-500 hover:bg-red-600">キャンセル</button>
+                    </div>`,
+                setupEvents: (system, container) => {
+                    container.querySelector('#panelBtnYes').onclick = () => {
+                        system.world.emit(GameEvents.GAME_START_CONFIRMED);
+                        system.hideActionPanel();
+                    };
+                    container.querySelector('#panelBtnNo').onclick = () => system.hideActionPanel();
+                }
+            },
+            // --- 行動選択 ---
+            [ModalType.SELECTION]: {
+                getOwnerName: (data) => data.ownerName,
+                getContentHTML: (data) => this.generateTriangleLayoutHTML(data.buttons),
+                setupEvents: (system, container, data) => system.setupSelectionEvents(container, data),
+                handleNavigation: (system, key) => system.handleArrowKeyNavigation(key),
+                handleConfirm: (system) => system.confirmSelection(),
+                init: (system, data) => {
+                    const available = data.buttons.filter(b => !b.isBroken);
+                    const initialFocusKey = available.find(b => b.partKey === PartInfo.HEAD.key)?.partKey ||
+                                            available.find(b => b.partKey === PartInfo.RIGHT_ARM.key)?.partKey ||
+                                            available.find(b => b.partKey === PartInfo.LEFT_ARM.key)?.partKey;
+                    if (initialFocusKey) setTimeout(() => system.updateFocus(initialFocusKey), 0);
+                }
+            },
+            // --- 攻撃宣言 ---
+            [ModalType.ATTACK_DECLARATION]: {
+                getActorName: (data) => data.message,
+                isClickable: true,
+                init: (system, data) => {
+                    system.dom.actionPanelActor.dataset.guardMessageShown = 'false';
+                },
+                handleConfirm: (system, data) => {
+                    const { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo } = data;
+                    if (guardianInfo && system.dom.actionPanelActor.dataset.guardMessageShown === 'false') {
+                        system.dom.actionPanelActor.textContent = `${guardianInfo.name}のガード発動！`;
+                        system.dom.actionPanelActor.dataset.guardMessageShown = 'true';
+                        return;
+                    }
+                    system.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo });
+                }
+            },
+            // --- 結果表示 ---
+            [ModalType.EXECUTION_RESULT]: {
+                getActorName: (data) => data.message,
+                setupEvents: (system, container, data) => system.setupExecutionResultEvents(container, data),
+                handleConfirm: (system, data) => {
+                    system.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: data.entityId });
+                    system.hideActionPanel();
+                }
+            },
+            // --- バトル開始確認 ---
+            [ModalType.BATTLE_START_CONFIRM]: {
+                getActorName: () => '合意と見てよろしいですね！？',
+                isClickable: true,
+                handleConfirm: (system) => {
+                    system.world.emit(GameEvents.BATTLE_START_CONFIRMED);
+                    system.hideActionPanel();
+                },
+                handleCancel: (system) => {
+                    system.world.emit(GameEvents.BATTLE_START_CANCELLED);
+                    system.hideActionPanel();
+                }
+            },
+            // ---汎用メッセージ ---
+            [ModalType.MESSAGE]: {
+                getActorName: (data) => data.message,
+                isClickable: true,
+                handleConfirm: (system) => system.hideActionPanel(),
+            },
+            // --- ゲームオーバー ---
+            [ModalType.GAME_OVER]: {
+                getTitle: (data) => `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`,
+                getActorName: () => 'ロボトル終了！',
+                isClickable: true,
+                handleConfirm: (system) => {
+                    system.world.emit(GameEvents.RESET_BUTTON_CLICKED);
+                    system.hideActionPanel();
+                }
             }
-            this.world.emit(GameEvents.MODAL_CLOSED, {
-                entityId: data.entityId,
-                modalType: ModalType.EXECUTION_RESULT
-            });
-        };
-        
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-        // ★修正: HPバーのアニメーションを手動でトリガーするロジックに変更
-        const effect = data.damageEffect || data.healEffect;
-        // 効果がない、または効果量が0の場合は即座にクリック可能にする
-        if (!effect || effect.value === 0) {
-            showClickable();
-            return;
-        }
-
-        const { targetId, partKey } = effect;
-        const targetDomElements = this.uiManager.getDOMElements(targetId);
-        // DOM要素が見つからない場合も即座にクリック可能に
-        if (!targetDomElements || !targetDomElements.partDOMElements[partKey]) {
-            showClickable();
-            return;
-        }
-
-        const hpBarElement = targetDomElements.partDOMElements[partKey].bar;
-        const targetParts = this.world.getComponent(targetId, Components.Parts);
-        const targetPart = targetParts[partKey];
-        // ターゲットパーツデータが不正な場合
-        if (!targetPart) {
-            showClickable();
-            return;
-        }
-        const newHpPercentage = (targetPart.hp / targetPart.maxHp) * 100;
-
-        // アニメーション完了後に実行するクリーンアップ処理
-        const cleanupAnimation = () => {
-            hpBarElement.style.transition = ''; // transitionをリセット
-            showClickable();
-            hpBarElement.removeEventListener('transitionend', onTransitionEnd);
-            clearTimeout(fallbackTimeout);
-        };
-
-        const onTransitionEnd = (event) => {
-            // widthプロパティのアニメーション完了時のみ反応
-            if (event.propertyName === 'width') {
-                cleanupAnimation();
-            }
-        };
-
-        hpBarElement.addEventListener('transitionend', onTransitionEnd);
-        // 何らかの理由でtransitionendが発火しない場合に備えたフォールバックタイマー
-        const fallbackTimeout = setTimeout(cleanupAnimation, 1000); // アニメーション時間(800ms)より少し長く設定
-
-        // アニメーションのトリガー
-        requestAnimationFrame(() => {
-            // 1. まずJSでtransitionプロパティを設定する
-            hpBarElement.style.transition = 'width 0.8s ease';
-            
-            // 2. 次のフレームでwidthを変更し、アニメーションを開始させる
-            // (これにより、ブラウザがtransitionの適用を認識してからwidthが変更される)
-            requestAnimationFrame(() => {
-                hpBarElement.style.width = `${newHpPercentage}%`;
-            });
-        });
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
-    }
-
-    createSimpleEventHandler(buttonConfigs) {
-        return (container) => {
-            buttonConfigs.forEach(({ id, action }) => {
-                const btn = container.querySelector(`#${id}`);
-                if (btn) btn.onclick = action;
-            });
         };
     }
 
+
+    // --- Helper methods for SELECTION modal ---
     generateTriangleLayoutHTML(buttons) {
         const headBtn = buttons.find(b => b.partKey === 'head');
         const rArmBtn = buttons.find(b => b.partKey === 'rightArm');
@@ -556,29 +345,38 @@ export class ActionPanelSystem extends BaseSystem {
             <div class="triangle-layout">
                 <div class="top-row">${renderButton(headBtn)}</div>
                 <div class="bottom-row">${renderButton(rArmBtn)}${renderButton(lArmBtn)}</div>
-            </div>
-        `;
+            </div>`;
     }
 
-    // --- ★新規: Keyboard Navigation & Highlight Helpers ---
+    setupSelectionEvents(container, data) {
+        data.buttons.forEach(btnData => {
+            if (btnData.isBroken) return;
+            const buttonEl = container.querySelector(`#panelBtn-${btnData.partKey}`);
+            if (!buttonEl) return;
+    
+            buttonEl.onclick = () => {
+                const target = btnData.target;
+                this.world.emit(GameEvents.PART_SELECTED, {
+                    entityId: data.entityId,
+                    partKey: btnData.partKey,
+                    targetId: target?.targetId ?? null,
+                    targetPartKey: target?.targetPartKey ?? null,
+                });
+                this.hideActionPanel();
+            };
+    
+            if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(btnData.targetScope) && btnData.targetTiming === 'pre-move') {
+                buttonEl.onmouseover = () => this._updateTargetHighlight(btnData.partKey, true);
+                buttonEl.onmouseout = () => this._updateTargetHighlight(btnData.partKey, false);
+            }
+        });
+    }
 
-    /**
-     * ターゲットアイコンのハイライトを更新するヘルパー関数
-     * @param {string} partKey - 関連するパーツのキー
-     * @param {boolean} show - ハイライトを表示するかどうか
-     * @private
-     */
     _updateTargetHighlight(partKey, show) {
         const buttonData = this.currentModalData?.buttons.find(b => b.partKey === partKey);
-    
-        if (!buttonData || buttonData.targetTiming !== 'pre-move') {
-            return;
-        }
-    
-        // ★修正: 各ボタンが持つ固有のターゲット情報を利用する
+        if (!buttonData || buttonData.targetTiming !== 'pre-move') return;
         const target = buttonData.target;
-    
-        if (target && target.targetId !== null) {
+        if (target?.targetId !== null) {
             const targetDom = this.uiManager.getDOMElements(target.targetId);
             if (targetDom?.iconElement) {
                 targetDom.iconElement.style.boxShadow = show ? '0 0 15px cyan' : '';
@@ -586,70 +384,37 @@ export class ActionPanelSystem extends BaseSystem {
         }
     }
 
-
-    /**
-     * 矢印キーによるボタンのフォーカス移動を処理します。
-     * @param {string} key - 押された矢印キー ('arrowup', 'arrowdown', 'arrowleft', 'arrowright')
-     */
     handleArrowKeyNavigation(key) {
-        if (!this.currentModalData?.buttons) return;
-
-        const availableButtons = this.currentModalData.buttons.filter(b => !b.isBroken);
-        if (availableButtons.length === 0) return;
-
+        const availableButtons = this.currentModalData?.buttons.filter(b => !b.isBroken);
+        if (!availableButtons || availableButtons.length === 0) return;
         let nextFocusKey = this.focusedButtonKey;
         const has = (partKey) => availableButtons.some(b => b.partKey === partKey);
-
         switch (this.focusedButtonKey) {
             case PartInfo.HEAD.key:
-                if (key === 'arrowdown' || key === 'arrowleft') {
-                    if (has(PartInfo.RIGHT_ARM.key)) nextFocusKey = PartInfo.RIGHT_ARM.key;
-                    else if (has(PartInfo.LEFT_ARM.key)) nextFocusKey = PartInfo.LEFT_ARM.key;
-                } else if (key === 'arrowright') {
-                    if (has(PartInfo.LEFT_ARM.key)) nextFocusKey = PartInfo.LEFT_ARM.key;
-                    else if (has(PartInfo.RIGHT_ARM.key)) nextFocusKey = PartInfo.RIGHT_ARM.key;
-                }
+                if (key === 'arrowdown' || key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : PartInfo.LEFT_ARM.key;
+                else if (key === 'arrowright') nextFocusKey = has(PartInfo.LEFT_ARM.key) ? PartInfo.LEFT_ARM.key : PartInfo.RIGHT_ARM.key;
                 break;
             case PartInfo.RIGHT_ARM.key:
-                if (key === 'arrowup') {
-                    if (has(PartInfo.HEAD.key)) nextFocusKey = PartInfo.HEAD.key;
-                } else if (key === 'arrowright') {
-                    if (has(PartInfo.LEFT_ARM.key)) nextFocusKey = PartInfo.LEFT_ARM.key;
-                }
+                if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
+                else if (key === 'arrowright') nextFocusKey = has(PartInfo.LEFT_ARM.key) ? PartInfo.LEFT_ARM.key : null;
                 break;
             case PartInfo.LEFT_ARM.key:
-                if (key === 'arrowup') {
-                    if (has(PartInfo.HEAD.key)) nextFocusKey = PartInfo.HEAD.key;
-                } else if (key === 'arrowleft') {
-                    if (has(PartInfo.RIGHT_ARM.key)) nextFocusKey = PartInfo.RIGHT_ARM.key;
-                }
+                if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
+                else if (key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : null;
                 break;
-            default: // no focus
-                if (has(PartInfo.HEAD.key)) nextFocusKey = PartInfo.HEAD.key;
-                else if (has(PartInfo.RIGHT_ARM.key)) nextFocusKey = PartInfo.RIGHT_ARM.key;
-                else if (has(PartInfo.LEFT_ARM.key)) nextFocusKey = PartInfo.LEFT_ARM.key;
-                break;
+            default: nextFocusKey = PartInfo.HEAD.key;
         }
-
-        this.updateFocus(nextFocusKey);
+        if (nextFocusKey) this.updateFocus(nextFocusKey);
     }
-
-    /**
-     * 指定されたキーのボタンにフォーカスを移動します。
-     * @param {string} newKey - 新しくフォーカスするボタンのパーツキー
-     */
+    
     updateFocus(newKey) {
         if (this.focusedButtonKey === newKey) return;
-    
-        // 以前のフォーカスを解除
         if (this.focusedButtonKey) {
-            this._updateTargetHighlight(this.focusedButtonKey, false); // ハイライト解除
+            this._updateTargetHighlight(this.focusedButtonKey, false);
             const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
             if (oldButton) oldButton.classList.remove('focused');
         }
-    
-        // 新しいフォーカスを設定
-        this._updateTargetHighlight(newKey, true); // ハイライト設定
+        this._updateTargetHighlight(newKey, true);
         const newButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${newKey}`);
         if (newButton) {
             newButton.classList.add('focused');
@@ -658,17 +423,63 @@ export class ActionPanelSystem extends BaseSystem {
             this.focusedButtonKey = null;
         }
     }
-
-
-    /**
-     * 現在フォーカスされているボタンの選択を決定します。
-     */
+    
     confirmSelection() {
         if (!this.focusedButtonKey) return;
-
         const focusedButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
-        if (focusedButton && !focusedButton.disabled) {
-            focusedButton.click(); // clickイベントを発火させるのが最もシンプルで確実
+        if (focusedButton && !focusedButton.disabled) focusedButton.click();
+    }
+
+    // --- Helper for EXECUTION_RESULT modal ---
+    setupExecutionResultEvents(container, data) {
+        const showClickable = () => {
+            if (this.currentModalType === ModalType.EXECUTION_RESULT) {
+                this.dom.actionPanel.classList.add('clickable');
+                this.dom.actionPanelIndicator.classList.remove('hidden');
+                if (!this.boundHandlePanelClick) {
+                    this.boundHandlePanelClick = () => this.currentHandler?.handleConfirm?.(this, this.currentModalData);
+                    this.dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
+                }
+            }
+        };
+
+        const { effect } = data;
+        if (!effect || effect.value === 0) {
+            showClickable();
+            return;
         }
+
+        const { targetId, partKey } = effect;
+        const targetDom = this.uiManager.getDOMElements(targetId);
+        const hpBar = targetDom?.partDOMElements[partKey]?.bar;
+        const targetPart = this.world.getComponent(targetId, Components.Parts)?.[partKey];
+        if (!hpBar || !targetPart) {
+            showClickable();
+            return;
+        }
+
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // ★修正: cleanup関数の宣言を、それが使われる前に移動
+        const cleanup = () => {
+            hpBar.style.transition = '';
+            hpBar.removeEventListener('transitionend', onTransitionEnd);
+            clearTimeout(fallback);
+            showClickable();
+        };
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+
+        const newHpPercentage = (targetPart.hp / targetPart.maxHp) * 100;
+        const onTransitionEnd = (event) => {
+            if (event.propertyName === 'width') {
+                cleanup();
+            }
+        };
+        const fallback = setTimeout(cleanup, 1000);
+
+        hpBar.addEventListener('transitionend', onTransitionEnd);
+        requestAnimationFrame(() => {
+            hpBar.style.transition = 'width 0.8s ease';
+            requestAnimationFrame(() => { hpBar.style.width = `${newHpPercentage}%`; });
+        });
     }
 }

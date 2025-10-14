@@ -4,8 +4,8 @@
  * 問い合わせる（検索・取得する）ためのユーティリティ関数群です。
  */
 
-import { Parts, Position, PlayerInfo, GameState } from '../core/components.js';
-import { PartInfo, PlayerStateType } from '../common/constants.js';
+import { Parts, Position, PlayerInfo, GameState, ActiveEffects } from '../core/components.js';
+import { PartInfo, PlayerStateType, EffectType } from '../common/constants.js';
 
 /**
  * 指定されたエンティティのパーツを取得します。
@@ -244,4 +244,52 @@ export function selectPartByCondition(world, candidates, sortFn) {
     allParts.sort(sortFn);
     const selectedPart = allParts[0];
     return { targetId: selectedPart.entityId, targetPartKey: selectedPart.partKey };
+}
+
+/**
+ * @function findGuardian
+ * @description 指定されたターゲットのチームから、ガード状態の機体を探します。
+ * 複数いる場合は、ガードパーツのHPが最も高い機体を返します。
+ * (ActionSystemから移管)
+ * @param {World} world - ワールドオブジェクト
+ * @param {number} originalTargetId - 本来の攻撃ターゲットのエンティティID
+ * @returns {{id: number, partKey: string, name: string} | null} ガード役の情報、またはnull
+ */
+export function findGuardian(world, originalTargetId) {
+    const targetInfo = world.getComponent(originalTargetId, PlayerInfo);
+    if (!targetInfo) return null;
+
+    const potentialGuardians = world.getEntitiesWith(PlayerInfo, ActiveEffects, Parts)
+        .filter(id => {
+            if (id === originalTargetId) return false;
+            const info = world.getComponent(id, PlayerInfo);
+            const parts = world.getComponent(id, Parts);
+            const activeEffects = world.getComponent(id, ActiveEffects);
+            const hasGuardEffect = activeEffects?.effects.some(e => e.type === EffectType.APPLY_GUARD);
+            
+            return info.teamId === targetInfo.teamId && !parts.head?.isBroken && hasGuardEffect;
+        })
+        .map(id => {
+            const activeEffects = world.getComponent(id, ActiveEffects);
+            const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
+            const parts = world.getComponent(id, Parts);
+            const info = world.getComponent(id, PlayerInfo);
+
+            if (guardEffect && parts[guardEffect.partKey] && !parts[guardEffect.partKey].isBroken) {
+                return {
+                    id: id,
+                    partKey: guardEffect.partKey,
+                    partHp: parts[guardEffect.partKey].hp,
+                    name: info.name,
+                };
+            }
+            return null;
+        })
+        .filter(g => g !== null);
+
+    if (potentialGuardians.length === 0) return null;
+
+    potentialGuardians.sort((a, b) => b.partHp - a.partHp);
+    
+    return potentialGuardians[0];
 }

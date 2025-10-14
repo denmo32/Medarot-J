@@ -9,8 +9,8 @@ import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import
 // ★改善: PartInfo, PartKeyToInfoMapを参照し、定義元を一元化
 // ★修正: ActionType, TargetTiming をインポート
 import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType, ActionType, TargetTiming } from '../common/constants.js';
-// ★修正: findMostDamagedAllyPart をインポート
-import { findBestDefensePart, findNearestEnemy, selectRandomPart, getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
+// ★修正: findGuardian をインポートし、findMostDamagedAllyPartを削除
+import { findBestDefensePart, findNearestEnemy, selectRandomPart, getValidAllies, findGuardian } from '../utils/queryUtils.js';
 // ★修正: combatFormulasからCombatCalculatorをインポート
 import { CombatCalculator } from '../utils/combatFormulas.js';
 import { BaseSystem } from '../../core/baseSystem.js';
@@ -159,13 +159,14 @@ export class ActionSystem extends BaseSystem {
             const attackingPart = attackerParts[action.partKey];
             let targetLegs = targetParts ? targetParts.legs : null;
 
-            // ★新規: ガード役の索敵とターゲットの上書き
+            // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
+            // ★リファクタリング: ガード役の索敵ロジックを `queryUtils` に移譲
             let guardian = null; // ガードを実行する機体情報
-            // ★修正: isSupportフラグとactionType定数を使用して、単体ダメージアクションかを判定
             const isSingleDamageAction = !attackingPart.role.isSupport && [ActionType.SHOOT, ActionType.MELEE].includes(attackingPart.role.actionType) && action.targetId !== null;
 
             if (isSingleDamageAction) {
-                guardian = this._findGuardian(action.targetId);
+                // ★修正: 汎用クエリ関数 `findGuardian` を呼び出す
+                guardian = findGuardian(this.world, action.targetId);
                 if (guardian) {
                     // ターゲットをガード役に上書き
                     action.targetId = guardian.id;
@@ -175,7 +176,8 @@ export class ActionSystem extends BaseSystem {
                     targetLegs = targetParts ? targetParts.legs : null;
                 }
             }
-            // --- ガード処理ここまで ---
+            // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
+
 
             // 手順2: 攻撃の命中結果（回避、クリティカル、防御）を決定します。
             const outcome = this._resolveHitOutcome(attackingPart, targetLegs, action.targetId, action.targetPartKey, executor);
@@ -265,54 +267,9 @@ export class ActionSystem extends BaseSystem {
     
     /**
      * @private
-     * ★新規: 指定されたターゲットのチームから、ガード状態の機体を探します。
-     * 複数いる場合は、ガードパーツのHPが最も高い機体を返します。
-     * @param {number} originalTargetId - 本来の攻撃ターゲットのエンティティID
-     * @returns {{id: number, partKey: string, name: string} | null} ガード役の情報、またはnull
+     * ★廃止: この責務は `queryUtils.js` の `findGuardian` に移管されました。
      */
-    _findGuardian(originalTargetId) {
-        const targetInfo = this.getCachedComponent(originalTargetId, PlayerInfo);
-        if (!targetInfo) return null;
-
-        const potentialGuardians = this.world.getEntitiesWith(PlayerInfo, GameState, ActiveEffects, Parts)
-            .filter(id => {
-                // [修正] ガード役は、本来の攻撃対象自身であってはなりません。
-                if (id === originalTargetId) return false;
-
-                const info = this.getCachedComponent(id, PlayerInfo);
-                const state = this.getCachedComponent(id, GameState);
-                // 状態(state)ではなく、ActiveEffectsにガード効果があるかで判定します。
-                const activeEffects = this.getCachedComponent(id, ActiveEffects);
-                const hasGuardEffect = activeEffects && activeEffects.effects.some(e => e.type === EffectType.APPLY_GUARD);
-                
-                // チームが同じで、破壊されておらず、ガード効果を持っている必要があります。
-                return info.teamId === targetInfo.teamId && state.state !== PlayerStateType.BROKEN && hasGuardEffect;
-            })
-            .map(id => {
-                const activeEffects = this.getCachedComponent(id, ActiveEffects);
-                const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
-                const parts = this.getCachedComponent(id, Parts);
-                const info = this.getCachedComponent(id, PlayerInfo);
-
-                if (guardEffect && parts[guardEffect.partKey] && !parts[guardEffect.partKey].isBroken) {
-                    return {
-                        id: id,
-                        partKey: guardEffect.partKey,
-                        partHp: parts[guardEffect.partKey].hp,
-                        name: info.name,
-                    };
-                }
-                return null;
-            })
-            .filter(g => g !== null);
-
-        if (potentialGuardians.length === 0) return null;
-
-        // ガードパーツのHPが最も高い機体を優先
-        potentialGuardians.sort((a, b) => b.partHp - a.partHp);
-        
-        return potentialGuardians[0];
-    }
+    // _findGuardian(originalTargetId) { ... }
 
     /**
      * @private

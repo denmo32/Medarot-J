@@ -9,7 +9,8 @@ import { Medal, Parts, PlayerInfo } from '../core/components.js'; // ★ PlayerI
 // ★修正: 必要なユーティリティをインポート
 import { getAttackableParts, getValidEnemies, getValidAllies, isValidTarget } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
-import { determineTarget } from '../ai/targetingUtils.js';
+// ★リファクタリング: `ai/targetingUtils` から `utils/targetingUtils` に変更
+import { determineTarget } from '../utils/targetingUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
 // ★追加: partSelectionStrategies を直接インポート
 import { partSelectionStrategies } from '../ai/partSelectionStrategies.js';

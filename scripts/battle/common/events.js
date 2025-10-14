@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -87,7 +87,7 @@ export const GameEvents = {
      * ターゲティング戦略実行結果イベント
 	 * @event STRATEGY_EXECUTED
 	 * @type {string}
-	 * @payload {Object} - 戦略実行結果のペイロード
+     * @payload {{ strategy: string, attackerId: number, target: { targetId: number, targetPartKey: string } }}
 	 */
 	STRATEGY_EXECUTED: 'STRATEGY_EXECUTED',
 	
@@ -96,7 +96,7 @@ export const GameEvents = {
      * プレイヤーの行動選択が必要になった
      * @event PLAYER_INPUT_REQUIRED
      * @type {string}
-     * @payload {entityId: number} - 行動選択が必要なエンティティID
+     * @payload {{ entityId: number }} - 行動選択が必要なエンティティID
      */
     PLAYER_INPUT_REQUIRED: 'PLAYER_INPUT_REQUIRED',
     
@@ -104,7 +104,7 @@ export const GameEvents = {
      * プレイヤーが行動パーツを選択した
      * @event PART_SELECTED
      * @type {string}
-     * @payload {{entityId: number, partKey: string, targetId: number | null, targetPartKey: string | null}} - エンティティID、選択パーツキー、ターゲット情報
+     * @payload {{ entityId: number, partKey: string, targetId: number | null, targetPartKey: string | null }}
      */
     PART_SELECTED: 'PART_SELECTED',
     
@@ -112,7 +112,7 @@ export const GameEvents = {
      * AIの行動選択が必要になった
      * @event AI_ACTION_REQUIRED
      * @type {string}
-     * @payload {entityId: number} - 行動選択が必要なAIエンティティID
+     * @payload {{ entityId: number }} - 行動選択が必要なAIエンティティID
      */
     AI_ACTION_REQUIRED: 'AI_ACTION_REQUIRED',
     
@@ -120,7 +120,7 @@ export const GameEvents = {
      * プレイヤーまたはAIが行動を決定した
      * @event ACTION_SELECTED
      * @type {string}
-     * @payload {{entityId: number, partKey: string, targetId: number | null, targetPartKey: string | null}} - エンティティIDと選択された行動情報
+     * @payload {{ entityId: number, partKey: string, targetId: number | null, targetPartKey: string | null }}
      */
     ACTION_SELECTED: 'ACTION_SELECTED',
 
@@ -129,7 +129,7 @@ export const GameEvents = {
      * 行動実行アニメーションの開始を要求
      * @event EXECUTION_ANIMATION_REQUESTED
      * @type {string}
-     * @payload {{attackerId: number, targetId: number}} - アニメーションを実行するエンティティID
+     * @payload {{ attackerId: number, targetId: number }}
      */
     EXECUTION_ANIMATION_REQUESTED: 'EXECUTION_ANIMATION_REQUESTED',
     
@@ -137,7 +137,7 @@ export const GameEvents = {
      * 行動実行アニメーションの完了を通知
      * @event EXECUTION_ANIMATION_COMPLETED
      * @type {string}
-     * @payload {entityId: number} - アニメーションが完了したエンティティID
+     * @payload {{ entityId: number }} - アニメーションが完了したエンティティID
      */
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED',
     
@@ -145,7 +145,7 @@ export const GameEvents = {
      * 実際のアニメーション実行を要求
      * @event EXECUTE_ATTACK_ANIMATION
      * @type {string}
-     * @payload {attackerId: number, targetId: number} - 攻撃者とターゲットのエンティティID
+     * @payload {{ attackerId: number, targetId: number }}
      */
     EXECUTE_ATTACK_ANIMATION: 'EXECUTE_ATTACK_ANIMATION',
     
@@ -153,7 +153,7 @@ export const GameEvents = {
      * 攻撃宣言モーダルのOKが押された
      * @event ATTACK_DECLARATION_CONFIRMED
      * @type {string}
-     * @payload {{entityId: number, damage: number, targetId: number, targetPartKey: string, isCritical: boolean, isDefended: boolean}} - 攻撃者ID、ダメージ、ターゲット情報など
+     * @payload {{ entityId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
     
@@ -163,7 +163,7 @@ export const GameEvents = {
      * これにより、効果の「計算」と「適用」が明確に分離される。
      * @event EFFECTS_RESOLVED
      * @type {string}
-     * @payload {{attackerId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null}} - 計算された効果、命中結果、ガード情報など
+     * @payload {{ attackerId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     EFFECTS_RESOLVED: 'EFFECTS_RESOLVED',
 
@@ -171,7 +171,7 @@ export const GameEvents = {
      * 行動が実行され、ダメージなどが計算された
      * @event ACTION_EXECUTED
      * @type {string}
-     * @payload {{attackerId: number, targetId: number, targetPartKey: string, damage: number, isPartBroken: boolean, isPlayerBroken: boolean, isCritical: boolean, isDefended: boolean}} - 攻撃情報と結果
+     * @payload {{ attackerId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     ACTION_EXECUTED: 'ACTION_EXECUTED',
     
@@ -179,7 +179,7 @@ export const GameEvents = {
      * 攻撃シーケンス全体が完了した
      * @event ATTACK_SEQUENCE_COMPLETED
      * @type {string}
-     * @payload {entityId: number} - 攻撃シーケンスが完了したエンティティID
+     * @payload {{ entityId: number }} - 攻撃シーケンスが完了したエンティティID
      */
     ATTACK_SEQUENCE_COMPLETED: 'ATTACK_SEQUENCE_COMPLETED',
 
@@ -188,7 +188,7 @@ export const GameEvents = {
      * ★新規: ゲージが満タンになった
      * @event GAUGE_FULL
      * @type {string}
-     * @payload {{entityId: number}} - ゲージが満タンになったエンティティID
+     * @payload {{ entityId: number }} - ゲージが満タンになったエンティティID
      */
     GAUGE_FULL: 'GAUGE_FULL',
 
@@ -196,7 +196,7 @@ export const GameEvents = {
      * 行動可能になったユニットがターンキューへの追加を要求する
      * @event ACTION_QUEUE_REQUEST
      * @type {string}
-     * @payload {entityId: number} - ターンキューに追加を要求するエンティティID
+     * @payload {{ entityId: number }} - ターンキューに追加を要求するエンティティID
      */
     ACTION_QUEUE_REQUEST: 'ACTION_QUEUE_REQUEST',
     
@@ -204,7 +204,7 @@ export const GameEvents = {
      * 無効なアクションを選択した等の理由で、ターンキューの先頭に再挿入を要求する
      * @event ACTION_REQUEUE_REQUEST
      * @type {string}
-     * @payload {entityId: number} - ターンキューに再挿入を要求するエンティティID
+     * @payload {{ entityId: number }} - ターンキューに再挿入を要求するエンティティID
      */
     ACTION_REQUEUE_REQUEST: 'ACTION_REQUEUE_REQUEST',
     
@@ -212,7 +212,7 @@ export const GameEvents = {
      * パーツが破壊された
      * @event PART_BROKEN
      * @type {string}
-     * @payload {entityId: number, partKey: string} - パーツが破壊されたエンティティIDとパーツキー
+     * @payload {{ entityId: number, partKey: string }} - パーツが破壊されたエンティティIDとパーツキー
      */
     PART_BROKEN: 'PART_BROKEN',
     
@@ -220,7 +220,7 @@ export const GameEvents = {
      * プレイヤー（頭部）が破壊された
      * @event PLAYER_BROKEN
      * @type {string}
-     * @payload {entityId: number, teamId: string} - 破壊されたプレイヤーのエンティティIDとチームID
+     * @payload {{ entityId: number, teamId: string }} - 破壊されたプレイヤーのエンティティIDとチームID
      */
     PLAYER_BROKEN: 'PLAYER_BROKEN',
     
@@ -228,7 +228,7 @@ export const GameEvents = {
      * ゲームが終了した
      * @event GAME_OVER
      * @type {string}
-     * @payload {winningTeam: string} - 勝利したチームID
+     * @payload {{ winningTeam: string }} - 勝利したチームID
      */
     GAME_OVER: 'GAME_OVER',
 
@@ -237,7 +237,7 @@ export const GameEvents = {
      * モーダル表示を要求
      * @event SHOW_MODAL
      * @type {string}
-     * @payload {{type: string, data: Object, immediate?: boolean, priority?: string}} - モーダルタイプ、データ、即時表示フラグなど
+     * @payload {{ type: string, data: Object, immediate?: boolean, priority?: string }} - モーダルタイプ、データ、即時表示フラグなど
      */
     SHOW_MODAL: 'SHOW_MODAL',
     
@@ -253,7 +253,7 @@ export const GameEvents = {
      * モーダルが閉じられたことを通知
      * @event MODAL_CLOSED
      * @type {string}
-     * @payload {{modalType: string}} - 閉じられたモーダルのタイプ
+     * @payload {{ modalType: string }} - 閉じられたモーダルのタイプ
      */
     MODAL_CLOSED: 'MODAL_CLOSED',
     

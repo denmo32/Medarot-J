@@ -27,7 +27,11 @@ export class StateSystem {
         this.world.on(GameEvents.EFFECTS_RESOLVED, this.onEffectsResolved.bind(this));
         this.world.on(GameEvents.ATTACK_SEQUENCE_COMPLETED, this.onAttackSequenceCompleted.bind(this));
         this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
-        this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this)); // ★ PLAYER_BROKEN イベントの購読を追加
+        this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
+        // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
+        // ★リファクタリング: パーツ破壊イベントを購読し、行動予約のキャンセルをイベント駆動で行う
+        this.world.on(GameEvents.PART_BROKEN, this.onPartBroken.bind(this));
+        // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
     }
     
     // ★新規: onPlayerBrokenハンドラを追加
@@ -180,6 +184,49 @@ export class StateSystem {
             }
         }
     }
+    
+    /**
+     * ★新規・リファクタリング: パーツ破壊イベントのハンドラ。
+     * 行動予約中のパーツが破壊されたり、ターゲットが機能停止した場合に行動をキャンセルします。
+     * @param {object} detail - PART_BROKEN イベントのペイロード { entityId, partKey }
+     */
+    onPartBroken(detail) {
+        const { entityId: brokenEntityId, partKey: brokenPartKey } = detail;
+
+        // 行動予約中のエンティティを全てチェック
+        const actors = this.world.getEntitiesWith(GameState, Action, PlayerInfo, Parts);
+        for (const actorId of actors) {
+            const gameState = this.world.getComponent(actorId, GameState);
+            if (gameState.state !== PlayerStateType.SELECTED_CHARGING) {
+                continue;
+            }
+
+            const action = this.world.getComponent(actorId, Action);
+            const actorInfo = this.world.getComponent(actorId, PlayerInfo);
+            const actorParts = this.world.getComponent(actorId, Parts);
+
+            // 1. 自身の予約パーツが破壊された場合
+            if (actorId === brokenEntityId && action.partKey === brokenPartKey) {
+                const message = `${actorInfo.name}の行動予約パーツが破壊されたため、放熱に移行！`;
+                this.uiStateContext.messageQueue.push(message);
+                this.resetEntityStateToCooldown(actorId, { interrupted: true });
+                // 一つのエンティティに対する処理は一度で十分なので、次のエンティティへ
+                continue; 
+            }
+
+            // 2. ターゲットが機能停止した場合 (頭部破壊)
+            const partScope = actorParts[action.partKey]?.targetScope;
+            if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(partScope) &&
+                action.targetId === brokenEntityId && 
+                brokenPartKey === PartInfo.HEAD.key) 
+            {
+                const message = `ターゲットロスト！ ${actorInfo.name}は放熱に移行！`;
+                this.uiStateContext.messageQueue.push(message);
+                this.resetEntityStateToCooldown(actorId, { interrupted: true });
+                continue;
+            }
+        }
+    }
 
     /**
      * ★修正: 攻撃者だけでなく、任意のエンティティの状態をクールダウン中にリセットする汎用関数。
@@ -239,32 +286,14 @@ export class StateSystem {
      * 時間経過による状態遷移を管理します。
      */
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(Gauge, GameState, Action, Parts, PlayerInfo, ActiveEffects);
+        // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
+        // ★リファクタリング: 行動予約中のパーツ破壊やターゲットロストのチェックを削除。
+        // この処理は onPartBroken イベントハンドラに移管されました。
+        const entities = this.world.getEntitiesWith(GameState, ActiveEffects, Parts);
+        // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
+
         for (const entityId of entities) {
             const gameState = this.world.getComponent(entityId, GameState);
-            
-            if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
-                const action = this.world.getComponent(entityId, Action);
-                const parts = this.world.getComponent(entityId, Parts);
-                
-                if (action.partKey && parts[action.partKey] && parts[action.partKey].isBroken) {
-                    const message = "行動予約パーツが破壊されたため、放熱に移行！";
-                    this.uiStateContext.messageQueue.push(message);
-                    this.resetEntityStateToCooldown(entityId, { interrupted: true });
-                    continue;
-                }
-                
-                const partScope = parts[action.partKey]?.targetScope;
-                if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(partScope) && action.targetId !== null) {
-                    if (!isValidTarget(this.world, action.targetId, action.targetPartKey)) {
-                        const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-                        const message = `ターゲットロスト！ ${playerInfo.name}は放熱に移行！`;
-                        this.uiStateContext.messageQueue.push(message);
-                        this.resetEntityStateToCooldown(entityId, { interrupted: true });
-                        continue;
-                    }
-                }
-            }
             
             // ★新規: ガード状態の監視
             if (gameState.state === PlayerStateType.GUARDING) {
