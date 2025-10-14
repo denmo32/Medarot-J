@@ -5,13 +5,29 @@
 import { MedalPersonality } from '../common/constants.js';
 
 /**
+ * 渡されたパーツリストを指定された役割(role)でフィルタリングし、存在すればそのリストを、
+ * 存在しなければ元のリストを返すヘルパー関数。
+ * @param {Array} parts - パーツのリスト [[partKey, partObject], ...]
+ * @param {string | Function} roleCondition - フィルタリング条件 (文字列または評価関数)
+ * @returns {Array} フィルタリングされたパーツリスト
+ */
+const filterByRole = (parts, roleCondition) => {
+    const predicate = typeof roleCondition === 'function'
+        ? ([, part]) => roleCondition(part.role)
+        : ([, part]) => part.role === roleCondition;
+
+    const filtered = parts.filter(predicate);
+    return filtered.length > 0 ? filtered : parts;
+};
+
+/**
  * メダルの性格に基づいた攻撃パーツ決定戦略のコレクション。
  * ターゲット選択戦略と同様に「ストラテジーパターン」を採用しており、
  * AIの性格に応じたパーツ選択ロジックをカプセル化し、拡張を容易にします。
  */
 export const partSelectionStrategies = {
     /**
-     * [デフォルト戦略]: 最も威力の高いパーツを選択します。
+     * [デフォルト戦略]: 攻撃パーツの中で最も威力の高いものを選択します。
      * 多くの攻撃的な性格（HUNTER, CRUSHERなど）で共通して使用される基本戦略です。
      * @param {object} context - 戦略が必要とする情報を含むコンテキストオブジェクト
      * @param {World} context.world - ワールドオブジェクト
@@ -23,8 +39,29 @@ export const partSelectionStrategies = {
         if (!availableParts || availableParts.length === 0) {
             return [null, null];
         }
+        // ★新規: まず'damage'ロールを持つパーツに絞り込む。なければ全パーツを対象とする。
+        const damageParts = filterByRole(availableParts, 'damage');
         // 威力が高い順にソート
-        const sortedParts = [...availableParts].sort(([, partA], [, partB]) => partB.might - partA.might);
+        const sortedParts = [...damageParts].sort(([, partA], [, partB]) => partB.might - partA.might);
+        return sortedParts[0];
+    },
+
+    /**
+     * ★新規: [回復優先戦略]: 回復パーツの中で最も効果の高いものを選択します。
+     * @param {object} context - 戦略のコンテキスト
+     * @returns {[string, object]} 選択されたパーツ
+     */
+    HEAL_FOCUS: ({ availableParts }) => {
+        if (!availableParts || availableParts.length === 0) {
+            return [null, null];
+        }
+        // 'heal'ロールを持つパーツのみを対象とする
+        const healParts = availableParts.filter(([, part]) => part.role === 'heal');
+        if (healParts.length === 0) {
+            return [null, null]; // 回復パーツがなければ選択不可
+        }
+        // 回復量(might)が高い順にソート
+        const sortedParts = [...healParts].sort(([, partA], [, partB]) => partB.might - partA.might);
         return sortedParts[0];
     },
 

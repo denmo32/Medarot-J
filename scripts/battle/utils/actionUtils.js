@@ -20,7 +20,7 @@ import { isValidTarget } from './queryUtils.js';
 export function decideAndEmitAction(world, entityId, partKey, target = null) {
     const parts = world.getComponent(entityId, Parts);
 
-    if (!parts || !parts[partKey] || parts[partKey].isBroken) {
+    if (!parts || !partKey || !parts[partKey] || parts[partKey].isBroken) {
         console.warn(`decideAndEmitAction: Invalid or broken part selected for entity ${entityId}. Re-queueing.`);
         world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
         return;
@@ -28,13 +28,7 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
 
     const selectedPart = parts[partKey];
 
-    // ★修正: 単体ターゲットが必要なアクションでターゲットが見つからなくても、
-    // 再選択を要求せず「空振り」として行動を許可する。
-    if (selectedPart.targetScope?.endsWith('_SINGLE') && !target) {
-        console.warn(`decideAndEmitAction: No valid target found for a single-target action by ${entityId}. The action will be treated as a miss.`);
-    }
-
-    // ★修正: 'post-move'アクションは移動後にターゲットを決めるため、常にnullで予約する
+    // 'post-move'アクションは移動後にターゲットを決めるため、ターゲット情報を無視して予約する
     if (selectedPart.targetTiming === 'post-move') {
         world.emit(GameEvents.ACTION_SELECTED, {
             entityId,
@@ -43,6 +37,12 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
             targetPartKey: null
         });
         return;
+    }
+
+    // ★元に戻した箇所: AiSystemが有効なターゲットを保証する設計になったため、
+    // ここでターゲットが見つからない場合は「バグ」であり、再選択要求ではなく警告を出すのが適切。
+    if (selectedPart.targetScope?.endsWith('_SINGLE') && !isValidTarget(world, target?.targetId, target?.targetPartKey)) {
+        console.error(`decideAndEmitAction: A valid target was expected for a single-target action but not found. Action may fail.`, {entityId, partKey, target});
     }
 
     // それ以外のアクションは、決定されたターゲット情報と共にイベントを発行

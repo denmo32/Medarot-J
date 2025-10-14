@@ -4,11 +4,11 @@
  */
 
 import { BaseSystem } from '../../core/baseSystem.js';
-import { GameState, PlayerInfo } from '../core/components.js';
+import { GameState, PlayerInfo, Parts } from '../core/components.js'; // ★ Parts をインポート
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { GameEvents } from '../common/events.js';
 // ★変更: GamePhaseTypeをインポート
-import { PlayerStateType, TeamID, GamePhaseType } from '../common/constants.js';
+import { PlayerStateType, TeamID, GamePhaseType, PartInfo } from '../common/constants.js'; // ★ PartInfo をインポート
 
 /**
  * ゲームの「ターン」や行動順を管理するシステム。
@@ -88,12 +88,16 @@ export class TurnSystem extends BaseSystem {
         // キューの先頭からエンティティを取り出し、行動選択のプロセスを開始させます。
         const entityId = this.actionQueue.shift();
 
-        // 念のため、取り出したエンティティがまだ行動可能（破壊されていないなど）か最終チェックを行います。
-        // キューに入ってから行動するまでの間に状態が変わる可能性があるため、このチェックは堅牢性を高めます。
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // 念のため、取り出したエンティティがまだ行動可能か最終チェックを行います。
         const gameState = this.world.getComponent(entityId, GameState);
-        if (gameState.state !== PlayerStateType.READY_SELECT) {
+        const parts = this.world.getComponent(entityId, Parts);
+
+        // ★修正: 状態が`READY_SELECT`でない、または頭部が破壊されている場合は行動不可
+        if (gameState.state !== PlayerStateType.READY_SELECT || parts[PartInfo.HEAD.key]?.isBroken) {
             return; // 行動できない状態なら、何もせず次のフレームへ
         }
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
         
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         

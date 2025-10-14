@@ -1,12 +1,11 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { PlayerInfo, Parts } from '../core/components.js';
-import { ModalType } from '../common/constants.js';
-import { getAllActionParts } from '../utils/queryUtils.js';
+import { PlayerInfo, Parts, Medal } from '../core/components.js'; // ★ Medalをインポート
+import { ModalType, EffectScope } from '../common/constants.js'; // ★ EffectScopeをインポート
+import { getAllActionParts, getValidEnemies, getValidAllies } from '../utils/queryUtils.js'; // ★ getValid...をインポート
 import { decideAndEmitAction } from '../utils/actionUtils.js';
 import { determineTarget } from '../ai/targetingUtils.js';
-// ★削除: CONFIGは不要になったため削除
-// import { CONFIG } from '../common/config.js';
+import { getStrategiesFor } from '../ai/personalityRegistry.js'; // ★ getStrategiesForをインポート
 
 /**
  * プレイヤーからの入力を処理し、行動を決定するシステム。
@@ -30,19 +29,34 @@ export class InputSystem extends BaseSystem {
     onPlayerInputRequired(detail) {
         const { entityId } = detail;
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+        const playerMedal = this.world.getComponent(entityId, Medal);
+        const strategies = getStrategiesFor(playerMedal.personality);
         
-        // 破壊状態に関わらず、全ての行動可能パーツを取得する
         const allActionParts = getAllActionParts(this.world, entityId);
         
-        // ★修正: 各ボタン（パーツ）に対応するターゲットを事前にすべて計算する
         const buttonsWithTargets = allActionParts.map(([partKey, part]) => {
-            // 各パーツに対してターゲットを決定する。
-            // targetTimingが'post-move'のアクション（格闘、回復）は、この時点ではターゲットを決定しない。
             let target = null;
-            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-            // ★修正: CONFIG.ACTION_PROPERTIES を参照せず、パーツ自身のプロパティを見る
             if (part.targetTiming === 'pre-move') {
-                target = determineTarget(this.world, entityId, partKey);
+                const isAllyTargeting = part.targetScope.startsWith('ALLY_');
+                
+                // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+                // ★修正: AiSystemと同様の、堅牢なフォールバックロジックを実装
+                
+                // Step 1: プライマリ戦略用の候補リストを作成
+                const primaryCandidates = isAllyTargeting
+                    ? getValidAllies(this.world, entityId, true)
+                    : getValidEnemies(this.world, entityId);
+                
+                // Step 2: プライマリ戦略でターゲットを試行
+                target = determineTarget(this.world, entityId, strategies.primaryTargeting, primaryCandidates);
+                
+                // Step 3: プライマリ戦略が失敗した場合、フォールバック戦略を試行
+                if (!target) {
+                    // フォールバックは通常、敵を対象とする
+                    const fallbackCandidates = getValidEnemies(this.world, entityId);
+                    target = determineTarget(this.world, entityId, strategies.fallbackTargeting, fallbackCandidates);
+                }
+                // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
             }
 
             return {
@@ -51,10 +65,7 @@ export class InputSystem extends BaseSystem {
                 isBroken: part.isBroken,
                 action: part.action,
                 targetScope: part.targetScope,
-                // ★修正: CONFIG.ACTION_PROPERTIES を参照せず、パーツ自身のプロパティを見る
                 targetTiming: part.targetTiming || 'pre-move',
-                // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
-                // ★追加: 各ボタンに固有のターゲット情報を持たせる
                 target: target 
             };
         });
@@ -64,7 +75,6 @@ export class InputSystem extends BaseSystem {
             entityId: entityId,
             title: '',
             ownerName: playerInfo.name,
-            // ★修正: 計算済みのボタン情報を渡す
             buttons: buttonsWithTargets,
         };
         
@@ -81,17 +91,10 @@ export class InputSystem extends BaseSystem {
      * @param {object} detail - イベントの詳細 ({ entityId, partKey, targetId, targetPartKey })
      */
     onPartSelected(detail) {
-        // ★変更: detailから targetId, targetPartKey を直接受け取る
         const { entityId, partKey, targetId, targetPartKey } = detail;
-
-        // ★変更: ターゲットを再決定せず、イベントで渡された情報をそのまま使う
         const target = { targetId, targetPartKey };
-
-        // イベント発行のロジックを共通化されたユーティリティ関数に委譲
         decideAndEmitAction(this.world, entityId, partKey, target);
     }
 
-
-    // このシステムはイベント駆動なので、updateループでの処理は不要
     update(deltaTime) {}
 }

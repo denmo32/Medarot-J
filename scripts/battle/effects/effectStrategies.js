@@ -9,7 +9,8 @@
 import { PlayerInfo, Parts, ActiveEffects, Action, GameState } from '../core/components.js';
 // ★修正: PartKeyToInfoMap, PlayerStateType をインポート
 import { EffectType, EffectScope, PartKeyToInfoMap, PlayerStateType } from '../common/constants.js';
-import { calculateDamage } from '../utils/combatFormulas.js';
+// ★修正: calculateDamage の代わりに CombatCalculator をインポート
+import { CombatCalculator } from '../utils/combatFormulas.js';
 import { getValidAllies } from '../utils/queryUtils.js';
 
 /**
@@ -39,13 +40,14 @@ export const effectStrategies = {
         const targetParts = world.getComponent(targetId, Parts);
         if (!targetParts) return null;
 
-        const finalDamage = calculateDamage(
-            part,
-            partOwner.parts.legs,
-            targetParts.legs,
-            outcome.isCritical,
-            !outcome.isCritical && outcome.isDefended // isDefenseBypassed
-        );
+        // ★修正: CombatCalculator を使用してダメージを計算
+        const finalDamage = CombatCalculator.calculateDamage({
+            attackingPart: part,
+            attackerLegs: partOwner.parts.legs,
+            targetLegs: targetParts.legs,
+            isCritical: outcome.isCritical,
+            isDefenseBypassed: !outcome.isCritical && outcome.isDefended,
+        });
 
         return {
             type: EffectType.DAMAGE,

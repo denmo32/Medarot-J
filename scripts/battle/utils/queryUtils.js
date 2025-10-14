@@ -37,6 +37,11 @@ export function getParts(world, entityId, includeBroken = false, attackableOnly 
  * @returns {[string, object][]} - [パーツキー, パーツオブジェクト]の配列
  */
 export function getAttackableParts(world, entityId) {
+    // ★追加: そもそも頭部が壊れていたら攻撃可能パーツは無い
+    const parts = world.getComponent(entityId, Parts);
+    if (parts?.head?.isBroken) {
+        return [];
+    }
     return getParts(world, entityId, false, true);
 }
 
@@ -75,11 +80,12 @@ export function findBestDefensePart(world, entityId) {
 export function getValidEnemies(world, attackerId) {
     const attackerInfo = world.getComponent(attackerId, PlayerInfo);
     if (!attackerInfo) return [];
-    return world.getEntitiesWith(PlayerInfo, GameState)
+    return world.getEntitiesWith(PlayerInfo, Parts) // ★ GameStateの代わりにPartsを取得
         .filter(id => {
             const pInfo = world.getComponent(id, PlayerInfo);
-            const gState = world.getComponent(id, GameState);
-            return id !== attackerId && pInfo.teamId !== attackerInfo.teamId && gState.state !== PlayerStateType.BROKEN;
+            const parts = world.getComponent(id, Parts); // ★ Partsを取得
+            // ★修正: GameStateではなく、頭部パーツの破壊状態で生存を判定
+            return id !== attackerId && pInfo.teamId !== attackerInfo.teamId && !parts.head?.isBroken;
         });
 }
 
@@ -93,12 +99,13 @@ export function getValidEnemies(world, attackerId) {
 export function getValidAllies(world, sourceId, includeSelf = false) {
     const sourceInfo = world.getComponent(sourceId, PlayerInfo);
     if (!sourceInfo) return [];
-    return world.getEntitiesWith(PlayerInfo, GameState)
+    return world.getEntitiesWith(PlayerInfo, Parts) // ★ GameStateの代わりにPartsを取得
         .filter(id => {
             if (!includeSelf && id === sourceId) return false;
             const pInfo = world.getComponent(id, PlayerInfo);
-            const gState = world.getComponent(id, GameState);
-            return pInfo.teamId === sourceInfo.teamId && gState.state !== PlayerStateType.BROKEN;
+            const parts = world.getComponent(id, Parts); // ★ Partsを取得
+            // ★修正: GameStateではなく、頭部パーツの破壊状態で生存を判定
+            return pInfo.teamId === sourceInfo.teamId && !parts.head?.isBroken;
         });
 }
 
@@ -145,11 +152,12 @@ export function findMostDamagedAllyPart(world, candidates) {
  */
 export function isValidTarget(world, targetId, partKey = null) {
     if (targetId === null || targetId === undefined) return false;
-    const gameState = world.getComponent(targetId, GameState);
-    if (!gameState || gameState.state === PlayerStateType.BROKEN) return false;
+    // ★修正: GameStateではなくPartsコンポーネントで生存確認
+    const parts = world.getComponent(targetId, Parts);
+    if (!parts || parts.head?.isBroken) return false;
+
     if (partKey) {
-        const parts = world.getComponent(targetId, Parts);
-        if (!parts || !parts[partKey] || parts[partKey].isBroken) {
+        if (!parts[partKey] || parts[partKey].isBroken) {
             return false;
         }
     }
@@ -165,8 +173,8 @@ export function isValidTarget(world, targetId, partKey = null) {
 export function selectRandomPart(world, entityId) {
     if (!world || entityId === null || entityId === undefined) return null;
     const parts = world.getComponent(entityId, Parts);
-    if (!parts) return null;
-    const hittablePartKeys = Object.keys(parts).filter(key => !parts[key].isBroken);
+    if (!parts || parts.head?.isBroken) return null; // ★追加: 機能停止チェック
+    const hittablePartKeys = Object.keys(parts).filter(key => parts[key] && !parts[key].isBroken);
     if (hittablePartKeys.length > 0) {
         const partKey = hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
         return { targetId: entityId, targetPartKey: partKey };
@@ -212,7 +220,7 @@ export function getAllPartsFromCandidates(world, candidateIds) {
     if (!candidateIds) return []; // 候補がいない場合は空配列を返す
     for (const id of candidateIds) {
         const parts = world.getComponent(id, Parts);
-        if (!parts) continue;
+        if (!parts || parts.head?.isBroken) continue; // ★追加: 機能停止した機体のパーツは含めない
         Object.entries(parts).forEach(([key, part]) => {
             if (part && !part.isBroken) {
                 allParts.push({ entityId: id, partKey: key, part: part });

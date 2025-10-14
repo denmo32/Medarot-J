@@ -1,6 +1,6 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { PlayerInfo, Position, Gauge, GameState, Parts, Action, ActiveEffects } from '../core/components.js';
-import { PlayerStateType, EffectType } from '../common/constants.js';
+import { PlayerStateType, EffectType, PartInfo } from '../common/constants.js'; // ★ PartInfo をインポート
 import { UIManager } from './UIManager.js';
 import { GameEvents } from '../common/events.js'; // イベント定義をインポート
 // ★新規: UIStateContextをインポートして、UIの状態（ポーズ中かなど）を確認できるようにする
@@ -41,7 +41,8 @@ export class UISystem extends BaseSystem {
 
         const position = this.getCachedComponent(entityId, Position);
         const gameState = this.getCachedComponent(entityId, GameState);
-        if (!position || !gameState) return;
+        const parts = this.getCachedComponent(entityId, Parts); // ★ Partsをここで取得
+        if (!position || !gameState || !parts) return;
 
         // 位置の更新
         domElements.iconElement.style.left = `${position.x * 100}%`;
@@ -62,7 +63,12 @@ export class UISystem extends BaseSystem {
         }
 
         domElements.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
-        domElements.iconElement.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
+        
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // ★修正: 機能停止の判定を gameState.state から parts.head.isBroken に変更
+        domElements.iconElement.classList.toggle('broken', parts.head?.isBroken);
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+
 
         // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
         // ★修正: モーダル表示中はHPバーの更新をスキップする
@@ -72,8 +78,6 @@ export class UISystem extends BaseSystem {
             // ガードインジケーターなど、HP以外のUIは更新を続ける
         } else {
             // HPゲージの更新
-            const parts = this.getCachedComponent(entityId, Parts);
-            if (!parts) return;
             Object.entries(parts).forEach(([key, part]) => {
                 const elements = domElements.partDOMElements[key];
                 if (!elements || !part) return;

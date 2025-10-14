@@ -3,9 +3,10 @@ import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import
 import { CONFIG } from '../common/config.js'; // ★追加
 import { GameEvents } from '../common/events.js';
 // ★変更: EffectType, EffectScope をインポート
-import { PlayerStateType, ModalType, GamePhaseType, TeamID, EffectType, EffectScope } from '../common/constants.js';
+import { PlayerStateType, ModalType, GamePhaseType, TeamID, EffectType, EffectScope, PartInfo } from '../common/constants.js'; // ★ PartInfo をインポート
 import { isValidTarget } from '../utils/queryUtils.js';
-import { calculateSpeedMultiplier } from '../utils/combatFormulas.js';
+// ★修正: calculateSpeedMultiplier の代わりに CombatCalculator をインポート
+import { CombatCalculator } from '../utils/combatFormulas.js';
 
 /**
  * エンティティの「状態」を管理するステートマシン（状態遷移機械）としての役割を担うシステム。
@@ -23,15 +24,34 @@ export class StateSystem {
 
         // 他のシステムから発行される、状態遷移のきっかけとなるイベントを購読します。
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-        // ★修正: ACTION_EXECUTED の代わりに EFFECTS_RESOLVED を購読します。
-        // これにより、HP増減などの「データ適用」と、「状態遷移」のロジックを分離します。
         this.world.on(GameEvents.EFFECTS_RESOLVED, this.onEffectsResolved.bind(this));
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
         this.world.on(GameEvents.ATTACK_SEQUENCE_COMPLETED, this.onAttackSequenceCompleted.bind(this));
-        // ★新規: GAUGE_FULLイベントを購読
         this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
+        this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this)); // ★ PLAYER_BROKEN イベントの購読を追加
     }
+    
+    // ★新規: onPlayerBrokenハンドラを追加
+    /**
+     * 頭部が破壊された（機能停止した）際に呼び出されます。
+     * @param {object} detail - { entityId }
+     */
+    onPlayerBroken(detail) {
+        const { entityId } = detail;
+        const gameState = this.world.getComponent(entityId, GameState);
+        const gauge = this.world.getComponent(entityId, Gauge);
+
+        if (gameState) {
+            // UI（UISystem）が`.broken`クラスを適用するためのトリガーとして状態を設定
+            gameState.state = PlayerStateType.BROKEN;
+        }
+        if (gauge) {
+            // ゲージ進行を完全に停止
+            gauge.value = 0;
+        }
+        // Actionコンポーネントをリセット
+        this.world.addComponent(entityId, new Action());
+    }
+
 
     /**
      * プレイヤーまたはAIが行動を選択した際に呼び出されます。
@@ -73,8 +93,8 @@ export class StateSystem {
         // 5. ゲージをリセットし、行動実行までのチャージを開始させます。
         gauge.value = 0;
 
-        // 6. 選択されたパーツに応じて、チャージ速度の補正率を計算・設定します。
-        gauge.speedMultiplier = calculateSpeedMultiplier(selectedPart, 'charge');
+        // 6. ★修正: 選択されたパーツに応じて、チャージ速度の補正率を計算・設定します。
+        gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: selectedPart, factorType: 'charge' });
     }
 
 
@@ -89,12 +109,7 @@ export class StateSystem {
         }
 
         for (const effect of resolvedEffects) {
-            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-            // ★削除: DAMAGE と HEAL の効果適用ロジックは EffectApplicatorSystem に移譲されました。
-            // これにより、このシステムは「状態遷移」に集中します。
-            
             if (effect.type === EffectType.APPLY_GLITCH) {
-            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
                 // ★新規: グリッチ効果の処理
                 if (effect.wasSuccessful) {
                     // 成功した場合、ターゲットの行動を中断させクールダウンに移行
@@ -178,14 +193,16 @@ export class StateSystem {
      */
     resetEntityStateToCooldown(entityId, options = {}) {
         const { interrupted = false } = options;
+        const parts = this.world.getComponent(entityId, Parts); // ★ Parts を最初に取得
+        
+        // ★修正: 機能停止している場合は、いかなる状態遷移も行わない
+        if (parts?.head?.isBroken) {
+            return;
+        }
+        
         const gameState = this.world.getComponent(entityId, GameState);
         const gauge = this.world.getComponent(entityId, Gauge);
         const action = this.world.getComponent(entityId, Action);
-        const parts = this.world.getComponent(entityId, Parts);
-
-        if (gameState && gameState.state === PlayerStateType.BROKEN) {
-            return;
-        }
 
         // ★新規: ガード状態を解除
         if (gameState && gameState.state === PlayerStateType.GUARDING) {
@@ -197,9 +214,9 @@ export class StateSystem {
 
         if (action && action.partKey && parts && gauge) {
             const usedPart = parts[action.partKey];
-            // ★修正: usedPartが存在する場合のみ速度補正を計算
+            // ★修正: CombatCalculator を使用して速度補正を計算
             if (usedPart) {
-                gauge.speedMultiplier = calculateSpeedMultiplier(usedPart, 'cooldown');
+                gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: usedPart, factorType: 'cooldown' });
             } else {
                 gauge.speedMultiplier = 1.0;
             }

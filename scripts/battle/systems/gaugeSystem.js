@@ -1,7 +1,7 @@
 import { Gauge, GameState, Parts } from '../core/components.js'; // Import Gauge, GameState, Parts from components
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js';
-import { PlayerStateType, GamePhaseType } from '../common/constants.js';
+import { PlayerStateType, GamePhaseType, PartInfo } from '../common/constants.js'; // ★ PartInfo をインポート
 import { GameEvents } from '../common/events.js';
 import { BaseSystem } from '../../core/baseSystem.js';
 
@@ -43,7 +43,12 @@ export class GaugeSystem extends BaseSystem {
             const gameState = this.world.getComponent(entityId, GameState);
             const parts = this.world.getComponent(entityId, Parts);
 
-
+            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // ★修正: 頭部が破壊されている場合は、いかなる状態でもゲージ進行を停止する
+            if (parts[PartInfo.HEAD.key]?.isBroken) {
+                continue;
+            }
+            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
             // ゲージの進行を止めるべき状態かを判定
             const statesToPause = [

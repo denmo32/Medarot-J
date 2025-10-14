@@ -14,6 +14,7 @@ import { partSelectionStrategies } from './partSelectionStrategies.js';
  * @property {object} [personality] - AIの性格ごとの戦略定義。
  * @property {function} primaryTargeting - その性格の基本となるターゲット選択戦略。
  * @property {function} partSelection - 使用する攻撃パーツを選択する戦略。
+ * @property {function} [fallbackPartSelection] - `partSelection`が有効なパーツを見つけられなかった場合に実行される代替パーツ選択戦略。
  * @property {function} fallbackTargeting - `primaryTargeting`が有効なターゲットを見つけられなかった場合に実行される代替戦略。
  */
 export const personalityRegistry = {
@@ -65,7 +66,9 @@ export const personalityRegistry = {
     // ★新規: HEALER性格の定義
     [MedalPersonality.HEALER]: {
         primaryTargeting: targetingStrategies[MedalPersonality.HEALER],
-        partSelection: partSelectionStrategies.POWER_FOCUS, // 回復パーツの中で最も効果の高いものを選ぶ
+        partSelection: partSelectionStrategies.HEAL_FOCUS, // ★修正: 回復パーツを最優先で探す
+        // ★新規: 回復パーツがない場合、攻撃パーツを探す戦略にフォールバック
+        fallbackPartSelection: partSelectionStrategies.POWER_FOCUS,
         // ★修正: プライマリ戦略（回復対象探し）が失敗した場合、ランダムな敵を攻撃する戦略にフォールバックする
         fallbackTargeting: targetingStrategies.RANDOM,
     },

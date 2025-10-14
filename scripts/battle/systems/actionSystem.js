@@ -10,11 +10,14 @@ import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import
 import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType } from '../common/constants.js';
 // ★修正: findMostDamagedAllyPart をインポート
 import { findBestDefensePart, findNearestEnemy, selectRandomPart, getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
-import { calculateEvasionChance, calculateDefenseChance, calculateCriticalChance } from '../utils/combatFormulas.js';
+// ★修正: combatFormulasからCombatCalculatorをインポート
+import { CombatCalculator } from '../utils/combatFormulas.js';
 import { BaseSystem } from '../../core/baseSystem.js';
 import { ErrorHandler, GameError, ErrorType } from '../utils/errorHandler.js';
 // ★新規: アクション効果の戦略をインポート
 import { effectStrategies } from '../effects/effectStrategies.js';
+// ★新規: 移動後ターゲット決定戦略をインポート
+import { postMoveTargetingStrategies } from '../ai/postMoveTargetingStrategies.js';
 
 /**
  * 「行動の実行」に特化したシステム。
@@ -97,34 +100,26 @@ export class ActionSystem extends BaseSystem {
             
             const action = this.getCachedComponent(executor, Action);
             const gameState = this.getCachedComponent(executor, GameState);
-            if (!action || !gameState) return;
+            const parts = this.getCachedComponent(executor, Parts); // ★追加
+            if (!action || !gameState || !parts) return;
             
-            // ★修正: post-moveのアクションタイプに応じてターゲット決定ロジックを分岐
+            // ★修正: 移動後ターゲット決定ロジックをデータ駆動型にリファクタリング
             if (action.properties.targetTiming === 'post-move' && action.targetId === null) {
-                let targetData = null;
+                const selectedPart = parts[action.partKey];
+                const strategyKey = selectedPart?.postMoveTargeting;
+                const strategy = postMoveTargetingStrategies[strategyKey];
 
-                // ★修正: 格闘と妨害は最も近い敵をターゲットにする
-                if (action.type === '格闘' || action.type === '妨害') {
-                    const nearestEnemyId = findNearestEnemy(this.world, executor);
-                    if (nearestEnemyId !== null) {
-                        targetData = selectRandomPart(this.world, nearestEnemyId);
+                if (strategy) {
+                    const targetData = strategy({ world: this.world, attackerId: executor });
+                    if (targetData) {
+                        action.targetId = targetData.targetId;
+                        action.targetPartKey = targetData.targetPartKey;
+                    } else {
+                        console.warn(`ActionSystem: Post-move strategy '${strategyKey}' found no target for ${executor}.`);
                     }
-                } else if (action.type === '回復') {
-                    // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-                    // 1. 回復対象となりうる味方（自分自身も含む）のリストを取得する
-                    const allies = getValidAllies(this.world, executor, true);
-                    // 2. ★修正: AI戦略(HEALER)への依存をなくし、汎用的なクエリ関数を呼び出す
-                    targetData = findMostDamagedAllyPart(this.world, allies);
-                    // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
-                }
-
-                if (targetData) {
-                    action.targetId = targetData.targetId;
-                    action.targetPartKey = targetData.targetPartKey;
-                } else {
-                    // ターゲットが見つからなかった場合（格闘対象がいない、回復対象がいない）
-                    // ターゲットはnullのままアニメーションへ移行し、「空振り」として処理される
-                    console.warn(`ActionSystem: No valid target for post-move action '${action.type}' by ${executor}.`);
+                } else if (strategyKey) {
+                    // パーツに戦略が定義されているのに、実装が見つからない場合
+                    console.error(`ActionSystem: Unknown post-move strategy '${strategyKey}' for part '${selectedPart.name}'.`);
                 }
             }
 
@@ -366,8 +361,13 @@ export class ActionSystem extends BaseSystem {
             return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
         }
 
-        // ★修正: calculateEvasionChance に world と attackerId を渡す
-        const evasionChance = calculateEvasionChance(this.world, executorId, targetLegs.mobility, attackingPart.success);
+        // ★修正: CombatCalculatorを使用して回避率を計算
+        const evasionChance = CombatCalculator.calculateEvasionChance({
+            world: this.world,
+            attackerId: executorId,
+            targetLegs: targetLegs,
+            attackingPart: attackingPart,
+        });
         if (Math.random() < evasionChance) {
             return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
         }
@@ -376,11 +376,13 @@ export class ActionSystem extends BaseSystem {
         let isDefended = false;
         let finalTargetPartKey = initialTargetPartKey;
 
-        const critChance = calculateCriticalChance(attackingPart, targetLegs);
+        // ★修正: CombatCalculatorを使用してクリティカル率を計算
+        const critChance = CombatCalculator.calculateCriticalChance({ attackingPart, targetLegs });
         isCritical = Math.random() < critChance;
 
         if (!isCritical) {
-            const defenseChance = calculateDefenseChance(targetLegs.armor);
+            // ★修正: CombatCalculatorを使用して防御率を計算
+            const defenseChance = CombatCalculator.calculateDefenseChance({ targetLegs });
             if (Math.random() < defenseChance) {
                 const defensePartKey = findBestDefensePart(this.world, targetId);
                 if (defensePartKey) {
