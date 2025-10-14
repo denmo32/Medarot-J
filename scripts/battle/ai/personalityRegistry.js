@@ -9,67 +9,96 @@ import { partSelectionStrategies } from './partSelectionStrategies.js';
 /**
  * AIの性格と戦略のマッピング。
  * 新しいAI性格を追加する際は、このオブジェクトに新しいエントリを追加するだけで、
- * ターゲット選択、パーツ選択、および代替戦略を定義できます。
+ * 行動の優先順位（思考ルーチン）と代替戦略を定義できます。
  *
  * @property {object} [personality] - AIの性格ごとの戦略定義。
- * @property {function} primaryTargeting - その性格の基本となるターゲット選択戦略。
- * @property {function} partSelection - 使用する攻撃パーツを選択する戦略。
- * @property {function} [fallbackPartSelection] - `partSelection`が有効なパーツを見つけられなかった場合に実行される代替パーツ選択戦略。
- * @property {function} fallbackTargeting - `primaryTargeting`が有効なターゲットを見つけられなかった場合に実行される代替戦略。
+ * @property {Array<{partStrategy: string, targetStrategy: string}>} routines - AIが優先順位順に試行する思考ルーチンのリスト。
+ *   - `partStrategy`: 使用するパーツを選択する戦略のキー (partSelectionStrategiesより)。
+ *   - `targetStrategy`: ターゲットを選択する戦略のキー (targetingStrategiesより)。
+ * @property {function} fallbackTargeting - `routines`の全試行が失敗した場合に実行される最終的なターゲット選択戦略。
  */
 export const personalityRegistry = {
     [MedalPersonality.HUNTER]: {
-        primaryTargeting: targetingStrategies[MedalPersonality.HUNTER],
-        partSelection: partSelectionStrategies.POWER_FOCUS,
+        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
+        routines: [
+            // 優先度1: 最も威力の高い攻撃パーツで、最もHPの低い敵パーツを狙う
+            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.HUNTER },
+        ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.CRUSHER]: {
-        primaryTargeting: targetingStrategies[MedalPersonality.CRUSHER],
-        partSelection: partSelectionStrategies.POWER_FOCUS,
+        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
+        routines: [
+            // 優先度1: 最も威力の高い攻撃パーツで、最もHPの高い敵パーツを狙う
+            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.CRUSHER },
+        ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.JOKER]: {
-        primaryTargeting: targetingStrategies[MedalPersonality.JOKER],
-        partSelection: partSelectionStrategies.RANDOM,
+        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
+        routines: [
+            // 優先度1: ランダムなパーツで、敵の全パーツからランダムにターゲットを選択
+            { partStrategy: 'RANDOM', targetStrategy: MedalPersonality.JOKER },
+        ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.COUNTER]: {
-        primaryTargeting: targetingStrategies[MedalPersonality.COUNTER],
-        partSelection: partSelectionStrategies.POWER_FOCUS,
+        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
+        routines: [
+            // 優先度1: 最も威力の高い攻撃パーツで、最後に自分を攻撃してきた敵を狙う
+            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.COUNTER },
+        ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.GUARD]: {
-        primaryTargeting: targetingStrategies[MedalPersonality.GUARD],
-        partSelection: partSelectionStrategies.POWER_FOCUS,
+        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
+        routines: [
+            // 優先度1: 最も威力の高い攻撃パーツで、味方リーダーを最後に攻撃してきた敵を狙う
+            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.GUARD },
+        ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.FOCUS]: {
-        primaryTargeting: targetingStrategies[MedalPersonality.FOCUS],
-        partSelection: partSelectionStrategies.POWER_FOCUS,
+        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
+        routines: [
+            // 優先度1: 最も威力の高い攻撃パーツで、自分が前回攻撃したパーツを狙う
+            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.FOCUS },
+        ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.ASSIST]: {
-        primaryTargeting: targetingStrategies[MedalPersonality.ASSIST],
-        partSelection: partSelectionStrategies.POWER_FOCUS,
+        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
+        routines: [
+            // 優先度1: 最も威力の高い攻撃パーツで、味方が最後に攻撃した敵のパーツを狙う
+            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.ASSIST },
+        ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.LEADER_FOCUS]: {
-        primaryTargeting: targetingStrategies[MedalPersonality.LEADER_FOCUS],
-        partSelection: partSelectionStrategies.POWER_FOCUS,
+        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
+        routines: [
+            // 優先度1: 最も威力の高い攻撃パーツで、敵チームのリーダーを狙う
+            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.LEADER_FOCUS },
+        ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.RANDOM]: {
-        primaryTargeting: targetingStrategies[MedalPersonality.RANDOM],
-        partSelection: partSelectionStrategies.RANDOM,
+        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
+        routines: [
+            // 優先度1: ランダムなパーツで、ランダムな敵を狙う
+            { partStrategy: 'RANDOM', targetStrategy: MedalPersonality.RANDOM },
+        ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
-    // ★新規: HEALER性格の定義
+    // ★新規: HEALER性格の定義 (リファクタリング後)
     [MedalPersonality.HEALER]: {
-        primaryTargeting: targetingStrategies[MedalPersonality.HEALER],
-        partSelection: partSelectionStrategies.HEAL_FOCUS, // ★修正: 回復パーツを最優先で探す
-        // ★新規: 回復パーツがない場合、攻撃パーツを探す戦略にフォールバック
-        fallbackPartSelection: partSelectionStrategies.POWER_FOCUS,
-        // ★修正: プライマリ戦略（回復対象探し）が失敗した場合、ランダムな敵を攻撃する戦略にフォールバックする
+        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
+        routines: [
+            // 優先度1: 最も効果の高い回復パーツで、最も損害の大きい味方を回復する
+            { partStrategy: 'HEAL_FOCUS', targetStrategy: MedalPersonality.HEALER },
+            // 優先度2 (フォールバック): 回復対象がいない場合、最も威力の高い攻撃パーツでランダムな敵を攻撃する
+            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.RANDOM },
+        ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
 };
@@ -78,7 +107,7 @@ export const personalityRegistry = {
  * 指定された性格に対応する戦略セットを取得します。
  * レジストリに存在しない性格の場合は、デフォルトとしてRANDOMの戦略を返します。
  * @param {string} personality - メダルの性格 (MedalPersonality)
- * @returns {{primaryTargeting: Function, partSelection: Function, fallbackTargeting: Function}}
+ * @returns {{routines: Array<{partStrategy: string, targetStrategy: string}>, fallbackTargeting: Function}}
  */
 export function getStrategiesFor(personality) {
     return personalityRegistry[personality] || personalityRegistry[MedalPersonality.RANDOM];

@@ -13,6 +13,7 @@ import { determineTarget } from '../ai/targetingUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
 // ★追加: partSelectionStrategies を直接インポート
 import { partSelectionStrategies } from '../ai/partSelectionStrategies.js';
+import { targetingStrategies } from '../ai/targetingStrategies.js'; // ★新規: targetingStrategiesをインポート
 
 
 /**
@@ -30,11 +31,12 @@ export class AiSystem extends BaseSystem {
 
     /**
      * TurnSystemからAIの行動選択が要求された際のハンドラ。AIの思考プロセスを開始します。
-     * ★修正: ターゲット候補の決定責任をAiSystemが持つように思考フローを再構築。
-     * 1. パーツ戦略に基づき、使用するパーツを仮決定する。
-     * 2. パーツの役割に基づき、ターゲット候補（敵or味方）を決定する。
-     * 3. ターゲット戦略でターゲットを決定する。
-     * 4. ターゲットが見つからなければ、フォールバック戦略（攻撃）に移行し、パーツとターゲットを再決定する。
+     * ★リファクタリング: AIの意思決定を宣言的な「思考ルーチン」ベースに刷新。
+     * 1. 性格レジストリから、その性格に定義された「思考ルーチン」のリストを取得します。
+     * 2. リストを優先順位の高い順（配列の先頭から）にループ処理します。
+     * 3. 各ルーチンで定義された「パーツ戦略」と「ターゲット戦略」を実行します。
+     * 4. 有効なパーツとターゲットの組み合わせが見つかった時点で、その行動を決定し、思考を終了します。
+     * 5. 全てのルーチンを試しても行動が決まらない場合、最終的なフォールバック戦略（通常はランダム攻撃）を実行します。
      * @param {object} detail - イベントの詳細 ({ entityId })
      */
     onAiActionRequired(detail) {
@@ -42,6 +44,7 @@ export class AiSystem extends BaseSystem {
 
         const availableParts = getAttackableParts(this.world, entityId);
         if (availableParts.length === 0) {
+            // 攻撃可能なパーツがない場合は機能停止と見なす
             this.world.emit(GameEvents.PLAYER_BROKEN, { entityId });
             return;
         }
@@ -50,48 +53,63 @@ export class AiSystem extends BaseSystem {
         const strategies = getStrategiesFor(attackerMedal.personality);
         const context = { world: this.world, entityId, availableParts };
 
-        let partKey, part, target = null;
+        let selectedPartKey = null;
+        let finalTarget = null;
 
-        // --- Step 1: プライマリ戦略による行動決定 ---
-        // 1a. プライマリパーツ戦略でパーツを仮決定
-        [partKey, part] = strategies.partSelection(context);
+        // --- Step 1: 思考ルーチンを順番に試行 ---
+        if (strategies.routines && strategies.routines.length > 0) {
+            for (const routine of strategies.routines) {
+                const { partStrategy: partStrategyKey, targetStrategy: targetStrategyKey } = routine;
+                
+                // 1a. パーツ戦略でパーツを決定
+                const partSelectionFunc = partSelectionStrategies[partStrategyKey];
+                if (!partSelectionFunc) {
+                    console.warn(`AiSystem: Unknown partStrategy '${partStrategyKey}' in routines for ${attackerMedal.personality}.`);
+                    continue;
+                }
+                
+                const [partKey, part] = partSelectionFunc(context);
+                if (!partKey) continue; // この戦略に合うパーツがなければ、次のルーチンへ
 
-        if (partKey) {
-            // 1b. パーツの役割に応じてターゲット候補を決定
-            const candidates = part.targetScope?.startsWith('ALLY_')
-                ? getValidAllies(this.world, entityId, true)
-                : getValidEnemies(this.world, entityId);
-            
-            // 1c. プライマリターゲット戦略でターゲットを決定
-            target = determineTarget(this.world, entityId, strategies.primaryTargeting, candidates);
+                // 1b. ターゲット戦略でターゲットを決定
+                const targetSelectionFunc = targetingStrategies[targetStrategyKey];
+                if (!targetSelectionFunc) {
+                    console.warn(`AiSystem: Unknown targetStrategy '${targetStrategyKey}' in routines for ${attackerMedal.personality}.`);
+                    continue;
+                }
+                
+                // パーツの役割に応じてターゲット候補（敵 or 味方）を決定
+                const candidates = part.targetScope?.startsWith('ALLY_')
+                    ? getValidAllies(this.world, entityId, true)
+                    : getValidEnemies(this.world, entityId);
+                    
+                const target = determineTarget(this.world, entityId, targetSelectionFunc, candidates);
+
+                // 1c. 有効な行動が見つかったらループを抜け、行動を確定
+                if (target) {
+                    selectedPartKey = partKey;
+                    finalTarget = target;
+                    break; // 思考ルーチンの試行を終了
+                }
+            }
         }
 
-        // --- Step 2: プライマリ戦略が失敗した場合のフォールバック ---
-        if (!partKey || !target) {
-            // 2a. フォールバック用のパーツ戦略で攻撃パーツを選択
-            const fallbackPartSelection = strategies.fallbackPartSelection || partSelectionStrategies.POWER_FOCUS;
-            [partKey, part] = fallbackPartSelection(context);
+        // --- Step 2: ルーチンで行動が決まらなかった場合の最終フォールバック ---
+        if (!finalTarget) {
+            console.warn(`AI ${entityId} (${attackerMedal.personality}) could not decide action via routines. Using fallback targeting.`);
+            
+            // 攻撃可能なパーツからランダムに1つ選択
+            const [partKey] = partSelectionStrategies.RANDOM(context);
             
             if (partKey) {
-                 // 2b. フォールバックターゲット（必ず敵）の候補を決定
+                selectedPartKey = partKey;
+                // 敵の中からフォールバック戦略でターゲットを決定
                 const fallbackCandidates = getValidEnemies(this.world, entityId);
-
-                // 2c. フォールバックターゲット戦略でターゲットを決定
-                target = determineTarget(this.world, entityId, strategies.fallbackTargeting, fallbackCandidates);
+                finalTarget = determineTarget(this.world, entityId, strategies.fallbackTargeting, fallbackCandidates);
             }
         }
         
-        // --- Step 3: 最終決定 ---
-        // それでも行動が決まらない場合はランダムに行動
-        if (!partKey || !target) {
-            console.warn(`AI ${entityId} could not decide action, falling back to pure random.`);
-            [partKey, part] = partSelectionStrategies.RANDOM(context);
-            if (partKey) {
-                const candidates = getValidEnemies(this.world, entityId);
-                target = determineTarget(this.world, entityId, strategies.fallbackTargeting, candidates);
-            }
-        }
-
-        decideAndEmitAction(this.world, entityId, partKey, target);
+        // --- Step 3: 最終決定した行動を発行 ---
+        decideAndEmitAction(this.world, entityId, selectedPartKey, finalTarget);
     }
 }
