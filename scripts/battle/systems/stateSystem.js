@@ -3,7 +3,7 @@ import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import
 import { CONFIG } from '../common/config.js'; // ★追加
 import { GameEvents } from '../common/events.js';
 // ★変更: EffectType, EffectScope をインポート
-import { PlayerStateType, ModalType, GamePhaseType, TeamID, EffectType, EffectScope, PartInfo } from '../common/constants.js'; // ★ PartInfo をインポート
+import { PlayerStateType, ModalType, GamePhaseType, TeamID, EffectType, EffectScope, PartInfo, TargetTiming } from '../common/constants.js'; // ★ PartInfo と TargetTiming をインポート
 import { isValidTarget } from '../utils/queryUtils.js';
 // ★修正: calculateSpeedMultiplier の代わりに CombatCalculator をインポート
 import { CombatCalculator } from '../utils/combatFormulas.js';
@@ -73,19 +73,16 @@ export class StateSystem {
         }
 
         const selectedPart = parts[partKey];
-        const actionType = selectedPart.action;
 
         // ★修正: ターゲット検証ロジックを削除。責務を actionUtils に移譲。
 
         // 3. 選択されたアクションの内容をActionコンポーネントに記録します。
         action.partKey = partKey;
-        action.type = actionType;
+        action.type = selectedPart.action; // UI表示用の日本語アクション名を保持
         action.targetId = targetId;
         action.targetPartKey = targetPartKey;
-        // ★修正: アクションの特性を、configからではなくパーツデータ自体から取得する
-        action.properties = {
-            targetTiming: selectedPart.targetTiming || 'pre-move'
-        };
+        // ★修正: アクションの特性(targetTiming)を、Actionコンポーネントの直下プロパティとして設定
+        action.targetTiming = selectedPart.targetTiming || TargetTiming.PRE_MOVE;
 
         // 4. エンティティの状態を「行動選択済みチャージ中」へ遷移させます。
         gameState.state = PlayerStateType.SELECTED_CHARGING;

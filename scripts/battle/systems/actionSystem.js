@@ -7,7 +7,8 @@ import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action, ActiveEffects } from '../core/components.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 // ★改善: PartInfo, PartKeyToInfoMapを参照し、定義元を一元化
-import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType } from '../common/constants.js';
+// ★修正: ActionType, TargetTiming をインポート
+import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType, ActionType, TargetTiming } from '../common/constants.js';
 // ★修正: findMostDamagedAllyPart をインポート
 import { findBestDefensePart, findNearestEnemy, selectRandomPart, getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
 // ★修正: combatFormulasからCombatCalculatorをインポート
@@ -104,7 +105,8 @@ export class ActionSystem extends BaseSystem {
             if (!action || !gameState || !parts) return;
             
             // ★修正: 移動後ターゲット決定ロジックをデータ駆動型にリファクタリング
-            if (action.properties.targetTiming === 'post-move' && action.targetId === null) {
+            // ★修正: マジックストリングの代わりに定数を使用
+            if (action.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
                 const selectedPart = parts[action.partKey];
                 const strategyKey = selectedPart?.postMoveTargeting;
                 const strategy = postMoveTargetingStrategies[strategyKey];
@@ -159,7 +161,8 @@ export class ActionSystem extends BaseSystem {
 
             // ★新規: ガード役の索敵とターゲットの上書き
             let guardian = null; // ガードを実行する機体情報
-            const isSingleDamageAction = ['射撃', '格闘'].includes(attackingPart.action) && action.targetId !== null;
+            // ★修正: isSupportフラグとactionType定数を使用して、単体ダメージアクションかを判定
+            const isSingleDamageAction = !attackingPart.role.isSupport && [ActionType.SHOOT, ActionType.MELEE].includes(attackingPart.role.actionType) && action.targetId !== null;
 
             if (isSingleDamageAction) {
                 guardian = this._findGuardian(action.targetId);
@@ -210,7 +213,8 @@ export class ActionSystem extends BaseSystem {
                 attackerId: executor,
                 resolvedEffects: resolvedEffects,
                 isEvaded: !outcome.isHit,
-                isSupport: ['援護', '回復', '妨害', '防御'].includes(attackingPart.action),
+                // ★修正: isSupportフラグをパーツのロール定義から取得
+                isSupport: attackingPart.role.isSupport,
                 guardianInfo: guardian,
             };
             this.world.emit(GameEvents.EFFECTS_RESOLVED, resolvedPayload);
@@ -227,17 +231,13 @@ export class ActionSystem extends BaseSystem {
 
             // 手順4: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
             const primaryEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE) || resolvedEffects[0] || {};
-            // ★修正: 援護・回復・妨害・防御アクションをまとめてisSupportActionとして扱う
-            const isSupportAction = ['援護', '回復', '妨害', '防御'].includes(attackingPart.action);
+            // ★修正: 支援行動かどうかの判定をパーツのロール定義から取得
+            const isSupportAction = attackingPart.role.isSupport;
             
             let declarationMessage;
-            // ★修正: 防御アクションのメッセージを追加
-            if (attackingPart.action === '防御') {
-                declarationMessage = `${attackerInfo.name}の守る行動！ ${attackingPart.trait}！`;
-            } else if (attackingPart.action === '妨害') {
-                declarationMessage = `${attackerInfo.name}の妨害行動！ ${attackingPart.trait}！`;
-            } else if (isSupportAction) {
-                declarationMessage = `${attackerInfo.name}の${attackingPart.type}行動！ ${attackingPart.trait}！`;
+            // ★修正: 宣言メッセージの生成ロジックをデータ駆動化されたプロパティで分岐
+            if (isSupportAction) {
+                 declarationMessage = `${attackerInfo.name}の${attackingPart.action}行動！ ${attackingPart.trait}！`;
             } else if (!action.targetId) {
                 declarationMessage = `${attackerInfo.name}の攻撃は空を切った！`;
             } else {
@@ -356,8 +356,8 @@ export class ActionSystem extends BaseSystem {
      * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果オブジェクト
      */
     _resolveHitOutcome(attackingPart, targetLegs, targetId, initialTargetPartKey, executorId) {
-        // ★修正: 援護・回復・妨害・防御行動は必ず「命中」する
-        if (['援護', '回復', '妨害', '防御'].includes(attackingPart.action)) {
+        // ★修正: 支援行動は必ず「命中」する（パーツのロール定義から判定）
+        if (attackingPart.role.isSupport) {
             return { isHit: true, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
         }
 

@@ -1,5 +1,5 @@
 import { CONFIG } from '../common/config.js';
-import { PlayerStateType, PartType, GamePhaseType, TeamID } from '../common/constants.js';
+import { PlayerStateType, PartType, GamePhaseType, TeamID, TargetTiming } from '../common/constants.js';
 
 // プレイヤーの基本情報
 export class PlayerInfo {
@@ -96,19 +96,15 @@ export class Parts {
  * @description 
  * アクションの種類、使用するパーツ、ターゲット情報を保持します。
  * 現在は攻撃アクションのみを想定していますが、将来的に移動アクションなども拡張できます。
- * 
- * 注：現在の実装では、攻撃の詳細（ターゲットやダメージ）とアクションの基本情報（種類、使用パーツ）
- * の2つの関心事がこの1つのコンポーネントに集約されています。完全な単一責任原則への準拠を
- * 行うには、このコンポーネントを複数のコンポーネントに分離できますが、現在のECSアーキテクチャ
- * との整合性を保つため、現時点ではこの形態を維持します。
  */
 export class Action {
     constructor() {
-        this.type = null;            // アクションの種類 ('格闘', '射撃'など)
+        this.type = null;            // アクションの種類 ('格闘', '射撃'など) - UI表示用
         this.partKey = null;         // 使用するパーツのキー ('head', 'rightArm'など)
         this.targetId = null;        // ターゲットのエンティティID
         this.targetPartKey = null;   // ターゲットとして選択されたパーツのキー
-        this.properties = {};        // ★新規: アクションの特性 (targetTimingなど)
+        // ★修正: propertiesオブジェクトを廃止し、アクションの根幹をなす特性を直接のプロパティとして持つ
+        this.targetTiming = null;    // ターゲット決定タイミング (TargetTiming定数)
     }
 }
 

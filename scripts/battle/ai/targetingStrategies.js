@@ -178,15 +178,13 @@ export const targetingStrategies = {
     /**
      * ★新規: [HEALER]: 味方を回復することに専念する、支援的な性格。
      * 味方全体のパーツの中で、最もHPの減りが大きい（最大HP - 現在HP が最大）ものを狙います。
-     * ★修正: 候補(candidates)が渡されない場合、自律的に味方全体を検索するよう改善。
+     * ★修正: 候補(candidates)が渡されない場合、自律的に味方全体を検索するよう改善。-> ★リファクタリング: このロジックを削除し、呼び出し元(AiSystem)が候補を渡す責任を持つように変更
      * ★修正: 実際の探索ロジックを再利用可能な queryUtils.findMostDamagedAllyPart に移譲。
      */
     [MedalPersonality.HEALER]: ({ world, candidates, attackerId }) => {
-        // 候補リストが指定されていない場合は、自分を含む全ての味方を候補とする
-        const targetCandidates = candidates || getValidAllies(world, attackerId, true);
-        
+        // ★リファクタリング: AiSystemから渡される候補リスト(candidates)を直接使用する
         // 汎用的なクエリ関数を呼び出して、最も損害の大きい味方パーツを見つける
-        return findMostDamagedAllyPart(world, targetCandidates);
+        return findMostDamagedAllyPart(world, candidates);
     },
 
     /**

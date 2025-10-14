@@ -6,6 +6,8 @@
 import { GameEvents } from '../common/events.js';
 import { Parts } from '../core/components.js';
 import { isValidTarget } from './queryUtils.js';
+// ★新規: TargetTiming定数をインポート
+import { TargetTiming } from '../common/constants.js';
 
 /**
  * 選択されたパーツに基づき、適切な行動決定イベントを発行します。
@@ -29,7 +31,8 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
     const selectedPart = parts[partKey];
 
     // 'post-move'アクションは移動後にターゲットを決めるため、ターゲット情報を無視して予約する
-    if (selectedPart.targetTiming === 'post-move') {
+    // ★修正: マジックストリングの代わりに定数を使用
+    if (selectedPart.targetTiming === TargetTiming.POST_MOVE) {
         world.emit(GameEvents.ACTION_SELECTED, {
             entityId,
             partKey,

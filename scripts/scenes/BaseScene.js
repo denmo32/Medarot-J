@@ -3,6 +3,9 @@
  * @description すべてのシーンクラスの基底となる抽象クラス。
  * シーンが持つべき共通のインターフェース（ライフサイクルメソッド）を定義します。
  */
+// ★新規: GAME_WILL_RESETイベントを発行するためにインポート
+import { GameEvents } from '../battle/common/events.js';
+
 export class BaseScene {
     /**
      * @param {World} world - グローバルなWorldインスタンス
@@ -38,6 +41,10 @@ export class BaseScene {
      * このメソッドで、イベントリスナーのクリーンアップやWorldのリセットを行います。
      */
     destroy() {
+        // ★修正: world.reset()が実行される前に、UIなどをクリーンアップするためのイベントを発行する。
+        // これにより、DomFactorySystemなどがDOM要素を削除する機会を得られる。
+        this.world.emit(GameEvents.GAME_WILL_RESET);
+        
         this.world.emit('SCENE_WILL_DESTROY'); // 汎用的な破棄イベント
         this.world.reset();
     }

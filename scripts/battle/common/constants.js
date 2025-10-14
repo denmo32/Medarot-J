@@ -73,8 +73,9 @@ export const TeamID = {
 export const MedalPersonality = {
     LEADER_FOCUS: 'LEADER_FOCUS', // 常にリーダーを狙う
     RANDOM: 'RANDOM',             // ターゲットをランダムに選択する
-    HUNTER: 'HUNTER',             // 最も装甲が低いパーツを狙う
-    CRUSHER: 'CRUSHER',           // 最も装甲が高いパーツを狙う
+    // ★修正: コメントを実装に合わせて修正 (装甲 -> 現在HP)
+    HUNTER: 'HUNTER',             // 最も現在HPが低いパーツを狙う
+    CRUSHER: 'CRUSHER',           // 最も現在HPが高いパーツを狙う
     JOKER: 'JOKER',               // 敵の全パーツからランダムに選択
     COUNTER: 'COUNTER',           // 自分を最後に攻撃してきた敵に反撃
     GUARD: 'GUARD',               // 味方リーダーを最後に攻撃してきた敵を狙う
@@ -110,6 +111,40 @@ export const EffectScope = {
     // 今後追加予定の範囲:
     // ENEMY_TEAM: 'ENEMY_TEAM',   // 敵全体
 };
+
+/**
+ * ★新規: アクションの論理的な分類を定義する定数
+ * `parts.js`の日本語文字列`action`プロパティとは異なり、
+ * システム内部のロジック分岐に使用されます。
+ */
+export const ActionType = {
+    SHOOT: 'SHOOT',     // 射撃
+    MELEE: 'MELEE',     // 格闘
+    HEAL: 'HEAL',       // 回復
+    SUPPORT: 'SUPPORT', // 援護
+    INTERRUPT: 'INTERRUPT', // 妨害
+    DEFEND: 'DEFEND',   // 防御
+};
+
+/**
+ * ★新規: パーツの役割を識別するためのキーを定義する定数
+ */
+export const PartRoleKey = {
+    DAMAGE: 'damage',
+    HEAL: 'heal',
+    SUPPORT_SCAN: 'support_scan',
+    SUPPORT_GLITCH: 'support_glitch',
+    DEFENSE: 'defense'
+};
+
+/**
+ * ★新規: ターゲット決定タイミングを定義する定数
+ */
+export const TargetTiming = {
+    PRE_MOVE: 'pre-move',   // 移動前にターゲットを決定する（射撃など）
+    POST_MOVE: 'post-move'  // 移動後にターゲットを決定する（格闘など）
+};
+
 
 /**
  * ★廃止: PartInfoに統合されたため不要になりました。

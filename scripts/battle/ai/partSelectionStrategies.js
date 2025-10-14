@@ -2,7 +2,8 @@
  * @file AIパーツ選択戦略定義
  * このファイルは、AIの「メダルの性格」に基づいた多様な攻撃パーツ選択戦略（アルゴリズム）を定義します。
  */
-import { MedalPersonality } from '../common/constants.js';
+// ★修正: PartRoleKeyを追加でインポート
+import { MedalPersonality, PartRoleKey } from '../common/constants.js';
 
 /**
  * 渡されたパーツリストを指定された役割(role)でフィルタリングし、存在すればそのリストを、
@@ -40,8 +41,8 @@ export const partSelectionStrategies = {
         if (!availableParts || availableParts.length === 0) {
             return [null, null];
         }
-        // ★修正: 'damage'という文字列は role.key と比較される
-        const damageParts = filterByRole(availableParts, 'damage');
+        // ★修正: マジックストリング 'damage' を定数 PartRoleKey.DAMAGE に置き換え
+        const damageParts = filterByRole(availableParts, PartRoleKey.DAMAGE);
         // 威力が高い順にソート
         const sortedParts = [...damageParts].sort(([, partA], [, partB]) => partB.might - partA.might);
         return sortedParts[0];
@@ -57,7 +58,8 @@ export const partSelectionStrategies = {
             return [null, null];
         }
         // ★リファクタリング: part.roleがオブジェクトであることを前提とし、そのkeyプロパティを比較する
-        const healParts = availableParts.filter(([, part]) => part.role && part.role.key === 'heal');
+        // ★修正: マジックストリング 'heal' を定数 PartRoleKey.HEAL に置き換え
+        const healParts = availableParts.filter(([, part]) => part.role && part.role.key === PartRoleKey.HEAL);
         if (healParts.length === 0) {
             return [null, null]; // 回復パーツがなければ選択不可
         }

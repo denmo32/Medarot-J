@@ -78,10 +78,11 @@ export class AiSystem extends BaseSystem {
                     continue;
                 }
                 
-                // パーツの役割に応じてターゲット候補（敵 or 味方）を決定
+                // ★リファクタリング: パーツの役割に応じてターゲット候補（敵 or 味方）を決定する
+                // これにより、HEALER戦略なども含めて、どの戦略にも適切な候補リストが渡されることを保証する
                 const candidates = part.targetScope?.startsWith('ALLY_')
-                    ? getValidAllies(this.world, entityId, true)
-                    : getValidEnemies(this.world, entityId);
+                    ? getValidAllies(this.world, entityId, true) // 自分を含む味方
+                    : getValidEnemies(this.world, entityId); // 敵
                     
                 const target = determineTarget(this.world, entityId, targetSelectionFunc, candidates);
 

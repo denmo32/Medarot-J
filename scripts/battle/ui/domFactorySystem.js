@@ -52,6 +52,12 @@ export class DomFactorySystem extends BaseSystem {
         Object.values(this.teamContainers).forEach(container => {
             container.innerHTML = '';
         });
+
+        // ★追加: UIManagerにキャッシュされているDOM要素への参照もすべてクリアする
+        // これにより、メモリリークを防ぎ、次のバトルでUIが重複生成される問題を完全に解決する
+        if (this.uiManager) {
+            this.uiManager.clear();
+        }
     }
 
     /**
