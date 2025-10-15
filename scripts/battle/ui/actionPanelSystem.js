@@ -5,6 +5,8 @@ import * as Components from '../core/components.js';
 import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
 import { UIManager } from './UIManager.js';
+// ★新規: モーダルハンドラの定義を外部ファイルからインポート
+import { createModalHandlers } from './modalHandlers.js';
 
 /**
  * @class ActionPanelSystem
@@ -37,7 +39,8 @@ export class ActionPanelSystem extends BaseSystem {
         // --- Event Handlers ---
         this.boundHandlePanelClick = null;
 
-        this.setupModalHandlers();
+        // ★リファクタリング: モーダルハンドラの定義を外部のファクトリ関数に移譲
+        this.modalHandlers = createModalHandlers(this);
         this.bindWorldEvents();
 
         // ★修正: パネル自体は常に表示するため、内容のリセットのみを行う
@@ -110,7 +113,8 @@ export class ActionPanelSystem extends BaseSystem {
         dom.actionPanelOwner.textContent = handler.getOwnerName?.(data) || '';
         dom.actionPanelTitle.textContent = handler.getTitle?.(data) || '';
         dom.actionPanelActor.textContent = handler.getActorName?.(data) || '';
-        dom.actionPanelButtons.innerHTML = handler.getContentHTML?.(data) || '';
+        // ★修正: getContentHTML に this(system) を渡す
+        dom.actionPanelButtons.innerHTML = handler.getContentHTML?.(data, this) || '';
 
         // イベントリスナーを設定
         handler.setupEvents?.(this, dom.actionPanelButtons, data);
@@ -237,99 +241,10 @@ export class ActionPanelSystem extends BaseSystem {
     }
 
     /**
-     * ★リファクタリング: 全てのモーダルタイプごとの振る舞いをこのオブジェクトに集約します。
-     * これにより、`update`や`handlePanelClick`などのメソッドがシンプルになります。
+     * ★廃止: 全てのモーダルタイプごとの振る舞いは `ui/modalHandlers.js` に移管されました。
+     * これにより、このクラスはモーダルの「管理」に集中でき、可読性と保守性が向上します。
      */
-    setupModalHandlers() {
-        this.modalHandlers = {
-            // --- スタート確認 ---
-            [ModalType.START_CONFIRM]: {
-                getActorName: () => 'ロボトルを開始しますか？',
-                getContentHTML: () => `
-                    <div class="buttons-center">
-                        <button id="panelBtnYes" class="action-panel-button">OK</button>
-                        <button id="panelBtnNo" class="action-panel-button bg-red-500 hover:bg-red-600">キャンセル</button>
-                    </div>`,
-                setupEvents: (system, container) => {
-                    container.querySelector('#panelBtnYes').onclick = () => {
-                        system.world.emit(GameEvents.GAME_START_CONFIRMED);
-                        system.hideActionPanel();
-                    };
-                    container.querySelector('#panelBtnNo').onclick = () => system.hideActionPanel();
-                }
-            },
-            // --- 行動選択 ---
-            [ModalType.SELECTION]: {
-                getOwnerName: (data) => data.ownerName,
-                getContentHTML: (data) => this.generateTriangleLayoutHTML(data.buttons),
-                setupEvents: (system, container, data) => system.setupSelectionEvents(container, data),
-                handleNavigation: (system, key) => system.handleArrowKeyNavigation(key),
-                handleConfirm: (system) => system.confirmSelection(),
-                init: (system, data) => {
-                    const available = data.buttons.filter(b => !b.isBroken);
-                    const initialFocusKey = available.find(b => b.partKey === PartInfo.HEAD.key)?.partKey ||
-                                            available.find(b => b.partKey === PartInfo.RIGHT_ARM.key)?.partKey ||
-                                            available.find(b => b.partKey === PartInfo.LEFT_ARM.key)?.partKey;
-                    if (initialFocusKey) setTimeout(() => system.updateFocus(initialFocusKey), 0);
-                }
-            },
-            // --- 攻撃宣言 ---
-            [ModalType.ATTACK_DECLARATION]: {
-                getActorName: (data) => data.message,
-                isClickable: true,
-                init: (system, data) => {
-                    system.dom.actionPanelActor.dataset.guardMessageShown = 'false';
-                },
-                handleConfirm: (system, data) => {
-                    const { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo } = data;
-                    if (guardianInfo && system.dom.actionPanelActor.dataset.guardMessageShown === 'false') {
-                        system.dom.actionPanelActor.textContent = `${guardianInfo.name}のガード発動！`;
-                        system.dom.actionPanelActor.dataset.guardMessageShown = 'true';
-                        return;
-                    }
-                    system.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo });
-                }
-            },
-            // --- 結果表示 ---
-            [ModalType.EXECUTION_RESULT]: {
-                getActorName: (data) => data.message,
-                setupEvents: (system, container, data) => system.setupExecutionResultEvents(container, data),
-                handleConfirm: (system, data) => {
-                    system.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: data.entityId });
-                    system.hideActionPanel();
-                }
-            },
-            // --- バトル開始確認 ---
-            [ModalType.BATTLE_START_CONFIRM]: {
-                getActorName: () => '合意と見てよろしいですね！？',
-                isClickable: true,
-                handleConfirm: (system) => {
-                    system.world.emit(GameEvents.BATTLE_START_CONFIRMED);
-                    system.hideActionPanel();
-                },
-                handleCancel: (system) => {
-                    system.world.emit(GameEvents.BATTLE_START_CANCELLED);
-                    system.hideActionPanel();
-                }
-            },
-            // ---汎用メッセージ ---
-            [ModalType.MESSAGE]: {
-                getActorName: (data) => data.message,
-                isClickable: true,
-                handleConfirm: (system) => system.hideActionPanel(),
-            },
-            // --- ゲームオーバー ---
-            [ModalType.GAME_OVER]: {
-                getTitle: (data) => `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`,
-                getActorName: () => 'ロボトル終了！',
-                isClickable: true,
-                handleConfirm: (system) => {
-                    system.world.emit(GameEvents.RESET_BUTTON_CLICKED);
-                    system.hideActionPanel();
-                }
-            }
-        };
-    }
+    // setupModalHandlers() { ... }
 
 
     // --- Helper methods for SELECTION modal ---

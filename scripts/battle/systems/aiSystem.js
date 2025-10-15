@@ -60,16 +60,15 @@ export class AiSystem extends BaseSystem {
         // --- Step 1: 思考ルーチンを順番に試行 ---
         if (strategies.routines && strategies.routines.length > 0) {
             for (const routine of strategies.routines) {
-                // --- ▼▼▼ ここからがステップ4の変更箇所 ▼▼▼ ---
+                // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
                 // ★新規: ルーチンに実行条件(condition)が定義されていれば評価する
                 if (routine.condition) {
-                    const conditionContext = { world: this.world, entityId };
                     // 条件を満たさなければ、このルーチンはスキップして次へ
-                    if (!routine.condition(conditionContext)) {
+                    if (!routine.condition(context)) {
                         continue;
                     }
                 }
-                // --- ▲▲▲ ステップ4の変更箇所ここまで ▲▲▲ ---
+                // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
 
                 const { partStrategy: partStrategyKey, targetStrategy: targetStrategyKey } = routine;
                 
@@ -96,7 +95,8 @@ export class AiSystem extends BaseSystem {
                     ? getValidAllies(this.world, entityId, true) // 自分を含む味方
                     : getValidEnemies(this.world, entityId); // 敵
                     
-                const target = determineTarget(this.world, entityId, targetSelectionFunc, candidates);
+                // ★修正: 第4引数に戦略キーを渡してイベント発行をトリガーする
+                const target = determineTarget(this.world, entityId, targetSelectionFunc, candidates, targetStrategyKey);
 
                 // 1c. 有効な行動が見つかったらループを抜け、行動を確定
                 if (target) {
@@ -118,7 +118,9 @@ export class AiSystem extends BaseSystem {
                 selectedPartKey = partKey;
                 // 敵の中からフォールバック戦略でターゲットを決定
                 const fallbackCandidates = getValidEnemies(this.world, entityId);
-                finalTarget = determineTarget(this.world, entityId, strategies.fallbackTargeting, fallbackCandidates);
+                // ★修正: フォールバック戦略のキーを動的に検索してイベントを発行
+                const fallbackKey = Object.keys(targetingStrategies).find(key => targetingStrategies[key] === strategies.fallbackTargeting);
+                finalTarget = determineTarget(this.world, entityId, strategies.fallbackTargeting, fallbackCandidates, fallbackKey);
             }
         }
         

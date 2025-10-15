@@ -9,9 +9,11 @@ import { PlayerStateType, EffectScope } from '../common/constants.js';
 import { getValidEnemies, getValidAllies, isValidTarget } from '../utils/queryUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
+// ★新規: イベント発行のためにGameEventsをインポート
+import { GameEvents } from '../common/events.js';
 
 /**
- * ★修正: ターゲット決定ロジックを大幅に単純化
+ * ★修正: ターゲット決定ロジックを大幅に単純化 & イベント発行の責務を追加
  * この関数は、渡された「候補リスト」に対して、指定された「戦略」を実行することにのみ責任を持つ。
  * 候補リスト（敵か味方か）の作成責任は、呼び出し元（AiSystem, InputSystem）が担う。
  * 
@@ -19,9 +21,10 @@ import { targetingStrategies } from '../ai/targetingStrategies.js';
  * @param {number} attackerId - 攻撃者のエンティティID
  * @param {Function} strategy - 実行するターゲティング戦略関数
  * @param {number[]} candidates - ターゲット候補となるエンティティIDの配列
+ * @param {string} strategyKey - 実行した戦略のキー (イベント発行用)
  * @returns {{targetId: number, targetPartKey: string} | null} ターゲット情報、またはnull
  */
-export function determineTarget(world, attackerId, strategy, candidates) {
+export function determineTarget(world, attackerId, strategy, candidates, strategyKey) {
     if (!strategy || !candidates || candidates.length === 0) {
         return null;
     }
@@ -39,6 +42,16 @@ export function determineTarget(world, attackerId, strategy, candidates) {
     // ターゲットが無効であればnullを返す
     if (!target || !isValidTarget(world, target.targetId, target.targetPartKey)) {
         return null;
+    }
+
+    // ★新規: 戦略が成功した場合、イベントを発行する
+    // これにより、各戦略からイベント発行コードを削除し、責務をここに集約する
+    if (strategyKey) {
+        world.emit(GameEvents.STRATEGY_EXECUTED, {
+            strategy: strategyKey,
+            attackerId: attackerId,
+            target: target
+        });
     }
 
     return target;
@@ -73,7 +86,8 @@ export function determineRecommendedTarget(world, entityId, part) {
         const primaryRoutine = strategies.routines[0];
         const primaryTargetingFunc = targetingStrategies[primaryRoutine.targetStrategy];
         if (primaryTargetingFunc) {
-            target = determineTarget(world, entityId, primaryTargetingFunc, candidates);
+            // ★修正: strategyKey を渡してイベント発行をトリガー
+            target = determineTarget(world, entityId, primaryTargetingFunc, candidates, primaryRoutine.targetStrategy);
         }
     }
 
@@ -81,7 +95,9 @@ export function determineRecommendedTarget(world, entityId, part) {
     if (!target && strategies.fallbackTargeting) {
         // フォールバックは通常、敵を対象とするため、候補を敵に限定
         const fallbackCandidates = getValidEnemies(world, entityId);
-        target = determineTarget(world, entityId, strategies.fallbackTargeting, fallbackCandidates);
+        // ★修正: フォールバック戦略のキーを動的に検索してイベントを発行
+        const fallbackKey = Object.keys(targetingStrategies).find(key => targetingStrategies[key] === strategies.fallbackTargeting);
+        target = determineTarget(world, entityId, strategies.fallbackTargeting, fallbackCandidates, fallbackKey);
     }
 
     return target;

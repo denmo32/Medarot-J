@@ -24,16 +24,8 @@ export const targetingStrategies = {
      * ★修正: candidates を使用
      */
     [MedalPersonality.HUNTER]: ({ world, candidates, attackerId }) => {
-        const target = selectPartByCondition(world, candidates, (a, b) => a.part.hp - b.part.hp);
-        // 戦略実行結果をイベントで通知
-        if (target) {
-            world.emit(GameEvents.STRATEGY_EXECUTED, {
-                strategy: MedalPersonality.HUNTER,
-                attackerId: attackerId,
-                target: target
-            });
-        }
-        return target;
+        // ★リファクタリング: イベント発行の責務を呼び出し元(targetingUtils)に移譲
+        return selectPartByCondition(world, candidates, (a, b) => a.part.hp - b.part.hp);
     },
     /**
      * [CRUSHER]: 頑丈なパーツを先に破壊し、敵の耐久力を削ぐ、破壊者のような性格。
@@ -42,16 +34,8 @@ export const targetingStrategies = {
      * ★修正: candidates を使用
      */
     [MedalPersonality.CRUSHER]: ({ world, candidates, attackerId }) => {
-        const target = selectPartByCondition(world, candidates, (a, b) => b.part.hp - a.part.hp);
-        // 戦略実行結果をイベントで通知
-        if (target) {
-            world.emit(GameEvents.STRATEGY_EXECUTED, {
-                strategy: MedalPersonality.CRUSHER,
-                attackerId: attackerId,
-                target: target
-            });
-        }
-        return target;
+        // ★リファクタリング: イベント発行の責務を呼び出し元(targetingUtils)に移譲
+        return selectPartByCondition(world, candidates, (a, b) => b.part.hp - a.part.hp);
     },
     /**
      * [JOKER]: 行動が予測不能で、戦況をかき乱す、トリックスターのような性格。
@@ -65,16 +49,8 @@ export const targetingStrategies = {
         const allParts = getAllPartsFromCandidates(world, candidates);
         if (allParts.length === 0) return null;
         const randomIndex = Math.floor(Math.random() * allParts.length);
-        const target = { targetId: allParts[randomIndex].entityId, targetPartKey: allParts[randomIndex].partKey };
-        // 戦略実行結果をイベントで通知
-        if (target) {
-            world.emit(GameEvents.STRATEGY_EXECUTED, {
-                strategy: MedalPersonality.JOKER,
-                attackerId: attackerId,
-                target: target
-            });
-        }
-        return target;
+        // ★リファクタリング: イベント発行の責務を呼び出し元(targetingUtils)に移譲
+        return { targetId: allParts[randomIndex].entityId, targetPartKey: allParts[randomIndex].partKey };
     },
     /**
      * [COUNTER]: 受けた攻撃に即座にやり返す、短期的な性格。
@@ -142,16 +118,8 @@ export const targetingStrategies = {
      */
     [MedalPersonality.LEADER_FOCUS]: ({ world, candidates, attackerId }) => {
         const leader = candidates.find(id => world.getComponent(id, PlayerInfo).isLeader);
-        const target = leader ? selectRandomPart(world, leader) : null;
-        // 戦略実行結果をイベントで通知
-        if (target) {
-            world.emit(GameEvents.STRATEGY_EXECUTED, {
-                strategy: MedalPersonality.LEADER_FOCUS,
-                attackerId: attackerId,
-                target: target
-            });
-        }
-        return target;
+        // ★リファクタリング: イベント発行の責務を呼び出し元(targetingUtils)に移譲
+        return leader ? selectRandomPart(world, leader) : null;
     },
     /**
      * [RANDOM]: 基本的な性格であり、他の戦略が条件を満たさず実行できない場合の安全策（フォールバック）としての役割も持ちます。
@@ -163,16 +131,8 @@ export const targetingStrategies = {
     [MedalPersonality.RANDOM]: ({ world, candidates, attackerId }) => {
         if (!candidates || candidates.length === 0) return null;
         const targetId = candidates[Math.floor(Math.random() * candidates.length)];
-        const target = selectRandomPart(world, targetId);
-        // 戦略実行結果をイベントで通知
-        if (target) {
-            world.emit(GameEvents.STRATEGY_EXECUTED, {
-                strategy: MedalPersonality.RANDOM,
-                attackerId: attackerId,
-                target: target
-            });
-        }
-        return target;
+        // ★リファクタリング: イベント発行の責務を呼び出し元(targetingUtils)に移譲
+        return selectRandomPart(world, targetId);
     },
 
     /**

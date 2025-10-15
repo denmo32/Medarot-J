@@ -127,15 +127,10 @@ export const ActionType = {
 };
 
 /**
- * ★新規: パーツの役割を識別するためのキーを定義する定数
+ * ★廃止: パーツの役割キーは `data/partRoles.js` で一元管理されるようになりました。
+ * これにより、データ定義の信頼性が向上し、保守が容易になります。
  */
-export const PartRoleKey = {
-    DAMAGE: 'damage',
-    HEAL: 'heal',
-    SUPPORT_SCAN: 'support_scan',
-    SUPPORT_GLITCH: 'support_glitch',
-    DEFENSE: 'defense'
-};
+// export const PartRoleKey = { ... };
 
 /**
  * ★新規: ターゲット決定タイミングを定義する定数

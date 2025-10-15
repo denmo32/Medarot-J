@@ -2,24 +2,38 @@
  * @file AIパーツ選択戦略定義
  * このファイルは、AIの「メダルの性格」に基づいた多様な攻撃パーツ選択戦略（アルゴリズム）を定義します。
  */
-// ★修正: PartRoleKeyを追加でインポート
-import { MedalPersonality, PartRoleKey } from '../common/constants.js';
+// ★修正: MedalPersonalityのインポートを維持
+import { MedalPersonality } from '../common/constants.js';
+// ★★★ 修正: partRoles.js へのインポートパスを正しい相対パスに修正 ★★★
+import { PartRoleKey } from '../data/partRoles.js';
 
 /**
- * 渡されたパーツリストを指定された役割(role)でフィルタリングし、存在すればそのリストを、
- * 存在しなければ元のリストを返すヘルパー関数。
- * @param {Array} parts - パーツのリスト [[partKey, partObject], ...]
- * @param {string | Function} roleCondition - フィルタリング条件 (文字列または評価関数)
- * @returns {Array} フィルタリングされたパーツリスト
+ * ★廃止: createFocusStrategyにロジックが統合されたため不要になりました。
  */
-const filterByRole = (parts, roleCondition) => {
-    // ★リファクタリング: part.roleがオブジェクトであることを前提とし、そのkeyプロパティを比較する
-    const predicate = typeof roleCondition === 'function'
-        ? ([, part]) => part.role && roleCondition(part.role.key)
-        : ([, part]) => part.role && part.role.key === roleCondition;
+// const filterByRole = (parts, roleCondition) => { ... };
 
-    const filtered = parts.filter(predicate);
-    return filtered.length > 0 ? filtered : parts;
+/**
+ * ★新規: 特定の役割(role)に焦点を当て、指定されたプロパティでソートする戦略を生成する高階関数。
+ * POWER_FOCUSやHEAL_FOCUSなど、類似した「絞り込み→ソート→選択」ロジックを共通化します。
+ * @param {string} roleKey - フィルタリングするパーツの役割キー (PartRoleKey)
+ * @param {function} sortFn - ソート関数 (例: (a, b) => b.might - a.might)
+ * @returns {function} AIパーツ選択戦略関数
+ */
+const createFocusStrategy = (roleKey, sortFn) => ({ availableParts }) => {
+    if (!availableParts || availableParts.length === 0) {
+        return [null, null];
+    }
+    // 1. 指定された役割でパーツをフィルタリング
+    const roleParts = availableParts.filter(([, part]) => part.role && part.role.key === roleKey);
+    
+    // 2. 該当する役割のパーツがなければ選択不可
+    if (roleParts.length === 0) {
+        return [null, null];
+    }
+    
+    // 3. 指定されたソート関数で並び替え、最も優先度の高いものを返す
+    const sortedParts = [...roleParts].sort(sortFn);
+    return sortedParts[0];
 };
 
 /**
@@ -31,42 +45,21 @@ export const partSelectionStrategies = {
     /**
      * [デフォルト戦略]: 攻撃パーツの中で最も威力の高いものを選択します。
      * 多くの攻撃的な性格（HUNTER, CRUSHERなど）で共通して使用される基本戦略です。
-     * @param {object} context - 戦略が必要とする情報を含むコンテキストオブジェクト
-     * @param {World} context.world - ワールドオブジェクト
-     * @param {number} context.entityId - AIのエンティティID
-     * @param {Array} context.availableParts - 使用可能なパーツのリスト [[partKey, partObject], ...]
-     * @returns {[string, object]} - 選択されたパーツのキーとオブジェクト [partKey, partObject]
+     * ★リファクタリング: createFocusStrategy高階関数を使用して再定義。コードが宣言的になり、意図が明確化されました。
      */
-    POWER_FOCUS: ({ world, entityId, availableParts }) => {
-        if (!availableParts || availableParts.length === 0) {
-            return [null, null];
-        }
-        // ★修正: マジックストリング 'damage' を定数 PartRoleKey.DAMAGE に置き換え
-        const damageParts = filterByRole(availableParts, PartRoleKey.DAMAGE);
-        // 威力が高い順にソート
-        const sortedParts = [...damageParts].sort(([, partA], [, partB]) => partB.might - partA.might);
-        return sortedParts[0];
-    },
+    POWER_FOCUS: createFocusStrategy(
+        PartRoleKey.DAMAGE,
+        ([, partA], [, partB]) => partB.might - partA.might
+    ),
 
     /**
-     * ★新規: [回復優先戦略]: 回復パーツの中で最も効果の高いものを選択します。
-     * @param {object} context - 戦略のコンテキスト
-     * @returns {[string, object]} 選択されたパーツ
+     * [回復優先戦略]: 回復パーツの中で最も効果の高いものを選択します。
+     * ★リファクタリング: createFocusStrategy高階関数を使用して再定義。
      */
-    HEAL_FOCUS: ({ availableParts }) => {
-        if (!availableParts || availableParts.length === 0) {
-            return [null, null];
-        }
-        // ★リファクタリング: part.roleがオブジェクトであることを前提とし、そのkeyプロパティを比較する
-        // ★修正: マジックストリング 'heal' を定数 PartRoleKey.HEAL に置き換え
-        const healParts = availableParts.filter(([, part]) => part.role && part.role.key === PartRoleKey.HEAL);
-        if (healParts.length === 0) {
-            return [null, null]; // 回復パーツがなければ選択不可
-        }
-        // 回復量(might)が高い順にソート
-        const sortedParts = [...healParts].sort(([, partA], [, partB]) => partB.might - partA.might);
-        return sortedParts[0];
-    },
+    HEAL_FOCUS: createFocusStrategy(
+        PartRoleKey.HEAL,
+        ([, partA], [, partB]) => partB.might - partA.might
+    ),
 
     /**
      * [JOKER / RANDOM 戦略]: 使用可能なパーツから完全にランダムで1つを選択します。

@@ -5,6 +5,8 @@
 import { MedalPersonality } from '../common/constants.js';
 import { targetingStrategies } from './targetingStrategies.js';
 import { partSelectionStrategies } from './partSelectionStrategies.js';
+// ★追加: AIの思考条件を定義するために、クエリユーティリティをインポート
+import { getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
 
 /**
  * AIの性格と戦略のマッピング。
@@ -12,9 +14,10 @@ import { partSelectionStrategies } from './partSelectionStrategies.js';
  * 行動の優先順位（思考ルーチン）と代替戦略を定義できます。
  *
  * @property {object} [personality] - AIの性格ごとの戦略定義。
- * @property {Array<{partStrategy: string, targetStrategy: string}>} routines - AIが優先順位順に試行する思考ルーチンのリスト。
+ * @property {Array<{partStrategy: string, targetStrategy: string, condition?: function}>} routines - AIが優先順位順に試行する思考ルーチンのリスト。
  *   - `partStrategy`: 使用するパーツを選択する戦略のキー (partSelectionStrategiesより)。
  *   - `targetStrategy`: ターゲットを選択する戦略のキー (targetingStrategiesより)。
+ *   - `condition`: (任意) このルーチンを実行するための条件を評価する関数。trueを返した場合のみ実行される。
  * @property {function} fallbackTargeting - `routines`の全試行が失敗した場合に実行される最終的なターゲット選択戦略。
  */
 export const personalityRegistry = {
@@ -95,7 +98,16 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も効果の高い回復パーツで、最も損害の大きい味方を回復する
-            { partStrategy: 'HEAL_FOCUS', targetStrategy: MedalPersonality.HEALER },
+            // ★追加: このルーチンは「回復対象がいる場合のみ」実行される
+            { 
+                partStrategy: 'HEAL_FOCUS', 
+                targetStrategy: MedalPersonality.HEALER,
+                condition: ({ world, entityId }) => {
+                    const allies = getValidAllies(world, entityId, true); // 自分を含む味方
+                    // 最もダメージを受けた味方パーツが存在するかどうかで判断
+                    return findMostDamagedAllyPart(world, allies) !== null;
+                }
+            },
             // 優先度2 (フォールバック): 回復対象がいない場合、最も威力の高い攻撃パーツでランダムな敵を攻撃する
             { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.RANDOM },
         ],
