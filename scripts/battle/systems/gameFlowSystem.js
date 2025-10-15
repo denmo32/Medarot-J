@@ -112,12 +112,12 @@ export class GameFlowSystem extends BaseSystem {
 
     onPlayerBroken(detail) {
         // リーダーが破壊されたかどうかをチェックし、ゲームオーバー判定を行う
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // --- ▼▼▼ ここからがステップ3の変更箇所 ▼▼▼ ---
         // ★修正: teamIdをペイロードから直接受け取る
         const { entityId, teamId } = detail;
         // ★修正: 破壊されたエンティティがリーダーかどうかをPlayerInfoコンポーネントから確認する
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+        // --- ▲▲▲ ステップ3の変更箇所ここまで ▲▲▲ ---
 
         // リーダー破壊、かつ、まだゲームオーバーになっていなければ処理
         if (playerInfo && playerInfo.isLeader && this.battlePhaseContext.battlePhase !== GamePhaseType.GAME_OVER) { // Use BattlePhaseContext

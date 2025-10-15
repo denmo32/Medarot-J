@@ -239,10 +239,12 @@ export class StateSystem {
         const { interrupted = false } = options;
         const parts = this.world.getComponent(entityId, Parts); // ★ Parts を最初に取得
         
+        // --- ▼▼▼ ここからがステップ3の変更箇所 ▼▼▼ ---
         // ★修正: 機能停止している場合は、いかなる状態遷移も行わない
         if (parts?.head?.isBroken) {
             return;
         }
+        // --- ▲▲▲ ステップ3の変更箇所ここまで ▲▲▲ ---
         
         const gameState = this.world.getComponent(entityId, GameState);
         const gauge = this.world.getComponent(entityId, Gauge);

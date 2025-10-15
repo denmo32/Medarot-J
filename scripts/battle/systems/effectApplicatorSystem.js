@@ -82,7 +82,7 @@ export class EffectApplicatorSystem extends BaseSystem {
             part.isBroken = true;
             this.world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey: partKey });
 
-            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // --- ▼▼▼ ここからがステップ3の変更箇所 ▼▼▼ ---
             // ★修正: 頭部破壊時に、GameFlowSystemが必要とするチームIDもペイロードに含める
             if (partKey === PartInfo.HEAD.key) {
                 const playerInfo = this.world.getComponent(targetId, PlayerInfo);
@@ -93,7 +93,7 @@ export class EffectApplicatorSystem extends BaseSystem {
                     });
                 }
             }
-            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+            // --- ▲▲▲ ステップ3の変更箇所ここまで ▲▲▲ ---
         }
     }
 

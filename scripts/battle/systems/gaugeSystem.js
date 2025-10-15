@@ -43,12 +43,12 @@ export class GaugeSystem extends BaseSystem {
             const gameState = this.world.getComponent(entityId, GameState);
             const parts = this.world.getComponent(entityId, Parts);
 
-            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // --- ▼▼▼ ここからがステップ3の変更箇所 ▼▼▼ ---
             // ★修正: 頭部が破壊されている場合は、いかなる状態でもゲージ進行を停止する
             if (parts[PartInfo.HEAD.key]?.isBroken) {
                 continue;
             }
-            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+            // --- ▲▲▲ ステップ3の変更箇所ここまで ▲▲▲ ---
 
             // ゲージの進行を止めるべき状態かを判定
             const statesToPause = [

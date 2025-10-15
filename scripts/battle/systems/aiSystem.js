@@ -60,6 +60,17 @@ export class AiSystem extends BaseSystem {
         // --- Step 1: 思考ルーチンを順番に試行 ---
         if (strategies.routines && strategies.routines.length > 0) {
             for (const routine of strategies.routines) {
+                // --- ▼▼▼ ここからがステップ4の変更箇所 ▼▼▼ ---
+                // ★新規: ルーチンに実行条件(condition)が定義されていれば評価する
+                if (routine.condition) {
+                    const conditionContext = { world: this.world, entityId };
+                    // 条件を満たさなければ、このルーチンはスキップして次へ
+                    if (!routine.condition(conditionContext)) {
+                        continue;
+                    }
+                }
+                // --- ▲▲▲ ステップ4の変更箇所ここまで ▲▲▲ ---
+
                 const { partStrategy: partStrategyKey, targetStrategy: targetStrategyKey } = routine;
                 
                 // 1a. パーツ戦略でパーツを決定

@@ -88,7 +88,7 @@ export class TurnSystem extends BaseSystem {
         // キューの先頭からエンティティを取り出し、行動選択のプロセスを開始させます。
         const entityId = this.actionQueue.shift();
 
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // --- ▼▼▼ ここからがステップ3の変更箇所 ▼▼▼ ---
         // 念のため、取り出したエンティティがまだ行動可能か最終チェックを行います。
         const gameState = this.world.getComponent(entityId, GameState);
         const parts = this.world.getComponent(entityId, Parts);
@@ -97,7 +97,7 @@ export class TurnSystem extends BaseSystem {
         if (gameState.state !== PlayerStateType.READY_SELECT || parts[PartInfo.HEAD.key]?.isBroken) {
             return; // 行動できない状態なら、何もせず次のフレームへ
         }
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+        // --- ▲▲▲ ステップ3の変更箇所ここまで ▲▲▲ ---
         
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         
