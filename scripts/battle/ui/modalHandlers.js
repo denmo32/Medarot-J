@@ -7,7 +7,46 @@
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components.js';
-import { ModalType, PartInfo, EffectType } from '../common/constants.js';
+import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
+
+/**
+ * 攻撃結果メッセージを生成します。
+ * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
+ * @param {World} world - ワールドオブジェクト
+ * @returns {string} 表示するメッセージ
+ * @private
+ */
+const _generateResultMessage = (detail, world) => {
+    const { resolvedEffects, isEvaded, isSupport, attackerId, guardianInfo } = detail;
+    if (isSupport) {
+        const effect = resolvedEffects[0] || {};
+        return effect.message || '支援行動成功！';
+    }
+    if (isEvaded) {
+        const targetId = world.getComponent(attackerId, Components.Action)?.targetId;
+        const targetName = targetId ? world.getComponent(targetId, Components.PlayerInfo)?.name : null;
+        return targetName ? `${targetName}は攻撃を回避！` : '攻撃は回避された！';
+    }
+    const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
+    if (damageEffect) {
+        const { targetId, partKey, value: damage, isCritical, isDefended } = damageEffect;
+        const targetInfo = world.getComponent(targetId, Components.PlayerInfo);
+        if (!targetInfo) return '不明なターゲットへの攻撃';
+
+        const partName = PartKeyToInfoMap[partKey]?.name || '不明な部位';
+        let message = isCritical ? 'クリティカル！ ' : '';
+        if (guardianInfo) {
+            message += `味方への攻撃を庇う！ ${guardianInfo.name}の${partName}に${damage}ダメージ！`;
+        } else if (isDefended) {
+            message += `${targetInfo.name}は${partName}で防御！ ${partName}に${damage}ダメージ！`;
+        } else {
+            message += `${targetInfo.name}の${partName}に${damage}ダメージ！`;
+        }
+        return message;
+    }
+    return '攻撃は空を切った！';
+};
+
 
 /**
  * ActionPanelSystemのインスタンスをコンテキストとして受け取り、
@@ -36,7 +75,7 @@ export const createModalHandlers = (system) => ({
     [ModalType.SELECTION]: {
         getOwnerName: (data) => data.ownerName,
         // ★リファクタリング: HTML生成ロジックをsystemインスタンス経由で呼び出す
-        getContentHTML: (data) => system.generateTriangleLayoutHTML(data.buttons),
+        getContentHTML: (data, system) => system.generateTriangleLayoutHTML(data.buttons),
         setupEvents: (system, container, data) => system.setupSelectionEvents(container, data),
         handleNavigation: (system, key) => system.handleArrowKeyNavigation(key),
         handleConfirm: (system) => system.confirmSelection(),
@@ -67,11 +106,11 @@ export const createModalHandlers = (system) => ({
     },
     // --- 結果表示 ---
     [ModalType.EXECUTION_RESULT]: {
-        getActorName: (data) => data.message,
+        getActorName: (data) => _generateResultMessage(data, system.world),
         // ★リファクタリング: イベント設定ロジックをsystemインスタンス経由で呼び出す
         setupEvents: (system, container, data) => system.setupExecutionResultEvents(container, data),
         handleConfirm: (system, data) => {
-            system.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: data.entityId });
+            system.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: data.attackerId });
             system.hideActionPanel();
         }
     },

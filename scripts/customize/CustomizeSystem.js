@@ -1,6 +1,6 @@
 import { GameDataManager } from '../core/GameDataManager.js';
 import { InputManager } from '../core/InputManager.js';
-import { PartInfo } from '../battle/common/constants.js';
+import { PartInfo, PartKeyToInfoMap } from '../battle/common/constants.js';
 
 /**
  * カスタマイズ画面のUI制御とロジックをすべて管理するシステム。
@@ -22,7 +22,8 @@ export class CustomizeSystem {
             selectedPartListIndex: 0,
         };
 
-        this.partSlots = ['head', 'rightArm', 'leftArm', 'legs'];
+        // ★リファクタリング: ハードコードされた文字列を PartInfo 定数から生成
+        this.partSlots = [PartInfo.HEAD.key, PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key, PartInfo.LEGS.key];
         this.currentPartListData = [];
 
         this.init();
@@ -75,7 +76,7 @@ export class CustomizeSystem {
      */
     renderMedarotList() {
         this.dom.medarotList.innerHTML = '';
-        // 修正: getPlayerDataForBattle() の代わりに、データマネージャーから直接メダロットデータを取得
+        // ★リファクタリング: GameDataManagerの生データを直接参照し、責務を明確化
         const medarots = this.dataManager.gameData.playerMedarots;
         medarots.forEach((medarot, index) => {
             const clone = this.templates.medarotItem.content.cloneNode(true);
@@ -103,7 +104,8 @@ export class CustomizeSystem {
             item.dataset.index = index;
             item.dataset.slot = slotKey;
 
-            const slotInfo = PartInfo[Object.keys(PartInfo).find(k => PartInfo[k].key === slotKey)];
+            // ★リファクタリング: PartKeyToInfoMap を使用して効率的にパーツ名を取得
+            const slotInfo = PartKeyToInfoMap[slotKey];
             item.querySelector('.part-slot-name').textContent = slotInfo ? slotInfo.name : '不明';
             item.querySelector('.part-name').textContent = part.data ? part.data.name : 'なし';
             this.dom.equippedPartsList.appendChild(clone);
@@ -116,7 +118,8 @@ export class CustomizeSystem {
     renderPartsList() {
         // 選択中のスロットに基づいてパーツリストを描画
         const selectedSlot = this.partSlots[this.state.selectedPartSlotIndex];
-        this.dom.partsListTitle.textContent = `${PartInfo[Object.keys(PartInfo).find(k => PartInfo[k].key === selectedSlot)].name}一覧`;
+        // ★リファクタリング: PartKeyToInfoMap を使用して効率的にスロット名を取得
+        this.dom.partsListTitle.textContent = `${PartKeyToInfoMap[selectedSlot]?.name}一覧`;
         
         this.currentPartListData = this.dataManager.getAvailableParts(selectedSlot);
         this.dom.partsList.innerHTML = '';

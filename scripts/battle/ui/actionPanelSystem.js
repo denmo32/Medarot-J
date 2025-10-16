@@ -157,15 +157,10 @@ export class ActionPanelSystem extends BaseSystem {
      * 行動実行結果を受け取り、結果表示モーダルを表示します。
      */
     onActionExecuted(detail) {
-        const resultMessage = this._generateResultMessage(detail);
+        // ★リファクタリング: メッセージ生成はハンドラに任せる。ここではイベント詳細をそのまま渡す。
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.EXECUTION_RESULT,
-            data: {
-                message: resultMessage,
-                entityId: detail.attackerId,
-                effect: detail.resolvedEffects.find(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL),
-                guardianInfo: detail.guardianInfo,
-            },
+            data: detail,
             immediate: true
         });
     }
@@ -207,38 +202,9 @@ export class ActionPanelSystem extends BaseSystem {
     }
 
     /**
-     * 攻撃結果メッセージを生成します。
+     * ★廃止: メッセージ生成は modalHandlers に移管されました。
      */
-    _generateResultMessage(detail) {
-        const { resolvedEffects, isEvaded, isSupport, attackerId, guardianInfo } = detail;
-        if (isSupport) {
-            const effect = resolvedEffects[0] || {};
-            return effect.message || '支援行動成功！';
-        }
-        if (isEvaded) {
-            const targetId = this.world.getComponent(attackerId, Components.Action)?.targetId;
-            const targetName = targetId ? this.world.getComponent(targetId, Components.PlayerInfo)?.name : null;
-            return targetName ? `${targetName}は攻撃を回避！` : '攻撃は回避された！';
-        }
-        const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
-        if (damageEffect) {
-            const { targetId, partKey, value: damage, isCritical, isDefended } = damageEffect;
-            const targetInfo = this.world.getComponent(targetId, Components.PlayerInfo);
-            if (!targetInfo) return '不明なターゲットへの攻撃';
-
-            const partName = PartKeyToInfoMap[partKey]?.name || '不明な部位';
-            let message = isCritical ? 'クリティカル！ ' : '';
-            if (guardianInfo) {
-                message += `味方への攻撃を庇う！ ${guardianInfo.name}の${partName}に${damage}ダメージ！`;
-            } else if (isDefended) {
-                message += `${targetInfo.name}は${partName}で防御！ ${partName}に${damage}ダメージ！`;
-            } else {
-                message += `${targetInfo.name}の${partName}に${damage}ダメージ！`;
-            }
-            return message;
-        }
-        return '攻撃は空を切った！';
-    }
+    // _generateResultMessage(detail) { ... }
 
     /**
      * ★廃止: 全てのモーダルタイプごとの振る舞いは `ui/modalHandlers.js` に移管されました。
@@ -247,7 +213,7 @@ export class ActionPanelSystem extends BaseSystem {
     // setupModalHandlers() { ... }
 
 
-    // --- Helper methods for SELECTION modal ---
+    // --- Helper methods for SELECTION modal (called from modalHandlers.js) ---
     generateTriangleLayoutHTML(buttons) {
         const headBtn = buttons.find(b => b.partKey === 'head');
         const rArmBtn = buttons.find(b => b.partKey === 'rightArm');
@@ -317,7 +283,7 @@ export class ActionPanelSystem extends BaseSystem {
                 if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
                 else if (key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : null;
                 break;
-            default: nextFocusKey = PartInfo.HEAD.key;
+            default: nextFocusKey = availableButtons.find(b => b.partKey === PartInfo.HEAD.key)?.partKey || availableButtons[0]?.partKey;
         }
         if (nextFocusKey) this.updateFocus(nextFocusKey);
     }
@@ -345,7 +311,7 @@ export class ActionPanelSystem extends BaseSystem {
         if (focusedButton && !focusedButton.disabled) focusedButton.click();
     }
 
-    // --- Helper for EXECUTION_RESULT modal ---
+    // --- Helper for EXECUTION_RESULT modal (called from modalHandlers.js) ---
     setupExecutionResultEvents(container, data) {
         const showClickable = () => {
             if (this.currentModalType === ModalType.EXECUTION_RESULT) {
@@ -358,13 +324,13 @@ export class ActionPanelSystem extends BaseSystem {
             }
         };
 
-        const { effect } = data;
-        if (!effect || effect.value === 0) {
+        const damageEffect = data.resolvedEffects.find(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL);
+        if (!damageEffect || damageEffect.value === 0) {
             showClickable();
             return;
         }
 
-        const { targetId, partKey } = effect;
+        const { targetId, partKey } = damageEffect;
         const targetDom = this.uiManager.getDOMElements(targetId);
         const hpBar = targetDom?.partDOMElements[partKey]?.bar;
         const targetPart = this.world.getComponent(targetId, Components.Parts)?.[partKey];
@@ -373,15 +339,12 @@ export class ActionPanelSystem extends BaseSystem {
             return;
         }
 
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-        // ★修正: cleanup関数の宣言を、それが使われる前に移動
         const cleanup = () => {
             hpBar.style.transition = '';
             hpBar.removeEventListener('transitionend', onTransitionEnd);
             clearTimeout(fallback);
             showClickable();
         };
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
         const newHpPercentage = (targetPart.hp / targetPart.maxHp) * 100;
         const onTransitionEnd = (event) => {
