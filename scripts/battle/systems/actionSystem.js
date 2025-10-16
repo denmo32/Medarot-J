@@ -148,24 +148,21 @@ export class ActionSystem extends BaseSystem {
             const components = this._getCombatComponents(executor);
             if (!components) {
                 console.warn(`ActionSystem: Missing required components for attack calculation involving executor: ${executor}`);
-                // ★修正: 失敗した場合でも、後続システムのために空のEFFECTS_RESOLVEDを発行する
                 this.world.emit(GameEvents.EFFECTS_RESOLVED, { attackerId: executor, resolvedEffects: [], isEvaded: false, isSupport: false, guardianInfo: null });
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
                 return;
             }
             let { action, attackerInfo, attackerParts, targetInfo, targetParts } = components;
             
-            // ★★★ ここからが新しいロジック ★★★
             const attackingPart = attackerParts[action.partKey];
             let targetLegs = targetParts ? targetParts.legs : null;
 
-            // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
-            // ★リファクタリング: ガード役の索敵ロジックを `queryUtils` に移譲
-            let guardian = null; // ガードを実行する機体情報
+            // 手順2: ガード役を索敵し、必要であればターゲットを更新します。
+            let guardian = null;
             const isSingleDamageAction = !attackingPart.role.isSupport && [ActionType.SHOOT, ActionType.MELEE].includes(attackingPart.role.actionType) && action.targetId !== null;
 
             if (isSingleDamageAction) {
-                // ★修正: 汎用クエリ関数 `findGuardian` を呼び出す
+                // ★修正: ガード役の索敵ロジックを queryUtils の findGuardian に移譲
                 guardian = findGuardian(this.world, action.targetId);
                 if (guardian) {
                     // ターゲットをガード役に上書き
@@ -176,19 +173,24 @@ export class ActionSystem extends BaseSystem {
                     targetLegs = targetParts ? targetParts.legs : null;
                 }
             }
-            // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
 
+            // 手順3: 攻撃の命中結果（回避、クリティカル、防御）を決定します。
+            // ★リファクタリング: 複雑な命中判定ロジックを CombatCalculator に移譲
+            const outcome = CombatCalculator.resolveHitOutcome({
+                world: this.world,
+                attackerId: executor,
+                targetId: action.targetId,
+                attackingPart: attackingPart,
+                targetLegs: targetLegs,
+                initialTargetPartKey: action.targetPartKey
+            });
 
-            // 手順2: 攻撃の命中結果（回避、クリティカル、防御）を決定します。
-            const outcome = this._resolveHitOutcome(attackingPart, targetLegs, action.targetId, action.targetPartKey, executor);
-
-            // 手順3: パーツに定義された効果を解決(resolve)する
+            // 手順4: パーツに定義された効果を解決(resolve)します。
             const resolvedEffects = [];
-            // 命中したか、ターゲットがいないアクション（援護など）の場合のみ効果を解決
+            // 命中したか、ターゲットがいないアクション（援護など）の場合のみ効果を解決します。
             if (outcome.isHit || !action.targetId) {
                 if (attackingPart.effects && Array.isArray(attackingPart.effects)) {
                     for (const effect of attackingPart.effects) {
-                        // ★リファクタリング: effect.strategy の代わりに effect.type を使用
                         const strategy = effectStrategies[effect.type];
                         if (strategy) {
                             const effectContext = {
@@ -198,7 +200,7 @@ export class ActionSystem extends BaseSystem {
                                 effect: effect,
                                 part: attackingPart,
                                 partOwner: { info: attackerInfo, parts: attackerParts },
-                                outcome: outcome,
+                                outcome: outcome, // 計算済みの命中結果を渡す
                             };
                             const result = strategy(effectContext);
                             if (result) {
@@ -208,36 +210,28 @@ export class ActionSystem extends BaseSystem {
                     }
                 }
             }
-            // ★★★ リファクタリングの核心部 ★★★
-            // 手順3.5: 効果の「解決」が完了したことを、他のシステム（EffectApplicator, State, History）に通知します。
-            // これにより、UIの表示を待たずに、ゲームロジックが先行して状態を更新できます。
+            
+            // 手順5: 効果の「解決」が完了したことを、他のシステムに通知します。
+            // これにより、UI表示を待たずに、ゲームロジックが先行して状態を更新できます。
             const resolvedPayload = {
                 attackerId: executor,
                 resolvedEffects: resolvedEffects,
                 isEvaded: !outcome.isHit,
-                // ★修正: isSupportフラグをパーツのロール定義から取得
                 isSupport: attackingPart.role.isSupport,
                 guardianInfo: guardian,
             };
             this.world.emit(GameEvents.EFFECTS_RESOLVED, resolvedPayload);
 
-            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-            // ★修正: リーダーが破壊されゲームオーバーになった場合、後続のモーダル表示処理などをスキップする
-            // このチェックにより、ゲームオーバーモーダルと攻撃宣言モーダルの競合を防ぎます。
+            // リーダーが破壊されゲームオーバーになった場合、後続のモーダル表示処理などをスキップします。
             if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
-                // 攻撃シーケンスを完了させ（攻撃者の状態をリセットするため）、この後の処理を中断します。
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
                 return;
             }
-            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
-            // 手順4: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
-            const primaryEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE) || resolvedEffects[0] || {};
-            // ★修正: 支援行動かどうかの判定をパーツのロール定義から取得
+            // 手順6: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
             const isSupportAction = attackingPart.role.isSupport;
             
             let declarationMessage;
-            // ★修正: 宣言メッセージの生成ロジックをデータ駆動化されたプロパティで分岐
             if (isSupportAction) {
                  declarationMessage = `${attackerInfo.name}の${attackingPart.action}行動！ ${attackingPart.trait}！`;
             } else if (!action.targetId) {
@@ -253,24 +247,17 @@ export class ActionSystem extends BaseSystem {
                     message: declarationMessage,
                     isEvaded: !outcome.isHit,
                     isSupport: isSupportAction,
-                    resolvedEffects: resolvedEffects, // ★変更: 計算された効果のリストを渡す
-                    guardianInfo: guardian, // ★新規: ガード役の情報をUIに渡す
+                    resolvedEffects: resolvedEffects,
+                    guardianInfo: guardian,
                 },
                 immediate: true
             });
-            // ★★★ ここまで ★★★
 
         } catch (error) {
             ErrorHandler.handle(error, { method: 'onExecutionAnimationCompleted', detail });
         }
     }
     
-    /**
-     * @private
-     * ★廃止: この責務は `queryUtils.js` の `findGuardian` に移管されました。
-     */
-    // _findGuardian(originalTargetId) { ... }
-
     /**
      * @private
      * 攻撃の実行に必要なコンポーネント群をまとめて取得します。
@@ -291,7 +278,6 @@ export class ActionSystem extends BaseSystem {
         if (this.isValidEntity(action.targetId)) {
             const targetInfo = this.getCachedComponent(action.targetId, PlayerInfo);
             const targetParts = this.getCachedComponent(action.targetId, Parts);
-            // ★修正: ターゲットのパーツが見つからない場合も許容する
             if (!targetInfo) {
                 return { action, attackerInfo, attackerParts, targetInfo: null, targetParts: null };
             }
@@ -304,64 +290,9 @@ export class ActionSystem extends BaseSystem {
 
     /**
      * @private
-     * 攻撃の命中結果（回避、クリティカル、防御）を判定します。
-     * @param {object} attackingPart - 攻撃側のパーツ
-     * @param {object | null} targetLegs - ターゲットの脚部パーツ (nullの場合あり)
-     * @param {number | null} targetId - ターゲットのエンティID (nullの場合あり)
-     * @param {string} initialTargetPartKey - 当初のターゲットパーツキー
-     * @param {number} executorId - 実行者のエンティティID
-     * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果オブジェクト
+     * ★廃止: このメソッドの責務は `utils/combatFormulas.js` の `CombatCalculator` に移管されました。
      */
-    _resolveHitOutcome(attackingPart, targetLegs, targetId, initialTargetPartKey, executorId) {
-        // ★修正: 支援行動は必ず「命中」する（パーツのロール定義から判定）
-        if (attackingPart.role.isSupport) {
-            return { isHit: true, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
-        }
-
-        // ターゲットがいない（空振り）場合は命中しない
-        if (!targetId || !targetLegs) {
-            return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
-        }
-
-        // ★修正: CombatCalculatorを使用して回避率を計算
-        const evasionChance = CombatCalculator.calculateEvasionChance({
-            world: this.world,
-            attackerId: executorId,
-            targetLegs: targetLegs,
-            attackingPart: attackingPart,
-        });
-        if (Math.random() < evasionChance) {
-            return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
-        }
-
-        let isCritical = false;
-        let isDefended = false;
-        let finalTargetPartKey = initialTargetPartKey;
-
-        // ★修正: CombatCalculatorを使用してクリティカル率を計算
-        const critChance = CombatCalculator.calculateCriticalChance({ attackingPart, targetLegs });
-        isCritical = Math.random() < critChance;
-
-        if (!isCritical) {
-            // ★修正: CombatCalculatorを使用して防御率を計算
-            const defenseChance = CombatCalculator.calculateDefenseChance({ targetLegs });
-            if (Math.random() < defenseChance) {
-                const defensePartKey = findBestDefensePart(this.world, targetId);
-                if (defensePartKey) {
-                    isDefended = true;
-                    finalTargetPartKey = defensePartKey;
-                }
-            }
-        }
-
-        return { isHit: true, isCritical, isDefended, finalTargetPartKey };
-    }
-
-    /**
-     * @private
-     * ★廃止: スキャン効果の適用は effectStrategies に移管されました。
-     */
-    // _applyScanBonus(attackingPart, targetId, executorId) { ... }
+    // _resolveHitOutcome(attackingPart, targetLegs, targetId, initialTargetPartKey, executorId) { ... }
     
     onPauseGame() {
         this.isPaused = true;

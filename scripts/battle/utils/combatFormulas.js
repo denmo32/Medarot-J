@@ -65,6 +65,16 @@ export class CombatStrategy {
     calculateSpeedMultiplier(context) {
         throw new GameError('calculateSpeedMultiplier method must be implemented', ErrorType.CALCULATION_ERROR);
     }
+
+    /**
+     * ★新規: 攻撃の命中結果（回避、クリティカル、防御）を総合的に判定します。
+     * ActionSystemからロジックを移譲されました。
+     * @param {object} context - 計算に必要なコンテキスト
+     * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果
+     */
+    resolveHitOutcome(context) {
+        throw new GameError('resolveHitOutcome method must be implemented', ErrorType.CALCULATION_ERROR);
+    }
 }
 
 /**
@@ -206,6 +216,56 @@ class DefaultCombatStrategy extends CombatStrategy {
             return 1.0;
         }
     }
+
+    /**
+     * ★新規: 攻撃の命中結果（回避、クリティカル、防御）を総合的に判定します。
+     * ActionSystemからロジックを移譲されました。
+     * @param {{world: World, attackerId: number, targetId: number, attackingPart: object, targetLegs: object, initialTargetPartKey: string}} context
+     * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果
+     */
+    resolveHitOutcome({ world, attackerId, targetId, attackingPart, targetLegs, initialTargetPartKey }) {
+        // 支援行動は必ず「命中」する
+        if (attackingPart.role.isSupport) {
+            return { isHit: true, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
+        }
+
+        // ターゲットがいない（空振り）場合は命中しない
+        if (!targetId || !targetLegs) {
+            return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
+        }
+
+        // 1. 回避判定
+        const evasionChance = this.calculateEvasionChance({
+            world: world,
+            attackerId: attackerId,
+            targetLegs: targetLegs,
+            attackingPart: attackingPart,
+        });
+        if (Math.random() < evasionChance) {
+            return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
+        }
+
+        // 2. クリティカル判定
+        const critChance = this.calculateCriticalChance({ attackingPart, targetLegs });
+        const isCritical = Math.random() < critChance;
+
+        // 3. 防御判定 (クリティカルでない場合のみ)
+        let isDefended = false;
+        let finalTargetPartKey = initialTargetPartKey;
+        if (!isCritical) {
+            const defenseChance = this.calculateDefenseChance({ targetLegs });
+            if (Math.random() < defenseChance) {
+                // queryUtilsから最適な防御パーツを探す
+                const defensePartKey = findBestDefensePart(world, targetId);
+                if (defensePartKey) {
+                    isDefended = true;
+                    finalTargetPartKey = defensePartKey;
+                }
+            }
+        }
+
+        return { isHit: true, isCritical, isDefended, finalTargetPartKey };
+    }
 }
 
 // 戦略を変更するためのシングルトンオブジェクト
@@ -224,5 +284,7 @@ export const CombatCalculator = {
     calculateDefenseChance(context) { return this.strategy.calculateDefenseChance(context); },
     calculateCriticalChance(context) { return this.strategy.calculateCriticalChance(context); },
     calculateDamage(context) { return this.strategy.calculateDamage(context); },
-    calculateSpeedMultiplier(context) { return this.strategy.calculateSpeedMultiplier(context); }
+    calculateSpeedMultiplier(context) { return this.strategy.calculateSpeedMultiplier(context); },
+    // ★新規: 移譲されたメソッドをシングルトンに追加
+    resolveHitOutcome(context) { return this.strategy.resolveHitOutcome(context); }
 };
