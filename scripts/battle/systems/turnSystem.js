@@ -9,6 +9,7 @@ import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import
 import { GameEvents } from '../common/events.js';
 // ★変更: GamePhaseTypeをインポート
 import { PlayerStateType, TeamID, GamePhaseType, PartInfo } from '../common/constants.js'; // ★ PartInfo をインポート
+import { ErrorHandler } from '../utils/errorHandler.js';
 
 /**
  * ゲームの「ターン」や行動順を管理するシステム。
@@ -72,43 +73,47 @@ export class TurnSystem extends BaseSystem {
      * 毎フレーム実行され、行動キューを処理します。
      */
     update(deltaTime) {
-        // ★変更: 初期行動選択フェーズとバトル中の両方で動作するように修正
-        // これにより、ゲーム開始直後の行動選択が正しく開始され、かつゲームオーバー後には停止します。
-        const activePhases = [GamePhaseType.BATTLE, GamePhaseType.INITIAL_SELECTION];
-        if (!activePhases.includes(this.battlePhaseContext.battlePhase)) { // Use BattlePhaseContext
-            return;
-        }
+        try {
+            // ★変更: 初期行動選択フェーズとバトル中の両方で動作するように修正
+            // これにより、ゲーム開始直後の行動選択が正しく開始され、かつゲームオーバー後には停止します。
+            const activePhases = [GamePhaseType.BATTLE, GamePhaseType.INITIAL_SELECTION];
+            if (!activePhases.includes(this.battlePhaseContext.battlePhase)) { // Use BattlePhaseContext
+                return;
+            }
 
-        // キューに誰もいない、またはモーダル表示などでゲームが一時停止中の場合は、何も行いません。
-        // isPausedByModalのチェックは、プレイヤーがUI操作中にターンが進行してしまうことを防ぐために重要です。
-        if (this.actionQueue.length === 0 || this.isPaused) {
-            return;
-        }
-        
-        // キューの先頭からエンティティを取り出し、行動選択のプロセスを開始させます。
-        const entityId = this.actionQueue.shift();
+            // キューに誰もいない、またはモーダル表示などでゲームが一時停止中の場合は、何も行いません。
+            // isPausedByModalのチェックは、プレイヤーがUI操作中にターンが進行してしまうことを防ぐために重要です。
+            if (this.actionQueue.length === 0 || this.isPaused) {
+                return;
+            }
+            
+            // キューの先頭からエンティティを取り出し、行動選択のプロセスを開始させます。
+            const entityId = this.actionQueue.shift();
 
-        // --- ▼▼▼ ここからがステップ3の変更箇所 ▼▼▼ ---
-        // 念のため、取り出したエンティティがまだ行動可能か最終チェックを行います。
-        const gameState = this.world.getComponent(entityId, GameState);
-        const parts = this.world.getComponent(entityId, Parts);
+            // --- ▼▼▼ ここからがステップ3の変更箇所 ▼▼▼ ---
+            // 念のため、取り出したエンティティがまだ行動可能か最終チェックを行います。
+            const gameState = this.world.getComponent(entityId, GameState);
+            const parts = this.world.getComponent(entityId, Parts);
 
-        // ★修正: 状態が`READY_SELECT`でない、または頭部が破壊されている場合は行動不可
-        if (gameState.state !== PlayerStateType.READY_SELECT || parts[PartInfo.HEAD.key]?.isBroken) {
-            return; // 行動できない状態なら、何もせず次のフレームへ
+            // ★修正: 状態が`READY_SELECT`でない、または頭部が破壊されている場合は行動不可
+            if (gameState.state !== PlayerStateType.READY_SELECT || parts[PartInfo.HEAD.key]?.isBroken) {
+                return; // 行動できない状態なら、何もせず次のフレームへ
+            }
+            // --- ▲▲▲ ステップ3の変更箇所ここまで ▲▲▲ ---
+            
+            const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+            
+            // このシステムの役割は「交通整理」です。
+            // チームIDに基づき、このターンがプレイヤーの操作対象か、AIの対象かを判断し、
+            // それぞれInputSystemとAiSystemに「行動を選択してください」というイベントを発行して、処理を委譲します。
+            const eventToEmit = playerInfo.teamId === TeamID.TEAM1 
+                ? GameEvents.PLAYER_INPUT_REQUIRED 
+                : GameEvents.AI_ACTION_REQUIRED;
+            
+            this.world.emit(eventToEmit, { entityId });
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'TurnSystem.update', deltaTime });
         }
-        // --- ▲▲▲ ステップ3の変更箇所ここまで ▲▲▲ ---
-        
-        const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        
-        // このシステムの役割は「交通整理」です。
-        // チームIDに基づき、このターンがプレイヤーの操作対象か、AIの対象かを判断し、
-        // それぞれInputSystemとAiSystemに「行動を選択してください」というイベントを発行して、処理を委譲します。
-        const eventToEmit = playerInfo.teamId === TeamID.TEAM1 
-            ? GameEvents.PLAYER_INPUT_REQUIRED 
-            : GameEvents.AI_ACTION_REQUIRED;
-        
-        this.world.emit(eventToEmit, { entityId });
     }
     
     // Game paused event handler

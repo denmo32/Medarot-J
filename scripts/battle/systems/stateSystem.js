@@ -7,6 +7,7 @@ import { PlayerStateType, ModalType, GamePhaseType, TeamID, EffectType, EffectSc
 import { isValidTarget } from '../utils/queryUtils.js';
 // ★修正: calculateSpeedMultiplier の代わりに CombatCalculator をインポート
 import { CombatCalculator } from '../utils/combatFormulas.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 
 /**
  * エンティティの「状態」を管理するステートマシン（状態遷移機械）としての役割を担うシステム。
@@ -288,31 +289,35 @@ export class StateSystem {
      * 時間経過による状態遷移を管理します。
      */
     update(deltaTime) {
-        // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
-        // ★リファクタリング: 行動予約中のパーツ破壊やターゲットロストのチェックを削除。
-        // この処理は onPartBroken イベントハンドラに移管されました。
-        const entities = this.world.getEntitiesWith(GameState, ActiveEffects, Parts);
-        // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
+        try {
+            // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
+            // ★リファクタリング: 行動予約中のパーツ破壊やターゲットロストのチェックを削除。
+            // この処理は onPartBroken イベントハンドラに移管されました。
+            const entities = this.world.getEntitiesWith(GameState, ActiveEffects, Parts);
+            // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
 
-        for (const entityId of entities) {
-            const gameState = this.world.getComponent(entityId, GameState);
-            
-            // ★新規: ガード状態の監視
-            if (gameState.state === PlayerStateType.GUARDING) {
-                const activeEffects = this.world.getComponent(entityId, ActiveEffects);
-                const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
-                const parts = this.world.getComponent(entityId, Parts);
+            for (const entityId of entities) {
+                const gameState = this.world.getComponent(entityId, GameState);
+                
+                // ★新規: ガード状態の監視
+                if (gameState.state === PlayerStateType.GUARDING) {
+                    const activeEffects = this.world.getComponent(entityId, ActiveEffects);
+                    const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
+                    const parts = this.world.getComponent(entityId, Parts);
 
-                // ガード効果が存在しない、回数が0以下、またはガードパーツが破壊された場合、ガードを解除してクールダウンへ
-                if (!guardEffect || guardEffect.count <= 0 || (guardEffect.partKey && parts[guardEffect.partKey]?.isBroken)) {
-                    if (guardEffect && parts[guardEffect.partKey]?.isBroken) {
-                        const message = "ガードパーツ破壊！ ガード解除！";
-                        this.uiStateContext.messageQueue.push(message);
+                    // ガード効果が存在しない、回数が0以下、またはガードパーツが破壊された場合、ガードを解除してクールダウンへ
+                    if (!guardEffect || guardEffect.count <= 0 || (guardEffect.partKey && parts[guardEffect.partKey]?.isBroken)) {
+                        if (guardEffect && parts[guardEffect.partKey]?.isBroken) {
+                            const message = "ガードパーツ破壊！ ガード解除！";
+                            this.uiStateContext.messageQueue.push(message);
+                        }
+                        this.resetEntityStateToCooldown(entityId);
+                        continue;
                     }
-                    this.resetEntityStateToCooldown(entityId);
-                    continue;
                 }
             }
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'StateSystem.update', deltaTime });
         }
     }
 }

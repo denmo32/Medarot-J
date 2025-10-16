@@ -3,6 +3,7 @@ import { GameState, Gauge, PlayerInfo, Action } from '../core/components/index.j
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { GameEvents } from '../common/events.js';
 import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../common/constants.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 
 /**
  * ゲーム全体のフロー（開始、戦闘、終了、リセット）を管理するシステム。
@@ -134,45 +135,49 @@ export class GameFlowSystem extends BaseSystem {
     }
 
     update(deltaTime) {
-        // ★新規: メッセージキューの処理 (use UIStateContext)
-        // ゲームがポーズされておらず、かつキューに表示待ちのメッセージがある場合にモーダルを表示します。
-        // これにより、モーダル表示の競合を防ぎ、安全なタイミングでメッセージを処理します。
-        if (!this.uiStateContext.isPausedByModal && this.uiStateContext.messageQueue && this.uiStateContext.messageQueue.length > 0) { // Use UIStateContext
-            const message = this.uiStateContext.messageQueue.shift(); // Use UIStateContext
-            this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.MESSAGE, data: { message } });
-            return; // メッセージ表示を要求したら、このフレームの他の処理はスキップ
-        }
-
-        // ★修正: BATTLE_START_CONFIRMフェーズの処理を追加
-        if (this.battlePhaseContext.battlePhase === GamePhaseType.BATTLE_START_CONFIRM) { // Use BattlePhaseContext
-            // 全てのモーダルが閉じられたことを確認してから、バトル開始確認モーダルを表示
-            if (!this.uiStateContext.isPausedByModal) { // Use UIStateContext
-                this.world.emit(GameEvents.SHOW_MODAL, { 
-                    type: ModalType.BATTLE_START_CONFIRM,
-                    data: {},
-                    priority: 'high' // ★追加: 高優先度で表示
-                });
+        try {
+            // ★新規: メッセージキューの処理 (use UIStateContext)
+            // ゲームがポーズされておらず、かつキューに表示待ちのメッセージがある場合にモーダルを表示します。
+            // これにより、モーダル表示の競合を防ぎ、安全なタイミングでメッセージを処理します。
+            if (!this.uiStateContext.isPausedByModal && this.uiStateContext.messageQueue && this.uiStateContext.messageQueue.length > 0) { // Use UIStateContext
+                const message = this.uiStateContext.messageQueue.shift(); // Use UIStateContext
+                this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.MESSAGE, data: { message } });
+                return; // メッセージ表示を要求したら、このフレームの他の処理はスキップ
             }
-            return;
-        }
 
-        // 初期選択フェーズでのみ実行
-        if (this.battlePhaseContext.battlePhase !== GamePhaseType.INITIAL_SELECTION) return; // Use BattlePhaseContext
+            // ★修正: BATTLE_START_CONFIRMフェーズの処理を追加
+            if (this.battlePhaseContext.battlePhase === GamePhaseType.BATTLE_START_CONFIRM) { // Use BattlePhaseContext
+                // 全てのモーダルが閉じられたことを確認してから、バトル開始確認モーダルを表示
+                if (!this.uiStateContext.isPausedByModal) { // Use UIStateContext
+                    this.world.emit(GameEvents.SHOW_MODAL, { 
+                        type: ModalType.BATTLE_START_CONFIRM,
+                        data: {},
+                        priority: 'high' // ★追加: 高優先度で表示
+                    });
+                }
+                return;
+            }
 
-        // 全プレイヤーが行動選択を終えたかチェック
-        const allPlayers = this.world.getEntitiesWith(GameState);
-        const allSelected = allPlayers.every(id => {
-            const state = this.world.getComponent(id, GameState);
-            // BROKEN状態も選択済みとみなす
-            const unselectedStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
-            return !unselectedStates.includes(state.state);
-        });
+            // 初期選択フェーズでのみ実行
+            if (this.battlePhaseContext.battlePhase !== GamePhaseType.INITIAL_SELECTION) return; // Use BattlePhaseContext
 
-        // 全員が選択し終わったら、戦闘開始確認フェーズに移行
-        if (allSelected) {
-            this.battlePhaseContext.battlePhase = GamePhaseType.BATTLE_START_CONFIRM;
-            // ★修正: 即座にモーダルを表示するのではなく、次のフレームで処理
-            // これにより、他のモーダルが閉じられるのを待つ
+            // 全プレイヤーが行動選択を終えたかチェック
+            const allPlayers = this.world.getEntitiesWith(GameState);
+            const allSelected = allPlayers.every(id => {
+                const state = this.world.getComponent(id, GameState);
+                // BROKEN状態も選択済みとみなす
+                const unselectedStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
+                return !unselectedStates.includes(state.state);
+            });
+
+            // 全員が選択し終わったら、戦闘開始確認フェーズに移行
+            if (allSelected) {
+                this.battlePhaseContext.battlePhase = GamePhaseType.BATTLE_START_CONFIRM;
+                // ★修正: 即座にモーダルを表示するのではなく、次のフレームで処理
+                // これにより、他のモーダルが閉じられるのを待つ
+            }
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'GameFlowSystem.update', deltaTime });
         }
     }
 }
