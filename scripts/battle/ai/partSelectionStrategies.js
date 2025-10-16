@@ -77,3 +77,13 @@ export const partSelectionStrategies = {
         return availableParts[randomIndex];
     },
 };
+
+/**
+ * ★新規: AIパーツ選択戦略のキーを定義する定数。
+ * 文字列リテラルへの依存をなくし、タイプセーフティを向上させます。
+ * `personalityRegistry`などで使用されます。
+ */
+export const PartSelectionStrategyKey = Object.keys(partSelectionStrategies).reduce((acc, key) => {
+    acc[key] = key;
+    return acc;
+}, {});

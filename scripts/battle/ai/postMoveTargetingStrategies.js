@@ -40,3 +40,13 @@ export const postMoveTargetingStrategies = {
         return findMostDamagedAllyPart(world, allies);
     },
 };
+
+/**
+ * ★新規: 移動後ターゲット決定戦略のキーを定義する定数。
+ * 文字列リテラルへの依存をなくし、タイプセーフティを向上させます。
+ * `parts.js`で使用されます。
+ */
+export const PostMoveTargetingStrategyKey = Object.keys(postMoveTargetingStrategies).reduce((acc, key) => {
+    acc[key] = key;
+    return acc;
+}, {});

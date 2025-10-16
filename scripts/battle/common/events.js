@@ -1,4 +1,4 @@
-﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -231,6 +231,24 @@ export const GameEvents = {
      * @payload {{ winningTeam: string }} - 勝利したチームID
      */
     GAME_OVER: 'GAME_OVER',
+    
+    /**
+     * ★新規: HPが更新された（ダメージまたは回復）
+     * EffectApplicatorSystemが発行し、UISystemやActionPanelSystemが購読する。
+     * @event HP_UPDATED
+     * @type {string}
+     * @payload {{ entityId: number, partKey: string, newHp: number, maxHp: number, change: number, isHeal: boolean }}
+     */
+    HP_UPDATED: 'HP_UPDATED',
+    
+    /**
+     * ★新規: 効果の持続時間や回数がなくなり、効果が失われた
+     * EffectSystemやEffectApplicatorSystemが発行し、StateSystemが購読する。
+     * @event EFFECT_EXPIRED
+     * @type {string}
+     * @payload {{ entityId: number, effect: object }}
+     */
+    EFFECT_EXPIRED: 'EFFECT_EXPIRED',
 
     // --- UIイベント ---
     /**

@@ -51,11 +51,12 @@ export class EffectSystem extends BaseSystem {
             }
 
             // [修正] durationが未定義（回数制など）か、まだ残っている効果だけを次の配列に追加します。
+            // ★リファクタリング: 効果が切れたらイベントを発行し、StateSystemに状態遷移を委譲
             if (effect.duration === undefined || effect.duration > 0 || effect.duration === Infinity) {
                 nextEffects.push(effect);
             } else {
-                // TODO: 効果が切れたことを通知するイベントを発行する可能性
-                // console.log(`Effect ${effect.type} expired for entity ${entityId}`);
+                // 効果が切れたことを通知するイベントを発行
+                this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId, effect });
             }
         }
 

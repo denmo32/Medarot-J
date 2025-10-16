@@ -27,22 +27,27 @@ export class EffectApplicatorSystem extends BaseSystem {
     onEffectsResolved(detail) {
         const { resolvedEffects, guardianInfo } = detail;
 
-        // 効果がない場合は何もしません。
-        if (!resolvedEffects || resolvedEffects.length === 0) {
-            return;
-        }
-
-        // --- 1. ガード効果の処理 ---
+        // ★リファクタリング: ガード効果の処理をループの前に行うことでロジックを明確化
         // ガードが発動した場合、まずガード役のガード回数を減らします。
         if (guardianInfo) {
             const guardianEffects = this.world.getComponent(guardianInfo.id, ActiveEffects);
             if (guardianEffects) {
                 const guardEffect = guardianEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
                 if (guardEffect) {
-                    // ガード回数を1減らします。効果の削除と状態遷移はStateSystemが担当します。
+                    // ガード回数を1減らします。
                     guardEffect.count--;
+                    // ★新規: ガード回数が0になったら、効果が切れたことを通知するイベントを発行
+                    // 状態遷移はStateSystemがこのイベントを購読して担当します。
+                    if (guardEffect.count <= 0) {
+                        this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId: guardianInfo.id, effect: guardEffect });
+                    }
                 }
             }
+        }
+
+        // 効果がない場合は何もしません。
+        if (!resolvedEffects || resolvedEffects.length === 0) {
+            return;
         }
 
         // --- 2. 各効果の適用 ---
@@ -75,6 +80,16 @@ export class EffectApplicatorSystem extends BaseSystem {
         const part = targetParts[partKey];
         const oldHp = part.hp;
         part.hp = Math.max(0, part.hp - damage);
+
+        // ★新規: HPが更新されたことをUIシステムに通知
+        this.world.emit(GameEvents.HP_UPDATED, {
+            entityId: targetId,
+            partKey: partKey,
+            newHp: part.hp,
+            maxHp: part.maxHp,
+            change: -damage,
+            isHeal: false,
+        });
 
         // パーツが破壊されたか判定し、イベントを発行します。
         const isPartBroken = oldHp > 0 && part.hp === 0;
@@ -112,7 +127,21 @@ export class EffectApplicatorSystem extends BaseSystem {
         const part = targetParts[partKey];
         // 回復は破壊されていないパーツにのみ有効です。
         if (!part.isBroken) {
+            const oldHp = part.hp;
             part.hp = Math.min(part.maxHp, part.hp + healAmount);
+            const actualHealAmount = part.hp - oldHp;
+
+            // ★新規: HPが更新されたことをUIシステムに通知
+            if (actualHealAmount > 0) {
+                this.world.emit(GameEvents.HP_UPDATED, {
+                    entityId: targetId,
+                    partKey: partKey,
+                    newHp: part.hp,
+                    maxHp: part.maxHp,
+                    change: actualHealAmount,
+                    isHeal: true,
+                });
+            }
         }
     }
 

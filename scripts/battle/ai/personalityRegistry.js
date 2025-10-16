@@ -3,8 +3,8 @@
  * AIの「性格」と、それに対応する行動戦略（ターゲット選択、パーツ選択）の関連性を一元管理します。
  */
 import { MedalPersonality } from '../common/constants.js';
-import { targetingStrategies } from './targetingStrategies.js';
-import { partSelectionStrategies } from './partSelectionStrategies.js';
+import { targetingStrategies, TargetingStrategyKey } from './targetingStrategies.js'; // ★ TargetingStrategyKey をインポート
+import { partSelectionStrategies, PartSelectionStrategyKey } from './partSelectionStrategies.js'; // ★ PartSelectionStrategyKey をインポート
 // ★追加: AIの思考条件を定義するために、クエリユーティリティをインポート
 import { getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
 
@@ -17,6 +17,7 @@ import { getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js'
  * @property {Array<{partStrategy: string, targetStrategy: string, condition?: function}>} routines - AIが優先順位順に試行する思考ルーチンのリスト。
  *   - `partStrategy`: 使用するパーツを選択する戦略のキー (partSelectionStrategiesより)。
  *   - `targetStrategy`: ターゲットを選択する戦略のキー (targetingStrategiesより)。
+ *   - `targetCandidates`: 'ENEMIES' | 'ALLIES' | 'ALLIES_INCLUDING_SELF' ターゲット候補の範囲
  *   - `condition`: (任意) このルーチンを実行するための条件を評価する関数。trueを返した場合のみ実行される。
  * @property {function} fallbackTargeting - `routines`の全試行が失敗した場合に実行される最終的なターゲット選択戦略。
  */
@@ -25,7 +26,11 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、最もHPの低い敵パーツを狙う
-            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.HUNTER },
+            {
+                partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
+                targetStrategy: TargetingStrategyKey.HUNTER,
+                targetCandidates: 'ENEMIES', // ★新規: ターゲット候補を宣言的に指定
+            },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
@@ -33,7 +38,11 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、最もHPの高い敵パーツを狙う
-            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.CRUSHER },
+            {
+                partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
+                targetStrategy: TargetingStrategyKey.CRUSHER,
+                targetCandidates: 'ENEMIES', // ★新規
+            },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
@@ -41,7 +50,11 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: ランダムなパーツで、敵の全パーツからランダムにターゲットを選択
-            { partStrategy: 'RANDOM', targetStrategy: MedalPersonality.JOKER },
+            {
+                partStrategy: PartSelectionStrategyKey.RANDOM,
+                targetStrategy: TargetingStrategyKey.JOKER,
+                targetCandidates: 'ENEMIES', // ★新規
+            },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
@@ -49,7 +62,11 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、最後に自分を攻撃してきた敵を狙う
-            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.COUNTER },
+            {
+                partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
+                targetStrategy: TargetingStrategyKey.COUNTER,
+                targetCandidates: 'ENEMIES', // ★新規
+            },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
@@ -57,7 +74,11 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、味方リーダーを最後に攻撃してきた敵を狙う
-            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.GUARD },
+            {
+                partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
+                targetStrategy: TargetingStrategyKey.GUARD,
+                targetCandidates: 'ENEMIES', // ★新規
+            },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
@@ -65,7 +86,11 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、自分が前回攻撃したパーツを狙う
-            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.FOCUS },
+            {
+                partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
+                targetStrategy: TargetingStrategyKey.FOCUS,
+                targetCandidates: 'ENEMIES', // ★新規
+            },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
@@ -73,7 +98,11 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、味方が最後に攻撃した敵のパーツを狙う
-            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.ASSIST },
+            {
+                partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
+                targetStrategy: TargetingStrategyKey.ASSIST,
+                targetCandidates: 'ENEMIES', // ★新規
+            },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
@@ -81,7 +110,11 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、敵チームのリーダーを狙う
-            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.LEADER_FOCUS },
+            {
+                partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
+                targetStrategy: TargetingStrategyKey.LEADER_FOCUS,
+                targetCandidates: 'ENEMIES', // ★新規
+            },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
@@ -89,7 +122,11 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: ランダムなパーツで、ランダムな敵を狙う
-            { partStrategy: 'RANDOM', targetStrategy: MedalPersonality.RANDOM },
+            {
+                partStrategy: PartSelectionStrategyKey.RANDOM,
+                targetStrategy: TargetingStrategyKey.RANDOM,
+                targetCandidates: 'ENEMIES', // ★新規
+            },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
@@ -99,9 +136,10 @@ export const personalityRegistry = {
         routines: [
             // 優先度1: 最も効果の高い回復パーツで、最も損害の大きい味方を回復する
             // ★追加: このルーチンは「回復対象がいる場合のみ」実行される
-            { 
-                partStrategy: 'HEAL_FOCUS', 
-                targetStrategy: MedalPersonality.HEALER,
+            {
+                partStrategy: PartSelectionStrategyKey.HEAL_FOCUS,
+                targetStrategy: TargetingStrategyKey.HEALER,
+                targetCandidates: 'ALLIES_INCLUDING_SELF', // ★新規
                 condition: ({ world, entityId }) => {
                     const allies = getValidAllies(world, entityId, true); // 自分を含む味方
                     // 最もダメージを受けた味方パーツが存在するかどうかで判断
@@ -109,7 +147,11 @@ export const personalityRegistry = {
                 }
             },
             // 優先度2 (フォールバック): 回復対象がいない場合、最も威力の高い攻撃パーツでランダムな敵を攻撃する
-            { partStrategy: 'POWER_FOCUS', targetStrategy: MedalPersonality.RANDOM },
+            {
+                partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
+                targetStrategy: TargetingStrategyKey.RANDOM,
+                targetCandidates: 'ENEMIES', // ★新規
+            },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },

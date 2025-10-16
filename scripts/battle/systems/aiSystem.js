@@ -70,7 +70,8 @@ export class AiSystem extends BaseSystem {
                 }
                 // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
 
-                const { partStrategy: partStrategyKey, targetStrategy: targetStrategyKey } = routine;
+                // ★修正: part.targetScopeへの依存をなくし、ルーチン定義からターゲット候補を決定する
+                const { partStrategy: partStrategyKey, targetStrategy: targetStrategyKey, targetCandidates: candidatesKey } = routine;
                 
                 // 1a. パーツ戦略でパーツを決定
                 const partSelectionFunc = partSelectionStrategies[partStrategyKey];
@@ -89,11 +90,22 @@ export class AiSystem extends BaseSystem {
                     continue;
                 }
                 
-                // ★リファクタリング: パーツの役割に応じてターゲット候補（敵 or 味方）を決定する
-                // これにより、HEALER戦略なども含めて、どの戦略にも適切な候補リストが渡されることを保証する
-                const candidates = part.targetScope?.startsWith('ALLY_')
-                    ? getValidAllies(this.world, entityId, true) // 自分を含む味方
-                    : getValidEnemies(this.world, entityId); // 敵
+                // ★リファクタリング: ルーチンの`targetCandidates`定義に基づいてターゲット候補リストを作成
+                let candidates = [];
+                switch (candidatesKey) {
+                    case 'ENEMIES':
+                        candidates = getValidEnemies(this.world, entityId);
+                        break;
+                    case 'ALLIES':
+                        candidates = getValidAllies(this.world, entityId, false); // 自分を含まない
+                        break;
+                    case 'ALLIES_INCLUDING_SELF':
+                        candidates = getValidAllies(this.world, entityId, true); // 自分を含む
+                        break;
+                    default:
+                        console.warn(`AiSystem: Unknown targetCandidates key '${candidatesKey}'. Defaulting to enemies.`);
+                        candidates = getValidEnemies(this.world, entityId);
+                }
                     
                 // ★修正: 第4引数に戦略キーを渡してイベント発行をトリガーする
                 const target = determineTarget(this.world, entityId, targetSelectionFunc, candidates, targetStrategyKey);

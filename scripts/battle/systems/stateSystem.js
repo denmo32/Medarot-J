@@ -32,6 +32,8 @@ export class StateSystem {
         // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
         // ★リファクタリング: パーツ破壊イベントを購読し、行動予約のキャンセルをイベント駆動で行う
         this.world.on(GameEvents.PART_BROKEN, this.onPartBroken.bind(this));
+        // ★新規: 効果が切れたイベントを購読し、状態遷移を管理する
+        this.world.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
         // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
     }
     
@@ -230,6 +232,26 @@ export class StateSystem {
     }
 
     /**
+     * ★新規: 効果が切れた際のイベントハンドラ。
+     * @param {object} detail - EFFECT_EXPIRED イベントのペイロード { entityId, effect }
+     */
+    onEffectExpired(detail) {
+        const { entityId, effect } = detail;
+        const gameState = this.world.getComponent(entityId, GameState);
+        
+        // ガード効果が切れた場合、かつ現在ガード中であればクールダウンに移行
+        if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
+            const parts = this.world.getComponent(entityId, Parts);
+            const guardPart = parts[effect.partKey];
+            if (guardPart?.isBroken) {
+                 const message = "ガードパーツ破壊！ ガード解除！";
+                 this.uiStateContext.messageQueue.push(message);
+            }
+            this.resetEntityStateToCooldown(entityId);
+        }
+    }
+
+    /**
      * ★修正: 攻撃者だけでなく、任意のエンティティの状態をクールダウン中にリセットする汎用関数。
      * Actionコンポーネントをクリアします。
      * @param {number} entityId - 状態をリセットするエンティティのID
@@ -293,29 +315,9 @@ export class StateSystem {
             // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
             // ★リファクタリング: 行動予約中のパーツ破壊やターゲットロストのチェックを削除。
             // この処理は onPartBroken イベントハンドラに移管されました。
-            const entities = this.world.getEntitiesWith(GameState, ActiveEffects, Parts);
+            // ★リファクタリング: ガード状態の監視ロジックを削除。
+            // この処理は onEffectExpired イベントハンドラに移管されました。
             // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
-
-            for (const entityId of entities) {
-                const gameState = this.world.getComponent(entityId, GameState);
-                
-                // ★新規: ガード状態の監視
-                if (gameState.state === PlayerStateType.GUARDING) {
-                    const activeEffects = this.world.getComponent(entityId, ActiveEffects);
-                    const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
-                    const parts = this.world.getComponent(entityId, Parts);
-
-                    // ガード効果が存在しない、回数が0以下、またはガードパーツが破壊された場合、ガードを解除してクールダウンへ
-                    if (!guardEffect || guardEffect.count <= 0 || (guardEffect.partKey && parts[guardEffect.partKey]?.isBroken)) {
-                        if (guardEffect && parts[guardEffect.partKey]?.isBroken) {
-                            const message = "ガードパーツ破壊！ ガード解除！";
-                            this.uiStateContext.messageQueue.push(message);
-                        }
-                        this.resetEntityStateToCooldown(entityId);
-                        continue;
-                    }
-                }
-            }
         } catch (error) {
             ErrorHandler.handle(error, { method: 'StateSystem.update', deltaTime });
         }

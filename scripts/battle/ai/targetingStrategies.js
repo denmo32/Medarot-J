@@ -153,3 +153,13 @@ export const targetingStrategies = {
      */
     DO_NOTHING: () => null,
 };
+
+/**
+ * ★新規: AIターゲティング戦略のキーを定義する定数。
+ * 文字列リテラルへの依存をなくし、タイプセーフティを向上させます。
+ * `personalityRegistry`などで使用されます。
+ */
+export const TargetingStrategyKey = Object.keys(targetingStrategies).reduce((acc, key) => {
+    acc[key] = key;
+    return acc;
+}, {});

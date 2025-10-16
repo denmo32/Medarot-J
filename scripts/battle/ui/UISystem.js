@@ -17,7 +17,38 @@ export class UISystem extends BaseSystem {
         this.uiManager = this.world.getSingletonComponent(UIManager);
         // ★新規: UIStateContextへの参照を取得
         this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
-        // ★削除: アニメーションイベントの購読はViewSystemに移管
+        // ★リファクタリング: HP更新をイベント駆動にする
+        this.world.on(GameEvents.HP_UPDATED, this.onHpUpdated.bind(this));
+    }
+
+    /**
+     * ★新規: HP更新イベントのハンドラ。
+     * @param {object} detail - HP_UPDATEDイベントのペイロード
+     */
+    onHpUpdated(detail) {
+        // モーダル表示中はアニメーションをActionPanelSystemに任せるため、何もしない
+        if (this.uiStateContext?.isPausedByModal) {
+            return;
+        }
+
+        const { entityId, partKey, newHp, maxHp } = detail;
+        const domElements = this.uiManager.getDOMElements(entityId);
+        const partDom = domElements?.partDOMElements?.[partKey];
+        if (!partDom) return;
+
+        const hpPercentage = (newHp / maxHp) * 100;
+        partDom.bar.style.width = `${hpPercentage}%`;
+
+        // 色の更新
+        if (newHp === 0) {
+            partDom.container.classList.add('broken');
+            partDom.bar.style.backgroundColor = '#4a5568';
+        } else {
+            partDom.container.classList.remove('broken');
+            if (hpPercentage > 50) partDom.bar.style.backgroundColor = '#68d391';
+            else if (hpPercentage > 20) partDom.bar.style.backgroundColor = '#f6e05e';
+            else partDom.bar.style.backgroundColor = '#f56565';
+        }
     }
 
     /**
@@ -70,30 +101,9 @@ export class UISystem extends BaseSystem {
         // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
 
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-        // ★修正: モーダル表示中はHPバーの更新をスキップする
-        // これにより、宣言メッセージ表示中にHPバーが（アニメーションなしで）変化するのを防ぐ。
-        // HPバーのアニメーションはActionPanelSystemが手動で適切なタイミングで実行する。
-        if (this.uiStateContext && this.uiStateContext.isPausedByModal) {
-            // ガードインジケーターなど、HP以外のUIは更新を続ける
-        } else {
-            // HPゲージの更新
-            Object.entries(parts).forEach(([key, part]) => {
-                const elements = domElements.partDOMElements[key];
-                if (!elements || !part) return;
-                const hpPercentage = (part.hp / part.maxHp) * 100;
-                elements.bar.style.width = `${hpPercentage}%`;
-                elements.container.classList.toggle('broken', part.isBroken);
-                if (part.isBroken) {
-                    elements.bar.style.backgroundColor = '#4a5568';
-                } else {
-                    if (hpPercentage > 50) elements.bar.style.backgroundColor = '#68d391';
-                    else if (hpPercentage > 20) elements.bar.style.backgroundColor = '#f6e05e';
-                    else elements.bar.style.backgroundColor = '#f56565';
-                }
-            });
-        }
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+        // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
+        // ★リファクタリング: HPバーの更新ロジックを削除。onHpUpdatedイベントハンドラに移管。
+        // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
 
         // ★新規: ガードインジケーターの更新
         const activeEffects = this.getCachedComponent(entityId, ActiveEffects);
