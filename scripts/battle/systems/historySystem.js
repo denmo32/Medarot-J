@@ -1,7 +1,7 @@
 
 import { BaseSystem } from '../../core/baseSystem.js';
 // ★変更: 必要なコンポーネントと定数をインポート
-import { PlayerInfo, BattleLog, GameState, Gauge, Parts, ActiveEffects } from '../core/components.js';
+import { PlayerInfo, BattleLog, GameState, Gauge, Parts, ActiveEffects } from '../core/components/index.js';
 import { BattleHistoryContext } from '../core/index.js'; // Import new context
 import { GameEvents } from '../common/events.js';
 // ★変更: EffectType, PartInfo をインポート

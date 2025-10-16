@@ -1,7 +1,7 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
-import * as Components from '../core/components.js';
+import * as Components from '../core/components/index.js';
 // ★改善: PartKeyToInfoMap, PartInfo を参照し、定義元を一元化
 import { TeamID, PartKeyToInfoMap, PartInfo } from '../common/constants.js';
 import { UIManager } from './UIManager.js';

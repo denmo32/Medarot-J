@@ -6,7 +6,7 @@
  * このファイルに新しい関数を追加し、パーツデータでそれを指定するだけで済みます。
  */
 // ★修正: Action, GameState をインポート
-import { PlayerInfo, Parts, ActiveEffects, Action, GameState } from '../core/components.js';
+import { PlayerInfo, Parts, ActiveEffects, Action, GameState } from '../core/components/index.js';
 // ★修正: PartKeyToInfoMap, PlayerStateType をインポート
 import { EffectType, EffectScope, PartKeyToInfoMap, PlayerStateType } from '../common/constants.js';
 // ★修正: calculateDamage の代わりに CombatCalculator をインポート

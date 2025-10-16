@@ -4,7 +4,7 @@
  * ターン終了時に効果を更新・削除する責務を持ちます。
  */
 import { BaseSystem } from '../../core/baseSystem.js';
-import { ActiveEffects, GameState, PlayerInfo } from '../core/components.js';
+import { ActiveEffects, GameState, PlayerInfo } from '../core/components/index.js';
 import { GameEvents } from '../common/events.js';
 import { PlayerStateType } from '../common/constants.js';
 

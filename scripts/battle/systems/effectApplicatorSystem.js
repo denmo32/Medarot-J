@@ -6,7 +6,7 @@
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { Parts, ActiveEffects, PlayerInfo } from '../core/components.js';
+import { Parts, ActiveEffects, PlayerInfo } from '../core/components/index.js';
 import { EffectType, PartInfo } from '../common/constants.js';
 
 /**

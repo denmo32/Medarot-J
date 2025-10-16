@@ -1,5 +1,5 @@
 import { BaseSystem } from '../../core/baseSystem.js';
-import { PlayerInfo, Position, Gauge, GameState, Parts, Action, ActiveEffects } from '../core/components.js';
+import { PlayerInfo, Position, Gauge, GameState, Parts, Action, ActiveEffects } from '../core/components/index.js';
 import { PlayerStateType, EffectType, PartInfo } from '../common/constants.js'; // ★ PartInfo をインポート
 import { UIManager } from './UIManager.js';
 import { GameEvents } from '../common/events.js'; // イベント定義をインポート

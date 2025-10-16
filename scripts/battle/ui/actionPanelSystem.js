@@ -1,7 +1,7 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
-import * as Components from '../core/components.js';
+import * as Components from '../core/components/index.js';
 import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
 import { UIManager } from './UIManager.js';

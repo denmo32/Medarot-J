@@ -1,4 +1,4 @@
-import { PlayerInfo, Position, Gauge, GameState, Parts } from '../core/components.js';
+import { PlayerInfo, Position, Gauge, GameState, Parts } from '../core/components/index.js';
 import { PlayerStateType, TeamID } from '../common/constants.js'; // TeamIDをインポート
 import { BaseSystem } from '../../core/baseSystem.js';
 // import { GameEvents } from '../common/events.js'; // 削除

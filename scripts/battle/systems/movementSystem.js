@@ -1,4 +1,4 @@
-import { Position, Gauge, GameState, PlayerInfo } from '../core/components.js';
+import { Position, Gauge, GameState, PlayerInfo } from '../core/components/index.js';
 import { PlayerStateType, TeamID } from '../common/constants.js';
 import { CONFIG } from '../common/config.js';
 

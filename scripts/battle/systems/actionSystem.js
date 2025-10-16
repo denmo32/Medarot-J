@@ -4,7 +4,7 @@
  */
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
-import { GameState, PlayerInfo, Parts, Action, ActiveEffects } from '../core/components.js';
+import { GameState, PlayerInfo, Parts, Action, ActiveEffects } from '../core/components/index.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 // ★改善: PartInfo, PartKeyToInfoMapを参照し、定義元を一元化
 // ★修正: ActionType, TargetTiming をインポート

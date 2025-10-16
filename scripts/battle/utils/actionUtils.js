@@ -4,7 +4,7 @@
  * プレイヤーやAIの行動選択を処理し、ゲームイベントを発行するためのユーティリティ関数を提供します。
  */
 import { GameEvents } from '../common/events.js';
-import { Parts } from '../core/components.js';
+import { Parts } from '../core/components/index.js';
 import { isValidTarget } from './queryUtils.js';
 // ★新規: TargetTiming定数をインポート
 import { TargetTiming } from '../common/constants.js';

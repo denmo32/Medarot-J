@@ -1,4 +1,4 @@
-import { Gauge, GameState, Parts, PlayerInfo, Action, Position, ActiveEffects } from '../core/components.js';
+import { Gauge, GameState, Parts, PlayerInfo, Action, Position, ActiveEffects } from '../core/components/index.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js'; // ★追加
 import { GameEvents } from '../common/events.js';

@@ -4,7 +4,7 @@
  */
 
 import { BaseSystem } from '../../core/baseSystem.js';
-import { GameState, PlayerInfo, Parts } from '../core/components.js'; // ★ Parts をインポート
+import { GameState, PlayerInfo, Parts } from '../core/components/index.js'; // ★ Parts をインポート
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { GameEvents } from '../common/events.js';
 // ★変更: GamePhaseTypeをインポート

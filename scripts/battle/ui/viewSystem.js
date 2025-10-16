@@ -1,5 +1,5 @@
 import { GameEvents } from '../common/events.js';
-import * as Components from '../core/components.js';
+import * as Components from '../core/components/index.js';
 import { BattlePhaseContext } from '../core/index.js'; // Import new context
 import { GamePhaseType, ModalType, EffectScope } from '../common/constants.js'; // ★修正: EffectScopeをインポート
 import { UIManager } from './UIManager.js'; // ★新規: UIManagerをインポート

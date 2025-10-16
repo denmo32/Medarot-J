@@ -1,6 +1,6 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { PlayerInfo, Parts, Medal } from '../core/components.js'; // ★ Medalをインポート
+import { PlayerInfo, Parts, Medal } from '../core/components/index.js'; // ★ Medalをインポート
 import { ModalType, EffectScope, TargetTiming } from '../common/constants.js'; // ★ EffectScope, TargetTimingをインポート
 import { getAllActionParts } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';

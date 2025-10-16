@@ -1,5 +1,5 @@
 import { BaseSystem } from '../../core/baseSystem.js';
-import { GameState, Gauge, PlayerInfo, Action } from '../core/components.js';
+import { GameState, Gauge, PlayerInfo, Action } from '../core/components/index.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { GameEvents } from '../common/events.js';
 import { GamePhaseType, PlayerStateType, TeamID, ModalType } from '../common/constants.js';

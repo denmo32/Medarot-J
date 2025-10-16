@@ -5,7 +5,7 @@
 
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { Medal, Parts, PlayerInfo } from '../core/components.js'; // ★ PlayerInfo をインポート
+import { Medal, Parts, PlayerInfo } from '../core/components/index.js'; // ★ PlayerInfo をインポート
 // ★修正: 必要なユーティリティをインポート
 import { getAttackableParts, getValidEnemies, getValidAllies, isValidTarget } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
