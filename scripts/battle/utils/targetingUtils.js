@@ -4,7 +4,7 @@
  * ターゲットを決定するためのユーティリティ関数を提供します。
  * 元々は `ai/` ディレクトリにありましたが、プレイヤーの補助機能にも使われるため汎用的な場所へ移動しました。
  */
-import { PlayerInfo, GameState, Medal, Parts } from '../core/components.js';
+import { PlayerInfo, GameState, Medal, Parts } from '../core/components/index.js';
 import { PlayerStateType, EffectScope } from '../common/constants.js';
 import { getValidEnemies, getValidAllies, isValidTarget } from '../utils/queryUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';

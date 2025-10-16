@@ -10,7 +10,7 @@
 
 import { CONFIG } from '../common/config.js';
 // ★修正: PlayerInfo, ActiveEffects をインポート
-import { Parts, PlayerInfo, ActiveEffects } from '../core/components.js';
+import { Parts, PlayerInfo, ActiveEffects } from '../core/components/index.js';
 import { findBestDefensePart } from './queryUtils.js'; // ★注意: 依存関係の変更
 import { ErrorHandler, GameError, ErrorType } from './errorHandler.js';
 // ★新規: EffectType をインポート

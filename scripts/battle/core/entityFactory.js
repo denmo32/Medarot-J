@@ -1,5 +1,5 @@
 import { CONFIG } from '../common/config.js';
-import * as Components from './components.js';
+import * as Components from './components/index.js';
 // ★改善: PartInfoを参照することで、パーツに関する定義元を一元化
 import { TeamID, MedalPersonality, PartInfo } from '../common/constants.js'; 
 import { PARTS_DATA } from '../data/parts.js'; 

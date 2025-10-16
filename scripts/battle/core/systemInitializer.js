@@ -1,4 +1,4 @@
-import * as Components from './components.js';
+import * as Components from './components/index.js';
 import { GameModeContext } from './GameModeContext.js';
 import { BattlePhaseContext } from './BattlePhaseContext.js';
 import { UIStateContext } from './UIStateContext.js';

@@ -4,7 +4,7 @@
  * 問い合わせる（検索・取得する）ためのユーティリティ関数群です。
  */
 
-import { Parts, Position, PlayerInfo, GameState, ActiveEffects } from '../core/components.js';
+import { Parts, Position, PlayerInfo, GameState, ActiveEffects } from '../core/components/index.js';
 import { PartInfo, PlayerStateType, EffectType } from '../common/constants.js';
 
 /**
