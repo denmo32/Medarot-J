@@ -112,7 +112,8 @@ export class ActionPanelSystem extends BaseSystem {
         // テキストコンテンツを設定
         dom.actionPanelOwner.textContent = handler.getOwnerName?.(data) || '';
         dom.actionPanelTitle.textContent = handler.getTitle?.(data) || '';
-        dom.actionPanelActor.textContent = handler.getActorName?.(data) || '';
+        // ★修正: innerHTMLを使用して複数行メッセージに対応
+        dom.actionPanelActor.innerHTML = handler.getActorName?.(data) || '';
         // ★修正: getContentHTML に this(system) を渡す
         dom.actionPanelButtons.innerHTML = handler.getContentHTML?.(data, this) || '';
 
@@ -174,7 +175,7 @@ export class ActionPanelSystem extends BaseSystem {
         const { dom } = this;
         dom.actionPanelOwner.textContent = '';
         dom.actionPanelTitle.textContent = '';
-        dom.actionPanelActor.textContent = '待機中...';
+        dom.actionPanelActor.innerHTML = '待機中...'; // ★ innerHTML に変更
         dom.actionPanelButtons.innerHTML = '';
         dom.actionPanelIndicator.classList.add('hidden');
         dom.actionPanel.classList.remove('clickable');
@@ -312,86 +313,121 @@ export class ActionPanelSystem extends BaseSystem {
     }
 
     // --- Helper for EXECUTION_RESULT modal (called from modalHandlers.js) ---
-    setupExecutionResultEvents(container, data) {
-        const showClickable = () => {
-            if (this.currentModalType === ModalType.EXECUTION_RESULT) {
-                this.dom.actionPanel.classList.add('clickable');
-                this.dom.actionPanelIndicator.classList.remove('hidden');
-                if (!this.boundHandlePanelClick) {
-                    this.boundHandlePanelClick = () => this.currentHandler?.handleConfirm?.(this, this.currentModalData);
-                    this.dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
+
+    /**
+     * ★リファクタリング: 複数の効果(貫通ダメージ等)に対応するため、非同期ループ処理に変更。
+     * @param {HTMLElement} container - ボタンコンテナ
+     * @param {object} data - モーダルデータ (ACTION_EXECUTEDのペイロード)
+     */
+    async setupExecutionResultEvents(container, data) {
+        const damageEffects = data.appliedEffects?.filter(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL) || [];
+
+        // アニメーションを再生する効果がない場合は、即座にクリック可能にする
+        if (damageEffects.length === 0) {
+            this.makePanelClickableForResult();
+            return;
+        }
+
+        // 複数のダメージ/回復効果を順番にアニメーション再生
+        for (const effect of damageEffects) {
+            // ★新規: 貫通などの追加メッセージを動的に表示
+            if (effect.isPenetration) {
+                const partName = PartKeyToInfoMap[effect.partKey]?.name || '不明な部位';
+                this.dom.actionPanelActor.innerHTML += `<br>${partName}に貫通！ ${partName}に${effect.value}ダメージ！`;
+            }
+            await this.animateHpBar(effect);
+        }
+
+        // すべてのアニメーションが完了したら、パネルをクリック可能にする
+        this.makePanelClickableForResult();
+    }
+
+    /**
+     * ★新規: パネルをクリック可能にするヘルパー関数
+     */
+    makePanelClickableForResult() {
+        if (this.currentModalType === ModalType.EXECUTION_RESULT) {
+            this.dom.actionPanel.classList.add('clickable');
+            this.dom.actionPanelIndicator.classList.remove('hidden');
+            if (!this.boundHandlePanelClick) {
+                this.boundHandlePanelClick = () => this.currentHandler?.handleConfirm?.(this, this.currentModalData);
+                this.dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
+            }
+        }
+    }
+
+    /**
+     * ★新規: HPバーのアニメーションをPromiseでラップし、逐次実行を可能にするヘルパー関数
+     * @param {object} effect - 単一のダメージ/回復効果オブジェクト
+     * @returns {Promise<void>} アニメーション完了時に解決されるPromise
+     */
+    animateHpBar(effect) {
+        return new Promise(resolve => {
+            const { targetId, partKey, value } = effect;
+            const targetDom = this.uiManager.getDOMElements(targetId);
+            const partDom = targetDom?.partDOMElements[partKey];
+            const hpBar = partDom?.bar;
+            const hpValueEl = partDom?.value;
+            const targetPart = this.world.getComponent(targetId, Components.Parts)?.[partKey];
+
+            if (!hpBar || !targetPart || !hpValueEl) {
+                resolve(); // 対象DOMがない場合は即座に解決
+                return;
+            }
+
+            let animationFrameId = null;
+
+            const cleanup = () => {
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
                 }
-            }
-        };
+                hpValueEl.textContent = `${targetPart.hp}/${targetPart.maxHp}`;
+                hpBar.style.transition = '';
+                hpBar.removeEventListener('transitionend', onTransitionEnd);
+                clearTimeout(fallback);
+                resolve(); // ★変更: Promiseを解決
+            };
 
-        const damageEffect = data.resolvedEffects.find(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL);
-        if (!damageEffect || damageEffect.value === 0) {
-            showClickable();
-            return;
-        }
+            const onTransitionEnd = (event) => {
+                if (event.propertyName === 'width') {
+                    cleanup();
+                }
+            };
 
-        const { targetId, partKey, value } = damageEffect;
-        const targetDom = this.uiManager.getDOMElements(targetId);
-        const partDom = targetDom?.partDOMElements[partKey];
-        const hpBar = partDom?.bar;
-        const hpValueEl = partDom?.value;
-        const targetPart = this.world.getComponent(targetId, Components.Parts)?.[partKey];
+            // アニメーションが何らかの理由で完了しない場合のフォールバック
+            const fallback = setTimeout(cleanup, 1000);
+            hpBar.addEventListener('transitionend', onTransitionEnd);
 
-        if (!hpBar || !targetPart || !hpValueEl) {
-            showClickable();
-            return;
-        }
-
-        let animationFrameId = null;
-
-        const cleanup = () => {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-            hpValueEl.textContent = `${targetPart.hp}/${targetPart.maxHp}`;
-            hpBar.style.transition = '';
-            hpBar.removeEventListener('transitionend', onTransitionEnd);
-            clearTimeout(fallback);
-            showClickable();
-        };
-
-        const onTransitionEnd = (event) => {
-            if (event.propertyName === 'width') {
-                cleanup();
-            }
-        };
-
-        const fallback = setTimeout(cleanup, 1000);
-        hpBar.addEventListener('transitionend', onTransitionEnd);
-
-        const finalHp = targetPart.hp;
-        const changeAmount = value;
-        const initialHp = (damageEffect.type === EffectType.HEAL)
-            ? Math.max(0, finalHp - changeAmount)
-            : Math.min(targetPart.maxHp, finalHp + changeAmount);
-        
-        const finalHpPercentage = (finalHp / targetPart.maxHp) * 100;
-
-        const animateHp = () => {
-            const currentWidthStyle = getComputedStyle(hpBar).width;
-            const parentWidth = hpBar.parentElement.clientWidth;
-            const currentWidth = parseFloat(currentWidthStyle);
+            const finalHp = targetPart.hp;
+            const changeAmount = value;
+            const initialHp = (effect.type === EffectType.HEAL)
+                ? Math.max(0, finalHp - changeAmount)
+                : Math.min(targetPart.maxHp, finalHp + changeAmount);
             
-            if (parentWidth > 0) {
-                const currentPercentage = (currentWidth / parentWidth) * 100;
-                const currentDisplayHp = Math.round((currentPercentage / 100) * targetPart.maxHp);
-                hpValueEl.textContent = `${currentDisplayHp}/${targetPart.maxHp}`;
-            }
+            const finalHpPercentage = (finalHp / targetPart.maxHp) * 100;
 
-            animationFrameId = requestAnimationFrame(animateHp);
-        };
+            const animateHp = () => {
+                const currentWidthStyle = getComputedStyle(hpBar).width;
+                const parentWidth = hpBar.parentElement.clientWidth;
+                const currentWidth = parseFloat(currentWidthStyle);
+                
+                if (parentWidth > 0) {
+                    const currentPercentage = (currentWidth / parentWidth) * 100;
+                    const currentDisplayHp = Math.round((currentPercentage / 100) * targetPart.maxHp);
+                    hpValueEl.textContent = `${currentDisplayHp}/${targetPart.maxHp}`;
+                }
 
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                hpBar.style.transition = 'width 0.8s ease';
-                hpBar.style.width = `${finalHpPercentage}%`;
                 animationFrameId = requestAnimationFrame(animateHp);
+            };
+
+            // 2フレーム待ってからアニメーションを開始し、ブラウザのレンダリングを確実にする
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    hpBar.style.transition = 'width 0.8s ease';
+                    hpBar.style.width = `${finalHpPercentage}%`;
+                    animationFrameId = requestAnimationFrame(animateHp);
+                });
             });
         });
     }

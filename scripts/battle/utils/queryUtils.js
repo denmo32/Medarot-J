@@ -183,6 +183,28 @@ export function selectRandomPart(world, entityId) {
 }
 
 /**
+ * ★新規: 貫通ダメージの対象となる、ランダムな未破壊パーツを選択します。
+ * @param {World} world - ワールドオブジェクト
+ * @param {number} entityId - ターゲットのエンティティID
+ * @param {string} excludedPartKey - 貫通元となった、既に破壊されたパーツのキー
+ * @returns {string | null} 貫通対象のパーツキー、またはnull
+ */
+export function findRandomPenetrationTarget(world, entityId, excludedPartKey) {
+    if (!world || entityId === null || entityId === undefined) return null;
+    const parts = world.getComponent(entityId, Parts);
+    if (!parts || parts.head?.isBroken) return null;
+
+    const hittablePartKeys = Object.keys(parts).filter(key => 
+        key !== excludedPartKey && parts[key] && !parts[key].isBroken
+    );
+
+    if (hittablePartKeys.length > 0) {
+        return hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
+    }
+    return null;
+}
+
+/**
  * 格闘攻撃用に、最もX軸距離の近い敵を見つけます。
  * @param {World} world
  * @param {number} attackerId - 攻撃者のエンティティID

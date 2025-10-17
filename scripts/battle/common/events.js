@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -153,7 +153,7 @@ export const GameEvents = {
      * 攻撃宣言モーダルのOKが押された
      * @event ATTACK_DECLARATION_CONFIRMED
      * @type {string}
-     * @payload {{ entityId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
+     * @payload {{ attackerId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
     
@@ -171,7 +171,7 @@ export const GameEvents = {
      * 行動が実行され、ダメージなどが計算された
      * @event ACTION_EXECUTED
      * @type {string}
-     * @payload {{ attackerId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
+     * @payload {{ attackerId: number, appliedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     ACTION_EXECUTED: 'ACTION_EXECUTED',
     

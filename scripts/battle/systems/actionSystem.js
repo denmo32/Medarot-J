@@ -36,49 +36,16 @@ export class ActionSystem extends BaseSystem {
         this.isPaused = false;  // ゲームの一時停止状態を管理
         
         // イベント購読
-        this.world.on(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.onAttackDeclarationConfirmed.bind(this));
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
         this.world.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
         this.world.on(GameEvents.GAME_RESUMED, this.onResumeGame.bind(this));
     }
 
     /**
-     * ★新規: 攻撃宣言モーダルが確認された際に呼び出されます。
-     * @param {object} detail - イベント詳細
+     * ★廃止: このイベントの購読と処理は EffectApplicatorSystem に移管されました。
+     * このシステムはモーダルが閉じられたことを直接知る必要がなくなりました。
      */
-    onAttackDeclarationConfirmed(detail) {
-        try {
-            // ★変更: ペイロードから resolvedEffects, guardianInfo を受け取る
-            const { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo } = detail;
-
-            // パラメータの検証
-            if (typeof entityId !== 'number') {
-                throw new GameError(
-                    `Invalid parameters in attack declaration confirmation: entityId=${entityId}`,
-                    ErrorType.VALIDATION_ERROR,
-                    { detail, method: 'onAttackDeclarationConfirmed' }
-                );
-            }
-
-            // ★変更: resolvedEffects, guardianInfo を含んだ新しいペイロードで ACTION_EXECUTED を発行
-            this.world.emit(GameEvents.ACTION_EXECUTED, {
-                attackerId: entityId,
-                resolvedEffects: resolvedEffects || [], // 効果がなくても空配列を渡す
-                isEvaded: isEvaded || false,
-                isSupport: isSupport || false,
-                guardianInfo: guardianInfo || null, // ★新規: ガード情報を引き継ぐ
-            });
-
-            // ゲームオーバーチェック
-            if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
-                return;
-            }
-
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'onAttackDeclarationConfirmed', detail });
-        }
-    }
-
+    // onAttackDeclarationConfirmed(detail) { ... }
 
     /**
      * ★廃止: このメソッドの責務はonAttackDeclarationConfirmedに統合されました。
@@ -213,6 +180,8 @@ export class ActionSystem extends BaseSystem {
                             };
                             const result = strategy(effectContext);
                             if (result) {
+                                // ★新規: 使用パーツの貫通属性を効果結果に付与する
+                                result.penetrates = attackingPart.penetrates || false;
                                 resolvedEffects.push(result);
                             }
                         }

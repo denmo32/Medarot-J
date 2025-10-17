@@ -10,40 +10,48 @@ import * as Components from '../core/components/index.js';
 import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
 
 /**
- * 攻撃結果メッセージを生成します。
+ * ★リファクタリング: 攻撃結果メッセージを生成します。貫通ダメージにも対応。
  * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
  * @param {World} world - ワールドオブジェクト
- * @returns {string} 表示するメッセージ
+ * @returns {string} 表示するメッセージ (HTML文字列)
  * @private
  */
 const _generateResultMessage = (detail, world) => {
-    const { resolvedEffects, isEvaded, isSupport, attackerId, guardianInfo } = detail;
+    const { appliedEffects, isEvaded, isSupport, attackerId, guardianInfo } = detail;
+    
     if (isSupport) {
-        const effect = resolvedEffects[0] || {};
+        const effect = (appliedEffects && appliedEffects.length > 0) ? appliedEffects[0] : (detail.resolvedEffects ? detail.resolvedEffects[0] : {});
         return effect.message || '支援行動成功！';
     }
     if (isEvaded) {
-        const targetId = world.getComponent(attackerId, Components.Action)?.targetId;
+        const action = world.getComponent(attackerId, Components.Action);
+        const targetId = action ? action.targetId : null;
         const targetName = targetId ? world.getComponent(targetId, Components.PlayerInfo)?.name : null;
         return targetName ? `${targetName}は攻撃を回避！` : '攻撃は回避された！';
     }
-    const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
-    if (damageEffect) {
-        const { targetId, partKey, value: damage, isCritical, isDefended } = damageEffect;
-        const targetInfo = world.getComponent(targetId, Components.PlayerInfo);
-        if (!targetInfo) return '不明なターゲットへの攻撃';
 
-        const partName = PartKeyToInfoMap[partKey]?.name || '不明な部位';
-        let message = isCritical ? 'クリティカル！ ' : '';
-        if (guardianInfo) {
-            message += `味方への攻撃を庇う！ ${guardianInfo.name}の${partName}に${damage}ダメージ！`;
-        } else if (isDefended) {
-            message += `${targetInfo.name}は${partName}で防御！ ${partName}に${damage}ダメージ！`;
-        } else {
-            message += `${targetInfo.name}の${partName}に${damage}ダメージ！`;
+    if (appliedEffects && appliedEffects.length > 0) {
+        const firstDamageEffect = appliedEffects.find(e => e.type === EffectType.DAMAGE);
+        if (firstDamageEffect) {
+            const { targetId, partKey, value: damage, isCritical, isDefended } = firstDamageEffect;
+            const targetInfo = world.getComponent(targetId, Components.PlayerInfo);
+            if (!targetInfo) return '不明なターゲットへの攻撃';
+
+            const partName = PartKeyToInfoMap[partKey]?.name || '不明な部位';
+            let message = isCritical ? 'クリティカル！ ' : '';
+            
+            if (guardianInfo) {
+                message += `味方への攻撃を庇う！ ${guardianInfo.name}の${partName}に${damage}ダメージ！`;
+            } else if (isDefended) {
+                message += `${targetInfo.name}は${partName}で防御！ ${partName}に${damage}ダメージ！`;
+            } else {
+                message += `${targetInfo.name}の${partName}に${damage}ダメージ！`;
+            }
+            // ★注意: 貫通メッセージはActionPanelSystem側でアニメーションに合わせて動的に追加するため、ここでは最初のメッセージのみ生成します。
+            return message;
         }
-        return message;
     }
+    
     return '攻撃は空を切った！';
 };
 
@@ -101,7 +109,9 @@ export const createModalHandlers = (system) => ({
                 system.dom.actionPanelActor.dataset.guardMessageShown = 'true';
                 return;
             }
-            system.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo });
+            // ★変更: entityId を attackerId にリネームしてイベントを発行
+            system.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { attackerId: entityId, resolvedEffects, isEvaded, isSupport, guardianInfo });
+            // ★注意: ここでhideActionPanelは呼ばない。後続のACTION_EXECUTEDイベントで表示が更新されるため。
         }
     },
     // --- 結果表示 ---

@@ -8,6 +8,8 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 import { Parts, ActiveEffects, PlayerInfo } from '../core/components/index.js';
 import { EffectType, PartInfo } from '../common/constants.js';
+// ★新規: 貫通ターゲット選択用のユーティリティをインポート
+import { findRandomPenetrationTarget } from '../utils/queryUtils.js';
 
 /**
  * ActionSystemが発行するEFFECTS_RESOLVEDイベントを購読し、
@@ -16,28 +18,31 @@ import { EffectType, PartInfo } from '../common/constants.js';
 export class EffectApplicatorSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        // ActionSystemによって効果の計算が完了したことを示すイベントを購読します。
-        this.world.on(GameEvents.EFFECTS_RESOLVED, this.onEffectsResolved.bind(this));
+        // ★変更: ActionSystemが計算を終えた後、UI(攻撃宣言モーダル)の確認を経てから効果を適用するため、
+        // 購読するイベントを ATTACK_DECLARATION_CONFIRMED に変更します。
+        this.world.on(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.onAttackDeclarationConfirmed.bind(this));
     }
 
     /**
-     * 計算済みの効果を受け取り、ワールドの状態を更新します。
-     * @param {object} detail - EFFECTS_RESOLVEDイベントのペイロード
+     * ★リファクタリング: 計算済みの効果を受け取り、ワールドの状態を更新します。
+     * 貫通ダメージの生成もこのメソッドが担当します。
+     * @param {object} detail - ATTACK_DECLARATION_CONFIRMEDイベントのペイロード
      */
-    onEffectsResolved(detail) {
-        const { resolvedEffects, guardianInfo, attackerId } = detail;
+    onAttackDeclarationConfirmed(detail) {
+        const { attackerId, resolvedEffects, isEvaded, isSupport, guardianInfo } = detail;
+        
+        // ★新規: 最終的に適用された全効果を格納するリスト
+        const appliedEffects = [];
+        // ★新規: 貫通などで動的に効果が追加される可能性があるため、キューで処理します
+        const effectQueue = [...(resolvedEffects || [])];
 
-        // ★リファクタリング: ガード効果の処理をループの前に行うことでロジックを明確化
-        // ガードが発動した場合、まずガード役のガード回数を減らします。
+        // --- 1. ガード処理 ---
         if (guardianInfo) {
             const guardianEffects = this.world.getComponent(guardianInfo.id, ActiveEffects);
             if (guardianEffects) {
                 const guardEffect = guardianEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
                 if (guardEffect) {
-                    // ガード回数を1減らします。
                     guardEffect.count--;
-                    // ★新規: ガード回数が0になったら、効果が切れたことを通知するイベントを発行
-                    // 状態遷移はStateSystemがこのイベントを購読して担当します。
                     if (guardEffect.count <= 0) {
                         this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId: guardianInfo.id, effect: guardEffect });
                     }
@@ -45,100 +50,144 @@ export class EffectApplicatorSystem extends BaseSystem {
             }
         }
 
-        // 効果がない場合は何もしません。
-        if (!resolvedEffects || resolvedEffects.length === 0) {
+        if (!effectQueue || effectQueue.length === 0) {
+            // 効果がなくても、他のシステムが結果を待っている可能性があるためイベントを発行
+            this.world.emit(GameEvents.ACTION_EXECUTED, {
+                attackerId: attackerId,
+                appliedEffects: [],
+                isEvaded: isEvaded,
+                isSupport: isSupport,
+                guardianInfo: guardianInfo,
+            });
             return;
         }
 
-        // --- 2. 各効果の適用 ---
-        for (const effect of resolvedEffects) {
-            // ★リファクタリング: switch文で各効果を適用する汎用ディスパッチャーに変更
+        // --- 2. 各効果の適用 (キュー処理) ---
+        while (effectQueue.length > 0) {
+            const effect = effectQueue.shift();
+            let appliedResult = null;
+
             switch (effect.type) {
                 case EffectType.DAMAGE:
-                    this.applyDamage(effect);
+                    appliedResult = this.applyDamage(effect);
                     break;
                 case EffectType.HEAL:
-                    this.applyHeal(effect);
+                    appliedResult = this.applyHeal(effect);
                     break;
                 case EffectType.APPLY_SCAN:
                     this.applyTeamEffect(effect);
+                    // 適用結果はチーム全体に及ぶため、個別のappliedResultは不要
                     break;
                 case EffectType.APPLY_GUARD:
-                    // 実行者自身に効果を適用
                     this.applySingleEffect({ ...effect, targetId: attackerId });
                     break;
-                // APPLY_GLITCHはStateSystemがGameStateを変更するため、ここでは何もしない
+            }
+
+            if (appliedResult) {
+                appliedEffects.push(appliedResult);
+                
+                // ★新規: 貫通ダメージの生成ロジック
+                if (appliedResult.isPartBroken && effect.penetrates && appliedResult.overkillDamage > 0) {
+                    const penetrationTargetPartKey = findRandomPenetrationTarget(this.world, appliedResult.targetId, appliedResult.partKey);
+                    if (penetrationTargetPartKey) {
+                        // 新しい貫通ダメージ効果をキューの先頭に追加して、次のループで処理させる
+                        effectQueue.unshift({
+                            ...effect, // 元の効果情報（クリティカル等）を継承
+                            type: EffectType.DAMAGE,
+                            targetId: appliedResult.targetId,
+                            partKey: penetrationTargetPartKey,
+                            value: appliedResult.overkillDamage, // 余剰ダメージを威力とする
+                            isPenetration: true, // 貫通ダメージであることを示すフラグ
+                        });
+                    }
+                }
             }
         }
+
+        // --- 3. 最終的な適用結果をイベントで発行 ---
+        this.world.emit(GameEvents.ACTION_EXECUTED, {
+            attackerId: attackerId,
+            appliedEffects: appliedEffects, // ★変更: 実際に適用された効果(貫通含む)のリスト
+            isEvaded: isEvaded,
+            isSupport: isSupport,
+            guardianInfo: guardianInfo,
+        });
     }
 
     /**
-     * ダメージ効果を適用します。
+     * ダメージ効果を適用し、適用結果を返します。
      * @param {object} effect - ダメージ効果オブジェクト
+     * @returns {object} 適用結果オブジェクト
      * @private
      */
     applyDamage(effect) {
         const { targetId, partKey, value: damage } = effect;
-        if (targetId === null || targetId === undefined) return;
+        if (targetId === null || targetId === undefined) return null;
 
         const targetParts = this.world.getComponent(targetId, Parts);
-        if (!targetParts || !targetParts[partKey]) return;
+        if (!targetParts || !targetParts[partKey]) return null;
 
         const part = targetParts[partKey];
         const oldHp = part.hp;
-        part.hp = Math.max(0, part.hp - damage);
+        const newHp = Math.max(0, oldHp - damage);
+        part.hp = newHp;
 
-        // ★新規: HPが更新されたことをUIシステムに通知
+        const actualDamage = oldHp - newHp;
+        const overkillDamage = damage - actualDamage;
+        const isPartBroken = oldHp > 0 && newHp === 0;
+
         this.world.emit(GameEvents.HP_UPDATED, {
             entityId: targetId,
             partKey: partKey,
             newHp: part.hp,
             maxHp: part.maxHp,
-            change: -damage,
+            change: -actualDamage,
             isHeal: false,
         });
 
-        // パーツが破壊されたか判定し、イベントを発行します。
-        const isPartBroken = oldHp > 0 && part.hp === 0;
         if (isPartBroken) {
             part.isBroken = true;
             this.world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey: partKey });
-
-            // --- ▼▼▼ ここからがステップ3の変更箇所 ▼▼▼ ---
-            // ★修正: 頭部破壊時に、GameFlowSystemが必要とするチームIDもペイロードに含める
             if (partKey === PartInfo.HEAD.key) {
                 const playerInfo = this.world.getComponent(targetId, PlayerInfo);
                 if (playerInfo) {
                     this.world.emit(GameEvents.PLAYER_BROKEN, { 
                         entityId: targetId,
-                        teamId: playerInfo.teamId // チームIDを追加
+                        teamId: playerInfo.teamId
                     });
                 }
             }
-            // --- ▲▲▲ ステップ3の変更箇所ここまで ▲▲▲ ---
         }
+        
+        // ★新規: 適用結果を詳細に返す
+        return {
+            ...effect,
+            value: actualDamage, // 実際に与えたダメージ
+            overkillDamage: overkillDamage,
+            isPartBroken: isPartBroken,
+        };
     }
 
     /**
-     * 回復効果を適用します。
+     * 回復効果を適用し、適用結果を返します。
      * @param {object} effect - 回復効果オブジェクト
+     * @returns {object} 適用結果オブジェクト
      * @private
      */
     applyHeal(effect) {
         const { targetId, partKey, value: healAmount } = effect;
-        if (targetId === null || targetId === undefined) return;
+        if (targetId === null || targetId === undefined) return null;
 
         const targetParts = this.world.getComponent(targetId, Parts);
-        if (!targetParts || !targetParts[partKey]) return;
+        if (!targetParts || !targetParts[partKey]) return null;
 
         const part = targetParts[partKey];
-        // 回復は破壊されていないパーツにのみ有効です。
+        let actualHealAmount = 0;
         if (!part.isBroken) {
             const oldHp = part.hp;
             part.hp = Math.min(part.maxHp, part.hp + healAmount);
-            const actualHealAmount = part.hp - oldHp;
+            actualHealAmount = part.hp - oldHp;
 
-            // ★新規: HPが更新されたことをUIシステムに通知
             if (actualHealAmount > 0) {
                 this.world.emit(GameEvents.HP_UPDATED, {
                     entityId: targetId,
@@ -150,11 +199,14 @@ export class EffectApplicatorSystem extends BaseSystem {
                 });
             }
         }
+        
+        return {
+            ...effect,
+            value: actualHealAmount,
+        };
     }
     
     /**
-     * ★新規: チーム全体に効果を適用します (e.g., APPLY_SCAN)。
-     * @param {object} effect - 適用する効果オブジェクト
      * @private
      */
     applyTeamEffect(effect) {
@@ -168,30 +220,21 @@ export class EffectApplicatorSystem extends BaseSystem {
     }
 
     /**
-     * ★新規: 単一のエンティティに効果を適用します (e.g., APPLY_GUARD)。
-     * @param {object} effect - 適用する効果オブジェクト
      * @private
      */
     applySingleEffect(effect) {
         const { targetId } = effect;
         const activeEffects = this.world.getComponent(targetId, ActiveEffects);
         if (!activeEffects) return;
-
-        // 既存の同タイプ効果を削除 (重ねがけ不可)
         activeEffects.effects = activeEffects.effects.filter(e => e.type !== effect.type);
-
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-        // ★修正: effectオブジェクトから直接partKeyを取得するように変更
         activeEffects.effects.push({
             type: effect.type,
             value: effect.value,
             duration: effect.duration,
-            count: effect.value, // ガード回数などはvalueをcountとして扱う
-            partKey: effect.partKey, // ガードに使用したパーツのキー
+            count: effect.value,
+            partKey: effect.partKey,
         });
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
     }
 
-    // このシステムはイベント駆動で動作するため、update処理は不要です。
     update(deltaTime) {}
 }

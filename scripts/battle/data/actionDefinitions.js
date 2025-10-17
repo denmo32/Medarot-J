@@ -11,6 +11,7 @@ export const ActionDefinitions = {
     /**
      * @property {string} actionType - システムがロジック分岐に使うための論理的なアクション分類。
      * @property {boolean} isSupport - これが支援（非ダメージ）系のアクションかを判定するフラグ。
+     * @property {boolean} [penetrates] - ★新規: 攻撃がパーツを破壊した際に余剰ダメージが貫通するか。
      * @property {string} targetTiming - ターゲット決定のタイミング。
      * @property {string} [postMoveTargeting] - 移動後ターゲット決定戦略のキー。
      * @property {string} targetScope - AIがターゲット候補を選ぶ際のデフォルト範囲 (EffectScope定数)。
@@ -37,6 +38,19 @@ export const ActionDefinitions = {
     MELEE_STRIKE: {
         actionType: 'MELEE',
         isSupport: false,
+        targetTiming: TargetTiming.POST_MOVE,
+        postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY,
+        targetScope: EffectScope.ENEMY_SINGLE,
+        effects: [
+            { type: EffectType.DAMAGE, powerSource: 'might' }
+        ]
+    },
+
+    // ★新規: 我武者羅攻撃用の定義。貫通属性(penetrates)を持つ。
+    RECKLESS_STRIKE: {
+        actionType: 'MELEE',
+        isSupport: false,
+        penetrates: true, // ★新規: 貫通属性
         targetTiming: TargetTiming.POST_MOVE,
         postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY,
         targetScope: EffectScope.ENEMY_SINGLE,
