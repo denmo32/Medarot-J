@@ -178,7 +178,6 @@ body {
 }
         
         /* プレイヤーアイコンの状態 */
-        
         .player-icon.broken {
             background-color: var(--color-disabled) !important;
             color: var(--color-text-secondary);
@@ -189,10 +188,9 @@ body {
         
 
         /* 情報表示エリア */
-        /* .info-panels は新しいレイアウトでは使用されません */
         .team-info-panel {
-            background-color: var(--color-background-panel-inner);
-            padding: 15px;
+            background-color: transparent;
+            padding: 0;
             border-radius: 8px;
         }
         /* ★変更: チーム内のプレイヤーを縦に並べるためのコンテナ */
@@ -200,7 +198,7 @@ body {
             display: flex;
             flex-direction: column; /* 追加 */
             justify-content: space-between; /* 変更 */
-            gap: 0px; /* 変更 */
+            gap: 15px; /* 変更 */
             margin-top: 0px; /* 変更 */
             height: 100%; /* 追加 */
             box-sizing: border-box; /* 追加 */
@@ -215,7 +213,7 @@ body {
             border: 1px solid var(--color-border-secondary); /* ★追加: 枠線を追加 */
             padding: 6px; /* ★追加: 枠内の余白を調整 */
             border-radius: 8px; /* ★追加: 角を少し丸く */
-            background-color: var(--color-background-panel); /* ★追加: 背景色を調整 */
+            background-color: var(--color-background-panel-inner); /* ★修正: 背景色を統一 */
         }
         .player-info > .part-hp + .part-hp {
             margin-top: -4px;
@@ -226,7 +224,7 @@ body {
             font-size: 0.8em; /* ★変更: テキストを小さく */
         }
         /* parts-container は削除 */
-        .part-hp { display: flex; align-items: center; gap: 8px; } /* gapを調整 */
+        .part-hp { display: flex; align-items: center; gap: 8px; width: 100%; padding-left: 8px; } /* gapとpaddingを調整 */
         .part-hp-bar-container {
             width: 80px;
             height: 12px; /* 高さを調整 */
@@ -236,6 +234,13 @@ body {
             padding: 1px;
             box-sizing: border-box;
             box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);
+        }
+        /* ★新規: HP数値のスタイル */
+        .part-hp-value {
+            font-size: 0.75em;
+            font-weight: bold; /* ★太字に変更 */
+            color: var(--color-text-primary); /* ★白に近い色に変更 */
+            font-family: 'Roboto Mono', monospace; /* 数字が見やすいフォントに */
         }
         .part-hp-bar {
             height: 100%;

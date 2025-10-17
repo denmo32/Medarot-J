@@ -134,6 +134,12 @@ export class DomFactorySystem extends BaseSystem {
             if (hpPercentage > 50) barEl.style.backgroundColor = '#68d391';
             else if (hpPercentage > 20) barEl.style.backgroundColor = '#f6e05e';
             else barEl.style.backgroundColor = '#f56565';
+
+            // ★新規: HP数値の初期値を設定
+            const valueEl = partEl.querySelector('.part-hp-value');
+            if (valueEl) {
+                valueEl.textContent = `${part.hp}/${part.maxHp}`;
+            }
             // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
         });
 
@@ -157,7 +163,8 @@ export class DomFactorySystem extends BaseSystem {
                 domElements.partDOMElements[key] = {
                     container: partEl,
                     name: partEl.querySelector('.part-name'),
-                    bar: partEl.querySelector('.part-hp-bar')
+                    bar: partEl.querySelector('.part-hp-bar'),
+                    value: partEl.querySelector('.part-hp-value') // ★新規: HP数値要素への参照を追加
                 };
             }
         });

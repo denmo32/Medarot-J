@@ -39,6 +39,11 @@ export class UISystem extends BaseSystem {
         const hpPercentage = (newHp / maxHp) * 100;
         partDom.bar.style.width = `${hpPercentage}%`;
 
+        // ★新規: HP数値のテキストを更新
+        if (partDom.value) {
+            partDom.value.textContent = `${newHp}/${maxHp}`;
+        }
+
         // 色の更新
         if (newHp === 0) {
             partDom.container.classList.add('broken');

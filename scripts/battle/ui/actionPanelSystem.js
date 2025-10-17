@@ -332,14 +332,24 @@ export class ActionPanelSystem extends BaseSystem {
 
         const { targetId, partKey, value } = damageEffect;
         const targetDom = this.uiManager.getDOMElements(targetId);
-        const hpBar = targetDom?.partDOMElements[partKey]?.bar;
+        const partDom = targetDom?.partDOMElements[partKey];
+        const hpBar = partDom?.bar;
+        const hpValueEl = partDom?.value;
         const targetPart = this.world.getComponent(targetId, Components.Parts)?.[partKey];
-        if (!hpBar || !targetPart) {
+
+        if (!hpBar || !targetPart || !hpValueEl) {
             showClickable();
             return;
         }
 
+        let animationFrameId = null;
+
         const cleanup = () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            hpValueEl.textContent = `${targetPart.hp}/${targetPart.maxHp}`;
             hpBar.style.transition = '';
             hpBar.removeEventListener('transitionend', onTransitionEnd);
             clearTimeout(fallback);
@@ -351,24 +361,37 @@ export class ActionPanelSystem extends BaseSystem {
                 cleanup();
             }
         };
-        const fallback = setTimeout(cleanup, 1000); // アニメーション失敗時のフォールバック
-        
+
+        const fallback = setTimeout(cleanup, 1000);
         hpBar.addEventListener('transitionend', onTransitionEnd);
 
-        // 1. アニメーション前のHPを計算
         const finalHp = targetPart.hp;
         const changeAmount = value;
         const initialHp = (damageEffect.type === EffectType.HEAL)
             ? Math.max(0, finalHp - changeAmount)
             : Math.min(targetPart.maxHp, finalHp + changeAmount);
-        const initialHpPercentage = (initialHp / targetPart.maxHp) * 100;
+        
         const finalHpPercentage = (finalHp / targetPart.maxHp) * 100;
 
-        // 2. 次のフレームでアニメーションを開始
+        const animateHp = () => {
+            const currentWidthStyle = getComputedStyle(hpBar).width;
+            const parentWidth = hpBar.parentElement.clientWidth;
+            const currentWidth = parseFloat(currentWidthStyle);
+            
+            if (parentWidth > 0) {
+                const currentPercentage = (currentWidth / parentWidth) * 100;
+                const currentDisplayHp = Math.round((currentPercentage / 100) * targetPart.maxHp);
+                hpValueEl.textContent = `${currentDisplayHp}/${targetPart.maxHp}`;
+            }
+
+            animationFrameId = requestAnimationFrame(animateHp);
+        };
+
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 hpBar.style.transition = 'width 0.8s ease';
                 hpBar.style.width = `${finalHpPercentage}%`;
+                animationFrameId = requestAnimationFrame(animateHp);
             });
         });
     }
