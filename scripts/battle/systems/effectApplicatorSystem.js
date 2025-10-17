@@ -1,5 +1,5 @@
 /**
- * @file 効果適用システム (新規作成)
+ * @file 効果適用システム
  * このファイルは、ActionSystemによって「解決（計算）」された効果を、
  * 実際にエンティティのコンポーネントに「適用（反映）」する責務を持ちます。
  * これにより、効果の計算ロジックと状態変更ロジックを明確に分離します。
@@ -8,7 +8,6 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 import { Parts, ActiveEffects, PlayerInfo } from '../core/components/index.js';
 import { EffectType, PartInfo } from '../common/constants.js';
-// ★新規: 貫通ターゲット選択用のユーティリティをインポート
 import { findRandomPenetrationTarget } from '../utils/queryUtils.js';
 
 /**
@@ -18,22 +17,22 @@ import { findRandomPenetrationTarget } from '../utils/queryUtils.js';
 export class EffectApplicatorSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        // ★変更: ActionSystemが計算を終えた後、UI(攻撃宣言モーダル)の確認を経てから効果を適用するため、
+        // ActionSystemが計算を終えた後、UI(攻撃宣言モーダル)の確認を経てから効果を適用するため、
         // 購読するイベントを ATTACK_DECLARATION_CONFIRMED に変更します。
         this.world.on(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.onAttackDeclarationConfirmed.bind(this));
     }
 
     /**
-     * ★リファクタリング: 計算済みの効果を受け取り、ワールドの状態を更新します。
+     * 計算済みの効果を受け取り、ワールドの状態を更新します。
      * 貫通ダメージの生成もこのメソッドが担当します。
      * @param {object} detail - ATTACK_DECLARATION_CONFIRMEDイベントのペイロード
      */
     onAttackDeclarationConfirmed(detail) {
         const { attackerId, resolvedEffects, isEvaded, isSupport, guardianInfo } = detail;
         
-        // ★新規: 最終的に適用された全効果を格納するリスト
+        // 最終的に適用された全効果を格納するリスト
         const appliedEffects = [];
-        // ★新規: 貫通などで動的に効果が追加される可能性があるため、キューで処理します
+        // 貫通などで動的に効果が追加される可能性があるため、キューで処理します
         const effectQueue = [...(resolvedEffects || [])];
 
         // --- 1. ガード処理 ---
@@ -76,17 +75,26 @@ export class EffectApplicatorSystem extends BaseSystem {
                     break;
                 case EffectType.APPLY_SCAN:
                     this.applyTeamEffect(effect);
-                    // 適用結果はチーム全体に及ぶため、個別のappliedResultは不要
+                    // 元の効果オブジェクトを結果として扱うことで、メッセージ等の情報を引き継ぐ
+                    appliedResult = effect;
                     break;
                 case EffectType.APPLY_GUARD:
+                    // 実行者自身に効果を適用
                     this.applySingleEffect({ ...effect, targetId: attackerId });
+                    // 元の効果オブジェクトを結果として扱う
+                    appliedResult = effect;
+                    break;
+                // StateSystemが状態遷移を行うが、メッセージ表示のために結果に含める
+                case EffectType.APPLY_GLITCH:
+                    // 元の効果オブジェクトを結果として扱う
+                    appliedResult = effect;
                     break;
             }
 
             if (appliedResult) {
                 appliedEffects.push(appliedResult);
                 
-                // ★新規: 貫通ダメージの生成ロジック
+                // 貫通ダメージの生成ロジック
                 if (appliedResult.isPartBroken && effect.penetrates && appliedResult.overkillDamage > 0) {
                     const penetrationTargetPartKey = findRandomPenetrationTarget(this.world, appliedResult.targetId, appliedResult.partKey);
                     if (penetrationTargetPartKey) {
@@ -107,7 +115,7 @@ export class EffectApplicatorSystem extends BaseSystem {
         // --- 3. 最終的な適用結果をイベントで発行 ---
         this.world.emit(GameEvents.ACTION_EXECUTED, {
             attackerId: attackerId,
-            appliedEffects: appliedEffects, // ★変更: 実際に適用された効果(貫通含む)のリスト
+            appliedEffects: appliedEffects, // 実際に適用された効果(貫通含む)のリスト
             isEvaded: isEvaded,
             isSupport: isSupport,
             guardianInfo: guardianInfo,
@@ -159,7 +167,7 @@ export class EffectApplicatorSystem extends BaseSystem {
             }
         }
         
-        // ★新規: 適用結果を詳細に返す
+        // 適用結果を詳細に返す
         return {
             ...effect,
             value: actualDamage, // 実際に与えたダメージ
@@ -176,7 +184,11 @@ export class EffectApplicatorSystem extends BaseSystem {
      */
     applyHeal(effect) {
         const { targetId, partKey, value: healAmount } = effect;
-        if (targetId === null || targetId === undefined) return null;
+        // targetIdがない場合、それは「回復対象がいなかった」という有効な結果なので、
+        // メッセージ情報を持つeffectオブジェクトをそのまま返す。
+        if (targetId === null || targetId === undefined) {
+            return effect;
+        }
 
         const targetParts = this.world.getComponent(targetId, Parts);
         if (!targetParts || !targetParts[partKey]) return null;
