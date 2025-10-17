@@ -330,7 +330,7 @@ export class ActionPanelSystem extends BaseSystem {
             return;
         }
 
-        const { targetId, partKey } = damageEffect;
+        const { targetId, partKey, value } = damageEffect;
         const targetDom = this.uiManager.getDOMElements(targetId);
         const hpBar = targetDom?.partDOMElements[partKey]?.bar;
         const targetPart = this.world.getComponent(targetId, Components.Parts)?.[partKey];
@@ -346,18 +346,30 @@ export class ActionPanelSystem extends BaseSystem {
             showClickable();
         };
 
-        const newHpPercentage = (targetPart.hp / targetPart.maxHp) * 100;
         const onTransitionEnd = (event) => {
             if (event.propertyName === 'width') {
                 cleanup();
             }
         };
-        const fallback = setTimeout(cleanup, 1000);
-
+        const fallback = setTimeout(cleanup, 1000); // アニメーション失敗時のフォールバック
+        
         hpBar.addEventListener('transitionend', onTransitionEnd);
+
+        // 1. アニメーション前のHPを計算
+        const finalHp = targetPart.hp;
+        const changeAmount = value;
+        const initialHp = (damageEffect.type === EffectType.HEAL)
+            ? Math.max(0, finalHp - changeAmount)
+            : Math.min(targetPart.maxHp, finalHp + changeAmount);
+        const initialHpPercentage = (initialHp / targetPart.maxHp) * 100;
+        const finalHpPercentage = (finalHp / targetPart.maxHp) * 100;
+
+        // 2. 次のフレームでアニメーションを開始
         requestAnimationFrame(() => {
-            hpBar.style.transition = 'width 0.8s ease';
-            requestAnimationFrame(() => { hpBar.style.width = `${newHpPercentage}%`; });
+            requestAnimationFrame(() => {
+                hpBar.style.transition = 'width 0.8s ease';
+                hpBar.style.width = `${finalHpPercentage}%`;
+            });
         });
     }
 }

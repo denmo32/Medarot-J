@@ -17,7 +17,6 @@ import { partSelectionStrategies, PartSelectionStrategyKey } from './partSelecti
  * @property {Array<{partStrategy: string, targetStrategy: string, condition?: object}>} routines - AIが優先順位順に試行する思考ルーチンのリスト。
  *   - `partStrategy`: 使用するパーツを選択する戦略のキー (partSelectionStrategiesより)。
  *   - `targetStrategy`: ターゲットを選択する戦略のキー (targetingStrategiesより)。
- *   - `targetCandidates`: 'ENEMIES' | 'ALLIES' | 'ALLIES_INCLUDING_SELF' ターゲット候補の範囲
  *   - `condition`: (任意) このルーチンを実行するための条件を評価するデータオブジェクト。
  *       - `type`: AiSystemの`conditionEvaluators`で定義された評価キー (例: 'ANY_ALLY_DAMAGED')。
  *       - `params`: (任意) 評価関数に渡すパラメータ。
@@ -31,7 +30,7 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
                 targetStrategy: TargetingStrategyKey.HUNTER,
-                targetCandidates: 'ENEMIES', // ★新規: ターゲット候補を宣言的に指定
+                // ★廃止: targetCandidatesはパーツのactionDefinitionで定義されるため不要
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
@@ -43,7 +42,6 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
                 targetStrategy: TargetingStrategyKey.CRUSHER,
-                targetCandidates: 'ENEMIES', // ★新規
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
@@ -55,7 +53,6 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.RANDOM,
                 targetStrategy: TargetingStrategyKey.JOKER,
-                targetCandidates: 'ENEMIES', // ★新規
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
@@ -67,7 +64,6 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
                 targetStrategy: TargetingStrategyKey.COUNTER,
-                targetCandidates: 'ENEMIES', // ★新規
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
@@ -79,7 +75,6 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
                 targetStrategy: TargetingStrategyKey.GUARD,
-                targetCandidates: 'ENEMIES', // ★新規
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
@@ -91,7 +86,6 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
                 targetStrategy: TargetingStrategyKey.FOCUS,
-                targetCandidates: 'ENEMIES', // ★新規
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
@@ -103,7 +97,6 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
                 targetStrategy: TargetingStrategyKey.ASSIST,
-                targetCandidates: 'ENEMIES', // ★新規
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
@@ -115,7 +108,6 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
                 targetStrategy: TargetingStrategyKey.LEADER_FOCUS,
-                targetCandidates: 'ENEMIES', // ★新規
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
@@ -127,7 +119,6 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.RANDOM,
                 targetStrategy: TargetingStrategyKey.RANDOM,
-                targetCandidates: 'ENEMIES', // ★新規
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
@@ -140,7 +131,6 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.HEAL_FOCUS,
                 targetStrategy: TargetingStrategyKey.HEALER,
-                targetCandidates: 'ALLIES_INCLUDING_SELF', // ★新規
                 // ★リファクタリング: 実行条件をシリアライズ可能なデータオブジェクトに変更
                 condition: {
                     type: 'ANY_ALLY_DAMAGED', // AiSystemの`conditionEvaluators`で解釈されるキー
@@ -151,7 +141,6 @@ export const personalityRegistry = {
             {
                 partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
                 targetStrategy: TargetingStrategyKey.RANDOM,
-                targetCandidates: 'ENEMIES', // ★新規
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,

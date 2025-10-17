@@ -8,43 +8,42 @@
 import { PartInfo, EffectType, EffectScope, TargetTiming, ActionType, AttackType } from '../common/constants.js';
 // ★新規: PartRolesをインポートし、データ駆動設計を強化
 import { PartRoles } from './partRoles.js';
-// ★新規: PostMoveTargetingStrategyKeyをインポートし、タイプセーフティを向上
-import { PostMoveTargetingStrategyKey } from '../ai/postMoveTargetingStrategies.js';
+// ★新規: 新しいactionDefinitionsをインポート
+import { ActionDefinitionKey } from './actionDefinitions.js';
 
 export const PARTS_DATA = {
     // --- 頭部パーツ ---
     [PartInfo.HEAD.key]: {
-        // ★リファクタリング: `type`プロパティの値をAttackType定数に置き換え
-        'head_001': { name: 'ヘッドライフル', maxHp: 40, action: '射撃', type: AttackType.SHOOT, trait: 'ライフル', success: 70, might: 15, role: PartRoles.DAMAGE, targetTiming: TargetTiming.PRE_MOVE },
-        'head_002': { name: 'ヘッドソード', maxHp: 50, action: '格闘', type: AttackType.STRIKE, trait: 'ソード', success: 60, might: 10, role: { ...PartRoles.DAMAGE, actionType: ActionType.MELEE }, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY },
-        'head_003': { name: 'ヘッドガトリング', maxHp: 35, action: '射撃', type: AttackType.AIMED_SHOT, trait: 'ガトリング', success: 85, might: 12, role: PartRoles.DAMAGE, targetTiming: TargetTiming.PRE_MOVE },
-        'head_004': { name: 'ヘッドハンマー', maxHp: 30, action: '格闘', type: AttackType.RECKLESS, trait: 'ハンマー', success: 50, might: 30, role: { ...PartRoles.DAMAGE, actionType: ActionType.MELEE }, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY },
-        'head_005': { name: 'ヘッドスキャン', maxHp: 50, action: '援護', type: AttackType.SUPPORT, trait: 'スキャン', success: 50, might: 50, role: PartRoles.SUPPORT_SCAN, targetTiming: TargetTiming.PRE_MOVE },
-        'head_006': { name: 'ヘッドリペア', maxHp: 50, action: '回復', type: AttackType.REPAIR, trait: 'リペア', success: 50, might: 40, role: PartRoles.HEAL, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.MOST_DAMAGED_ALLY },
-        'head_007': { name: 'ヘッドグリッチ', maxHp: 45, action: '妨害', type: AttackType.INTERRUPT, trait: 'グリッチ', success: 70, might: 0, role: PartRoles.SUPPORT_GLITCH, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY },
-        'head_008': { name: 'ヘッドガード', maxHp: 120, action: '防御', type: AttackType.DEFEND, trait: 'ガード', success: 0, might: 30, role: PartRoles.DEFENSE, targetTiming: TargetTiming.POST_MOVE },
+        'head_001': { name: 'ヘッドライフル', maxHp: 40, action: '射撃', type: AttackType.SHOOT, trait: 'ライフル', success: 70, might: 15, role: PartRoles.DAMAGE.key, actionKey: ActionDefinitionKey.SINGLE_SHOT },
+        'head_002': { name: 'ヘッドソード', maxHp: 50, action: '格闘', type: AttackType.STRIKE, trait: 'ソード', success: 60, might: 10, role: { key: PartRoles.DAMAGE.key, actionType: ActionType.MELEE }, actionKey: ActionDefinitionKey.MELEE_STRIKE },
+        'head_003': { name: 'ヘッドガトリング', maxHp: 35, action: '射撃', type: AttackType.AIMED_SHOT, trait: 'ガトリング', success: 85, might: 12, role: PartRoles.DAMAGE.key, actionKey: ActionDefinitionKey.SINGLE_SHOT },
+        'head_004': { name: 'ヘッドハンマー', maxHp: 30, action: '格闘', type: AttackType.RECKLESS, trait: 'ハンマー', success: 50, might: 30, role: { key: PartRoles.DAMAGE.key, actionType: ActionType.MELEE }, actionKey: ActionDefinitionKey.MELEE_STRIKE },
+        'head_005': { name: 'ヘッドスキャン', maxHp: 50, action: '援護', type: AttackType.SUPPORT, trait: 'スキャン', success: 50, might: 50, role: PartRoles.SUPPORT_SCAN.key, actionKey: ActionDefinitionKey.TEAM_SCAN },
+        'head_006': { name: 'ヘッドリペア', maxHp: 50, action: '回復', type: AttackType.REPAIR, trait: 'リペア', success: 50, might: 40, role: PartRoles.HEAL.key, actionKey: ActionDefinitionKey.SINGLE_HEAL },
+        'head_007': { name: 'ヘッドグリッチ', maxHp: 45, action: '妨害', type: AttackType.INTERRUPT, trait: 'グリッチ', success: 70, might: 0, role: PartRoles.SUPPORT_GLITCH.key, actionKey: ActionDefinitionKey.SINGLE_GLITCH },
+        'head_008': { name: 'ヘッドガード', maxHp: 120, action: '防御', type: AttackType.DEFEND, trait: 'ガード', success: 0, might: 30, role: PartRoles.DEFENSE.key, actionKey: ActionDefinitionKey.SELF_GUARD },
     },
     // --- 右腕パーツ ---
     [PartInfo.RIGHT_ARM.key]: {
-        'rarm_001': { name: 'ライトライフル', maxHp: 50, action: '射撃', type: AttackType.SHOOT, trait: 'ライフル', success: 65, might: 25, role: PartRoles.DAMAGE, targetTiming: TargetTiming.PRE_MOVE },
-        'rarm_002': { name: 'ライトソード', maxHp: 50, action: '格闘', type: AttackType.STRIKE, trait: 'ソード', success: 55, might: 30, role: { ...PartRoles.DAMAGE, actionType: ActionType.MELEE }, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY },
-        'rarm_003': { name: 'ライトガトリング', maxHp: 45, action: '射撃', type: AttackType.AIMED_SHOT, trait: 'ガトリング', success: 75, might: 20, role: PartRoles.DAMAGE, targetTiming: TargetTiming.PRE_MOVE },
-        'rarm_004': { name: 'ライトハンマー', maxHp: 40, action: '格闘', type: AttackType.RECKLESS, trait: 'ハンマー', success: 80, might: 18, role: { ...PartRoles.DAMAGE, actionType: ActionType.MELEE }, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY },
-		'rarm_005': { name: 'ライトスキャン', maxHp: 50, action: '援護', type: AttackType.SUPPORT, trait: 'スキャン', success: 50, might: 50, role: PartRoles.SUPPORT_SCAN, targetTiming: TargetTiming.PRE_MOVE },
-		'rarm_006': { name: 'ライトリペア', maxHp: 50, action: '回復', type: AttackType.REPAIR, trait: 'リペア', success: 50, might: 40, role: PartRoles.HEAL, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.MOST_DAMAGED_ALLY },
-        'rarm_007': { name: 'ライトグリッチ', maxHp: 55, action: '妨害', type: AttackType.INTERRUPT, trait: 'グリッチ', success: 80, might: 0, role: PartRoles.SUPPORT_GLITCH, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY },
-        'rarm_008': { name: 'ライトガード', maxHp: 120, action: '防御', type: AttackType.DEFEND, trait: 'ガード', success: 0, might: 30, role: PartRoles.DEFENSE, targetTiming: TargetTiming.POST_MOVE },
+        'rarm_001': { name: 'ライトライフル', maxHp: 50, action: '射撃', type: AttackType.SHOOT, trait: 'ライフル', success: 65, might: 25, role: PartRoles.DAMAGE.key, actionKey: ActionDefinitionKey.SINGLE_SHOT },
+        'rarm_002': { name: 'ライトソード', maxHp: 50, action: '格闘', type: AttackType.STRIKE, trait: 'ソード', success: 55, might: 30, role: { key: PartRoles.DAMAGE.key, actionType: ActionType.MELEE }, actionKey: ActionDefinitionKey.MELEE_STRIKE },
+        'rarm_003': { name: 'ライトガトリング', maxHp: 45, action: '射撃', type: AttackType.AIMED_SHOT, trait: 'ガトリング', success: 75, might: 20, role: PartRoles.DAMAGE.key, actionKey: ActionDefinitionKey.SINGLE_SHOT },
+        'rarm_004': { name: 'ライトハンマー', maxHp: 40, action: '格闘', type: AttackType.RECKLESS, trait: 'ハンマー', success: 80, might: 18, role: { key: PartRoles.DAMAGE.key, actionType: ActionType.MELEE }, actionKey: ActionDefinitionKey.MELEE_STRIKE },
+		'rarm_005': { name: 'ライトスキャン', maxHp: 50, action: '援護', type: AttackType.SUPPORT, trait: 'スキャン', success: 50, might: 50, role: PartRoles.SUPPORT_SCAN.key, actionKey: ActionDefinitionKey.TEAM_SCAN },
+		'rarm_006': { name: 'ライトリペア', maxHp: 50, action: '回復', type: AttackType.REPAIR, trait: 'リペア', success: 50, might: 40, role: PartRoles.HEAL.key, actionKey: ActionDefinitionKey.SINGLE_HEAL },
+        'rarm_007': { name: 'ライトグリッチ', maxHp: 55, action: '妨害', type: AttackType.INTERRUPT, trait: 'グリッチ', success: 80, might: 0, role: PartRoles.SUPPORT_GLITCH.key, actionKey: ActionDefinitionKey.SINGLE_GLITCH },
+        'rarm_008': { name: 'ライトガード', maxHp: 120, action: '防御', type: AttackType.DEFEND, trait: 'ガード', success: 0, might: 30, role: PartRoles.DEFENSE.key, actionKey: ActionDefinitionKey.SELF_GUARD },
     },
     // --- 左腕パーツ ---
     [PartInfo.LEFT_ARM.key]: {
-        'larm_001': { name: 'レフトライフル', maxHp: 50, action: '射撃', type: AttackType.AIMED_SHOT, trait: 'ライフル', success: 70, might: 22, role: PartRoles.DAMAGE, targetTiming: TargetTiming.PRE_MOVE },
-        'larm_002': { name: 'レフトソード', maxHp: 50, action: '格闘', type: AttackType.RECKLESS, trait: 'ソード', success: 50, might: 35, role: { ...PartRoles.DAMAGE, actionType: ActionType.MELEE }, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY },
-        'larm_003': { name: 'レフトガトリング', maxHp: 45, action: '射撃', type: AttackType.SHOOT, trait: 'ガトリング', success: 60, might: 28, role: PartRoles.DAMAGE, targetTiming: TargetTiming.PRE_MOVE },
-        'larm_004': { name: 'レフトハンマー', maxHp: 70, action: '格闘', type: AttackType.STRIKE, trait: 'ハンマー', success: 40, might: 10, role: { ...PartRoles.DAMAGE, actionType: ActionType.MELEE }, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY },
-    	'larm_005': { name: 'レフトスキャン', maxHp: 50, action: '援護', type: AttackType.SUPPORT, trait: 'スキャン', success: 50, might: 50, role: PartRoles.SUPPORT_SCAN, targetTiming: TargetTiming.PRE_MOVE },
-    	'larm_006': { name: 'レフトリペア', maxHp: 50, action: '回復', type: AttackType.REPAIR, trait: 'リペア', success: 50, might: 40, role: PartRoles.HEAL, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.MOST_DAMAGED_ALLY },
-        'larm_007': { name: 'レフトグリッチ', maxHp: 55, action: '妨害', type: AttackType.INTERRUPT, trait: 'グリッチ', success: 80, might: 0, role: PartRoles.SUPPORT_GLITCH, targetTiming: TargetTiming.POST_MOVE, postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY },
-        'larm_008': { name: 'レフトガード', maxHp: 120, action: '防御', type: AttackType.DEFEND, trait: 'ガード', success: 0, might: 30, role: PartRoles.DEFENSE, targetTiming: TargetTiming.POST_MOVE },
+        'larm_001': { name: 'レフトライフル', maxHp: 50, action: '射撃', type: AttackType.AIMED_SHOT, trait: 'ライフル', success: 70, might: 22, role: PartRoles.DAMAGE.key, actionKey: ActionDefinitionKey.SINGLE_SHOT },
+        'larm_002': { name: 'レフトソード', maxHp: 50, action: '格闘', type: AttackType.RECKLESS, trait: 'ソード', success: 50, might: 35, role: { key: PartRoles.DAMAGE.key, actionType: ActionType.MELEE }, actionKey: ActionDefinitionKey.MELEE_STRIKE },
+        'larm_003': { name: 'レフトガトリング', maxHp: 45, action: '射撃', type: AttackType.SHOOT, trait: 'ガトリング', success: 60, might: 28, role: PartRoles.DAMAGE.key, actionKey: ActionDefinitionKey.SINGLE_SHOT },
+        'larm_004': { name: 'レフトハンマー', maxHp: 70, action: '格闘', type: AttackType.STRIKE, trait: 'ハンマー', success: 40, might: 10, role: { key: PartRoles.DAMAGE.key, actionType: ActionType.MELEE }, actionKey: ActionDefinitionKey.MELEE_STRIKE },
+    	'larm_005': { name: 'レフトスキャン', maxHp: 50, action: '援護', type: AttackType.SUPPORT, trait: 'スキャン', success: 50, might: 50, role: PartRoles.SUPPORT_SCAN.key, actionKey: ActionDefinitionKey.TEAM_SCAN },
+    	'larm_006': { name: 'レフトリペア', maxHp: 50, action: '回復', type: AttackType.REPAIR, trait: 'リペア', success: 50, might: 40, role: PartRoles.HEAL.key, actionKey: ActionDefinitionKey.SINGLE_HEAL },
+        'larm_007': { name: 'レフトグリッチ', maxHp: 55, action: '妨害', type: AttackType.INTERRUPT, trait: 'グリッチ', success: 80, might: 0, role: PartRoles.SUPPORT_GLITCH.key, actionKey: ActionDefinitionKey.SINGLE_GLITCH },
+        'larm_008': { name: 'レフトガード', maxHp: 120, action: '防御', type: AttackType.DEFEND, trait: 'ガード', success: 0, might: 30, role: PartRoles.DEFENSE.key, actionKey: ActionDefinitionKey.SELF_GUARD },
     },
     // --- 脚部パーツ ---
     [PartInfo.LEGS.key]: {

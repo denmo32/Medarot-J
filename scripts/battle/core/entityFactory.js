@@ -4,36 +4,42 @@ import * as Components from './components/index.js';
 import { TeamID, MedalPersonality, PartInfo } from '../common/constants.js'; 
 import { PARTS_DATA } from '../data/parts.js'; 
 import { MEDAROT_SETS } from '../data/medarotSets.js'; 
+// ★新規: actionDefinitionsとpartRolesをインポートしてデータマージを行う
+import { ActionDefinitions } from '../data/actionDefinitions.js';
+import { PartRoles } from '../data/partRoles.js';
 
 /**
- * ★新規: マスターデータを元に、戦闘インスタンス用のパーツデータを生成します。
- * マスターデータ（設計図）と、戦闘中に変動する状態（HPなど）を明確に分離し、
- * データの不変性を保つことで、予期せぬバグを防ぎます。
- * Partsコンポーネントからロジックを移管しました。
- * @param {object} partData - パーツのマスターデータ
+ * ★リファクタリング: マスターデータを元に、戦闘インスタンス用のパーツデータを生成します。
+ * この関数は、パーツデータ、役割、行動定義をマージして、
+ * 戦闘システムが直接利用できる単一のオブジェクトを構築します。
+ * @param {object} partData - パーツのマスターデータ (`PARTS_DATA`の単一エントリ)
  * @returns {object | null} 戦闘インスタンス用のパーツオブジェクト、またはnull
  */
 const initializePart = (partData) => {
     if (!partData) return null;
 
-    // 1. ロールのデフォルト値とパーツ固有の値をマージする
-    // これにより、parts.jsの記述を簡潔に保ちつつ、完全なデータ構造を構築します。
-    // partData.roleが存在し、それがオブジェクトであることを確認します。
-    const roleDefaults = (partData.role && typeof partData.role === 'object') ? { ...partData.role } : {};
-    
-    // マージの順序が重要: partDataがroleDefaultsを上書きします。
-    // これにより、パーツデータで定義された`effects`などがロールのデフォルトをオーバーライドできます。
-    const partInstance = { ...roleDefaults, ...partData };
+    // 1. 役割(role)と行動定義(action)のデータを取得
+    // partData.roleはオブジェクトの場合(上書き)と文字列の場合(参照)がある
+    const roleKey = (typeof partData.role === 'object') ? partData.role.key : partData.role;
+    const roleData = Object.values(PartRoles).find(r => r.key === roleKey) || {};
 
-    // 2. 戦闘中の状態を初期化します。
-    partInstance.hp = partData.maxHp;
-    partInstance.isBroken = false;
+    const actionData = ActionDefinitions[partData.actionKey] || {};
+
+    // 2. データをマージする (優先度: partData > roleData > actionData)
+    // これにより、パーツ固有の設定が役割や行動のデフォルト設定を上書きできます。
+    const mergedData = { ...actionData, ...roleData, ...partData };
+    // roleがオブジェクトで上書きされている場合、その内容をさらにマージ
+    if (typeof partData.role === 'object') {
+        Object.assign(mergedData, partData.role);
+    }
     
-    // 3. effectの 'strategy' プロパティを 'type' に統一します。
-    // データ定義の互換性を保ちつつ、システム内部では 'type' を使用します。
-    if (partInstance.effects && Array.isArray(partInstance.effects)) {
-        partInstance.effects = partInstance.effects.map(effect => {
-            // strategyプロパティが存在すれば、typeにコピーして元のプロパティを削除
+    // 3. 戦闘中の状態を初期化
+    mergedData.hp = partData.maxHp;
+    mergedData.isBroken = false;
+    
+    // 4. effectの 'strategy' プロパティを 'type' に統一 (後方互換性)
+    if (mergedData.effects && Array.isArray(mergedData.effects)) {
+        mergedData.effects = mergedData.effects.map(effect => {
             if (effect.strategy) {
                 const newEffect = { ...effect, type: effect.strategy };
                 delete newEffect.strategy;
@@ -43,7 +49,7 @@ const initializePart = (partData) => {
         });
     }
 
-    return partInstance;
+    return mergedData;
 };
 
 /**

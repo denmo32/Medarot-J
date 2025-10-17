@@ -88,8 +88,8 @@ export class StateSystem {
         action.type = selectedPart.action; // UI表示用の日本語アクション名を保持
         action.targetId = targetId;
         action.targetPartKey = targetPartKey;
-        // ★修正: アクションの特性(targetTiming)を、Actionコンポーネントの直下プロパティとして設定
-        action.targetTiming = selectedPart.targetTiming || TargetTiming.PRE_MOVE;
+        // ★リファクタリング: アクションの特性(targetTiming)を、マージ済みのパーツデータから設定
+        action.targetTiming = selectedPart.targetTiming;
 
         // 4. エンティティの状態を「行動選択済みチャージ中」へ遷移させます。
         gameState.state = PlayerStateType.SELECTED_CHARGING;
@@ -103,33 +103,30 @@ export class StateSystem {
 
 
     /**
-     * ActionSystemによって行動が実行され、その結果が通知された際に呼び出されます。
+     * ★リファクタリング: このシステムが担当する状態遷移（GLITCH, GUARD）に特化させました。
      * @param {object} detail - 行動の実行結果
      */
     onEffectsResolved(detail) {
-        const { resolvedEffects } = detail;
+        const { resolvedEffects, attackerId } = detail;
         if (!resolvedEffects || resolvedEffects.length === 0) {
             return;
         }
 
         for (const effect of resolvedEffects) {
-            if (effect.type === EffectType.APPLY_GLITCH) {
-                // ★新規: グリッチ効果の処理
-                if (effect.wasSuccessful) {
-                    // 成功した場合、ターゲットの行動を中断させクールダウンに移行
-                    this.resetEntityStateToCooldown(effect.targetId, { interrupted: true });
-                }
-            } else if (effect.type === EffectType.APPLY_GUARD) {
-                // ★新規: ガード効果の処理
-                const { targetId } = effect;
-                const gameState = this.world.getComponent(targetId, GameState);
+            // ★リファクタリング: GLITCH効果による状態遷移をここで処理
+            if (effect.type === EffectType.APPLY_GLITCH && effect.wasSuccessful) {
+                // 成功した場合、ターゲットの行動を中断させクールダウンに移行
+                this.resetEntityStateToCooldown(effect.targetId, { interrupted: true });
+            } 
+            // ★リファクタリング: GUARD効果による状態遷移をここで処理
+            else if (effect.type === EffectType.APPLY_GUARD) {
+                const gameState = this.world.getComponent(attackerId, GameState);
                 if (gameState) {
-                    // ★修正: APPLY_GUARD効果の適用はEffectApplicatorSystemが行うため、ここでは状態遷移のみを担当
                     gameState.state = PlayerStateType.GUARDING;
                     
                     // 実行ラインに留まるため、位置を固定
-                    const position = this.world.getComponent(targetId, Position);
-                    const playerInfo = this.world.getComponent(targetId, PlayerInfo);
+                    const position = this.world.getComponent(attackerId, Position);
+                    const playerInfo = this.world.getComponent(attackerId, PlayerInfo);
                     if (position && playerInfo) {
                         position.x = playerInfo.teamId === TeamID.TEAM1
                             ? CONFIG.BATTLEFIELD.ACTION_LINE_TEAM1
@@ -207,6 +204,7 @@ export class StateSystem {
             const action = this.world.getComponent(actorId, Action);
             const actorInfo = this.world.getComponent(actorId, PlayerInfo);
             const actorParts = this.world.getComponent(actorId, Parts);
+            const selectedPart = actorParts[action.partKey];
 
             // 1. 自身の予約パーツが破壊された場合
             if (actorId === brokenEntityId && action.partKey === brokenPartKey) {
@@ -216,10 +214,9 @@ export class StateSystem {
                 // 一つのエンティティに対する処理は一度で十分なので、次のエンティティへ
                 continue; 
             }
-
+            
             // 2. ターゲットが機能停止した場合 (頭部破壊)
-            const partScope = actorParts[action.partKey]?.targetScope;
-            if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(partScope) &&
+            if (selectedPart?.targetScope?.endsWith('_SINGLE') &&
                 action.targetId === brokenEntityId && 
                 brokenPartKey === PartInfo.HEAD.key) 
             {

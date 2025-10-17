@@ -265,7 +265,10 @@ export function findGuardian(world, originalTargetId) {
             const info = world.getComponent(id, PlayerInfo);
             const parts = world.getComponent(id, Parts);
             const activeEffects = world.getComponent(id, ActiveEffects);
-            const hasGuardEffect = activeEffects?.effects.some(e => e.type === EffectType.APPLY_GUARD);
+            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // ★修正: ガード回数が1回以上残っていることを条件に追加
+            const hasGuardEffect = activeEffects?.effects.some(e => e.type === EffectType.APPLY_GUARD && e.count > 0);
+            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
             
             return info.teamId === targetInfo.teamId && !parts.head?.isBroken && hasGuardEffect;
         })

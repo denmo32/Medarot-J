@@ -225,8 +225,8 @@ class DefaultCombatStrategy extends CombatStrategy {
      * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果
      */
     resolveHitOutcome({ world, attackerId, targetId, attackingPart, targetLegs, initialTargetPartKey }) {
-        // 支援行動は必ず「命中」する
-        if (attackingPart.role.isSupport) {
+        // ★リファクタリング: isSupportフラグをパーツオブジェクトから直接参照
+        if (attackingPart.isSupport) {
             return { isHit: true, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
         }
 

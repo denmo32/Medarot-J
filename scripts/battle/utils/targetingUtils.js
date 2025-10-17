@@ -75,11 +75,25 @@ export function determineRecommendedTarget(world, entityId, part) {
     const strategies = getStrategiesFor(attackerMedal.personality);
     let target = null;
     
-    // パーツの対象範囲に応じてターゲット候補を決定
-    const isAllyTargeting = part.targetScope?.startsWith('ALLY_');
-    const candidates = isAllyTargeting
-        ? getValidAllies(world, entityId, true)
-        : getValidEnemies(world, entityId);
+    // ★リファクタリング: パーツの`targetScope`に基づいてターゲット候補を決定
+    let candidates = [];
+    switch (part.targetScope) {
+        case EffectScope.ENEMY_SINGLE:
+        case EffectScope.ENEMY_TEAM:
+            candidates = getValidEnemies(world, entityId);
+            break;
+        case EffectScope.ALLY_SINGLE:
+            candidates = getValidAllies(world, entityId, false);
+            break;
+        case EffectScope.ALLY_TEAM:
+            candidates = getValidAllies(world, entityId, true);
+            break;
+        case EffectScope.SELF:
+             candidates = [entityId];
+             break;
+        default:
+            candidates = getValidEnemies(world, entityId);
+    }
 
     // 1. 性格に定義された最初の思考ルーチンでターゲットを試行
     if (strategies.routines && strategies.routines.length > 0) {

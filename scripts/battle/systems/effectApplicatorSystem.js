@@ -25,7 +25,7 @@ export class EffectApplicatorSystem extends BaseSystem {
      * @param {object} detail - EFFECTS_RESOLVEDイベントのペイロード
      */
     onEffectsResolved(detail) {
-        const { resolvedEffects, guardianInfo } = detail;
+        const { resolvedEffects, guardianInfo, attackerId } = detail;
 
         // ★リファクタリング: ガード効果の処理をループの前に行うことでロジックを明確化
         // ガードが発動した場合、まずガード役のガード回数を減らします。
@@ -52,6 +52,7 @@ export class EffectApplicatorSystem extends BaseSystem {
 
         // --- 2. 各効果の適用 ---
         for (const effect of resolvedEffects) {
+            // ★リファクタリング: switch文で各効果を適用する汎用ディスパッチャーに変更
             switch (effect.type) {
                 case EffectType.DAMAGE:
                     this.applyDamage(effect);
@@ -59,8 +60,14 @@ export class EffectApplicatorSystem extends BaseSystem {
                 case EffectType.HEAL:
                     this.applyHeal(effect);
                     break;
-                // 他のタイプの効果もここに追加していきます
-                // 例: APPLY_SCAN, APPLY_GUARDなど、ActiveEffectsコンポーネントを変更する効果
+                case EffectType.APPLY_SCAN:
+                    this.applyTeamEffect(effect);
+                    break;
+                case EffectType.APPLY_GUARD:
+                    // 実行者自身に効果を適用
+                    this.applySingleEffect({ ...effect, targetId: attackerId });
+                    break;
+                // APPLY_GLITCHはStateSystemがGameStateを変更するため、ここでは何もしない
             }
         }
     }
@@ -143,6 +150,46 @@ export class EffectApplicatorSystem extends BaseSystem {
                 });
             }
         }
+    }
+    
+    /**
+     * ★新規: チーム全体に効果を適用します (e.g., APPLY_SCAN)。
+     * @param {object} effect - 適用する効果オブジェクト
+     * @private
+     */
+    applyTeamEffect(effect) {
+        if (!effect.scope?.endsWith('_TEAM')) return;
+        const sourceInfo = this.world.getComponent(effect.targetId, PlayerInfo);
+        if (!sourceInfo) return;
+        const teamMembers = this.world.getEntitiesWith(PlayerInfo, ActiveEffects)
+            .filter(id => this.world.getComponent(id, PlayerInfo).teamId === sourceInfo.teamId);
+        
+        teamMembers.forEach(id => this.applySingleEffect({ ...effect, targetId: id }));
+    }
+
+    /**
+     * ★新規: 単一のエンティティに効果を適用します (e.g., APPLY_GUARD)。
+     * @param {object} effect - 適用する効果オブジェクト
+     * @private
+     */
+    applySingleEffect(effect) {
+        const { targetId } = effect;
+        const activeEffects = this.world.getComponent(targetId, ActiveEffects);
+        if (!activeEffects) return;
+
+        // 既存の同タイプ効果を削除 (重ねがけ不可)
+        activeEffects.effects = activeEffects.effects.filter(e => e.type !== effect.type);
+
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // ★修正: effectオブジェクトから直接partKeyを取得するように変更
+        activeEffects.effects.push({
+            type: effect.type,
+            value: effect.value,
+            duration: effect.duration,
+            count: effect.value, // ガード回数などはvalueをcountとして扱う
+            partKey: effect.partKey, // ガードに使用したパーツのキー
+        });
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
     }
 
     // このシステムはイベント駆動で動作するため、update処理は不要です。

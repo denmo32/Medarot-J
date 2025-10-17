@@ -104,11 +104,12 @@ export class ActionSystem extends BaseSystem {
             const parts = this.getCachedComponent(executor, Parts); // ★追加
             if (!action || !gameState || !parts) return;
             
-            // ★修正: 移動後ターゲット決定ロジックをデータ駆動型にリファクタリング
-            // ★修正: マジックストリングの代わりに定数を使用
-            if (action.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
-                const selectedPart = parts[action.partKey];
-                const strategyKey = selectedPart?.postMoveTargeting;
+            const selectedPart = parts[action.partKey];
+            if (!selectedPart) return;
+
+            // ★リファクタリング: パーツにマージされた `targetTiming` を直接参照する
+            if (selectedPart.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
+                const strategyKey = selectedPart.postMoveTargeting;
                 const strategy = postMoveTargetingStrategies[strategyKey];
 
                 if (strategy) {
@@ -159,7 +160,8 @@ export class ActionSystem extends BaseSystem {
 
             // 手順2: ガード役を索敵し、必要であればターゲットを更新します。
             let guardian = null;
-            const isSingleDamageAction = !attackingPart.role.isSupport && [ActionType.SHOOT, ActionType.MELEE].includes(attackingPart.role.actionType) && action.targetId !== null;
+            // ★リファクタリング: isSupportやactionTypeをパーツオブジェクトから直接参照
+            const isSingleDamageAction = !attackingPart.isSupport && [ActionType.SHOOT, ActionType.MELEE].includes(attackingPart.actionType) && action.targetId !== null;
 
             if (isSingleDamageAction) {
                 // ★修正: ガード役の索敵ロジックを queryUtils の findGuardian に移譲
@@ -191,14 +193,21 @@ export class ActionSystem extends BaseSystem {
             if (outcome.isHit || !action.targetId) {
                 if (attackingPart.effects && Array.isArray(attackingPart.effects)) {
                     for (const effect of attackingPart.effects) {
+                        // ★新規: 確率(chance)に基づいた発動判定
+                        if (Math.random() >= (effect.chance || 1.0)) {
+                            continue; // 確率判定に失敗した場合はこの効果をスキップ
+                        }
+                        
                         const strategy = effectStrategies[effect.type];
                         if (strategy) {
+                            // ★修正: effectStrategiesにpartKeyを渡す
                             const effectContext = {
                                 world: this.world,
                                 sourceId: executor,
                                 targetId: action.targetId,
                                 effect: effect,
                                 part: attackingPart,
+                                partKey: action.partKey, // ガード効果などで使用
                                 partOwner: { info: attackerInfo, parts: attackerParts },
                                 outcome: outcome, // 計算済みの命中結果を渡す
                             };
@@ -211,26 +220,12 @@ export class ActionSystem extends BaseSystem {
                 }
             }
             
-            // 手順5: 効果の「解決」が完了したことを、他のシステムに通知します。
-            // これにより、UI表示を待たずに、ゲームロジックが先行して状態を更新できます。
-            const resolvedPayload = {
-                attackerId: executor,
-                resolvedEffects: resolvedEffects,
-                isEvaded: !outcome.isHit,
-                isSupport: attackingPart.role.isSupport,
-                guardianInfo: guardian,
-            };
-            this.world.emit(GameEvents.EFFECTS_RESOLVED, resolvedPayload);
-
-            // リーダーが破壊されゲームオーバーになった場合、後続のモーダル表示処理などをスキップします。
-            if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
-                this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
-                return;
-            }
-
-            // 手順6: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
-            const isSupportAction = attackingPart.role.isSupport;
+            const isSupportAction = attackingPart.isSupport;
             
+            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+            // ★修正: イベント発行順序を変更。モーダル表示を先に行い、UIのポーズ状態を確定させてから効果解決イベントを発行する。
+            
+            // 手順5: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
             let declarationMessage;
             if (isSupportAction) {
                  declarationMessage = `${attackerInfo.name}の${attackingPart.action}行動！ ${attackingPart.trait}！`;
@@ -252,6 +247,24 @@ export class ActionSystem extends BaseSystem {
                 },
                 immediate: true
             });
+
+            // 手順6: 効果の「解決」が完了したことを、他のシステムに通知します。
+            const resolvedPayload = {
+                attackerId: executor,
+                resolvedEffects: resolvedEffects,
+                isEvaded: !outcome.isHit,
+                isSupport: isSupportAction,
+                guardianInfo: guardian,
+            };
+            this.world.emit(GameEvents.EFFECTS_RESOLVED, resolvedPayload);
+            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
+
+
+            // リーダーが破壊されゲームオーバーになった場合、後続の処理をスキップ
+            if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
+                this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
+                return;
+            }
 
         } catch (error) {
             ErrorHandler.handle(error, { method: 'onExecutionAnimationCompleted', detail });

@@ -86,29 +86,31 @@ export class ViewSystem extends BaseSystem {
     }
 
     /**
-     * ★新規: 攻撃アニメーションを実行します (UISystemから移管)。
+     * ★リファクタリング: 攻撃アニメーションを実行します。
      * @param {object} detail - イベントペイロード { attackerId, targetId }
      */
     executeAttackAnimation(detail) {
         const { attackerId, targetId } = detail;
         const attackerDomElements = this.uiManager.getDOMElements(attackerId);
+        
+        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
+        // ★修正: アニメーション再生条件を強化。ターゲットIDが存在し、かつアクションが単体対象の場合のみ再生する。
         const action = this.getCachedComponent(attackerId, Components.Action);
         const parts = this.getCachedComponent(attackerId, Components.Parts);
-
+        
         let isSingleTargetAction = false;
-        // ActionとPartsコンポーネントから、行動が単体対象かどうかを判断する
         if (action && action.partKey && parts && parts[action.partKey]) {
             const selectedPart = parts[action.partKey];
             const scope = selectedPart.targetScope;
-            // 味方単体または敵単体が対象のアクションの場合にtrue
-            isSingleTargetAction = scope === EffectScope.ALLY_SINGLE || scope === EffectScope.ENEMY_SINGLE;
+            // EffectScope定数を使って単体対象アクションかどうかを判定
+            isSingleTargetAction = scope === EffectScope.ENEMY_SINGLE || scope === EffectScope.ALLY_SINGLE;
         }
-        
-        // ターゲットがいない、攻撃者のDOM要素がない、またはアクションが単体対象でない場合は、アニメーションをスキップ
+
         if (!targetId || !attackerDomElements || !isSingleTargetAction) {
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
         }
+        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
         const targetDomElements = this.uiManager.getDOMElements(targetId);
         if (!attackerDomElements.iconElement || !targetDomElements?.iconElement) {
@@ -132,10 +134,6 @@ export class ViewSystem extends BaseSystem {
         const attackerIcon = attackerDomElements.iconElement;
         const targetIcon = targetDomElements.iconElement;
         
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-        // ★修正: 意図的な遅延をsetTimeoutで追加する。
-        // これにより、ブラウザがDOMのレイアウト計算を完了させるための時間を確保し、
-        // getBoundingClientRect()が最新の正しい座標を返すことを保証する。
         setTimeout(() => {
             const attackerRect = attackerIcon.getBoundingClientRect();
             const targetRect = targetIcon.getBoundingClientRect();
@@ -168,7 +166,6 @@ export class ViewSystem extends BaseSystem {
                 this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             });
         }, 100); // 100ミリ秒の遅延。レンダリングエンジンに十分な時間を与える。
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
     }
 
     /**

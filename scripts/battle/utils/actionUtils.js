@@ -31,7 +31,7 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
     const selectedPart = parts[partKey];
 
     // 'post-move'アクションは移動後にターゲットを決めるため、ターゲット情報を無視して予約する
-    // ★修正: マジックストリングの代わりに定数を使用
+    // ★リファクタリング: マージされた `targetTiming` プロパティを参照
     if (selectedPart.targetTiming === TargetTiming.POST_MOVE) {
         world.emit(GameEvents.ACTION_SELECTED, {
             entityId,
@@ -42,8 +42,7 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
         return;
     }
 
-    // ★元に戻した箇所: AiSystemが有効なターゲットを保証する設計になったため、
-    // ここでターゲットが見つからない場合は「バグ」であり、再選択要求ではなく警告を出すのが適切。
+    // ★リファクタリング: ターゲットが必要なアクションかどうかの判定を `targetScope` で行う
     if (selectedPart.targetScope?.endsWith('_SINGLE') && !isValidTarget(world, target?.targetId, target?.targetPartKey)) {
         console.error(`decideAndEmitAction: A valid target was expected for a single-target action but not found. Action may fail.`, {entityId, partKey, target});
     }

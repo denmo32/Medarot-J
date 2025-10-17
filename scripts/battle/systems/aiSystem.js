@@ -15,6 +15,8 @@ import { getStrategiesFor } from '../ai/personalityRegistry.js';
 // ★追加: partSelectionStrategies を直接インポート
 import { partSelectionStrategies } from '../ai/partSelectionStrategies.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js'; // ★新規: targetingStrategiesをインポート
+// ★新規: EffectScopeをインポート
+import { EffectScope } from '../common/constants.js';
 
 
 /**
@@ -81,7 +83,6 @@ export class AiSystem extends BaseSystem {
         // --- Step 1: 思考ルーチンを順番に試行 ---
         if (strategies.routines && strategies.routines.length > 0) {
             for (const routine of strategies.routines) {
-                // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
                 // ★新規: ルーチンに実行条件(condition)が定義されていれば評価する
                 if (routine.condition) {
                     const evaluator = conditionEvaluators[routine.condition.type];
@@ -95,10 +96,9 @@ export class AiSystem extends BaseSystem {
                         continue;
                     }
                 }
-                // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
 
-                // ★修正: part.targetScopeへの依存をなくし、ルーチン定義からターゲット候補を決定する
-                const { partStrategy: partStrategyKey, targetStrategy: targetStrategyKey, targetCandidates: candidatesKey } = routine;
+                // ★リファクタリング: personalityRegistryからtargetCandidatesを削除
+                const { partStrategy: partStrategyKey, targetStrategy: targetStrategyKey } = routine;
                 
                 // 1a. パーツ戦略でパーツを決定
                 const partSelectionFunc = partSelectionStrategies[partStrategyKey];
@@ -110,31 +110,34 @@ export class AiSystem extends BaseSystem {
                 const [partKey, part] = partSelectionFunc(context);
                 if (!partKey) continue; // この戦略に合うパーツがなければ、次のルーチンへ
 
+                // ★リファクタリング: 選択したパーツの`targetScope`に基づいてターゲット候補リストを作成
+                let candidates = [];
+                switch (part.targetScope) {
+                    case EffectScope.ENEMY_SINGLE:
+                    case EffectScope.ENEMY_TEAM:
+                        candidates = getValidEnemies(this.world, entityId);
+                        break;
+                    case EffectScope.ALLY_SINGLE:
+                        candidates = getValidAllies(this.world, entityId, false); // 自分を含まない
+                        break;
+                    case EffectScope.ALLY_TEAM:
+                        candidates = getValidAllies(this.world, entityId, true); // 自分を含む
+                        break;
+                    case EffectScope.SELF:
+                        candidates = [entityId];
+                        break;
+                    default:
+                        console.warn(`AiSystem: Unknown targetScope '${part.targetScope}'. Defaulting to enemies.`);
+                        candidates = getValidEnemies(this.world, entityId);
+                }
+
                 // 1b. ターゲット戦略でターゲットを決定
                 const targetSelectionFunc = targetingStrategies[targetStrategyKey];
                 if (!targetSelectionFunc) {
                     console.warn(`AiSystem: Unknown targetStrategy '${targetStrategyKey}' in routines for ${attackerMedal.personality}.`);
                     continue;
                 }
-                
-                // ★リファクタリング: ルーチンの`targetCandidates`定義に基づいてターゲット候補リストを作成
-                let candidates = [];
-                switch (candidatesKey) {
-                    case 'ENEMIES':
-                        candidates = getValidEnemies(this.world, entityId);
-                        break;
-                    case 'ALLIES':
-                        candidates = getValidAllies(this.world, entityId, false); // 自分を含まない
-                        break;
-                    case 'ALLIES_INCLUDING_SELF':
-                        candidates = getValidAllies(this.world, entityId, true); // 自分を含む
-                        break;
-                    default:
-                        console.warn(`AiSystem: Unknown targetCandidates key '${candidatesKey}'. Defaulting to enemies.`);
-                        candidates = getValidEnemies(this.world, entityId);
-                }
                     
-                // ★修正: 第4引数に戦略キーを渡してイベント発行をトリガーする
                 const target = determineTarget(this.world, entityId, targetSelectionFunc, candidates, targetStrategyKey);
 
                 // 1c. 有効な行動が見つかったらループを抜け、行動を確定

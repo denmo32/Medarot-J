@@ -16,32 +16,21 @@ const APPLY_SCAN = ({ world, sourceId, effect, part }) => {
     const sourceInfo = world.getComponent(sourceId, PlayerInfo);
     if (!sourceInfo) return null;
 
-    //効果量はパーツの威力(might)をベースに計算
-    const scanBonusValue = Math.floor(part.might / 10);
-    // 効果の持続ターン数をデータ定義(effect.duration)から取得
-    const duration = effect.duration || 3; // データに定義がなければデフォルトで3
+    // ★リファクタリング: 効果量をデータ定義(powerSource)に基づいて計算
+    const powerSource = effect.powerSource || 'might';
+    const scanBonusValue = Math.floor(part[powerSource] / 10);
+    const duration = effect.duration || 3;
 
-    // 味方全体を取得
-    const allies = getValidAllies(world, sourceId, true); // trueで自分自身も含む
+    // 効果の適用対象となるエンティティのリストを取得
+    const allies = getValidAllies(world, sourceId, true); 
 
-    // 各味方のActiveEffectsコンポーネントに効果を追加する
-    allies.forEach(allyId => {
-        const activeEffects = world.getComponent(allyId, ActiveEffects);
-        if (activeEffects) {
-            // 同じタイプの効果が既にあれば削除（重ねがけ不可のルール）
-            activeEffects.effects = activeEffects.effects.filter(e => e.type !== EffectType.APPLY_SCAN);
-            // 新しい効果を追加
-            activeEffects.effects.push({
-                type: EffectType.APPLY_SCAN,
-                value: scanBonusValue,
-                duration: duration,
-            });
-        }
-    });
+    // ★リファクタリング: EffectApplicatorSystemが効果を適用するため、ここでは計算結果を返すだけ
+    // 各味方のActiveEffectsコンポーネントに効果を追加する処理はEffectApplicatorSystemに移譲
     
     return {
         type: EffectType.APPLY_SCAN,
-        scope: EffectScope.ALLY_TEAM,
+        scope: EffectScope.ALLY_TEAM, // EffectApplicatorSystemがこのスコープを解釈する
+        targetId: sourceId, // チームを特定するための起点ID
         value: scanBonusValue,
         duration: duration,
         message: `味方チーム全体の命中精度が${scanBonusValue}上昇！（${duration}ターン）`
@@ -86,31 +75,20 @@ const APPLY_GLITCH = ({ world, targetId }) => {
  * @param {object} context - 戦略が必要とする情報を含むコンテキストオブジェクト
  * @returns {object | null} 実行された効果の詳細を示すオブジェクト、または効果がない場合はnull
  */
-const APPLY_GUARD = ({ world, sourceId, effect, part }) => {
-    // ガード回数の計算をデータ駆動に変更
-    // effectに定義された倍率(countMultiplier)を使い、パーツの威力(might)に基づいて回数を算出
-    const countMultiplier = effect.countMultiplier || 0.1; // データに定義がなければデフォルトで0.1 (mightの10%)
-    const guardCount = Math.floor(part.might * countMultiplier);
+const APPLY_GUARD = ({ world, sourceId, effect, part, partKey }) => {
+    // ★リファクタリング: 効果量の計算をデータ定義に基づいて行う
+    const powerSource = effect.powerSource || 'might';
+    const countMultiplier = effect.countMultiplier || 0.1;
+    const guardCount = Math.floor(part[powerSource] * countMultiplier);
     
-    const sourceAction = world.getComponent(sourceId, Action);
-    if (!sourceAction) return null;
-    
-    // ガード効果をActiveEffectsコンポーネントに追加
-    const activeEffects = world.getComponent(sourceId, ActiveEffects);
-    if (activeEffects) {
-        // 既存のガード効果は上書き
-        activeEffects.effects = activeEffects.effects.filter(e => e.type !== EffectType.APPLY_GUARD);
-        activeEffects.effects.push({
-            type: EffectType.APPLY_GUARD,
-            count: guardCount,
-            partKey: sourceAction.partKey, // ガードに使用したパーツ
-        });
-    }
+    // ★リファクタリング: 副作用を削除。この戦略は計算結果オブジェクトを返す責務に集中する。
+    // ActiveEffectsコンポーネントへの追加はEffectApplicatorSystemが担当。
     
     return {
         type: EffectType.APPLY_GUARD,
-        targetId: sourceId,
+        targetId: sourceId, // 効果の適用先は自分自身
         value: guardCount,
+        partKey: partKey, // ★ガードに使用したパーツのキーを結果に含める
         message: `味方への攻撃を${guardCount}回庇う！`
     };
 };

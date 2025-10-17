@@ -1,66 +1,35 @@
 /**
- * @file パーツ役割マスターデータ (新規作成)
- * このファイルは、パーツの基本的な「役割」を定義し、関連するデフォルトの振る舞いを集約します。
- * これにより、parts.jsでの個々のパーツ定義が簡潔になり、役割に基づいた一貫性のある設定を保証します。
+ * @file パーツ役割マスターデータ (リファクタリング)
+ * このファイルは、パーツの基本的な「役割」を識別するためのキーを定義します。
+ * 行動の振る舞いに関する定義は `actionDefinitions.js` に移管され、
+ * このファイルはAI戦略やUI分類のための「タグ」としての役割に特化します。
  */
-// ★修正: ActionTypeを追加でインポート
-import { EffectScope, EffectType, ActionType } from '../common/constants.js';
+// ★削除: 振る舞い定義をactionDefinitions.jsに移管したため不要
+// import { EffectScope, EffectType, ActionType } from '../common/constants.js';
 
 export const PartRoles = {
     /**
      * @property {string} key - AI戦略などで役割を識別するためのキー。
-     * @property {ActionType} actionType - システムがロジック分岐に使うための論理的なアクション分類。
-     * @property {boolean} isSupport - これが支援（非ダメージ）系のアクションかを判定するフラグ。
-     * @property {string} targetScope - デフォルトのターゲット範囲。
-     * @property {Array<object>} effects - デフォルトの効果定義。
      */
-
     // 攻撃系ロール
     DAMAGE: {
         key: 'damage',
-        // ★新規: アクションの論理タイプと支援フラグを追加
-        actionType: ActionType.SHOOT, // デフォルトは射撃。格闘パーツは個別に上書きする。
-        isSupport: false,
-        targetScope: EffectScope.ENEMY_SINGLE,
-        effects: [{ type: EffectType.DAMAGE }],
     },
     // 回復系ロール
     HEAL: {
         key: 'heal',
-        // ★新規: アクションの論理タイプと支援フラグを追加
-        actionType: ActionType.HEAL,
-        isSupport: true,
-        targetScope: EffectScope.ALLY_SINGLE,
-        effects: [{ type: EffectType.HEAL }],
     },
     // 援護系ロール
     SUPPORT_SCAN: {
         key: 'support_scan',
-        // ★新規: アクションの論理タイプと支援フラグを追加
-        actionType: ActionType.SUPPORT,
-        isSupport: true,
-        targetScope: EffectScope.ALLY_TEAM,
-        // ★改善: 効果に持続時間(duration)などの追加パラメータを直接定義
-        effects: [{ type: EffectType.APPLY_SCAN, duration: 3 }],
     },
     // 妨害系ロール
     SUPPORT_GLITCH: {
         key: 'support_glitch',
-        // ★新規: アクションの論理タイプと支援フラグを追加
-        actionType: ActionType.INTERRUPT,
-        isSupport: true,
-        targetScope: EffectScope.ENEMY_SINGLE,
-        effects: [{ type: EffectType.APPLY_GLITCH }],
     },
     // 防御系ロール
     DEFENSE: {
         key: 'defense',
-        // ★新規: アクションの論理タイプと支援フラグを追加
-        actionType: ActionType.DEFEND,
-        isSupport: true,
-        targetScope: EffectScope.SELF,
-        // ★改善: ガード回数の計算ロジックをデータとして定義 (威力 * 0.1)
-        effects: [{ type: EffectType.APPLY_GUARD, countMultiplier: 0.1 }],
     },
 };
 
