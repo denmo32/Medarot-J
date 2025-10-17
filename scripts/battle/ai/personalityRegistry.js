@@ -5,8 +5,8 @@
 import { MedalPersonality } from '../common/constants.js';
 import { targetingStrategies, TargetingStrategyKey } from './targetingStrategies.js'; // ★ TargetingStrategyKey をインポート
 import { partSelectionStrategies, PartSelectionStrategyKey } from './partSelectionStrategies.js'; // ★ PartSelectionStrategyKey をインポート
-// ★追加: AIの思考条件を定義するために、クエリユーティリティをインポート
-import { getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
+// ★削除: これらのクエリはAiSystemの条件評価器(conditionEvaluator)が内部で使用するため、ここでのインポートは不要
+// import { getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
 
 /**
  * AIの性格と戦略のマッピング。
@@ -14,11 +14,13 @@ import { getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js'
  * 行動の優先順位（思考ルーチン）と代替戦略を定義できます。
  *
  * @property {object} [personality] - AIの性格ごとの戦略定義。
- * @property {Array<{partStrategy: string, targetStrategy: string, condition?: function}>} routines - AIが優先順位順に試行する思考ルーチンのリスト。
+ * @property {Array<{partStrategy: string, targetStrategy: string, condition?: object}>} routines - AIが優先順位順に試行する思考ルーチンのリスト。
  *   - `partStrategy`: 使用するパーツを選択する戦略のキー (partSelectionStrategiesより)。
  *   - `targetStrategy`: ターゲットを選択する戦略のキー (targetingStrategiesより)。
  *   - `targetCandidates`: 'ENEMIES' | 'ALLIES' | 'ALLIES_INCLUDING_SELF' ターゲット候補の範囲
- *   - `condition`: (任意) このルーチンを実行するための条件を評価する関数。trueを返した場合のみ実行される。
+ *   - `condition`: (任意) このルーチンを実行するための条件を評価するデータオブジェクト。
+ *       - `type`: AiSystemの`conditionEvaluators`で定義された評価キー (例: 'ANY_ALLY_DAMAGED')。
+ *       - `params`: (任意) 評価関数に渡すパラメータ。
  * @property {function} fallbackTargeting - `routines`の全試行が失敗した場合に実行される最終的なターゲット選択戦略。
  */
 export const personalityRegistry = {
@@ -135,15 +137,14 @@ export const personalityRegistry = {
         // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も効果の高い回復パーツで、最も損害の大きい味方を回復する
-            // ★追加: このルーチンは「回復対象がいる場合のみ」実行される
             {
                 partStrategy: PartSelectionStrategyKey.HEAL_FOCUS,
                 targetStrategy: TargetingStrategyKey.HEALER,
                 targetCandidates: 'ALLIES_INCLUDING_SELF', // ★新規
-                condition: ({ world, entityId }) => {
-                    const allies = getValidAllies(world, entityId, true); // 自分を含む味方
-                    // 最もダメージを受けた味方パーツが存在するかどうかで判断
-                    return findMostDamagedAllyPart(world, allies) !== null;
+                // ★リファクタリング: 実行条件をシリアライズ可能なデータオブジェクトに変更
+                condition: {
+                    type: 'ANY_ALLY_DAMAGED', // AiSystemの`conditionEvaluators`で解釈されるキー
+                    params: { includeSelf: true } // 評価関数に渡すパラメータ
                 }
             },
             // 優先度2 (フォールバック): 回復対象がいない場合、最も威力の高い攻撃パーツでランダムな敵を攻撃する

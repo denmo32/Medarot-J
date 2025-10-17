@@ -1,4 +1,4 @@
-import { TeamID } from './constants.js';
+import { TeamID, AttackType } from './constants.js';
 
 /**
  * @file ゲーム全体の設定値を一元管理するモジュール
@@ -19,10 +19,10 @@ export const CONFIG = {
     CRITICAL_HIT: {
         // 攻撃成功度とターゲット機動度の差を確率に変換する際の係数
         DIFFERENCE_FACTOR: 200, 
-        // 特定の攻撃タイプに加算されるクリティカル率ボーナス
+        // ★リファクタリング: キーをマジックストリングからAttackType定数に変更
         TYPE_BONUS: {
-            '殴る': 0.25,
-            '狙い撃ち': 0.50,
+            [AttackType.STRIKE]: 0.25,
+            [AttackType.AIMED_SHOT]: 0.50,
         },
     },
     
@@ -66,7 +66,8 @@ export const CONFIG = {
     
     // パーツタイプ別の補正値
     PART_TYPE_MODIFIERS: {
-        '撃つ': {
+        // ★リファクタリング: キーをマジックストリングからAttackType定数に変更
+        [AttackType.SHOOT]: {
             // '撃つ'タイプはチャージとクールダウンの両方の時間に影響する
             speedMultiplier: 0.75 // 補正率を0.75にする（25%短縮）
         },

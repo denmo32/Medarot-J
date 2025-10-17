@@ -127,6 +127,24 @@ export const ActionType = {
 };
 
 /**
+ * ★新規: 攻撃の特性（タイプ）を定義する定数。
+ * parts.jsの日本語文字列`type`プロパティを置き換え、マジックストリングを排除します。
+ */
+export const AttackType = {
+    // 射撃系
+    SHOOT: '撃つ',
+    AIMED_SHOT: '狙い撃ち',
+    // 格闘系
+    STRIKE: '殴る',
+    RECKLESS: '我武者羅',
+    // 援護・回復・妨害・防御系
+    SUPPORT: '支援',
+    REPAIR: '修復',
+    INTERRUPT: '妨害',
+    DEFEND: '守る',
+};
+
+/**
  * ★廃止: パーツの役割キーは `data/partRoles.js` で一元管理されるようになりました。
  * これにより、データ定義の信頼性が向上し、保守が容易になります。
  */

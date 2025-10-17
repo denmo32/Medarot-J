@@ -7,7 +7,7 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 import { Medal, Parts, PlayerInfo } from '../core/components/index.js'; // ★ PlayerInfo をインポート
 // ★修正: 必要なユーティリティをインポート
-import { getAttackableParts, getValidEnemies, getValidAllies, isValidTarget } from '../utils/queryUtils.js';
+import { getAttackableParts, getValidEnemies, getValidAllies, isValidTarget, findMostDamagedAllyPart } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
 // ★リファクタリング: `ai/targetingUtils` から `utils/targetingUtils` に変更
 import { determineTarget } from '../utils/targetingUtils.js';
@@ -16,6 +16,27 @@ import { getStrategiesFor } from '../ai/personalityRegistry.js';
 import { partSelectionStrategies } from '../ai/partSelectionStrategies.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js'; // ★新規: targetingStrategiesをインポート
 
+
+/**
+ * ★新規: AI思考ルーチンの実行条件を評価する関数のコレクション。
+ * `personalityRegistry`で定義された`condition`データオブジェクトを解釈します。
+ * @type {Object.<string, function({world: World, entityId: number, params: object}): boolean>}
+ */
+const conditionEvaluators = {
+    /**
+     * 味方（自分を含む/含まない）の誰かがダメージを受けているかを評価します。
+     * @param {object} context - 評価コンテキスト
+     * @returns {boolean} - ダメージを受けている味方がいればtrue
+     */
+    ANY_ALLY_DAMAGED: ({ world, entityId, params }) => {
+        const { includeSelf = false } = params || {};
+        const allies = getValidAllies(world, entityId, includeSelf);
+        // 最もダメージを受けた味方パーツが存在するかどうかで判断
+        return findMostDamagedAllyPart(world, allies) !== null;
+    },
+    // 将来的な条件を追加する例:
+    // IS_LEADER: ({ world, entityId }) => world.getComponent(entityId, PlayerInfo)?.isLeader,
+};
 
 /**
  * AIの「脳」として機能するシステム。
@@ -63,8 +84,14 @@ export class AiSystem extends BaseSystem {
                 // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
                 // ★新規: ルーチンに実行条件(condition)が定義されていれば評価する
                 if (routine.condition) {
-                    // 条件を満たさなければ、このルーチンはスキップして次へ
-                    if (!routine.condition(context)) {
+                    const evaluator = conditionEvaluators[routine.condition.type];
+                    if (evaluator) {
+                        // 条件を満たさなければ、このルーチンはスキップして次へ
+                        if (!evaluator({ ...context, params: routine.condition.params })) {
+                            continue;
+                        }
+                    } else {
+                        console.warn(`AiSystem: Unknown condition type '${routine.condition.type}' for ${attackerMedal.personality}.`);
                         continue;
                     }
                 }

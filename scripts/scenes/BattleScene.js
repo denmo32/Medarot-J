@@ -8,11 +8,26 @@ import { initializeSystems } from '../battle/core/systemInitializer.js';
 import { createPlayers } from '../battle/core/entityFactory.js';
 import { GameModeContext } from '../battle/core/index.js';
 
+/**
+ * @typedef {import('../core/GameDataManager.js').GameDataManager} GameDataManager
+ * @typedef {import('../core/InputManager.js').InputManager} InputManager
+ */
+
+/**
+ * @typedef {object} BattleSceneData
+ * @description BattleSceneの初期化に必要なデータ。
+ * @property {GameDataManager} gameDataManager - グローバルなゲームデータマネージャー。
+ * @property {InputManager} inputManager - グローバルな入力マネージャー。
+ */
+
 export class BattleScene extends BaseScene {
     constructor(world, sceneManager) {
         super(world, sceneManager);
     }
 
+    /**
+     * @param {BattleSceneData} data - シーンの初期化データ。
+     */
     init(data) {
         console.log("Initializing Battle Scene...");
         const { gameDataManager, inputManager } = data; // ★修正: inputManagerも受け取る

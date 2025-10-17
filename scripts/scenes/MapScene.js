@@ -15,12 +15,28 @@ import { CameraSystem } from '../map/systems/CameraSystem.js';
 import { RenderSystem as MapRenderSystem } from '../map/systems/RenderSystem.js';
 import { MapUISystem } from '../map/systems/MapUISystem.js';
 
+/**
+ * @typedef {import('../core/GameDataManager.js').GameDataManager} GameDataManager
+ * @typedef {import('../core/InputManager.js').InputManager} InputManager
+ */
+
+/**
+ * @typedef {object} MapSceneData
+ * @description MapSceneの初期化に必要なデータ。
+ * @property {GameDataManager} gameDataManager - グローバルなゲームデータマネージャー。
+ * @property {InputManager} inputManager - グローバルな入力マネージャー。
+ * @property {boolean} [restoreMenu=false] - シーン開始時にメニューを開いた状態にするか。
+ */
+
 export class MapScene extends BaseScene {
     constructor(world, sceneManager) {
         super(world, sceneManager);
         this.mapData = null; // マップデータをキャッシュ
     }
 
+    /**
+     * @param {MapSceneData} data - シーンの初期化データ。
+     */
     async init(data) {
         console.log("Initializing Map Scene...");
         const { gameDataManager, inputManager, restoreMenu = false } = data;

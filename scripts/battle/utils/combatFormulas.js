@@ -13,8 +13,8 @@ import { CONFIG } from '../common/config.js';
 import { Parts, PlayerInfo, ActiveEffects } from '../core/components/index.js';
 import { findBestDefensePart } from './queryUtils.js'; // ★注意: 依存関係の変更
 import { ErrorHandler, GameError, ErrorType } from './errorHandler.js';
-// ★新規: EffectType をインポート
-import { EffectType } from '../common/constants.js';
+// ★リファクタリング: AttackType定数をインポートし、マジックストリングを排除
+import { EffectType, AttackType } from '../common/constants.js';
 
 /**
  * 戦闘計算戦略のインターフェース
@@ -160,16 +160,17 @@ class DefaultCombatStrategy extends CombatStrategy {
             let armor = targetLegs.armor || 0;
             let bonusValue = 0;
 
+            // ★リファクタリング: caseをマジックストリングからAttackType定数に変更
             switch (attackingPart.type) {
-                case '狙い撃ち':
+                case AttackType.AIMED_SHOT:
                     bonusValue = Math.floor((attackerLegs.stability || 0) / 2);
                     success += bonusValue;
                     break;
-                case '殴る':
+                case AttackType.STRIKE:
                     bonusValue = Math.floor((attackerLegs.mobility || 0) / 2);
                     success += bonusValue;
                     break;
-                case '我武者羅':
+                case AttackType.RECKLESS:
                     bonusValue = Math.floor((attackerLegs.propulsion || 0) / 2);
                     might += bonusValue;
                     break;

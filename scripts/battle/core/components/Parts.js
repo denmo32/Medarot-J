@@ -10,54 +10,18 @@ export class Parts {
      * @param {object} legs - 脚部パーツのマスターデータ
      */
     constructor(head, rightArm, leftArm, legs) {
-        /**
-         * ★改善: マスターデータを元に、戦闘インスタンス用のパーツデータを生成します。
-         * マスターデータ（設計図）と、戦闘中に変動する状態（HPなど）を明確に分離し、
-         * データの不変性を保つことで、予期せぬバグを防ぎます。
-         * @param {object} partData - パーツのマスターデータ
-         * @returns {object | null} 戦闘インスタンス用のパーツオブジェクト、またはnull
-         */
-        const initializePart = (partData) => {
-            if (!partData) return null;
-
-            // ★リファクタリング: ロールのデフォルト値とパーツ固有の値をマージする
-            // これにより、parts.jsの記述を簡潔に保ちつつ、完全なデータ構造を構築する
-            // partData.roleが存在し、それがオブジェクトであることを確認
-            const roleDefaults = (partData.role && typeof partData.role === 'object') ? { ...partData.role } : {};
-            
-            // マージの順序が重要: partDataがroleDefaultsを上書きする
-            // これにより、パーツデータで定義された`effects`などがロールのデフォルトをオーバーライドできる
-            const partInstance = { ...roleDefaults, ...partData };
-
-            // HPはマスターデータから取得して初期化
-            partInstance.hp = partData.maxHp;
-            // 破壊状態は'false'で初期化
-            partInstance.isBroken = false;
-            
-            // ★リファクタリング: effectの 'strategy' プロパティを 'type' に統一する
-            // データ定義の互換性を保ちつつ、内部的には 'type' を使用する
-            if (partInstance.effects && Array.isArray(partInstance.effects)) {
-                partInstance.effects = partInstance.effects.map(effect => {
-                    // strategyプロパティが存在すれば、typeにコピーして元のプロパティを削除
-                    if (effect.strategy) {
-                        const newEffect = { ...effect, type: effect.strategy };
-                        delete newEffect.strategy;
-                        return newEffect;
-                    }
-                    return effect;
-                });
-            }
-
-            return partInstance;
-        };
+        // ★リファクタリング: このコンポーネントは純粋なデータコンテナとしての責務に集中します。
+        // パーツデータの初期化（ロールのマージなど）ロジックは、エンティティを生成する
+        // entityFactory に移管されました。
+        // これにより、コンポーネントは渡されたデータを保持するだけのシンプルな構造になります。
 
         /** @type {object | null} */
-        this.head = initializePart(head);
+        this.head = head;
         /** @type {object | null} */
-        this.rightArm = initializePart(rightArm);
+        this.rightArm = rightArm;
         /** @type {object | null} */
-        this.leftArm = initializePart(leftArm);
+        this.leftArm = leftArm;
         /** @type {object | null} */
-        this.legs = initializePart(legs);
+        this.legs = legs;
     }
 }

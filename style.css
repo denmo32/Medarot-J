@@ -1,3 +1,32 @@
+/* ★リファクタリング: CSSカスタムプロパティ (変数) を定義 */
+:root {
+    /* --- Colors --- */
+    --color-background: #1a202c;
+    --color-background-panel: #2d3748;
+    --color-background-panel-inner: #4a5568;
+    --color-text-primary: #e2e8f0;
+    --color-text-secondary: #a0aec0;
+    --color-border-primary: #718096;
+    --color-border-secondary: #a0aec0;
+    --color-primary: #4299e1;
+    --color-primary-hover: #3182ce;
+    --color-team1: #63b3ed;
+    --color-team2: #f56565;
+    --color-confirm: #68d391;
+    --color-confirm-hover: #48bb78;
+    --color-cancel: #e53e3e;
+    --color-cancel-hover: #c53030;
+    --color-disabled: #718096;
+    --color-focus-outline: #63b3ed;
+    --color-hp-full: #68d391;
+    --color-hp-medium: #f6e05e;
+    --color-hp-low: #f56565;
+    --color-hp-broken: #4a5568;
+    --color-guard-indicator: rgba(29, 161, 242, 0.9);
+    --color-white: #fff;
+    --color-black: #000;
+}
+
 body {
             font-family: 'Inter', sans-serif;
             display: flex;
@@ -7,8 +36,8 @@ body {
             height: 100vh; /* 画面全体の高さに */
             min-width: 1024px; /* ゲームの最小幅 */
             min-height: 576px; /* ゲームの最小高さ */
-            background-color: #1a202c;
-            color: #e2e8f0;
+            background-color: var(--color-background);
+            color: var(--color-text-primary);
             margin: 0;
             padding: 0; /* スケーリングのためpaddingを削除 */
             box-sizing: border-box;
@@ -23,7 +52,7 @@ body {
         }
 
         .main-container {
-            background-color: #2d3748;
+            background-color: var(--color-background-panel);
             padding: 20px;
             border-radius: 12px;
             box-sizing: border-box; /* 追加 */
@@ -39,8 +68,8 @@ body {
         .battlefield {
             flex-grow: 1; /* 変更 */
             height: 356px; /* 変更 */
-            background-color: #4a5568;
-            border: 2px solid #718096;
+            background-color: var(--color-background-panel-inner);
+            border: 2px solid var(--color-border-primary);
             border-radius: 8px;
             position: relative;
             overflow: hidden;
@@ -75,7 +104,7 @@ body {
     font-size: 2.2em; /* ★変更 */
     font-weight: bold;
     white-space: nowrap; /* ★追加 */
-    color: white;
+    color: var(--color-white);
     text-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000, 0 0 30px #ff0000;
     opacity: 0;
     pointer-events: none;
@@ -121,13 +150,13 @@ body {
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            color: #1a202c;
+            color: var(--color-background);
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
             /* ★変更: 枠線の色変化もアニメーション対象に追加 */
             transition: left 0.1s linear, transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
             cursor: pointer;
             /* ★新規: 状態表示用の枠線を追加 */
-            border: 4px solid #718096;
+            border: 4px solid var(--color-border-primary);
         }
 
 /* ★新規: ガードインジケーター */
@@ -136,8 +165,8 @@ body {
     top: -20px; /* アイコンの上部に配置 */
     left: 50%;
     transform: translateX(-50%);
-    background-color: rgba(29, 161, 242, 0.9);
-    color: white;
+    background-color: var(--color-guard-indicator);
+    color: var(--color-white);
     padding: 2px 6px;
     border-radius: 8px;
     font-size: 0.8em;
@@ -145,14 +174,14 @@ body {
     white-space: nowrap;
     display: none; /* 初期状態は非表示 */
     z-index: 10;
-    border: 1px solid #fff;
+    border: 1px solid var(--color-white);
 }
         
         /* プレイヤーアイコンの状態 */
         
         .player-icon.broken {
-            background-color: #718096 !important;
-            color: #a0aec0;
+            background-color: var(--color-disabled) !important;
+            color: var(--color-text-secondary);
             box-shadow: none;
             filter: grayscale(1);
         }
@@ -162,7 +191,7 @@ body {
         /* 情報表示エリア */
         /* .info-panels は新しいレイアウトでは使用されません */
         .team-info-panel {
-            background-color: #4a5568;
+            background-color: var(--color-background-panel-inner);
             padding: 15px;
             border-radius: 8px;
         }
@@ -183,10 +212,10 @@ body {
             align-items: center; /* ★変更: 中央揃えにする */
             gap: 0px; /* ★変更: HPバー同士の間隔を小さく */
             font-size: 0.9em;
-            border: 1px solid #a0aec0; /* ★追加: 枠線を追加 */
+            border: 1px solid var(--color-border-secondary); /* ★追加: 枠線を追加 */
             padding: 6px; /* ★追加: 枠内の余白を調整 */
             border-radius: 8px; /* ★追加: 角を少し丸く */
-            background-color: #2d3748; /* ★追加: 背景色を調整 */
+            background-color: var(--color-background-panel); /* ★追加: 背景色を調整 */
         }
         .player-info > .part-hp + .part-hp {
             margin-top: -4px;
@@ -201,9 +230,9 @@ body {
         .part-hp-bar-container {
             width: 80px;
             height: 12px; /* 高さを調整 */
-            background-color: #2d3748;
+            background-color: var(--color-background-panel);
             border-radius: 6px;
-            border: 1px solid #a0aec0;
+            border: 1px solid var(--color-border-secondary);
             padding: 1px;
             box-sizing: border-box;
             box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);
@@ -224,14 +253,14 @@ body {
             background: linear-gradient(to bottom, rgba(255,255,255,0.3), rgba(255,255,255,0.05));
             border-radius: 4px 4px 0 0;
         }
-        .part-hp.broken .part-name { text-decoration: line-through; color: #a0aec0; }
+        .part-hp.broken .part-name { text-decoration: line-through; color: var(--color-text-secondary); }
 
         /* ★新規: アクションパネル */
         .action-panel {
             flex-basis: 100%; /* 追加 */
             width: 100%;
             height: 160px; /* パネルの高さを固定 */
-            background-color: #4a5568;
+            background-color: var(--color-background-panel-inner);
             border-radius: 8px;
             /* margin-top: 20px; 上の要素とのマージン */
             padding: 15px; /* パディングを少し調整 */
@@ -250,7 +279,7 @@ body {
             left: 15px;
             font-size: 1.1em;
             font-weight: bold;
-            color: #a0aec0; /* 少し薄い色に */
+            color: var(--color-text-secondary); /* 少し薄い色に */
         }
         .action-panel-content {
             width: 100%;
@@ -278,8 +307,8 @@ body {
             display: none;
         }
         .action-panel-button {
-            background: #68d391;
-            color: #1a202c;
+            background: var(--color-confirm);
+            color: var(--color-background);
             padding: 10px 20px; /* 少し小さく調整 */
             border-radius: 8px;
             font-size: 1em;
@@ -288,22 +317,22 @@ body {
             border: none;
         }
         .action-panel-button:hover {
-            background: #48bb78;
+            background: var(--color-confirm-hover);
         }
 
         /* 汎用パーツアクションボタンのスタイル (モーダルから流用) */
-        .part-action-button { background: #4299e1; color: white; padding: 4px 15px; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease; border:none; } /* ★変更: 上下パディングを縮小 */
-        .part-action-button:hover:not(:disabled) { background: #3182ce; }
-        .part-action-button:disabled { background: #718096; cursor: not-allowed; opacity: 0.6; }
+        .part-action-button { background: var(--color-primary); color: var(--color-white); padding: 4px 15px; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease; border:none; } /* ★変更: 上下パディングを縮小 */
+        .part-action-button:hover:not(:disabled) { background: var(--color-primary-hover); }
+        .part-action-button:disabled { background: var(--color-disabled); cursor: not-allowed; opacity: 0.6; }
         
         /* 汎用hiddenクラス */
         .hidden { display: none !important; }
         
         /* ボタン */
         .buttons-center { display: flex; justify-content: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; } /* ★変更: マージンを縮小 */
-        button { background-color: #4299e1; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; transition: background-color 0.3s; }
-        button:hover { background-color: #3182ce; }
-        button:disabled { background-color: #a0aec0; cursor: not-allowed; }
+        button { background-color: var(--color-primary); color: var(--color-white); padding: 10px 20px; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; transition: background-color 0.3s; }
+        button:hover { background-color: var(--color-primary-hover); }
+        button:disabled { background-color: var(--color-text-secondary); cursor: not-allowed; }
 
 /* ★新規: クリック可能を示すインジケーター */
 .action-panel-indicator {
@@ -311,7 +340,7 @@ body {
     bottom: 10px;
     right: 20px;
     font-size: 1.5em;
-    color: #e2e8f0;
+    color: var(--color-text-primary);
     animation: blink-animation 1.5s infinite;
 }
 
@@ -346,7 +375,7 @@ body {
 #game-canvas {
     width: 100%;
     height: 100%;
-    border: 2px solid #fff;
+    border: 2px solid var(--color-white);
     background-color: #2a8a2a; /* Grass background color */
 }
 
@@ -356,8 +385,8 @@ body {
     top: unset; /* リセット */
     left: unset; /* リセット */
     transform: unset; /* リセット */
-    background-color: #2d3748;
-    border: 2px solid #718096;
+    background-color: var(--color-background-panel);
+    border: 2px solid var(--color-border-primary);
     border-radius: 8px;
     padding: 20px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
@@ -375,7 +404,7 @@ body {
     margin: 0;
     font-size: 1.2em;
     text-align: center;
-    color: #e2e8f0;
+    color: var(--color-text-primary);
 }
 
 .message-window-buttons {
@@ -384,8 +413,8 @@ body {
 }
 
 .message-window-button {
-    background-color: #4299e1;
-    color: white;
+    background-color: var(--color-primary);
+    color: var(--color-white);
     padding: 10px 20px;
     border: none;
     border-radius: 8px;
@@ -396,26 +425,26 @@ body {
 
 .message-window-button:hover,
 .message-window-button:focus {
-    background-color: #3182ce;
+    background-color: var(--color-primary-hover);
 }
 
 .message-window-button:focus {
-    outline: 2px solid #e2e8f0;
+    outline: 2px solid var(--color-text-primary);
     outline-offset: 2px;
 }
 
 /* キャンセルボタンのスタイル (オプション) */
 #cancel-battle-button {
-    background-color: #e53e3e;
+    background-color: var(--color-cancel);
 }
 
 #cancel-battle-button:hover {
-    background-color: #c53030;
+    background-color: var(--color-cancel-hover);
 }
 
 .part-action-button.focused {
-    box-shadow: 0 0 0 3px #63b3ed; /* 青いアウトライン */
-    background-color: #3182ce; /* 少し濃い背景色 */
+    box-shadow: 0 0 0 3px var(--color-focus-outline); /* 青いアウトライン */
+    background-color: var(--color-primary-hover); /* 少し濃い背景色 */
 }
 
 /* タイトル画面 */
@@ -425,7 +454,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: #1a202c;
+    background-color: var(--color-background);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -435,7 +464,7 @@ body {
 
 .title-header {
     font-size: 3em;
-    color: #e2e8f0;
+    color: var(--color-text-primary);
     margin-bottom: 30px;
     text-align: center;
 }
@@ -447,8 +476,8 @@ body {
 }
 
 .title-button {
-    background-color: #4299e1;
-    color: white;
+    background-color: var(--color-primary);
+    color: var(--color-white);
     padding: 15px 30px;
     border: none;
     border-radius: 8px;
@@ -460,11 +489,11 @@ body {
 
 .title-button:hover,
 .title-button:focus {
-    background-color: #3182ce;
+    background-color: var(--color-primary-hover);
 }
 
 .title-button:focus {
-    outline: 2px solid #e2e8f0;
+    outline: 2px solid var(--color-text-primary);
     outline-offset: 2px;
 }
 
@@ -473,8 +502,8 @@ body {
     position: absolute;
     top: 20px;
     right: 20px;
-    background-color: #2d3748;
-    border: 2px solid #718096;
+    background-color: var(--color-background-panel);
+    border: 2px solid var(--color-border-primary);
     border-radius: 8px;
     padding: 20px; /* 余白を広げて三角マークの配置に余裕を確保 */
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
@@ -496,13 +525,13 @@ body {
 .map-menu p {
     margin: 0;
     font-size: 1em;
-    color: #e2e8f0;
+    color: var(--color-text-primary);
     text-align: center;
 }
 
 .map-menu-button {
-    background-color: #4299e1;
-    color: white;
+    background-color: var(--color-primary);
+    color: var(--color-white);
     padding: 8px 16px;
     border: none;
     border-radius: 6px;
@@ -515,7 +544,7 @@ body {
 }
 
 .map-menu-button:hover {
-    background-color: #3182ce;
+    background-color: var(--color-primary-hover);
 }
 
 /* フォーカスされたボタンの前に三角マークを表示 */
@@ -535,10 +564,10 @@ body {
     top: 50%; /* ★追加 */
     left: 50%; /* ★追加 */
     /* width, height, transform はJSで設定される */
-    background-color: #1a202c;
+    background-color: var(--color-background);
     display: flex;
     flex-direction: column;
-    color: #e2e8f0;
+    color: var(--color-text-primary);
     z-index: 3000;
     padding: 20px;
     box-sizing: border-box;
@@ -547,7 +576,7 @@ body {
 .customize-header {
     text-align: center;
     padding-bottom: 15px;
-    border-bottom: 2px solid #4a5568;
+    border-bottom: 2px solid var(--color-background-panel-inner);
     margin-bottom: 15px;
 }
 
@@ -572,7 +601,7 @@ body {
 }
 
 .customize-panel {
-    background-color: #2d3748;
+    background-color: var(--color-background-panel);
     border-radius: 8px;
     padding: 15px;
     display: flex;
@@ -585,8 +614,8 @@ body {
     font-weight: bold;
     margin-bottom: 10px;
     padding-bottom: 5px;
-    border-bottom: 1px solid #4a5568;
-    color: #a0aec0;
+    border-bottom: 1px solid var(--color-background-panel-inner);
+    color: var(--color-text-secondary);
 }
 
 #customize-parts-equip-panel h2 {
@@ -619,8 +648,8 @@ body {
 }
 
 .medarot-list-item.focused, .equipped-part-item.focused, .part-list-item.focused {
-    background-color: #4299e1;
-    color: white;
+    background-color: var(--color-primary);
+    color: var(--color-white);
 }
 
 .equipped-part-item {
@@ -630,7 +659,7 @@ body {
 
 .part-slot-name {
     font-weight: bold;
-    color: #a0aec0;
+    color: var(--color-text-secondary);
 }
 
 .equipped-part-item.focused .part-slot-name {
@@ -649,11 +678,11 @@ body {
     justify-content: space-between;
     margin-bottom: 8px;
     padding-bottom: 4px;
-    border-bottom: 1px dashed #4a5568;
+    border-bottom: 1px dashed var(--color-background-panel-inner);
 }
 
 .detail-item .label {
-    color: #a0aec0;
+    color: var(--color-text-secondary);
 }
 
 .detail-item .value {
