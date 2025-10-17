@@ -1,5 +1,5 @@
 /**
- * @file アクションパネルのモーダルハンドラ定義 (新規作成)
+ * @file アクションパネルのモーダルハンドラ定義
  * ActionPanelSystemが使用する、各モーダルタイプの具体的な振る舞いを定義します。
  * これにより、ActionPanelSystemの責務を「管理」に集中させ、
  * 各モーダルの「内容」をこのファイルで一元管理します。
@@ -10,7 +10,7 @@ import * as Components from '../core/components/index.js';
 import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
 
 /**
- * ★リファクタリング: 攻撃結果メッセージを生成します。貫通ダメージにも対応。
+ * 攻撃結果メッセージを生成します。貫通ダメージにも対応。
  * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
  * @param {World} world - ワールドオブジェクト
  * @returns {string} 表示するメッセージ (HTML文字列)
@@ -53,6 +53,7 @@ const _generateResultMessage = (detail, world) => {
     }
     
     return '攻撃は空を切った！';
+	// 通常、このメッセージは表示されないはずです。
 };
 
 
@@ -82,7 +83,7 @@ export const createModalHandlers = (system) => ({
     // --- 行動選択 ---
     [ModalType.SELECTION]: {
         getOwnerName: (data) => data.ownerName,
-        // ★リファクタリング: HTML生成ロジックをsystemインスタンス経由で呼び出す
+        // HTML生成ロジックをsystemインスタンス経由で呼び出す
         getContentHTML: (data, system) => system.generateTriangleLayoutHTML(data.buttons),
         setupEvents: (system, container, data) => system.setupSelectionEvents(container, data),
         handleNavigation: (system, key) => system.handleArrowKeyNavigation(key),
@@ -109,7 +110,7 @@ export const createModalHandlers = (system) => ({
                 system.dom.actionPanelActor.dataset.guardMessageShown = 'true';
                 return;
             }
-            // ★変更: entityId を attackerId にリネームしてイベントを発行
+            // entityId を attackerId にリネームしてイベントを発行
             system.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { attackerId: entityId, resolvedEffects, isEvaded, isSupport, guardianInfo });
             // ★注意: ここでhideActionPanelは呼ばない。後続のACTION_EXECUTEDイベントで表示が更新されるため。
         }
@@ -117,7 +118,7 @@ export const createModalHandlers = (system) => ({
     // --- 結果表示 ---
     [ModalType.EXECUTION_RESULT]: {
         getActorName: (data) => _generateResultMessage(data, system.world),
-        // ★リファクタリング: イベント設定ロジックをsystemインスタンス経由で呼び出す
+        // イベント設定ロジックをsystemインスタンス経由で呼び出す
         setupEvents: (system, container, data) => system.setupExecutionResultEvents(container, data),
         handleConfirm: (system, data) => {
             system.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: data.attackerId });

@@ -5,7 +5,6 @@ import * as Components from '../core/components/index.js';
 import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
 import { UIManager } from './UIManager.js';
-// ★新規: モーダルハンドラの定義を外部ファイルからインポート
 import { createModalHandlers } from './modalHandlers.js';
 
 /**
@@ -39,11 +38,11 @@ export class ActionPanelSystem extends BaseSystem {
         // --- Event Handlers ---
         this.boundHandlePanelClick = null;
 
-        // ★リファクタリング: モーダルハンドラの定義を外部のファクトリ関数に移譲
+        // モーダルハンドラの定義を外部のファクトリ関数に移譲
         this.modalHandlers = createModalHandlers(this);
         this.bindWorldEvents();
 
-        // ★修正: パネル自体は常に表示するため、内容のリセットのみを行う
+        // パネル自体は常に表示するため、内容のリセットのみを行う
         // 初期状態ではパネルの内容をリセットする
         this.hideActionPanel();
     }
@@ -72,7 +71,7 @@ export class ActionPanelSystem extends BaseSystem {
     update(deltaTime) {
         if (!this.currentHandler) return;
 
-        // ★リファクタリング: キー入力を現在のモーダルハンドラに委譲する
+        // キー入力を現在のモーダルハンドラに委譲する
         if (this.currentHandler.handleNavigation) {
             if (this.inputManager.wasKeyJustPressed('ArrowUp')) this.currentHandler.handleNavigation(this, 'arrowup');
             if (this.inputManager.wasKeyJustPressed('ArrowDown')) this.currentHandler.handleNavigation(this, 'arrowdown');
@@ -112,9 +111,9 @@ export class ActionPanelSystem extends BaseSystem {
         // テキストコンテンツを設定
         dom.actionPanelOwner.textContent = handler.getOwnerName?.(data) || '';
         dom.actionPanelTitle.textContent = handler.getTitle?.(data) || '';
-        // ★修正: innerHTMLを使用して複数行メッセージに対応
+        // innerHTMLを使用して複数行メッセージに対応
         dom.actionPanelActor.innerHTML = handler.getActorName?.(data) || '';
-        // ★修正: getContentHTML に this(system) を渡す
+        // getContentHTML に this(system) を渡す
         dom.actionPanelButtons.innerHTML = handler.getContentHTML?.(data, this) || '';
 
         // イベントリスナーを設定
@@ -158,7 +157,7 @@ export class ActionPanelSystem extends BaseSystem {
      * 行動実行結果を受け取り、結果表示モーダルを表示します。
      */
     onActionExecuted(detail) {
-        // ★リファクタリング: メッセージ生成はハンドラに任せる。ここではイベント詳細をそのまま渡す。
+        // メッセージ生成はハンドラに任せる。ここではイベント詳細をそのまま渡す。
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.EXECUTION_RESULT,
             data: detail,
@@ -175,7 +174,7 @@ export class ActionPanelSystem extends BaseSystem {
         const { dom } = this;
         dom.actionPanelOwner.textContent = '';
         dom.actionPanelTitle.textContent = '';
-        dom.actionPanelActor.innerHTML = '待機中...'; // ★ innerHTML に変更
+        dom.actionPanelActor.innerHTML = '待機中...'; // innerHTML
         dom.actionPanelButtons.innerHTML = '';
         dom.actionPanelIndicator.classList.add('hidden');
         dom.actionPanel.classList.remove('clickable');
@@ -201,18 +200,6 @@ export class ActionPanelSystem extends BaseSystem {
         }
         this.focusedButtonKey = null;
     }
-
-    /**
-     * ★廃止: メッセージ生成は modalHandlers に移管されました。
-     */
-    // _generateResultMessage(detail) { ... }
-
-    /**
-     * ★廃止: 全てのモーダルタイプごとの振る舞いは `ui/modalHandlers.js` に移管されました。
-     * これにより、このクラスはモーダルの「管理」に集中でき、可読性と保守性が向上します。
-     */
-    // setupModalHandlers() { ... }
-
 
     // --- Helper methods for SELECTION modal (called from modalHandlers.js) ---
     generateTriangleLayoutHTML(buttons) {
@@ -315,7 +302,7 @@ export class ActionPanelSystem extends BaseSystem {
     // --- Helper for EXECUTION_RESULT modal (called from modalHandlers.js) ---
 
     /**
-     * ★リファクタリング: 複数の効果(貫通ダメージ等)に対応するため、非同期ループ処理に変更。
+     * 複数の効果(貫通ダメージ等)に対応するため、非同期ループ処理とする
      * @param {HTMLElement} container - ボタンコンテナ
      * @param {object} data - モーダルデータ (ACTION_EXECUTEDのペイロード)
      */
@@ -330,7 +317,7 @@ export class ActionPanelSystem extends BaseSystem {
 
         // 複数のダメージ/回復効果を順番にアニメーション再生
         for (const effect of damageEffects) {
-            // ★新規: 貫通などの追加メッセージを動的に表示
+            // 貫通などの追加メッセージを動的に表示
             if (effect.isPenetration) {
                 const partName = PartKeyToInfoMap[effect.partKey]?.name || '不明な部位';
                 this.dom.actionPanelActor.innerHTML += `<br>${partName}に貫通！ ${partName}に${effect.value}ダメージ！`;
@@ -343,7 +330,7 @@ export class ActionPanelSystem extends BaseSystem {
     }
 
     /**
-     * ★新規: パネルをクリック可能にするヘルパー関数
+     * パネルをクリック可能にするヘルパー関数
      */
     makePanelClickableForResult() {
         if (this.currentModalType === ModalType.EXECUTION_RESULT) {
@@ -357,7 +344,7 @@ export class ActionPanelSystem extends BaseSystem {
     }
 
     /**
-     * ★新規: HPバーのアニメーションをPromiseでラップし、逐次実行を可能にするヘルパー関数
+     * HPバーのアニメーションをPromiseでラップし、逐次実行を可能にするヘルパー関数
      * @param {object} effect - 単一のダメージ/回復効果オブジェクト
      * @returns {Promise<void>} アニメーション完了時に解決されるPromise
      */
@@ -386,7 +373,7 @@ export class ActionPanelSystem extends BaseSystem {
                 hpBar.style.transition = '';
                 hpBar.removeEventListener('transitionend', onTransitionEnd);
                 clearTimeout(fallback);
-                resolve(); // ★変更: Promiseを解決
+                resolve(); // ★Promiseを解決
             };
 
             const onTransitionEnd = (event) => {

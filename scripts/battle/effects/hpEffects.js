@@ -1,5 +1,5 @@
 /**
- * @file HP関連効果戦略定義 (新規作成)
+ * @file HP関連効果戦略定義
  * ダメージや回復など、エンティティのHPを直接操作する効果のロジックを定義します。
  */
 import { PlayerInfo, Parts, Action } from '../core/components/index.js';

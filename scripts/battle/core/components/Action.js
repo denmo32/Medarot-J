@@ -17,7 +17,7 @@ export class Action {
         this.targetId = null;
         /** @type {string | null} */     // ターゲットとして選択されたパーツのキー
         this.targetPartKey = null;
-        // ★修正: propertiesオブジェクトを廃止し、アクションの根幹をなす特性を直接のプロパティとして持つ
+        // propertiesオブジェクトを廃止し、アクションの根幹をなす特性を直接のプロパティとして持つ
         /** @type {TargetTiming | null} */ // ターゲット決定タイミング (TargetTiming定数)
         this.targetTiming = null;
     }

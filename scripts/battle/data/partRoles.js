@@ -1,11 +1,9 @@
 /**
- * @file パーツ役割マスターデータ (リファクタリング)
+ * @file パーツ役割マスターデータ
  * このファイルは、パーツの基本的な「役割」を識別するためのキーを定義します。
- * 行動の振る舞いに関する定義は `actionDefinitions.js` に移管され、
+ * 行動の振る舞いに関する定義は `actionDefinitions.js`で管理。
  * このファイルはAI戦略やUI分類のための「タグ」としての役割に特化します。
  */
-// ★削除: 振る舞い定義をactionDefinitions.jsに移管したため不要
-// import { EffectScope, EffectType, ActionType } from '../common/constants.js';
 
 export const PartRoles = {
     /**
@@ -34,7 +32,7 @@ export const PartRoles = {
 };
 
 /**
- * ★新規: パーツの役割を識別するためのキーを定義する定数 (PartRolesから自動生成)
+ * パーツの役割を識別するためのキーを定義する定数 (PartRolesから自動生成)
  * このファイルを信頼できる唯一の情報源 (Single Source of Truth) とし、
  * 手動での定数定義との二重管理をなくすことで、保守性を向上させます。
  */

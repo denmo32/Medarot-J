@@ -5,7 +5,7 @@ export const GamePhaseType = {
     IDLE: 'IDLE',
     INITIAL_SELECTION: 'INITIAL_SELECTION',
     BATTLE_START_CONFIRM: 'BATTLE_START_CONFIRM',
-    PRE_BATTLE_ANIMATION: 'PRE_BATTLE_ANIMATION', // ★新規
+    PRE_BATTLE_ANIMATION: 'PRE_BATTLE_ANIMATION',
     BATTLE: 'BATTLE',
     GAME_OVER: 'GAME_OVER'
 };
@@ -18,14 +18,14 @@ export const PlayerStateType = {
     READY_SELECT: 'ready_select',
     SELECTED_CHARGING: 'selected_charging',
     READY_EXECUTE: 'ready_execute',
-    AWAITING_ANIMATION: 'awaiting_animation', // ★追加: 実行アニメーション待ち
+    AWAITING_ANIMATION: 'awaiting_animation', // 実行アニメーション待ち
     COOLDOWN_COMPLETE: 'cooldown_complete',
     BROKEN: 'broken',
-    GUARDING: 'guarding', // ★新規: ガード中状態
+    GUARDING: 'guarding', // ガード中状態
 };
 
 /**
- * ★改善: パーツの部位に関する情報を一元管理する定数
+ * パーツの部位に関する情報を一元管理する定数
  * 部位キー、日本語名、UIアイコンなどを集約し、情報の散逸を防ぎます。
  * これにより、関連情報の追加・変更がこのオブジェクトの修正のみで完結します。
  */
@@ -50,8 +50,8 @@ export const PartType = Object.values(PartInfo).reduce((acc, { key }) => {
 }, {});
 
 /**
- * ★新規: パーツキー(例: 'head')から対応するPartInfoオブジェクトを逆引きするためのマップ
- * これにより、動的なキー文字列から関連情報(名前、アイコン等)を効率的に取得できます。
+ * パーツキー(例: 'head')から対応するPartInfoオブジェクトを逆引きするためのマップ
+ * 動的なキー文字列から関連情報(名前、アイコン等)を効率的に取得できます。
  */
 export const PartKeyToInfoMap = Object.values(PartInfo).reduce((acc, info) => {
     acc[info.key] = info;
@@ -73,7 +73,6 @@ export const TeamID = {
 export const MedalPersonality = {
     LEADER_FOCUS: 'LEADER_FOCUS', // 常にリーダーを狙う
     RANDOM: 'RANDOM',             // ターゲットをランダムに選択する
-    // ★修正: コメントを実装に合わせて修正 (装甲 -> 現在HP)
     HUNTER: 'HUNTER',             // 最も現在HPが低いパーツを狙う
     CRUSHER: 'CRUSHER',           // 最も現在HPが高いパーツを狙う
     JOKER: 'JOKER',               // 敵の全パーツからランダムに選択
@@ -81,26 +80,26 @@ export const MedalPersonality = {
     GUARD: 'GUARD',               // 味方リーダーを最後に攻撃してきた敵を狙う
     FOCUS: 'FOCUS',               // 前回攻撃したパーツを集中攻撃
     ASSIST: 'ASSIST',             // 味方が最後に攻撃した敵のパーツを狙う
-    HEALER: 'HEALER',             // ★新規: 最もHPが減っている味方を狙う
+    HEALER: 'HEALER',             // 最もHPが減っている味方を狙う
 };
 
 /**
- * ★新規: アクションの効果種別を定義する定数
+ * アクションの効果種別を定義する定数
  * ActionSystemがこの定義を元に、effectStrategiesから適切な処理を呼び出します。
  */
 export const EffectType = {
     DAMAGE: 'DAMAGE',           // ダメージを与える
     APPLY_SCAN: 'APPLY_SCAN',   // スキャン効果を適用する
-    HEAL: 'HEAL',               // ★新規: 回復
-    APPLY_GLITCH: 'APPLY_GLITCH', // ★新規: 妨害（グリッチ）
-    APPLY_GUARD: 'APPLY_GUARD', // ★新規: ガード
+    HEAL: 'HEAL',               // 回復
+    APPLY_GLITCH: 'APPLY_GLITCH', // 妨害（グリッチ）
+    APPLY_GUARD: 'APPLY_GUARD', // ガード
     // 今後追加予定の効果:
     // APPLY_SMOKE: 'APPLY_SMOKE', // 煙幕効果
     // SETUP_TRAP: 'SETUP_TRAP',   // トラップ設置
 };
 
 /**
- * ★新規: アクションの効果範囲を定義する定数
+ * アクションの効果範囲を定義する定数
  * ターゲット選択や効果適用ロジックが、この定義を元に対象を決定します。
  */
 export const EffectScope = {
@@ -113,7 +112,7 @@ export const EffectScope = {
 };
 
 /**
- * ★新規: アクションの論理的な分類を定義する定数
+ * アクションの論理的な分類を定義する定数
  * `parts.js`の日本語文字列`action`プロパティとは異なり、
  * システム内部のロジック分岐に使用されます。
  */
@@ -127,7 +126,7 @@ export const ActionType = {
 };
 
 /**
- * ★新規: 攻撃の特性（タイプ）を定義する定数。
+ * 攻撃の特性（タイプ）を定義する定数。
  * parts.jsの日本語文字列`type`プロパティを置き換え、マジックストリングを排除します。
  */
 export const AttackType = {
@@ -145,28 +144,16 @@ export const AttackType = {
 };
 
 /**
- * ★廃止: パーツの役割キーは `data/partRoles.js` で一元管理されるようになりました。
- * これにより、データ定義の信頼性が向上し、保守が容易になります。
- */
-// export const PartRoleKey = { ... };
-
-/**
- * ★新規: ターゲット決定タイミングを定義する定数
+ * ターゲット決定タイミングを定義する定数
  */
 export const TargetTiming = {
     PRE_MOVE: 'pre-move',   // 移動前にターゲットを決定する（射撃など）
     POST_MOVE: 'post-move'  // 移動後にターゲットを決定する（格闘など）
 };
 
-
 /**
- * ★廃止: PartInfoに統合されたため不要になりました。
- */
-// export const PartNameJp = { ... };
-
-/**
- * ★新規: モーダルの種類を定義する定数
- * これにより、コード内のマジックストリングを排除し、タイプミスによるバグを防ぎます。
+ * モーダルの種類を定義する定数
+ * コード内のマジックストリングを排除し、タイプミスによるバグを防ぎます。
  */
 export const ModalType = {
     START_CONFIRM: 'start_confirm',

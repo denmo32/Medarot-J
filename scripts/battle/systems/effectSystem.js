@@ -50,8 +50,8 @@ export class EffectSystem extends BaseSystem {
                 effect.duration--;
             }
 
-            // [修正] durationが未定義（回数制など）か、まだ残っている効果だけを次の配列に追加します。
-            // ★リファクタリング: 効果が切れたらイベントを発行し、StateSystemに状態遷移を委譲
+            // durationが未定義（回数制など）か、まだ残っている効果だけを次の配列に追加します。
+            // 効果が切れたらイベントを発行し、StateSystemに状態遷移を委譲
             if (effect.duration === undefined || effect.duration > 0 || effect.duration === Infinity) {
                 nextEffects.push(effect);
             } else {

@@ -4,11 +4,8 @@
  * パーツIDをキーとしたオブジェクト形式で管理します。
  */
 
-// ★リファクタリング: AttackType定数をインポートし、マジックストリングを排除
 import { PartInfo, EffectType, EffectScope, TargetTiming, ActionType, AttackType } from '../common/constants.js';
-// ★新規: PartRolesをインポートし、データ駆動設計を強化
 import { PartRoles } from './partRoles.js';
-// ★新規: 新しいactionDefinitionsをインポート
 import { ActionDefinitionKey } from './actionDefinitions.js';
 
 export const PARTS_DATA = {

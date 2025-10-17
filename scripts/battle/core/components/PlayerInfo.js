@@ -17,7 +17,5 @@ export class PlayerInfo {
         this.isLeader = isLeader;
         /** @type {string} */
         this.color = CONFIG.TEAMS[teamId].color;
-        // ★削除: scanBonusプロパティはActiveEffectsコンポーネントで管理されるため不要
-        // this.scanBonus = 0; 
     }
 }

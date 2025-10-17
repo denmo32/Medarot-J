@@ -2,7 +2,6 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components/index.js';
-// ★改善: PartKeyToInfoMap, PartInfo を参照し、定義元を一元化
 import { TeamID, PartKeyToInfoMap, PartInfo } from '../common/constants.js';
 import { UIManager } from './UIManager.js';
 
@@ -53,7 +52,7 @@ export class DomFactorySystem extends BaseSystem {
             container.innerHTML = '';
         });
 
-        // ★追加: UIManagerにキャッシュされているDOM要素への参照もすべてクリアする
+        //  UIManagerにキャッシュされているDOM要素への参照もすべてクリアする
         // これにより、メモリリークを防ぎ、次のバトルでUIが重複生成される問題を完全に解決する
         if (this.uiManager) {
             this.uiManager.clear();
@@ -100,7 +99,7 @@ export class DomFactorySystem extends BaseSystem {
         }
         icon.appendChild(indicator);
 
-        // ★新規: ガード状態表示用のインジケーターを生成
+        // ガード状態表示用のインジケーターを生成
         const guardIndicator = document.createElement('div');
         guardIndicator.className = 'guard-indicator';
         icon.appendChild(guardIndicator);
@@ -113,19 +112,15 @@ export class DomFactorySystem extends BaseSystem {
         const nameEl = infoPanel.querySelector('.player-name');
         nameEl.textContent = `${playerInfo.name}`;        nameEl.className = `player-name ${teamConfig.textColor}`;
 
-        // ★廃止: PartInfoに一元管理されたため、このローカルマッピングは不要
-        // const partIcons = { ... };
-
         // 各パーツの情報を設定し、DOM参照をキャッシュ
         Object.entries(parts).forEach(([key, part]) => {
             const partEl = infoPanel.querySelector(`[data-part-key="${key}"]`);
             if (!partEl || !part) return;
             const partNameEl = partEl.querySelector('.part-name');
-            // ★改善: PartKeyToInfoMapからアイコン情報を取得
+            // PartKeyToInfoMapからアイコン情報を取得
             partNameEl.textContent = PartKeyToInfoMap[key]?.icon || '?'; 
 
-            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-            // ★新規: DOM生成時にHPバーの初期状態（幅と色）を直接設定する
+            // DOM生成時にHPバーの初期状態（幅と色）を直接設定する
             // これにより、バトル開始直後にHPゲージが正しく表示されることを保証する
             const barEl = partEl.querySelector('.part-hp-bar');
             const hpPercentage = (part.hp / part.maxHp) * 100;
@@ -135,12 +130,11 @@ export class DomFactorySystem extends BaseSystem {
             else if (hpPercentage > 20) barEl.style.backgroundColor = '#f6e05e';
             else barEl.style.backgroundColor = '#f56565';
 
-            // ★新規: HP数値の初期値を設定
+            // HP数値の初期値を設定
             const valueEl = partEl.querySelector('.part-hp-value');
             if (valueEl) {
                 valueEl.textContent = `${part.hp}/${part.maxHp}`;
             }
-            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
         });
 
         // 生成した情報パネルを対応するチームのコンテナに追加
@@ -152,7 +146,7 @@ export class DomFactorySystem extends BaseSystem {
             homeMarkerElement: marker,
             infoPanel: infoPanel,
             targetIndicatorElement: indicator,
-            guardIndicatorElement: guardIndicator, // ★新規: ガードインジケーターを登録
+            guardIndicatorElement: guardIndicator, // ガードインジケーターを登録
             partDOMElements: {}
         };
 
@@ -164,7 +158,7 @@ export class DomFactorySystem extends BaseSystem {
                     container: partEl,
                     name: partEl.querySelector('.part-name'),
                     bar: partEl.querySelector('.part-hp-bar'),
-                    value: partEl.querySelector('.part-hp-value') // ★新規: HP数値要素への参照を追加
+                    value: partEl.querySelector('.part-hp-value') // HP数値要素への参照を追加
                 };
             }
         });

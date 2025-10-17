@@ -5,23 +5,19 @@
 
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { Medal, Parts, PlayerInfo } from '../core/components/index.js'; // ★ PlayerInfo をインポート
-// ★修正: 必要なユーティリティをインポート
+import { Medal, Parts, PlayerInfo } from '../core/components/index.js';
 import { getAttackableParts, getValidEnemies, getValidAllies, isValidTarget, findMostDamagedAllyPart } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
-// ★リファクタリング: `ai/targetingUtils` から `utils/targetingUtils` に変更
 import { determineTarget } from '../utils/targetingUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
-// ★追加: partSelectionStrategies を直接インポート
 import { partSelectionStrategies } from '../ai/partSelectionStrategies.js';
-import { targetingStrategies } from '../ai/targetingStrategies.js'; // ★新規: targetingStrategiesをインポート
-// ★新規: EffectScopeをインポート
+import { targetingStrategies } from '../ai/targetingStrategies.js';
 import { EffectScope } from '../common/constants.js';
 
 
 /**
- * ★新規: AI思考ルーチンの実行条件を評価する関数のコレクション。
- * `personalityRegistry`で定義された`condition`データオブジェクトを解釈します。
+ * AI思考ルーチンの実行条件を評価する関数のコレクション。
+ * personalityRegistry`で定義された`condition`データオブジェクトを解釈します。
  * @type {Object.<string, function({world: World, entityId: number, params: object}): boolean>}
  */
 const conditionEvaluators = {
@@ -55,7 +51,7 @@ export class AiSystem extends BaseSystem {
 
     /**
      * TurnSystemからAIの行動選択が要求された際のハンドラ。AIの思考プロセスを開始します。
-     * ★リファクタリング: AIの意思決定を宣言的な「思考ルーチン」ベースに刷新。
+     * AIの意思決定を宣言的な「思考ルーチン」ベースに刷新。
      * 1. 性格レジストリから、その性格に定義された「思考ルーチン」のリストを取得します。
      * 2. リストを優先順位の高い順（配列の先頭から）にループ処理します。
      * 3. 各ルーチンで定義された「パーツ戦略」と「ターゲット戦略」を実行します。
@@ -83,7 +79,7 @@ export class AiSystem extends BaseSystem {
         // --- Step 1: 思考ルーチンを順番に試行 ---
         if (strategies.routines && strategies.routines.length > 0) {
             for (const routine of strategies.routines) {
-                // ★新規: ルーチンに実行条件(condition)が定義されていれば評価する
+                // ルーチンに実行条件(condition)が定義されていれば評価する
                 if (routine.condition) {
                     const evaluator = conditionEvaluators[routine.condition.type];
                     if (evaluator) {
@@ -97,7 +93,6 @@ export class AiSystem extends BaseSystem {
                     }
                 }
 
-                // ★リファクタリング: personalityRegistryからtargetCandidatesを削除
                 const { partStrategy: partStrategyKey, targetStrategy: targetStrategyKey } = routine;
                 
                 // 1a. パーツ戦略でパーツを決定
@@ -110,7 +105,7 @@ export class AiSystem extends BaseSystem {
                 const [partKey, part] = partSelectionFunc(context);
                 if (!partKey) continue; // この戦略に合うパーツがなければ、次のルーチンへ
 
-                // ★リファクタリング: 選択したパーツの`targetScope`に基づいてターゲット候補リストを作成
+                // 選択したパーツの`targetScope`に基づいてターゲット候補リストを作成
                 let candidates = [];
                 switch (part.targetScope) {
                     case EffectScope.ENEMY_SINGLE:
@@ -160,7 +155,7 @@ export class AiSystem extends BaseSystem {
                 selectedPartKey = partKey;
                 // 敵の中からフォールバック戦略でターゲットを決定
                 const fallbackCandidates = getValidEnemies(this.world, entityId);
-                // ★修正: フォールバック戦略のキーを動的に検索してイベントを発行
+                // フォールバック戦略のキーを動的に検索してイベントを発行
                 const fallbackKey = Object.keys(targetingStrategies).find(key => targetingStrategies[key] === strategies.fallbackTargeting);
                 finalTarget = determineTarget(this.world, entityId, strategies.fallbackTargeting, fallbackCandidates, fallbackKey);
             }

@@ -1,9 +1,9 @@
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components/index.js';
 import { BattlePhaseContext } from '../core/index.js'; // Import new context
-import { GamePhaseType, ModalType, EffectScope } from '../common/constants.js'; // ★修正: EffectScopeをインポート
-import { UIManager } from './UIManager.js'; // ★新規: UIManagerをインポート
-import { BaseSystem } from '../../core/baseSystem.js'; // ★追加: 継承元となるBaseSystemをインポート
+import { GamePhaseType, ModalType, EffectScope } from '../common/constants.js';
+import { UIManager } from './UIManager.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 
 /**
  * アニメーションと視覚効果の再生に特化したシステム。
@@ -13,7 +13,7 @@ import { BaseSystem } from '../../core/baseSystem.js'; // ★追加: 継承元�
 export class ViewSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        this.uiManager = this.world.getSingletonComponent(UIManager); // ★新規: UIManagerの参照を取得
+        this.uiManager = this.world.getSingletonComponent(UIManager); // UIManagerの参照を取得
         this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
         this.animationStyleElement = null; // 動的に生成したstyle要素への参照
 
@@ -44,7 +44,7 @@ export class ViewSystem extends BaseSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
         this.world.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this));
-        // ★変更: アニメーション実行要求を直接購読
+        // アニメーション実行要求を直接購読
         this.world.on(GameEvents.EXECUTE_ATTACK_ANIMATION, this.executeAttackAnimation.bind(this));
     }
 
@@ -55,7 +55,7 @@ export class ViewSystem extends BaseSystem {
     }
 
     /**
-     * ★新規: 戦闘開始アニメーションを表示します。
+     * 戦闘開始アニメーションを表示します。
      */
     onShowBattleStartAnimation() {
         const battlefield = document.getElementById('battlefield');
@@ -86,15 +86,14 @@ export class ViewSystem extends BaseSystem {
     }
 
     /**
-     * ★リファクタリング: 攻撃アニメーションを実行します。
+     * 攻撃アニメーションを実行します。
      * @param {object} detail - イベントペイロード { attackerId, targetId }
      */
     executeAttackAnimation(detail) {
         const { attackerId, targetId } = detail;
         const attackerDomElements = this.uiManager.getDOMElements(attackerId);
         
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-        // ★修正: アニメーション再生条件を強化。ターゲットIDが存在し、かつアクションが単体対象の場合のみ再生する。
+        // アニメーション再生条件を強化。ターゲットIDが存在し、かつアクションが単体対象の場合のみ再生する。
         const action = this.getCachedComponent(attackerId, Components.Action);
         const parts = this.getCachedComponent(attackerId, Components.Parts);
         
@@ -110,7 +109,6 @@ export class ViewSystem extends BaseSystem {
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
         }
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
         const targetDomElements = this.uiManager.getDOMElements(targetId);
         if (!attackerDomElements.iconElement || !targetDomElements?.iconElement) {
@@ -119,7 +117,7 @@ export class ViewSystem extends BaseSystem {
             return;
         }
 
-        // ★新規: アニメーション開始時にゲームの進行を一時停止
+        // アニメーション開始時にゲームの進行を一時停止
         this.world.emit(GameEvents.GAME_PAUSED);
         
         const indicator = document.createElement('div');

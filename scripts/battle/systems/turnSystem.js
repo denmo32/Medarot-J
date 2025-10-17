@@ -4,16 +4,14 @@
  */
 
 import { BaseSystem } from '../../core/baseSystem.js';
-import { GameState, PlayerInfo, Parts } from '../core/components/index.js'; // ★ Parts をインポート
+import { GameState, PlayerInfo, Parts } from '../core/components/index.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { GameEvents } from '../common/events.js';
-// ★変更: GamePhaseTypeをインポート
-import { PlayerStateType, TeamID, GamePhaseType, PartInfo } from '../common/constants.js'; // ★ PartInfo をインポート
+import { PlayerStateType, TeamID, GamePhaseType, PartInfo } from '../common/constants.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 
 /**
  * ゲームの「ターン」や行動順を管理するシステム。
- * なぜこのシステムが必要か？
  * 1. 責務の分離: 「誰が次に行動できるか」を決定するロジックは、エンティティの「状態」を管理するStateSystemから分離するべきです。
  *    これにより、各システムが単一の責任を持つことになり、コードがクリーンで理解しやすくなります。
  * 2. 柔軟なターン制御: 将来的に「素早さの高いキャラが連続で行動する」といった複雑なターン制御を導入する場合、
@@ -74,8 +72,8 @@ export class TurnSystem extends BaseSystem {
      */
     update(deltaTime) {
         try {
-            // ★変更: 初期行動選択フェーズとバトル中の両方で動作するように修正
-            // これにより、ゲーム開始直後の行動選択が正しく開始され、かつゲームオーバー後には停止します。
+            // 初期行動選択フェーズとバトル中の両方で動作させる
+            // ゲーム開始直後の行動選択が正しく開始され、かつゲームオーバー後には停止します。
             const activePhases = [GamePhaseType.BATTLE, GamePhaseType.INITIAL_SELECTION];
             if (!activePhases.includes(this.battlePhaseContext.battlePhase)) { // Use BattlePhaseContext
                 return;
@@ -90,16 +88,14 @@ export class TurnSystem extends BaseSystem {
             // キューの先頭からエンティティを取り出し、行動選択のプロセスを開始させます。
             const entityId = this.actionQueue.shift();
 
-            // --- ▼▼▼ ここからがステップ3の変更箇所 ▼▼▼ ---
             // 念のため、取り出したエンティティがまだ行動可能か最終チェックを行います。
             const gameState = this.world.getComponent(entityId, GameState);
             const parts = this.world.getComponent(entityId, Parts);
 
-            // ★修正: 状態が`READY_SELECT`でない、または頭部が破壊されている場合は行動不可
+            // 状態が`READY_SELECT`でない、または頭部が破壊されている場合は行動不可
             if (gameState.state !== PlayerStateType.READY_SELECT || parts[PartInfo.HEAD.key]?.isBroken) {
                 return; // 行動できない状態なら、何もせず次のフレームへ
             }
-            // --- ▲▲▲ ステップ3の変更箇所ここまで ▲▲▲ ---
             
             const playerInfo = this.world.getComponent(entityId, PlayerInfo);
             

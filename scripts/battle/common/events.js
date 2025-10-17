@@ -44,7 +44,7 @@ export const GameEvents = {
     BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED',
     
     /**
-     * ★新規: 戦闘開始がキャンセルされた
+     * 戦闘開始がキャンセルされた
      * @event BATTLE_START_CANCELLED
      * @type {string}
      * @payload {}
@@ -52,7 +52,7 @@ export const GameEvents = {
     BATTLE_START_CANCELLED: 'BATTLE_START_CANCELLED',
 
     /**
-     * ★新規: 戦闘開始アニメーションの表示を要求
+     * 戦闘開始アニメーションの表示を要求
      * @event SHOW_BATTLE_START_ANIMATION
      * @type {string}
      * @payload {}
@@ -60,7 +60,7 @@ export const GameEvents = {
     SHOW_BATTLE_START_ANIMATION: 'SHOW_BATTLE_START_ANIMATION',
 
     /**
-     * ★新規: 戦闘開始アニメーションの完了を通知
+     * 戦闘開始アニメーションの完了を通知
      * @event BATTLE_ANIMATION_COMPLETED
      * @type {string}
      * @payload {}
@@ -158,7 +158,7 @@ export const GameEvents = {
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
     
     /**
-     * ★新規: ActionSystemがアクション効果の計算を完了したことを通知する内部イベント。
+     * ActionSystemがアクション効果の計算を完了したことを通知する内部イベント。
      * EffectApplicatorSystem, StateSystem, HistorySystemがこれを購読し、それぞれの責務を遂行する。
      * これにより、効果の「計算」と「適用」が明確に分離される。
      * @event EFFECTS_RESOLVED
@@ -185,7 +185,7 @@ export const GameEvents = {
 
     // --- 状態 & ターン管理イベント ---
     /**
-     * ★新規: ゲージが満タンになった
+     * ゲージが満タンになった
      * @event GAUGE_FULL
      * @type {string}
      * @payload {{ entityId: number }} - ゲージが満タンになったエンティティID
@@ -233,7 +233,7 @@ export const GameEvents = {
     GAME_OVER: 'GAME_OVER',
     
     /**
-     * ★新規: HPが更新された（ダメージまたは回復）
+     * HPが更新された（ダメージまたは回復）
      * EffectApplicatorSystemが発行し、UISystemやActionPanelSystemが購読する。
      * @event HP_UPDATED
      * @type {string}
@@ -242,7 +242,7 @@ export const GameEvents = {
     HP_UPDATED: 'HP_UPDATED',
     
     /**
-     * ★新規: 効果の持続時間や回数がなくなり、効果が失われた
+     * 効果の持続時間や回数がなくなり、効果が失われた
      * EffectSystemやEffectApplicatorSystemが発行し、StateSystemが購読する。
      * @event EFFECT_EXPIRED
      * @type {string}
