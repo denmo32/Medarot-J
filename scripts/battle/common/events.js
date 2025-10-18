@@ -1,4 +1,4 @@
-﻿﻿﻿/**
+﻿﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -309,4 +309,20 @@ export const GameEvents = {
      * @payload {}
      */
     SETUP_UI_REQUESTED: 'SETUP_UI_REQUESTED',
+    
+    /**
+     * HPバーのアニメーション再生を要求
+     * @event HP_BAR_ANIMATION_REQUESTED
+     * @type {string}
+     * @payload {{ effects: Array<object> }} - アニメーション対象の効果リスト
+     */
+    HP_BAR_ANIMATION_REQUESTED: 'HP_BAR_ANIMATION_REQUESTED',
+
+    /**
+     * HPバーのアニメーション完了を通知
+     * @event HP_BAR_ANIMATION_COMPLETED
+     * @type {string}
+     * @payload {}
+     */
+    HP_BAR_ANIMATION_COMPLETED: 'HP_BAR_ANIMATION_COMPLETED',
 };
