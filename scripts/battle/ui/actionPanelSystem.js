@@ -33,7 +33,7 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentModalType = null;
         this.currentModalData = null;
         this.currentHandler = null;
-        this.focusedButtonKey = null;
+        this.focusedButtonKey = null; // SELECTIONモーダル固有の状態
 
         // --- Event Handlers ---
         this.boundHandlePanelClick = null;
@@ -127,6 +127,7 @@ export class ActionPanelSystem extends BaseSystem {
             dom.actionPanel.classList.add('clickable');
             // イベントリスナーを一度だけバインド
             if (!this.boundHandlePanelClick) {
+                // handleConfirmには現在のモーダルデータも渡す
                 this.boundHandlePanelClick = () => this.currentHandler?.handleConfirm?.(this, this.currentModalData);
             }
             dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
@@ -157,12 +158,11 @@ export class ActionPanelSystem extends BaseSystem {
 
     /**
      * ViewSystemからのHPバーアニメーション完了通知を受け取るハンドラ。
-     * アニメーション完了後、パネルをクリック可能にします。
+     * 現在のモーダルハンドラに処理を委譲します。
      */
     onHpBarAnimationCompleted() {
-        // 現在のモーダルが結果表示の場合にのみ、処理を実行
-        if (this.currentModalType === ModalType.EXECUTION_RESULT) {
-            this.makePanelClickableForResult();
+        if (this.currentHandler?.onHpBarAnimationCompleted) {
+            this.currentHandler.onHpBarAnimationCompleted(this);
         }
     }
 
@@ -203,142 +203,4 @@ export class ActionPanelSystem extends BaseSystem {
         }
         this.focusedButtonKey = null;
     }
-
-    // --- Helper methods for SELECTION modal (called from modalHandlers.js) ---
-    generateTriangleLayoutHTML(buttons) {
-        const headBtn = buttons.find(b => b.partKey === 'head');
-        const rArmBtn = buttons.find(b => b.partKey === 'rightArm');
-        const lArmBtn = buttons.find(b => b.partKey === 'leftArm');
-        const renderButton = (btn) => {
-            if (!btn) return '<div style="width: 100px; height: 35px;"></div>';
-            return `<button id="panelBtn-${btn.partKey}" class="part-action-button" ${btn.isBroken ? 'disabled' : ''}>${btn.text}</button>`;
-        };
-        return `
-            <div class="triangle-layout">
-                <div class="top-row">${renderButton(headBtn)}</div>
-                <div class="bottom-row">${renderButton(rArmBtn)}${renderButton(lArmBtn)}</div>
-            </div>`;
-    }
-
-    setupSelectionEvents(container, data) {
-        data.buttons.forEach(btnData => {
-            if (btnData.isBroken) return;
-            const buttonEl = container.querySelector(`#panelBtn-${btnData.partKey}`);
-            if (!buttonEl) return;
-    
-            buttonEl.onclick = () => {
-                const target = btnData.target;
-                this.world.emit(GameEvents.PART_SELECTED, {
-                    entityId: data.entityId,
-                    partKey: btnData.partKey,
-                    targetId: target?.targetId ?? null,
-                    targetPartKey: target?.targetPartKey ?? null,
-                });
-                this.hideActionPanel();
-            };
-    
-            if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(btnData.targetScope) && btnData.targetTiming === 'pre-move') {
-                buttonEl.onmouseover = () => this._updateTargetHighlight(btnData.partKey, true);
-                buttonEl.onmouseout = () => this._updateTargetHighlight(btnData.partKey, false);
-            }
-        });
-    }
-
-    _updateTargetHighlight(partKey, show) {
-        const buttonData = this.currentModalData?.buttons.find(b => b.partKey === partKey);
-        if (!buttonData || buttonData.targetTiming !== 'pre-move') return;
-        const target = buttonData.target;
-        if (target?.targetId !== null) {
-            const targetDom = this.uiManager.getDOMElements(target.targetId);
-            if (targetDom?.iconElement) {
-                targetDom.iconElement.style.boxShadow = show ? '0 0 15px cyan' : '';
-            }
-        }
-    }
-
-    handleArrowKeyNavigation(key) {
-        const availableButtons = this.currentModalData?.buttons.filter(b => !b.isBroken);
-        if (!availableButtons || availableButtons.length === 0) return;
-        let nextFocusKey = this.focusedButtonKey;
-        const has = (partKey) => availableButtons.some(b => b.partKey === partKey);
-        switch (this.focusedButtonKey) {
-            case PartInfo.HEAD.key:
-                if (key === 'arrowdown' || key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : PartInfo.LEFT_ARM.key;
-                else if (key === 'arrowright') nextFocusKey = has(PartInfo.LEFT_ARM.key) ? PartInfo.LEFT_ARM.key : PartInfo.RIGHT_ARM.key;
-                break;
-            case PartInfo.RIGHT_ARM.key:
-                if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
-                else if (key === 'arrowright') nextFocusKey = has(PartInfo.LEFT_ARM.key) ? PartInfo.LEFT_ARM.key : null;
-                break;
-            case PartInfo.LEFT_ARM.key:
-                if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
-                else if (key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : null;
-                break;
-            default: nextFocusKey = availableButtons.find(b => b.partKey === PartInfo.HEAD.key)?.partKey || availableButtons[0]?.partKey;
-        }
-        if (nextFocusKey) this.updateFocus(nextFocusKey);
-    }
-    
-    updateFocus(newKey) {
-        if (this.focusedButtonKey === newKey) return;
-        if (this.focusedButtonKey) {
-            this._updateTargetHighlight(this.focusedButtonKey, false);
-            const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
-            if (oldButton) oldButton.classList.remove('focused');
-        }
-        this._updateTargetHighlight(newKey, true);
-        const newButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${newKey}`);
-        if (newButton) {
-            newButton.classList.add('focused');
-            this.focusedButtonKey = newKey;
-        } else {
-            this.focusedButtonKey = null;
-        }
-    }
-    
-    confirmSelection() {
-        if (!this.focusedButtonKey) return;
-        const focusedButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
-        if (focusedButton && !focusedButton.disabled) focusedButton.click();
-    }
-
-    // --- Helper for EXECUTION_RESULT modal (called from modalHandlers.js) ---
-
-    /**
-     * 結果表示モーダルのイベント設定。
-     * アニメーションの責務をViewSystemに移譲し、このメソッドはイベント発行に専念します。
-     * @param {HTMLElement} container - ボタンコンテナ
-     * @param {object} data - モーダルデータ (ACTION_EXECUTEDのペイロード)
-     */
-    setupExecutionResultEvents(container, data) {
-        const damageEffects = data.appliedEffects?.filter(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL) || [];
-
-        // アニメーションを再生する効果がない場合は、即座にクリック可能にする
-        if (damageEffects.length === 0) {
-            this.makePanelClickableForResult();
-            return;
-        }
-
-        // ViewSystemにHPバーのアニメーション再生を要求
-        this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { effects: damageEffects });
-
-        // アニメーション完了はHP_BAR_ANIMATION_COMPLETEDイベントで検知するため、ここでは待機する。
-    }
-
-    /**
-     * パネルをクリック可能にするヘルパー関数
-     */
-    makePanelClickableForResult() {
-        // このメソッドは、アニメーション完了後 (onHpBarAnimationCompleted) または
-        // アニメーションが不要な場合に呼ばれる
-        if (this.currentModalType === ModalType.EXECUTION_RESULT) {
-            this.dom.actionPanel.classList.add('clickable');
-            this.dom.actionPanelIndicator.classList.remove('hidden');
-            if (!this.boundHandlePanelClick) {
-                this.boundHandlePanelClick = () => this.currentHandler?.handleConfirm?.(this, this.currentModalData);
-                this.dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
-            }
-        }
-    }
-
 }

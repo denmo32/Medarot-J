@@ -17,7 +17,7 @@ import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '
  * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
  * @returns {object} モーダルハンドラのコレクション
  */
-export const createModalHandlers = (system) => ({
+export const createModalHandlers = (systemInstance) => ({ // 引数名を変更
     // --- スタート確認 ---
     [ModalType.START_CONFIRM]: {
         getActorName: () => 'ロボトルを開始しますか？',
@@ -37,17 +37,143 @@ export const createModalHandlers = (system) => ({
     // --- 行動選択 ---
     [ModalType.SELECTION]: {
         getOwnerName: (data) => data.ownerName,
-        // HTML生成ロジックをsystemインスタンス経由で呼び出す
-        getContentHTML: (data, system) => system.generateTriangleLayoutHTML(data.buttons),
-        setupEvents: (system, container, data) => system.setupSelectionEvents(container, data),
-        handleNavigation: (system, key) => system.handleArrowKeyNavigation(key),
-        handleConfirm: (system) => system.confirmSelection(),
+        /**
+         * 行動選択ボタンのHTMLを三角レイアウトで生成します。
+         * @param {object} data - モーダルデータ
+         * @returns {string} HTML文字列
+         */
+        getContentHTML: (data) => {
+            const buttons = data.buttons;
+            const headBtn = buttons.find(b => b.partKey === 'head');
+            const rArmBtn = buttons.find(b => b.partKey === 'rightArm');
+            const lArmBtn = buttons.find(b => b.partKey === 'leftArm');
+            const renderButton = (btn) => {
+                if (!btn) return '<div style="width: 100px; height: 35px;"></div>'; // プレースホルダー
+                return `<button id="panelBtn-${btn.partKey}" class="part-action-button" ${btn.isBroken ? 'disabled' : ''}>${btn.text}</button>`;
+            };
+            return `
+                <div class="triangle-layout">
+                    <div class="top-row">${renderButton(headBtn)}</div>
+                    <div class="bottom-row">${renderButton(rArmBtn)}${renderButton(lArmBtn)}</div>
+                </div>`;
+        },
+        /**
+         * 各ボタンにクリックイベントとマウスオーバーイベントを設定します。
+         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
+         * @param {HTMLElement} container - ボタンが配置されているコンテナ
+         * @param {object} data - モーダルデータ
+         */
+        setupEvents: (system, container, data) => {
+            const _updateTargetHighlight = (partKey, show) => {
+                const buttonData = data.buttons.find(b => b.partKey === partKey);
+                if (!buttonData || buttonData.targetTiming !== 'pre-move') return;
+                const target = buttonData.target;
+                if (target?.targetId !== null) {
+                    const targetDom = system.uiManager.getDOMElements(target.targetId);
+                    if (targetDom?.iconElement) {
+                        targetDom.iconElement.style.boxShadow = show ? '0 0 15px cyan' : '';
+                    }
+                }
+            };
+
+            data.buttons.forEach(btnData => {
+                if (btnData.isBroken) return;
+                const buttonEl = container.querySelector(`#panelBtn-${btnData.partKey}`);
+                if (!buttonEl) return;
+        
+                buttonEl.onclick = () => {
+                    const target = btnData.target;
+                    system.world.emit(GameEvents.PART_SELECTED, {
+                        entityId: data.entityId,
+                        partKey: btnData.partKey,
+                        targetId: target?.targetId ?? null,
+                        targetPartKey: target?.targetPartKey ?? null,
+                    });
+                    system.hideActionPanel();
+                };
+        
+                if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(btnData.targetScope) && btnData.targetTiming === 'pre-move') {
+                    buttonEl.onmouseover = () => _updateTargetHighlight(btnData.partKey, true);
+                    buttonEl.onmouseout = () => _updateTargetHighlight(btnData.partKey, false);
+                }
+            });
+        },
+        /**
+         * 方向キーによるフォーカス移動を処理します。
+         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
+         * @param {string} key - 押されたキー ('arrowup', 'arrowdown', etc.)
+         */
+        handleNavigation: (system, key) => {
+            const _updateTargetHighlight = (partKey, show) => {
+                const buttonData = system.currentModalData?.buttons.find(b => b.partKey === partKey);
+                if (!buttonData || buttonData.targetTiming !== 'pre-move') return;
+                const target = buttonData.target;
+                if (target?.targetId !== null) {
+                    const targetDom = system.uiManager.getDOMElements(target.targetId);
+                    if (targetDom?.iconElement) {
+                        targetDom.iconElement.style.boxShadow = show ? '0 0 15px cyan' : '';
+                    }
+                }
+            };
+            const updateFocus = (newKey) => {
+                if (system.focusedButtonKey === newKey) return;
+                if (system.focusedButtonKey) {
+                    _updateTargetHighlight(system.focusedButtonKey, false);
+                    const oldButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${system.focusedButtonKey}`);
+                    if (oldButton) oldButton.classList.remove('focused');
+                }
+                _updateTargetHighlight(newKey, true);
+                const newButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${newKey}`);
+                if (newButton) {
+                    newButton.classList.add('focused');
+                    system.focusedButtonKey = newKey; // systemの状態を更新
+                } else {
+                    system.focusedButtonKey = null;
+                }
+            };
+
+            const availableButtons = system.currentModalData?.buttons.filter(b => !b.isBroken);
+            if (!availableButtons || availableButtons.length === 0) return;
+            let nextFocusKey = system.focusedButtonKey;
+            const has = (partKey) => availableButtons.some(b => b.partKey === partKey);
+            switch (system.focusedButtonKey) {
+                case PartInfo.HEAD.key:
+                    if (key === 'arrowdown' || key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : PartInfo.LEFT_ARM.key;
+                    else if (key === 'arrowright') nextFocusKey = has(PartInfo.LEFT_ARM.key) ? PartInfo.LEFT_ARM.key : PartInfo.RIGHT_ARM.key;
+                    break;
+                case PartInfo.RIGHT_ARM.key:
+                    if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
+                    else if (key === 'arrowright') nextFocusKey = has(PartInfo.LEFT_ARM.key) ? PartInfo.LEFT_ARM.key : null;
+                    break;
+                case PartInfo.LEFT_ARM.key:
+                    if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
+                    else if (key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : null;
+                    break;
+                default: nextFocusKey = availableButtons.find(b => b.partKey === PartInfo.HEAD.key)?.partKey || availableButtons[0]?.partKey;
+            }
+            if (nextFocusKey) updateFocus(nextFocusKey);
+        },
+        /**
+         * 決定キー（Zキー）が押されたときに、フォーカス中のボタンをクリックします。
+         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
+         */
+        handleConfirm: (system) => {
+            if (!system.focusedButtonKey) return;
+            const focusedButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${system.focusedButtonKey}`);
+            if (focusedButton && !focusedButton.disabled) focusedButton.click();
+        },
+        /**
+         * モーダル表示時に初期フォーカスを設定します。
+         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
+         * @param {object} data - モーダルデータ
+         */
         init: (system, data) => {
             const available = data.buttons.filter(b => !b.isBroken);
             const initialFocusKey = available.find(b => b.partKey === PartInfo.HEAD.key)?.partKey ||
                                     available.find(b => b.partKey === PartInfo.RIGHT_ARM.key)?.partKey ||
                                     available.find(b => b.partKey === PartInfo.LEFT_ARM.key)?.partKey;
-            if (initialFocusKey) setTimeout(() => system.updateFocus(initialFocusKey), 0);
+            // setTimeoutでレンダリング後の実行を保証
+            if (initialFocusKey) setTimeout(() => system.currentHandler.handleNavigation(system, initialFocusKey), 0);
         }
     },
     // --- 攻撃宣言 ---
@@ -74,10 +200,35 @@ export const createModalHandlers = (system) => ({
     },
     // --- 結果表示 ---
     [ModalType.EXECUTION_RESULT]: {
-        // MessageSystemから渡された整形済みのメッセージをそのまま表示
-        getActorName: (data) => data.message,
-        // イベント設定ロジックをsystemインスタンス経由で呼び出す
-        setupEvents: (system, container, data) => system.setupExecutionResultEvents(container, data),
+        getActorName: (data) => data.message, // MessageSystemから渡された整形済みのメッセージをそのまま表示
+        /**
+         * HPバーのアニメーションを要求するか、即座にクリック可能にします。
+         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
+         * @param {HTMLElement} container - ボタンコンテナ
+         * @param {object} data - モーダルデータ
+         */
+        setupEvents: (system, container, data) => {
+            const damageEffects = data.appliedEffects?.filter(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL) || [];
+            if (damageEffects.length === 0) {
+                // アニメーションがない場合は即座にクリック可能にする
+                system.currentHandler.onHpBarAnimationCompleted(system);
+                return;
+            }
+            // ViewSystemにHPバーのアニメーション再生を要求
+            system.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { effects: damageEffects });
+        },
+        /**
+         * HPバーアニメーション完了時に呼び出され、パネルをクリック可能にします。
+         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
+         */
+        onHpBarAnimationCompleted: (system) => {
+            system.dom.actionPanel.classList.add('clickable');
+            system.dom.actionPanelIndicator.classList.remove('hidden');
+            if (!system.boundHandlePanelClick) {
+                system.boundHandlePanelClick = () => system.currentHandler?.handleConfirm?.(system, system.currentModalData);
+                system.dom.actionPanel.addEventListener('click', system.boundHandlePanelClick);
+            }
+        },
         handleConfirm: (system, data) => {
             system.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: data.attackerId });
             system.hideActionPanel();
