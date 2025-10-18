@@ -48,10 +48,10 @@ const DAMAGE = ({ world, sourceId, targetId, effect, part, partOwner, outcome })
 const HEAL = ({ world, sourceId, targetId, effect, part }) => {
     // ターゲットがいない（＝回復対象がいない）場合
     if (targetId === null || targetId === undefined) {
+        // メッセージ生成をMessageSystemに委譲するため、messageプロパティを削除
         return {
             type: EffectType.HEAL,
             value: 0,
-            message: '行動失敗！　誰もダメージを受けていない！'
         };
     }
 
@@ -65,12 +65,12 @@ const HEAL = ({ world, sourceId, targetId, effect, part }) => {
     const targetPartKey = world.getComponent(sourceId, Action)?.targetPartKey;
     if (!targetPartKey) return null;
 
+    // メッセージ生成をMessageSystemに委譲するため、messageプロパティを削除
     return {
         type: EffectType.HEAL,
         targetId: targetId,
         partKey: targetPartKey,
         value: healAmount,
-        message: `${world.getComponent(targetId, PlayerInfo).name}の${PartKeyToInfoMap[targetPartKey]?.name}を${healAmount}回復！`
     };
 };
 

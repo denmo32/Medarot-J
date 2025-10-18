@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -126,6 +126,15 @@ export const GameEvents = {
 
     // --- 行動実行イベント ---
     /**
+     * 行動が宣言され、メッセージ生成が必要になったことを通知する
+     * MessageSystemが購読し、攻撃宣言モーダルのメッセージを生成する。
+     * @event ACTION_DECLARED
+     * @type {string}
+     * @payload {{ attackerId: number, targetId: number, attackingPart: object, isSupport: boolean, guardianInfo: object | null }}
+     */
+    ACTION_DECLARED: 'ACTION_DECLARED',
+
+    /**
      * 行動実行アニメーションの開始を要求
      * @event EXECUTION_ANIMATION_REQUESTED
      * @type {string}
@@ -207,6 +216,15 @@ export const GameEvents = {
      * @payload {{ entityId: number }} - ターンキューに再挿入を要求するエンティティID
      */
     ACTION_REQUEUE_REQUEST: 'ACTION_REQUEUE_REQUEST',
+
+    /**
+     * 予約されていた行動がキャンセルされたことを通知する
+     * MessageSystemが購読し、キャンセル理由に応じたメッセージを生成する。
+     * @event ACTION_CANCELLED
+     * @type {string}
+     * @payload {{ entityId: number, reason: 'PART_BROKEN' | 'TARGET_LOST' }}
+     */
+    ACTION_CANCELLED: 'ACTION_CANCELLED',
     
     /**
      * パーツが破壊された

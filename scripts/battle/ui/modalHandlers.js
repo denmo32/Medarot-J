@@ -9,53 +9,7 @@ import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components/index.js';
 import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
 
-/**
- * 攻撃結果メッセージを生成します。貫通ダメージにも対応。
- * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
- * @param {World} world - ワールドオブジェクト
- * @returns {string} 表示するメッセージ (HTML文字列)
- * @private
- */
-const _generateResultMessage = (detail, world) => {
-    const { appliedEffects, isEvaded, isSupport, attackerId, guardianInfo } = detail;
-    
-    if (isSupport) {
-        const effect = (appliedEffects && appliedEffects.length > 0) ? appliedEffects[0] : (detail.resolvedEffects ? detail.resolvedEffects[0] : {});
-        return effect.message || '支援行動成功！';
-    }
-    if (isEvaded) {
-        const action = world.getComponent(attackerId, Components.Action);
-        const targetId = action ? action.targetId : null;
-        const targetName = targetId ? world.getComponent(targetId, Components.PlayerInfo)?.name : null;
-        return targetName ? `${targetName}は攻撃を回避！` : '攻撃は回避された！';
-    }
-
-    if (appliedEffects && appliedEffects.length > 0) {
-        const firstDamageEffect = appliedEffects.find(e => e.type === EffectType.DAMAGE);
-        if (firstDamageEffect) {
-            const { targetId, partKey, value: damage, isCritical, isDefended } = firstDamageEffect;
-            const targetInfo = world.getComponent(targetId, Components.PlayerInfo);
-            if (!targetInfo) return '不明なターゲットへの攻撃';
-
-            const partName = PartKeyToInfoMap[partKey]?.name || '不明な部位';
-            let message = isCritical ? 'クリティカル！ ' : '';
-            
-            if (guardianInfo) {
-                message += `味方への攻撃を庇う！ ${guardianInfo.name}の${partName}に${damage}ダメージ！`;
-            } else if (isDefended) {
-                message += `${targetInfo.name}は${partName}で防御！ ${partName}に${damage}ダメージ！`;
-            } else {
-                message += `${targetInfo.name}の${partName}に${damage}ダメージ！`;
-            }
-            // ★注意: 貫通メッセージはActionPanelSystem側でアニメーションに合わせて動的に追加するため、ここでは最初のメッセージのみ生成します。
-            return message;
-        }
-    }
-    
-    return '攻撃は空を切った！';
-	// 通常、このメッセージは表示されないはずです。
-};
-
+// 【変更点】_generateResultMessage関数を削除。責務はMessageSystemに移譲されました。
 
 /**
  * ActionPanelSystemのインスタンスをコンテキストとして受け取り、
@@ -98,26 +52,30 @@ export const createModalHandlers = (system) => ({
     },
     // --- 攻撃宣言 ---
     [ModalType.ATTACK_DECLARATION]: {
+        // MessageSystemから渡されたメッセージをそのまま表示
         getActorName: (data) => data.message,
         isClickable: true,
         init: (system, data) => {
             system.dom.actionPanelActor.dataset.guardMessageShown = 'false';
         },
         handleConfirm: (system, data) => {
-            const { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo } = data;
-            if (guardianInfo && system.dom.actionPanelActor.dataset.guardMessageShown === 'false') {
-                system.dom.actionPanelActor.textContent = `${guardianInfo.name}のガード発動！`;
+            // インタラクティブなメッセージ切り替えロジック
+            // メッセージ文字列はMessageSystemから受け取ったものを利用
+            const { attackerId, resolvedEffects, isEvaded, isSupport, guardianInfo, guardMessage } = data;
+            if (guardianInfo && guardMessage && system.dom.actionPanelActor.dataset.guardMessageShown === 'false') {
+                system.dom.actionPanelActor.textContent = guardMessage;
                 system.dom.actionPanelActor.dataset.guardMessageShown = 'true';
-                return;
+                return; // メッセージを切り替えただけで、イベントはまだ発行しない
             }
-            // entityId を attackerId にリネームしてイベントを発行
-            system.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { attackerId: entityId, resolvedEffects, isEvaded, isSupport, guardianInfo });
-            // ★注意: ここでhideActionPanelは呼ばない。後続のACTION_EXECUTEDイベントで表示が更新されるため。
+            // 攻撃実行を確定するイベントを発行
+            system.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { attackerId, resolvedEffects, isEvaded, isSupport, guardianInfo });
+            // ★注意: ここでhideActionPanelは呼ばない。後続のACTION_EXECUTEDイベントで結果表示に更新されるため。
         }
     },
     // --- 結果表示 ---
     [ModalType.EXECUTION_RESULT]: {
-        getActorName: (data) => _generateResultMessage(data, system.world),
+        // MessageSystemから渡された整形済みのメッセージをそのまま表示
+        getActorName: (data) => data.message,
         // イベント設定ロジックをsystemインスタンス経由で呼び出す
         setupEvents: (system, container, data) => system.setupExecutionResultEvents(container, data),
         handleConfirm: (system, data) => {

@@ -173,32 +173,21 @@ export class ActionSystem extends BaseSystem {
             
             const isSupportAction = attackingPart.isSupport;
             
-            // モーダル表示を先に行い、UIのポーズ状態を確定させてから効果解決イベントを発行する。
-            
-            // 手順5: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
-            let declarationMessage;
-            if (isSupportAction) {
-                 declarationMessage = `${attackerInfo.name}の${attackingPart.action}行動！ ${attackingPart.trait}！`;
-            } else if (!action.targetId) {
-                declarationMessage = `${attackerInfo.name}の攻撃は空を切った！`;
-            } else {
-                declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！ ${attackingPart.trait}！`;
-            }
-
-            this.world.emit(GameEvents.SHOW_MODAL, {
-                type: ModalType.ATTACK_DECLARATION,
-                data: {
-                    entityId: executor,
-                    message: declarationMessage,
-                    isEvaded: !outcome.isHit,
-                    isSupport: isSupportAction,
-                    resolvedEffects: resolvedEffects,
-                    guardianInfo: guardian,
-                },
-                immediate: true
+            // メッセージ生成をMessageSystemに委譲するため、ACTION_DECLAREDイベントを発行
+            // モーダル表示はMessageSystemが担当する
+            this.world.emit(GameEvents.ACTION_DECLARED, {
+                attackerId: executor,
+                targetId: action.targetId,
+                attackingPart: attackingPart,
+                isSupport: isSupportAction,
+                guardianInfo: guardian,
+                // 他のシステムがモーダル確認後に利用するデータをペイロードに含める
+                resolvedEffects: resolvedEffects,
+                isEvaded: !outcome.isHit,
             });
 
-            // 手順6: 効果の「解決」が完了したことを、他のシステムに通知します。
+            // 手順5: 効果の「解決」が完了したことを、他のシステムに通知します。
+            // ※UIの確認を待たず、論理的な結果を即座に他システムへ通知する
             const resolvedPayload = {
                 attackerId: executor,
                 resolvedEffects: resolvedEffects,

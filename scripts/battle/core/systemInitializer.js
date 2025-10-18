@@ -19,6 +19,7 @@ import { EffectSystem } from '../systems/effectSystem.js';
 import { EffectApplicatorSystem } from '../systems/effectApplicatorSystem.js';
 import { UIManager } from '../ui/UIManager.js';
 import { UISystem } from '../ui/UISystem.js';
+import { MessageSystem } from '../systems/MessageSystem.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -51,9 +52,13 @@ export function initializeSystems(world) {
     const historySystem = new HistorySystem(world);
     const effectSystem = new EffectSystem(world);
     const effectApplicatorSystem = new EffectApplicatorSystem(world);
+    // MessageSystemをインスタンス化
+    const messageSystem = new MessageSystem(world);
 
 
     world.registerSystem(gameFlowSystem);
+    // MessageSystemを登録。UI系の手前、ロジック系の後が適切。
+    world.registerSystem(messageSystem);
     world.registerSystem(historySystem);
     world.registerSystem(stateSystem);
     world.registerSystem(turnSystem);

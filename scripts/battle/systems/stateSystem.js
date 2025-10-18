@@ -201,8 +201,8 @@ export class StateSystem {
 
             // 1. 自身の予約パーツが破壊された場合
             if (actorId === brokenEntityId && action.partKey === brokenPartKey) {
-                const message = `${actorInfo.name}の行動予約パーツが破壊されたため、放熱に移行！`;
-                this.uiStateContext.messageQueue.push(message);
+                // メッセージ生成をMessageSystemに委譲するため、イベントを発行
+                this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: 'PART_BROKEN' });
                 this.resetEntityStateToCooldown(actorId, { interrupted: true });
                 // 一つのエンティティに対する処理は一度で十分なので、次のエンティティへ
                 continue; 
@@ -213,8 +213,8 @@ export class StateSystem {
                 action.targetId === brokenEntityId && 
                 brokenPartKey === PartInfo.HEAD.key) 
             {
-                const message = `ターゲットロスト！ ${actorInfo.name}は放熱に移行！`;
-                this.uiStateContext.messageQueue.push(message);
+                // メッセージ生成をMessageSystemに委譲するため、イベントを発行
+                this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: 'TARGET_LOST' });
                 this.resetEntityStateToCooldown(actorId, { interrupted: true });
                 continue;
             }
@@ -234,6 +234,7 @@ export class StateSystem {
             const parts = this.world.getComponent(entityId, Parts);
             const guardPart = parts[effect.partKey];
             if (guardPart?.isBroken) {
+                 //【メモ】このメッセージも将来的にMessageSystemに統合可能
                  const message = "ガードパーツ破壊！ ガード解除！";
                  this.uiStateContext.messageQueue.push(message);
             }
