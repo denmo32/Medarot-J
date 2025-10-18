@@ -268,6 +268,15 @@ export const GameEvents = {
      */
     EFFECT_EXPIRED: 'EFFECT_EXPIRED',
 
+    /**
+     * ガードパーツが破壊され、ガード状態が解除されたことを通知する
+     * MessageSystemが購読し、メッセージを生成する。
+     * @event GUARD_BROKEN
+     * @type {string}
+     * @payload {{ entityId: number }}
+     */
+    GUARD_BROKEN: 'GUARD_BROKEN',
+
     // --- UIイベント ---
     /**
      * モーダル表示を要求

@@ -234,9 +234,8 @@ export class StateSystem {
             const parts = this.world.getComponent(entityId, Parts);
             const guardPart = parts[effect.partKey];
             if (guardPart?.isBroken) {
-                 //【メモ】このメッセージも将来的にMessageSystemに統合可能
-                 const message = "ガードパーツ破壊！ ガード解除！";
-                 this.uiStateContext.messageQueue.push(message);
+                 // メッセージ生成をMessageSystemに委譲するため、イベントを発行
+                 this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
             }
             this.resetEntityStateToCooldown(entityId);
         }

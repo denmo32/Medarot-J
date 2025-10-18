@@ -17,6 +17,8 @@ export class MessageSystem extends BaseSystem {
         this.world.on(GameEvents.ACTION_DECLARED, this.onActionDeclared.bind(this));
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
         this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
+        // ガード破壊イベントを購読
+        this.world.on(GameEvents.GUARD_BROKEN, this.onGuardBroken.bind(this));
     }
 
     /**
@@ -128,6 +130,19 @@ export class MessageSystem extends BaseSystem {
             data: { message }
         });
     }
+
+    /**
+     * ガードパーツが破壊された時のメッセージを生成します。
+     * @param {object} detail - GUARD_BROKENイベントのペイロード
+     */
+    onGuardBroken(detail) {
+        const { entityId } = detail;
+        const message = this.format(MessageKey.GUARD_BROKEN);
+        this.world.emit(GameEvents.SHOW_MODAL, {
+            type: ModalType.MESSAGE,
+            data: { message }
+        });
+    }
     
     // --- ヘルパーメソッド ---
 
@@ -137,13 +152,14 @@ export class MessageSystem extends BaseSystem {
      */
     generateDamageResultMessage(effects, guardianInfo) {
         let messages = [];
+        if (!effects || effects.length === 0) return '';
+    
+        // 最初のダメージメッセージを生成
         const firstEffect = effects[0];
-
-        // 最初のダメージメッセージ
         let prefix = firstEffect.isCritical ? this.format(MessageKey.CRITICAL_HIT) : '';
         const targetInfo = this.world.getComponent(firstEffect.targetId, PlayerInfo);
         const partName = PartKeyToInfoMap[firstEffect.partKey]?.name || '不明部位';
-
+    
         if (guardianInfo) {
             messages.push(prefix + this.format(MessageKey.GUARDIAN_DAMAGE, {
                 guardianName: guardianInfo.name,
@@ -163,8 +179,8 @@ export class MessageSystem extends BaseSystem {
                 damage: firstEffect.value,
             }));
         }
-
-        // 2つ目以降の効果（貫通など）のメッセージを追加
+    
+        // 2つ目以降の貫通ダメージメッセージを生成
         for (let i = 1; i < effects.length; i++) {
             const effect = effects[i];
             if (effect.isPenetration) {
@@ -175,6 +191,7 @@ export class MessageSystem extends BaseSystem {
                 }));
             }
         }
+    
         return messages.join('<br>'); // HTMLの改行タグで連結
     }
 

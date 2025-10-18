@@ -62,7 +62,7 @@ export class ActionPanelSystem extends BaseSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showActionPanel(detail.type, detail.data));
         this.world.on(GameEvents.HIDE_MODAL, () => this.hideActionPanel());
-        this.world.on(GameEvents.ACTION_EXECUTED, (detail) => this.onActionExecuted(detail));
+        // onActionExecutedはMessageSystemが担当するため、このシステムでは購読しない
     }
 
     /**
@@ -153,17 +153,7 @@ export class ActionPanelSystem extends BaseSystem {
 
     // --- Event Handlers from World ---
 
-    /**
-     * 行動実行結果を受け取り、結果表示モーダルを表示します。
-     */
-    onActionExecuted(detail) {
-        // メッセージ生成はハンドラに任せる。ここではイベント詳細をそのまま渡す。
-        this.world.emit(GameEvents.SHOW_MODAL, {
-            type: ModalType.EXECUTION_RESULT,
-            data: detail,
-            immediate: true
-        });
-    }
+    // onActionExecutedは削除。責務はMessageSystemに移譲。
 
     // --- Helper Methods used by Handlers ---
 
@@ -317,11 +307,7 @@ export class ActionPanelSystem extends BaseSystem {
 
         // 複数のダメージ/回復効果を順番にアニメーション再生
         for (const effect of damageEffects) {
-            // 貫通などの追加メッセージを動的に表示
-            if (effect.isPenetration) {
-                const partName = PartKeyToInfoMap[effect.partKey]?.name || '不明な部位';
-                this.dom.actionPanelActor.innerHTML += `<br>${partName}に貫通！ ${partName}に${effect.value}ダメージ！`;
-            }
+            // メッセージを動的に追加するロジックを削除。メッセージ生成はMessageSystemに一元化されました。
             await this.animateHpBar(effect);
         }
 
