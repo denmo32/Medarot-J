@@ -10,6 +10,7 @@ import { getValidEnemies, getValidAllies, isValidTarget } from '../utils/queryUt
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
 import { GameEvents } from '../common/events.js';
+import { CONFIG } from '../common/config.js';
 
 /**
  * この関数は、渡された「候補リスト」に対して、指定された「戦略」を実行することにのみ責任を持つ。
@@ -44,7 +45,8 @@ export function determineTarget(world, attackerId, strategy, candidates, strateg
 
     // 戦略が成功した場合、イベントを発行する
     // 各戦略からイベント発行コードを削除し、責務をここに集約する
-    if (strategyKey) {
+    // デバッグモードが有効な場合のみ、AIの思考プロセスをイベントとして発行
+    if (CONFIG.DEBUG && strategyKey) {
         world.emit(GameEvents.STRATEGY_EXECUTED, {
             strategy: strategyKey,
             attackerId: attackerId,

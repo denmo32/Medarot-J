@@ -13,6 +13,15 @@ import { PlayerInfo, Parts } from '../core/components/index.js';
 export class MessageSystem extends BaseSystem {
     constructor(world) {
         super(world);
+        // メッセージ生成ロジックを効果タイプごとのマップに集約
+        // これにより、新しい効果タイプを追加する際にこのマップにエントリを追加するだけで済む
+        this.supportMessageFormatters = {
+            [EffectType.HEAL]: this._formatHealMessage.bind(this),
+            [EffectType.APPLY_SCAN]: this._formatScanMessage.bind(this),
+            [EffectType.APPLY_GLITCH]: this._formatGlitchMessage.bind(this),
+            [EffectType.APPLY_GUARD]: this._formatGuardMessage.bind(this),
+        };
+        
         // メッセージ生成のトリガーとなるイベントを購読
         this.world.on(GameEvents.ACTION_DECLARED, this.onActionDeclared.bind(this));
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
@@ -195,6 +204,7 @@ export class MessageSystem extends BaseSystem {
         return messages.join('<br>'); // HTMLの改行タグで連結
     }
 
+    // 巨大なswitch文を廃止し、マップベースのディスパッチに変更
     /**
      * 支援行動の結果メッセージを生成します。
      * @private
@@ -202,25 +212,66 @@ export class MessageSystem extends BaseSystem {
     generateSupportResultMessage(effect) {
         if (!effect) return '支援行動成功！';
         
-        const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
-        const partInfo = this.world.getComponent(effect.targetId, Parts)?.[effect.partKey];
+        // マップから対応するフォーマッター関数を取得
+        const formatter = this.supportMessageFormatters[effect.type];
+        
+        // フォーマッターが存在すれば実行し、なければデフォルトメッセージを返す
+        return formatter ? formatter(effect) : '支援行動成功！';
+    }
 
-        switch(effect.type) {
-            case EffectType.HEAL:
-                return effect.value > 0
-                    ? this.format(MessageKey.HEAL_SUCCESS, { targetName: targetInfo.name, partName: PartKeyToInfoMap[effect.partKey].name, healAmount: effect.value })
-                    : this.format(MessageKey.HEAL_FAILED);
-            case EffectType.APPLY_SCAN:
-                return this.format(MessageKey.SUPPORT_SCAN_SUCCESS, { scanBonus: effect.value, duration: effect.duration });
-            case EffectType.APPLY_GLITCH:
-                return effect.wasSuccessful
-                    ? this.format(MessageKey.INTERRUPT_GLITCH_SUCCESS, { targetName: targetInfo.name })
-                    : this.format(MessageKey.INTERRUPT_GLITCH_FAILED);
-            case EffectType.APPLY_GUARD:
-                return this.format(MessageKey.DEFEND_GUARD_SUCCESS, { guardCount: effect.value });
-            default:
-                return '支援行動成功！';
+    /**
+     * 回復行動の結果メッセージを生成します。
+     * @param {object} effect - 回復効果オブジェクト
+     * @returns {string} フォーマット済みメッセージ
+     * @private
+     */
+    _formatHealMessage(effect) {
+        if (effect.value > 0) {
+            const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
+            const partName = PartKeyToInfoMap[effect.partKey]?.name || '不明部位';
+            return this.format(MessageKey.HEAL_SUCCESS, { 
+                targetName: targetInfo.name, 
+                partName: partName, 
+                healAmount: effect.value 
+            });
         }
+        return this.format(MessageKey.HEAL_FAILED);
+    }
+
+    /**
+     * スキャン行動の結果メッセージを生成します。
+     * @param {object} effect - スキャン効果オブジェクト
+     * @returns {string} フォーマット済みメッセージ
+     * @private
+     */
+    _formatScanMessage(effect) {
+        return this.format(MessageKey.SUPPORT_SCAN_SUCCESS, { 
+            scanBonus: effect.value, 
+            duration: effect.duration 
+        });
+    }
+
+    /**
+     * 妨害行動の結果メッセージを生成します。
+     * @param {object} effect - 妨害効果オブジェクト
+     * @returns {string} フォーマット済みメッセージ
+     * @private
+     */
+    _formatGlitchMessage(effect) {
+        const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
+        return effect.wasSuccessful
+            ? this.format(MessageKey.INTERRUPT_GLITCH_SUCCESS, { targetName: targetInfo.name })
+            : this.format(MessageKey.INTERRUPT_GLITCH_FAILED);
+    }
+
+    /**
+     * 防御行動の結果メッセージを生成します。
+     * @param {object} effect - 防御効果オブジェクト
+     * @returns {string} フォーマット済みメッセージ
+     * @private
+     */
+    _formatGuardMessage(effect) {
+        return this.format(MessageKey.DEFEND_GUARD_SUCCESS, { guardCount: effect.value });
     }
 
     /**
