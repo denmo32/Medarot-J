@@ -1,5 +1,5 @@
 /**
- * @file 状態関連効果戦略定義 (新規作成)
+ * @file 状態関連効果戦略定義
  * スキャン、妨害、ガードなど、エンティティの状態や能力値を変化させる効果のロジックを定義します。
  */
 import { PlayerInfo, ActiveEffects, GameState, Action } from '../core/components/index.js';
@@ -16,7 +16,7 @@ const APPLY_SCAN = ({ world, sourceId, effect, part }) => {
     const sourceInfo = world.getComponent(sourceId, PlayerInfo);
     if (!sourceInfo) return null;
 
-    // ★リファクタリング: 効果量をデータ定義(powerSource)に基づいて計算
+    // 効果量をデータ定義(powerSource)に基づいて計算
     const powerSource = effect.powerSource || 'might';
     const scanBonusValue = Math.floor(part[powerSource] / 10);
     const duration = effect.duration || 3;
@@ -24,16 +24,16 @@ const APPLY_SCAN = ({ world, sourceId, effect, part }) => {
     // 効果の適用対象となるエンティティのリストを取得
     const allies = getValidAllies(world, sourceId, true); 
 
-    // ★リファクタリング: EffectApplicatorSystemが効果を適用するため、ここでは計算結果を返すだけ
+    // EffectApplicatorSystemが効果を適用するため、ここでは計算結果を返すだけ
     // 各味方のActiveEffectsコンポーネントに効果を追加する処理はEffectApplicatorSystemに移譲
     
+    // メッセージ生成をMessageSystemに委譲するため、messageプロパティを削除
     return {
         type: EffectType.APPLY_SCAN,
         scope: EffectScope.ALLY_TEAM, // EffectApplicatorSystemがこのスコープを解釈する
         targetId: sourceId, // チームを特定するための起点ID
         value: scanBonusValue,
         duration: duration,
-        message: `味方チーム全体の命中精度が${scanBonusValue}上昇！（${duration}ターン）`
     };
 };
 
@@ -50,22 +50,19 @@ const APPLY_GLITCH = ({ world, targetId }) => {
     if (!targetInfo || !targetState) return null;
 
     let wasSuccessful = false;
-    let message = '';
 
     // ターゲットが行動予約中またはガード中の場合のみ成功
     if (targetState.state === PlayerStateType.SELECTED_CHARGING || targetState.state === PlayerStateType.GUARDING) {
         wasSuccessful = true;
-        message = `${targetInfo.name}は放熱へ移行！`;
     } else {
         wasSuccessful = false;
-        message = '妨害失敗！　放熱中機体には効果がない！';
     }
 
+    // メッセージ生成をMessageSystemに委譲するため、messageプロパティを削除
     return {
         type: EffectType.APPLY_GLITCH,
         targetId: targetId,
         wasSuccessful: wasSuccessful,
-        message: message,
     };
 };
 
@@ -76,20 +73,20 @@ const APPLY_GLITCH = ({ world, targetId }) => {
  * @returns {object | null} 実行された効果の詳細を示すオブジェクト、または効果がない場合はnull
  */
 const APPLY_GUARD = ({ world, sourceId, effect, part, partKey }) => {
-    // ★リファクタリング: 効果量の計算をデータ定義に基づいて行う
+    // 効果量の計算をデータ定義に基づいて行う
     const powerSource = effect.powerSource || 'might';
     const countMultiplier = effect.countMultiplier || 0.1;
     const guardCount = Math.floor(part[powerSource] * countMultiplier);
     
-    // ★リファクタリング: 副作用を削除。この戦略は計算結果オブジェクトを返す責務に集中する。
+    // 副作用を削除。この戦略は計算結果オブジェクトを返す責務に集中する。
     // ActiveEffectsコンポーネントへの追加はEffectApplicatorSystemが担当。
     
+    // メッセージ生成をMessageSystemに委譲するため、messageプロパティを削除
     return {
         type: EffectType.APPLY_GUARD,
         targetId: sourceId, // 効果の適用先は自分自身
         value: guardCount,
-        partKey: partKey, // ★ガードに使用したパーツのキーを結果に含める
-        message: `味方への攻撃を${guardCount}回庇う！`
+        partKey: partKey, // ガードに使用したパーツのキーを結果に含める
     };
 };
 

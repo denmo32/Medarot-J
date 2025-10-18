@@ -1,7 +1,7 @@
 import { Gauge, GameState, Parts } from '../core/components/index.js'; // Import Gauge, GameState, Parts from components
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
 import { CONFIG } from '../common/config.js';
-import { PlayerStateType, GamePhaseType, PartInfo } from '../common/constants.js'; // ★ PartInfo をインポート
+import { PlayerStateType, GamePhaseType, PartInfo } from '../common/constants.js';
 import { GameEvents } from '../common/events.js';
 import { BaseSystem } from '../../core/baseSystem.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -27,7 +27,7 @@ export class GaugeSystem extends BaseSystem {
                 return;
             }
 
-            // ★追加: 行動選択または実行待ちのエンティティが存在する場合、すべてのゲージ進行を停止
+            // 行動選択または実行待ちのエンティティが存在する場合、すべてのゲージ進行を停止
             const entitiesWithState = this.world.getEntitiesWith(GameState);
             const hasActionQueued = entitiesWithState.some(entityId => {
                 const gameState = this.world.getComponent(entityId, GameState);
@@ -45,12 +45,10 @@ export class GaugeSystem extends BaseSystem {
                 const gameState = this.world.getComponent(entityId, GameState);
                 const parts = this.world.getComponent(entityId, Parts);
 
-                // --- ▼▼▼ ここからがステップ3の変更箇所 ▼▼▼ ---
-                // ★修正: 頭部が破壊されている場合は、いかなる状態でもゲージ進行を停止する
+                // 頭部が破壊されている場合は、いかなる状態でもゲージ進行を停止する
                 if (parts[PartInfo.HEAD.key]?.isBroken) {
                     continue;
                 }
-                // --- ▲▲▲ ステップ3の変更箇所ここまで ▲▲▲ ---
 
                 // ゲージの進行を止めるべき状態かを判定
                 const statesToPause = [
@@ -58,7 +56,7 @@ export class GaugeSystem extends BaseSystem {
                     PlayerStateType.READY_EXECUTE, 
                     PlayerStateType.COOLDOWN_COMPLETE, 
                     PlayerStateType.BROKEN,
-                    PlayerStateType.GUARDING, // ★新規: ガード中もゲージを停止
+                    PlayerStateType.GUARDING,
                 ];
                 if (statesToPause.includes(gameState.state)) {
                     continue;
@@ -67,15 +65,15 @@ export class GaugeSystem extends BaseSystem {
                 // 脚部パーツの推進力を取得。見つからなければデフォルト値1を代入
                 const propulsion = parts.legs?.propulsion || 1;
 
-                // ★変更: speedMultiplierを考慮してゲージを増加させる
+                // speedMultiplierを考慮してゲージを増加させる
                 const speedMultiplier = gauge.speedMultiplier || 1.0;
                 const increment = (propulsion / CONFIG.FORMULAS.GAUGE.GAUGE_INCREMENT_DIVISOR) * (deltaTime / CONFIG.UPDATE_INTERVAL) / speedMultiplier;
                 gauge.value += increment;
 
-                // ★変更: ゲージが最大値に達した際の処理
+                // ゲージが最大値に達した際の処理
                 if (gauge.value >= gauge.max) {
                     gauge.value = gauge.max;
-                    // ★新規: ゲージが満タンになったことを通知するイベントを発行
+                    // ゲージが満タンになったことを通知するイベントを発行
                     // 状態遷移の責務はStateSystemに移譲する
                     this.world.emit(GameEvents.GAUGE_FULL, { entityId });
                 }

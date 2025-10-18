@@ -1,10 +1,9 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { PlayerInfo, Parts, Medal } from '../core/components/index.js'; // ★ Medalをインポート
-import { ModalType, EffectScope, TargetTiming } from '../common/constants.js'; // ★ EffectScope, TargetTimingをインポート
+import { PlayerInfo, Parts, Medal } from '../core/components/index.js';
+import { ModalType, EffectScope, TargetTiming } from '../common/constants.js';
 import { getAllActionParts } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
-// ★リファクタリング: `determineTarget` と新関数 `determineRecommendedTarget` を `utils/targetingUtils` からインポート
 import { determineRecommendedTarget } from '../utils/targetingUtils.js';
 
 /**
@@ -32,8 +31,7 @@ export class InputSystem extends BaseSystem {
         
         const allActionParts = getAllActionParts(this.world, entityId);
         
-        // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
-        // ★リファクタリング: ターゲットの事前計算ロジックを `targetingUtils` の共通関数に委譲
+        // ターゲットの事前計算ロジックを `targetingUtils` の共通関数に委譲
         const buttonsWithTargets = allActionParts.map(([partKey, part]) => {
             let target = null;
             // ターゲットを事前に決定する必要があるアクション（射撃など）の場合のみ計算
@@ -51,7 +49,6 @@ export class InputSystem extends BaseSystem {
                 target: target 
             };
         });
-        // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
 
         // UIシステムにパネル表示を要求
         const panelData = {

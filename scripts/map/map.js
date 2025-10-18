@@ -2,7 +2,7 @@
 import { CONFIG, TILE_TYPES } from './constants.js';
 
 export class Map {
-    // ★ コンストラクタでマップデータを受け取る
+    // コンストラクタでマップデータを受け取る
     constructor(mapData) {
         this.tileData = mapData.tile_data;
         this.widthTiles = mapData.width_tiles;
@@ -13,7 +13,7 @@ export class Map {
         this.wallBorderColor = '#5d2f0d';
     }
 
-    // ★ ピクセル単位の幅と高さを計算するゲッターを追加
+    // ピクセル単位の幅と高さを計算するゲッターを追加
     get widthPx() {
         return this.widthTiles * CONFIG.TILE_SIZE;
     }
@@ -25,7 +25,7 @@ export class Map {
         if (tileX < 0 || tileX >= this.widthTiles || tileY < 0 || tileY >= this.heightTiles) {
             return TILE_TYPES.WALL; // マップ範囲外は壁扱い
         }
-        return this.tileData[tileY][tileX]; // ★ プロパティ名を変更
+        return this.tileData[tileY][tileX]; // プロパティ名を変更
     }
     
     /**

@@ -54,9 +54,9 @@ export class MapUISystem extends BaseSystem {
     // --- Menu Logic --- //
 
     toggleMenu() {
-        // console.log('MapUISystem: toggleMenu called. Current isMenuOpen:', this.isMenuOpen); // ★デバッグログ
+        // console.log('MapUISystem: toggleMenu called. Current isMenuOpen:', this.isMenuOpen);
         if (!this.dom.menu) {
-            console.error('MapUISystem: map-menu element not found!'); // ★エラーログ
+            console.error('MapUISystem: map-menu element not found!');
             return;
         }
 

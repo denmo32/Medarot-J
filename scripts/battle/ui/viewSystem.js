@@ -1,9 +1,9 @@
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components/index.js';
 import { BattlePhaseContext } from '../core/index.js'; // Import new context
-import { GamePhaseType, ModalType, EffectScope } from '../common/constants.js'; // ★修正: EffectScopeをインポート
-import { UIManager } from './UIManager.js'; // ★新規: UIManagerをインポート
-import { BaseSystem } from '../../core/baseSystem.js'; // ★追加: 継承元となるBaseSystemをインポート
+import { GamePhaseType, ModalType, EffectScope, EffectType } from '../common/constants.js'; // EffectTypeをインポート
+import { UIManager } from './UIManager.js';
+import { BaseSystem } from '../../core/baseSystem.js';
 
 /**
  * アニメーションと視覚効果の再生に特化したシステム。
@@ -13,7 +13,7 @@ import { BaseSystem } from '../../core/baseSystem.js'; // ★追加: 継承元�
 export class ViewSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        this.uiManager = this.world.getSingletonComponent(UIManager); // ★新規: UIManagerの参照を取得
+        this.uiManager = this.world.getSingletonComponent(UIManager); // UIManagerの参照を取得
         this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
         this.animationStyleElement = null; // 動的に生成したstyle要素への参照
 
@@ -44,8 +44,10 @@ export class ViewSystem extends BaseSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
         this.world.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this));
-        // ★変更: アニメーション実行要求を直接購読
+        // アニメーション実行要求を直接購読
         this.world.on(GameEvents.EXECUTE_ATTACK_ANIMATION, this.executeAttackAnimation.bind(this));
+        // HPバーのアニメーション要求を購読
+        this.world.on(GameEvents.HP_BAR_ANIMATION_REQUESTED, this.onHpBarAnimationRequested.bind(this));
     }
 
     /**
@@ -55,7 +57,7 @@ export class ViewSystem extends BaseSystem {
     }
 
     /**
-     * ★新規: 戦闘開始アニメーションを表示します。
+     * 戦闘開始アニメーションを表示します。
      */
     onShowBattleStartAnimation() {
         const battlefield = document.getElementById('battlefield');
@@ -86,15 +88,14 @@ export class ViewSystem extends BaseSystem {
     }
 
     /**
-     * ★リファクタリング: 攻撃アニメーションを実行します。
+     * 攻撃アニメーションを実行します。
      * @param {object} detail - イベントペイロード { attackerId, targetId }
      */
     executeAttackAnimation(detail) {
         const { attackerId, targetId } = detail;
         const attackerDomElements = this.uiManager.getDOMElements(attackerId);
         
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-        // ★修正: アニメーション再生条件を強化。ターゲットIDが存在し、かつアクションが単体対象の場合のみ再生する。
+        // アニメーション再生条件を強化。ターゲットIDが存在し、かつアクションが単体対象の場合のみ再生する。
         const action = this.getCachedComponent(attackerId, Components.Action);
         const parts = this.getCachedComponent(attackerId, Components.Parts);
         
@@ -110,7 +111,6 @@ export class ViewSystem extends BaseSystem {
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
         }
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
         const targetDomElements = this.uiManager.getDOMElements(targetId);
         if (!attackerDomElements.iconElement || !targetDomElements?.iconElement) {
@@ -119,7 +119,7 @@ export class ViewSystem extends BaseSystem {
             return;
         }
 
-        // ★新規: アニメーション開始時にゲームの進行を一時停止
+        // アニメーション開始時にゲームの進行を一時停止
         this.world.emit(GameEvents.GAME_PAUSED);
         
         const indicator = document.createElement('div');
@@ -166,6 +166,105 @@ export class ViewSystem extends BaseSystem {
                 this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             });
         }, 100); // 100ミリ秒の遅延。レンダリングエンジンに十分な時間を与える。
+    }
+    
+    /**
+     * ActionPanelSystemからHPバーのアニメーション要求を受け取るハンドラ。
+     * @param {object} detail - イベントペイロード { effects }
+     */
+    async onHpBarAnimationRequested(detail) {
+        const { effects } = detail;
+
+        // アニメーションを再生する効果がない場合は、即座に完了イベントを発行
+        if (!effects || effects.length === 0) {
+            this.world.emit(GameEvents.HP_BAR_ANIMATION_COMPLETED);
+            return;
+        }
+
+        // 複数のダメージ/回復効果を順番にアニメーション再生
+        for (const effect of effects) {
+            await this.animateHpBar(effect);
+        }
+
+        // すべてのアニメーションが完了したら、完了イベントを発行
+        this.world.emit(GameEvents.HP_BAR_ANIMATION_COMPLETED);
+    }
+
+    /**
+     * HPバーのアニメーションをPromiseでラップし、逐次実行を可能にするヘルパー関数。
+     * ActionPanelSystemから移譲されました。
+     * @param {object} effect - 単一のダメージ/回復効果オブジェクト
+     * @returns {Promise<void>} アニメーション完了時に解決されるPromise
+     */
+    animateHpBar(effect) {
+        return new Promise(resolve => {
+            const { targetId, partKey, value } = effect;
+            const targetDom = this.uiManager.getDOMElements(targetId);
+            const partDom = targetDom?.partDOMElements[partKey];
+            const targetPart = this.world.getComponent(targetId, Components.Parts)?.[partKey];
+
+            if (!partDom || !targetPart || !partDom.bar || !partDom.value) {
+                resolve(); // 対象DOMがない場合は即座に解決
+                return;
+            }
+
+            const hpBar = partDom.bar;
+            const hpValueEl = partDom.value;
+            let animationFrameId = null;
+
+            const cleanup = () => {
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                hpValueEl.textContent = `${targetPart.hp}/${targetPart.maxHp}`;
+                hpBar.style.transition = '';
+                hpBar.removeEventListener('transitionend', onTransitionEnd);
+                clearTimeout(fallback);
+                resolve(); // ★Promiseを解決
+            };
+
+            const onTransitionEnd = (event) => {
+                if (event.propertyName === 'width') {
+                    cleanup();
+                }
+            };
+
+            // アニメーションが何らかの理由で完了しない場合のフォールバック
+            const fallback = setTimeout(cleanup, 1000);
+            hpBar.addEventListener('transitionend', onTransitionEnd);
+
+            const finalHp = targetPart.hp;
+            const changeAmount = value;
+            const initialHp = (effect.type === EffectType.HEAL)
+                ? Math.max(0, finalHp - changeAmount)
+                : Math.min(targetPart.maxHp, finalHp + changeAmount);
+            
+            const finalHpPercentage = (finalHp / targetPart.maxHp) * 100;
+
+            const animateHp = () => {
+                const currentWidthStyle = getComputedStyle(hpBar).width;
+                const parentWidth = hpBar.parentElement.clientWidth;
+                const currentWidth = parseFloat(currentWidthStyle);
+                
+                if (parentWidth > 0) {
+                    const currentPercentage = (currentWidth / parentWidth) * 100;
+                    const currentDisplayHp = Math.round((currentPercentage / 100) * targetPart.maxHp);
+                    hpValueEl.textContent = `${currentDisplayHp}/${targetPart.maxHp}`;
+                }
+
+                animationFrameId = requestAnimationFrame(animateHp);
+            };
+
+            // 2フレーム待ってからアニメーションを開始し、ブラウザのレンダリングを確実にする
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    hpBar.style.transition = 'width 0.8s ease';
+                    hpBar.style.width = `${finalHpPercentage}%`;
+                    animationFrameId = requestAnimationFrame(animateHp);
+                });
+            });
+        });
     }
 
     /**

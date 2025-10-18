@@ -6,7 +6,6 @@
 import { GameEvents } from '../common/events.js';
 import { Parts } from '../core/components/index.js';
 import { isValidTarget } from './queryUtils.js';
-// ★新規: TargetTiming定数をインポート
 import { TargetTiming } from '../common/constants.js';
 
 /**
@@ -31,7 +30,7 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
     const selectedPart = parts[partKey];
 
     // 'post-move'アクションは移動後にターゲットを決めるため、ターゲット情報を無視して予約する
-    // ★リファクタリング: マージされた `targetTiming` プロパティを参照
+    // マージされた `targetTiming` プロパティを参照
     if (selectedPart.targetTiming === TargetTiming.POST_MOVE) {
         world.emit(GameEvents.ACTION_SELECTED, {
             entityId,
@@ -42,7 +41,7 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
         return;
     }
 
-    // ★リファクタリング: ターゲットが必要なアクションかどうかの判定を `targetScope` で行う
+    // ターゲットが必要なアクションかどうかの判定を `targetScope` で行う
     if (selectedPart.targetScope?.endsWith('_SINGLE') && !isValidTarget(world, target?.targetId, target?.targetPartKey)) {
         console.error(`decideAndEmitAction: A valid target was expected for a single-target action but not found. Action may fail.`, {entityId, partKey, target});
     }

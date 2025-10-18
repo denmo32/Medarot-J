@@ -5,7 +5,6 @@ import * as Components from '../core/components/index.js';
 import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
 import { UIManager } from './UIManager.js';
-// ★新規: モーダルハンドラの定義を外部ファイルからインポート
 import { createModalHandlers } from './modalHandlers.js';
 
 /**
@@ -34,16 +33,16 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentModalType = null;
         this.currentModalData = null;
         this.currentHandler = null;
-        this.focusedButtonKey = null;
+        this.focusedButtonKey = null; // SELECTIONモーダル固有の状態
 
         // --- Event Handlers ---
         this.boundHandlePanelClick = null;
 
-        // ★リファクタリング: モーダルハンドラの定義を外部のファクトリ関数に移譲
+        // モーダルハンドラの定義を外部のファクトリ関数に移譲
         this.modalHandlers = createModalHandlers(this);
         this.bindWorldEvents();
 
-        // ★修正: パネル自体は常に表示するため、内容のリセットのみを行う
+        // パネル自体は常に表示するため、内容のリセットのみを行う
         // 初期状態ではパネルの内容をリセットする
         this.hideActionPanel();
     }
@@ -63,7 +62,9 @@ export class ActionPanelSystem extends BaseSystem {
     bindWorldEvents() {
         this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showActionPanel(detail.type, detail.data));
         this.world.on(GameEvents.HIDE_MODAL, () => this.hideActionPanel());
-        this.world.on(GameEvents.ACTION_EXECUTED, (detail) => this.onActionExecuted(detail));
+        // HPバーアニメーションの完了イベントを購読
+        this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
+        // onActionExecutedはMessageSystemが担当するため、このシステムでは購読しない
     }
 
     /**
@@ -72,7 +73,7 @@ export class ActionPanelSystem extends BaseSystem {
     update(deltaTime) {
         if (!this.currentHandler) return;
 
-        // ★リファクタリング: キー入力を現在のモーダルハンドラに委譲する
+        // キー入力を現在のモーダルハンドラに委譲する
         if (this.currentHandler.handleNavigation) {
             if (this.inputManager.wasKeyJustPressed('ArrowUp')) this.currentHandler.handleNavigation(this, 'arrowup');
             if (this.inputManager.wasKeyJustPressed('ArrowDown')) this.currentHandler.handleNavigation(this, 'arrowdown');
@@ -112,8 +113,9 @@ export class ActionPanelSystem extends BaseSystem {
         // テキストコンテンツを設定
         dom.actionPanelOwner.textContent = handler.getOwnerName?.(data) || '';
         dom.actionPanelTitle.textContent = handler.getTitle?.(data) || '';
-        dom.actionPanelActor.textContent = handler.getActorName?.(data) || '';
-        // ★修正: getContentHTML に this(system) を渡す
+        // innerHTMLを使用して複数行メッセージに対応
+        dom.actionPanelActor.innerHTML = handler.getActorName?.(data) || '';
+        // getContentHTML に this(system) を渡す
         dom.actionPanelButtons.innerHTML = handler.getContentHTML?.(data, this) || '';
 
         // イベントリスナーを設定
@@ -125,6 +127,7 @@ export class ActionPanelSystem extends BaseSystem {
             dom.actionPanel.classList.add('clickable');
             // イベントリスナーを一度だけバインド
             if (!this.boundHandlePanelClick) {
+                // handleConfirmには現在のモーダルデータも渡す
                 this.boundHandlePanelClick = () => this.currentHandler?.handleConfirm?.(this, this.currentModalData);
             }
             dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
@@ -154,16 +157,16 @@ export class ActionPanelSystem extends BaseSystem {
     // --- Event Handlers from World ---
 
     /**
-     * 行動実行結果を受け取り、結果表示モーダルを表示します。
+     * ViewSystemからのHPバーアニメーション完了通知を受け取るハンドラ。
+     * 現在のモーダルハンドラに処理を委譲します。
      */
-    onActionExecuted(detail) {
-        // ★リファクタリング: メッセージ生成はハンドラに任せる。ここではイベント詳細をそのまま渡す。
-        this.world.emit(GameEvents.SHOW_MODAL, {
-            type: ModalType.EXECUTION_RESULT,
-            data: detail,
-            immediate: true
-        });
+    onHpBarAnimationCompleted() {
+        if (this.currentHandler?.onHpBarAnimationCompleted) {
+            this.currentHandler.onHpBarAnimationCompleted(this);
+        }
     }
+
+    // onActionExecutedは削除。責務はMessageSystemに移譲。
 
     // --- Helper Methods used by Handlers ---
 
@@ -174,7 +177,7 @@ export class ActionPanelSystem extends BaseSystem {
         const { dom } = this;
         dom.actionPanelOwner.textContent = '';
         dom.actionPanelTitle.textContent = '';
-        dom.actionPanelActor.textContent = '待機中...';
+        dom.actionPanelActor.innerHTML = '待機中...'; // innerHTML
         dom.actionPanelButtons.innerHTML = '';
         dom.actionPanelIndicator.classList.add('hidden');
         dom.actionPanel.classList.remove('clickable');
@@ -199,200 +202,5 @@ export class ActionPanelSystem extends BaseSystem {
             if (oldButton) oldButton.classList.remove('focused');
         }
         this.focusedButtonKey = null;
-    }
-
-    /**
-     * ★廃止: メッセージ生成は modalHandlers に移管されました。
-     */
-    // _generateResultMessage(detail) { ... }
-
-    /**
-     * ★廃止: 全てのモーダルタイプごとの振る舞いは `ui/modalHandlers.js` に移管されました。
-     * これにより、このクラスはモーダルの「管理」に集中でき、可読性と保守性が向上します。
-     */
-    // setupModalHandlers() { ... }
-
-
-    // --- Helper methods for SELECTION modal (called from modalHandlers.js) ---
-    generateTriangleLayoutHTML(buttons) {
-        const headBtn = buttons.find(b => b.partKey === 'head');
-        const rArmBtn = buttons.find(b => b.partKey === 'rightArm');
-        const lArmBtn = buttons.find(b => b.partKey === 'leftArm');
-        const renderButton = (btn) => {
-            if (!btn) return '<div style="width: 100px; height: 35px;"></div>';
-            return `<button id="panelBtn-${btn.partKey}" class="part-action-button" ${btn.isBroken ? 'disabled' : ''}>${btn.text}</button>`;
-        };
-        return `
-            <div class="triangle-layout">
-                <div class="top-row">${renderButton(headBtn)}</div>
-                <div class="bottom-row">${renderButton(rArmBtn)}${renderButton(lArmBtn)}</div>
-            </div>`;
-    }
-
-    setupSelectionEvents(container, data) {
-        data.buttons.forEach(btnData => {
-            if (btnData.isBroken) return;
-            const buttonEl = container.querySelector(`#panelBtn-${btnData.partKey}`);
-            if (!buttonEl) return;
-    
-            buttonEl.onclick = () => {
-                const target = btnData.target;
-                this.world.emit(GameEvents.PART_SELECTED, {
-                    entityId: data.entityId,
-                    partKey: btnData.partKey,
-                    targetId: target?.targetId ?? null,
-                    targetPartKey: target?.targetPartKey ?? null,
-                });
-                this.hideActionPanel();
-            };
-    
-            if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(btnData.targetScope) && btnData.targetTiming === 'pre-move') {
-                buttonEl.onmouseover = () => this._updateTargetHighlight(btnData.partKey, true);
-                buttonEl.onmouseout = () => this._updateTargetHighlight(btnData.partKey, false);
-            }
-        });
-    }
-
-    _updateTargetHighlight(partKey, show) {
-        const buttonData = this.currentModalData?.buttons.find(b => b.partKey === partKey);
-        if (!buttonData || buttonData.targetTiming !== 'pre-move') return;
-        const target = buttonData.target;
-        if (target?.targetId !== null) {
-            const targetDom = this.uiManager.getDOMElements(target.targetId);
-            if (targetDom?.iconElement) {
-                targetDom.iconElement.style.boxShadow = show ? '0 0 15px cyan' : '';
-            }
-        }
-    }
-
-    handleArrowKeyNavigation(key) {
-        const availableButtons = this.currentModalData?.buttons.filter(b => !b.isBroken);
-        if (!availableButtons || availableButtons.length === 0) return;
-        let nextFocusKey = this.focusedButtonKey;
-        const has = (partKey) => availableButtons.some(b => b.partKey === partKey);
-        switch (this.focusedButtonKey) {
-            case PartInfo.HEAD.key:
-                if (key === 'arrowdown' || key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : PartInfo.LEFT_ARM.key;
-                else if (key === 'arrowright') nextFocusKey = has(PartInfo.LEFT_ARM.key) ? PartInfo.LEFT_ARM.key : PartInfo.RIGHT_ARM.key;
-                break;
-            case PartInfo.RIGHT_ARM.key:
-                if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
-                else if (key === 'arrowright') nextFocusKey = has(PartInfo.LEFT_ARM.key) ? PartInfo.LEFT_ARM.key : null;
-                break;
-            case PartInfo.LEFT_ARM.key:
-                if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
-                else if (key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : null;
-                break;
-            default: nextFocusKey = availableButtons.find(b => b.partKey === PartInfo.HEAD.key)?.partKey || availableButtons[0]?.partKey;
-        }
-        if (nextFocusKey) this.updateFocus(nextFocusKey);
-    }
-    
-    updateFocus(newKey) {
-        if (this.focusedButtonKey === newKey) return;
-        if (this.focusedButtonKey) {
-            this._updateTargetHighlight(this.focusedButtonKey, false);
-            const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
-            if (oldButton) oldButton.classList.remove('focused');
-        }
-        this._updateTargetHighlight(newKey, true);
-        const newButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${newKey}`);
-        if (newButton) {
-            newButton.classList.add('focused');
-            this.focusedButtonKey = newKey;
-        } else {
-            this.focusedButtonKey = null;
-        }
-    }
-    
-    confirmSelection() {
-        if (!this.focusedButtonKey) return;
-        const focusedButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.focusedButtonKey}`);
-        if (focusedButton && !focusedButton.disabled) focusedButton.click();
-    }
-
-    // --- Helper for EXECUTION_RESULT modal (called from modalHandlers.js) ---
-    setupExecutionResultEvents(container, data) {
-        const showClickable = () => {
-            if (this.currentModalType === ModalType.EXECUTION_RESULT) {
-                this.dom.actionPanel.classList.add('clickable');
-                this.dom.actionPanelIndicator.classList.remove('hidden');
-                if (!this.boundHandlePanelClick) {
-                    this.boundHandlePanelClick = () => this.currentHandler?.handleConfirm?.(this, this.currentModalData);
-                    this.dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
-                }
-            }
-        };
-
-        const damageEffect = data.resolvedEffects.find(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL);
-        if (!damageEffect || damageEffect.value === 0) {
-            showClickable();
-            return;
-        }
-
-        const { targetId, partKey, value } = damageEffect;
-        const targetDom = this.uiManager.getDOMElements(targetId);
-        const partDom = targetDom?.partDOMElements[partKey];
-        const hpBar = partDom?.bar;
-        const hpValueEl = partDom?.value;
-        const targetPart = this.world.getComponent(targetId, Components.Parts)?.[partKey];
-
-        if (!hpBar || !targetPart || !hpValueEl) {
-            showClickable();
-            return;
-        }
-
-        let animationFrameId = null;
-
-        const cleanup = () => {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-            hpValueEl.textContent = `${targetPart.hp}/${targetPart.maxHp}`;
-            hpBar.style.transition = '';
-            hpBar.removeEventListener('transitionend', onTransitionEnd);
-            clearTimeout(fallback);
-            showClickable();
-        };
-
-        const onTransitionEnd = (event) => {
-            if (event.propertyName === 'width') {
-                cleanup();
-            }
-        };
-
-        const fallback = setTimeout(cleanup, 1000);
-        hpBar.addEventListener('transitionend', onTransitionEnd);
-
-        const finalHp = targetPart.hp;
-        const changeAmount = value;
-        const initialHp = (damageEffect.type === EffectType.HEAL)
-            ? Math.max(0, finalHp - changeAmount)
-            : Math.min(targetPart.maxHp, finalHp + changeAmount);
-        
-        const finalHpPercentage = (finalHp / targetPart.maxHp) * 100;
-
-        const animateHp = () => {
-            const currentWidthStyle = getComputedStyle(hpBar).width;
-            const parentWidth = hpBar.parentElement.clientWidth;
-            const currentWidth = parseFloat(currentWidthStyle);
-            
-            if (parentWidth > 0) {
-                const currentPercentage = (currentWidth / parentWidth) * 100;
-                const currentDisplayHp = Math.round((currentPercentage / 100) * targetPart.maxHp);
-                hpValueEl.textContent = `${currentDisplayHp}/${targetPart.maxHp}`;
-            }
-
-            animationFrameId = requestAnimationFrame(animateHp);
-        };
-
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                hpBar.style.transition = 'width 0.8s ease';
-                hpBar.style.width = `${finalHpPercentage}%`;
-                animationFrameId = requestAnimationFrame(animateHp);
-            });
-        });
     }
 }

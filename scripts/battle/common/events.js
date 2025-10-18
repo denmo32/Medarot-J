@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -44,7 +44,7 @@ export const GameEvents = {
     BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED',
     
     /**
-     * ★新規: 戦闘開始がキャンセルされた
+     * 戦闘開始がキャンセルされた
      * @event BATTLE_START_CANCELLED
      * @type {string}
      * @payload {}
@@ -52,7 +52,7 @@ export const GameEvents = {
     BATTLE_START_CANCELLED: 'BATTLE_START_CANCELLED',
 
     /**
-     * ★新規: 戦闘開始アニメーションの表示を要求
+     * 戦闘開始アニメーションの表示を要求
      * @event SHOW_BATTLE_START_ANIMATION
      * @type {string}
      * @payload {}
@@ -60,7 +60,7 @@ export const GameEvents = {
     SHOW_BATTLE_START_ANIMATION: 'SHOW_BATTLE_START_ANIMATION',
 
     /**
-     * ★新規: 戦闘開始アニメーションの完了を通知
+     * 戦闘開始アニメーションの完了を通知
      * @event BATTLE_ANIMATION_COMPLETED
      * @type {string}
      * @payload {}
@@ -126,6 +126,15 @@ export const GameEvents = {
 
     // --- 行動実行イベント ---
     /**
+     * 行動が宣言され、メッセージ生成が必要になったことを通知する
+     * MessageSystemが購読し、攻撃宣言モーダルのメッセージを生成する。
+     * @event ACTION_DECLARED
+     * @type {string}
+     * @payload {{ attackerId: number, targetId: number, attackingPart: object, isSupport: boolean, guardianInfo: object | null }}
+     */
+    ACTION_DECLARED: 'ACTION_DECLARED',
+
+    /**
      * 行動実行アニメーションの開始を要求
      * @event EXECUTION_ANIMATION_REQUESTED
      * @type {string}
@@ -153,12 +162,12 @@ export const GameEvents = {
      * 攻撃宣言モーダルのOKが押された
      * @event ATTACK_DECLARATION_CONFIRMED
      * @type {string}
-     * @payload {{ entityId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
+     * @payload {{ attackerId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
     
     /**
-     * ★新規: ActionSystemがアクション効果の計算を完了したことを通知する内部イベント。
+     * ActionSystemがアクション効果の計算を完了したことを通知する内部イベント。
      * EffectApplicatorSystem, StateSystem, HistorySystemがこれを購読し、それぞれの責務を遂行する。
      * これにより、効果の「計算」と「適用」が明確に分離される。
      * @event EFFECTS_RESOLVED
@@ -171,7 +180,7 @@ export const GameEvents = {
      * 行動が実行され、ダメージなどが計算された
      * @event ACTION_EXECUTED
      * @type {string}
-     * @payload {{ attackerId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
+     * @payload {{ attackerId: number, appliedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     ACTION_EXECUTED: 'ACTION_EXECUTED',
     
@@ -185,7 +194,7 @@ export const GameEvents = {
 
     // --- 状態 & ターン管理イベント ---
     /**
-     * ★新規: ゲージが満タンになった
+     * ゲージが満タンになった
      * @event GAUGE_FULL
      * @type {string}
      * @payload {{ entityId: number }} - ゲージが満タンになったエンティティID
@@ -207,6 +216,15 @@ export const GameEvents = {
      * @payload {{ entityId: number }} - ターンキューに再挿入を要求するエンティティID
      */
     ACTION_REQUEUE_REQUEST: 'ACTION_REQUEUE_REQUEST',
+
+    /**
+     * 予約されていた行動がキャンセルされたことを通知する
+     * MessageSystemが購読し、キャンセル理由に応じたメッセージを生成する。
+     * @event ACTION_CANCELLED
+     * @type {string}
+     * @payload {{ entityId: number, reason: 'PART_BROKEN' | 'TARGET_LOST' }}
+     */
+    ACTION_CANCELLED: 'ACTION_CANCELLED',
     
     /**
      * パーツが破壊された
@@ -233,7 +251,7 @@ export const GameEvents = {
     GAME_OVER: 'GAME_OVER',
     
     /**
-     * ★新規: HPが更新された（ダメージまたは回復）
+     * HPが更新された（ダメージまたは回復）
      * EffectApplicatorSystemが発行し、UISystemやActionPanelSystemが購読する。
      * @event HP_UPDATED
      * @type {string}
@@ -242,13 +260,22 @@ export const GameEvents = {
     HP_UPDATED: 'HP_UPDATED',
     
     /**
-     * ★新規: 効果の持続時間や回数がなくなり、効果が失われた
+     * 効果の持続時間や回数がなくなり、効果が失われた
      * EffectSystemやEffectApplicatorSystemが発行し、StateSystemが購読する。
      * @event EFFECT_EXPIRED
      * @type {string}
      * @payload {{ entityId: number, effect: object }}
      */
     EFFECT_EXPIRED: 'EFFECT_EXPIRED',
+
+    /**
+     * ガードパーツが破壊され、ガード状態が解除されたことを通知する
+     * MessageSystemが購読し、メッセージを生成する。
+     * @event GUARD_BROKEN
+     * @type {string}
+     * @payload {{ entityId: number }}
+     */
+    GUARD_BROKEN: 'GUARD_BROKEN',
 
     // --- UIイベント ---
     /**
@@ -282,4 +309,20 @@ export const GameEvents = {
      * @payload {}
      */
     SETUP_UI_REQUESTED: 'SETUP_UI_REQUESTED',
+    
+    /**
+     * HPバーのアニメーション再生を要求
+     * @event HP_BAR_ANIMATION_REQUESTED
+     * @type {string}
+     * @payload {{ effects: Array<object> }} - アニメーション対象の効果リスト
+     */
+    HP_BAR_ANIMATION_REQUESTED: 'HP_BAR_ANIMATION_REQUESTED',
+
+    /**
+     * HPバーのアニメーション完了を通知
+     * @event HP_BAR_ANIMATION_COMPLETED
+     * @type {string}
+     * @payload {}
+     */
+    HP_BAR_ANIMATION_COMPLETED: 'HP_BAR_ANIMATION_COMPLETED',
 };

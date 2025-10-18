@@ -45,7 +45,7 @@ export class MovementSystem extends BaseSystem {
                 state.value = PLAYER_STATES.IDLE;
                 this.world.removeComponent(entityId, MapComponents.TargetPosition);
 
-                // ★新規: 戦闘トリガータイルに到達したかチェック
+                // 戦闘トリガータイルに到達したかチェック
                 const tileX = Math.floor((position.x + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
                 const tileY = Math.floor((position.y + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
                 const currentTileType = this.map.getTileType(tileX, tileY);

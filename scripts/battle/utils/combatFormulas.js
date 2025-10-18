@@ -2,18 +2,14 @@
  * @file 戦闘計算式ユーティリティ
  * ダメージ、回避、防御、クリティカル率など、戦闘におけるあらゆる計算式を定義します。
  * ゲームバランスの調整は、主にこのファイルと`config.js`で行います。
- * 
- * ★修正: 戦闘計算戦略パターンをより明確に実装。
  * すべての計算は `CombatCalculator` シングルトンを介して行われ、
  * 必要に応じて内部の戦略(`strategy`)を差し替えることで、計算アルゴリズム全体を変更できます。
  */
 
 import { CONFIG } from '../common/config.js';
-// ★修正: PlayerInfo, ActiveEffects をインポート
 import { Parts, PlayerInfo, ActiveEffects } from '../core/components/index.js';
-import { findBestDefensePart } from './queryUtils.js'; // ★注意: 依存関係の変更
+import { findBestDefensePart } from './queryUtils.js';
 import { ErrorHandler, GameError, ErrorType } from './errorHandler.js';
-// ★リファクタリング: AttackType定数をインポートし、マジックストリングを排除
 import { EffectType, AttackType } from '../common/constants.js';
 
 /**
@@ -67,7 +63,7 @@ export class CombatStrategy {
     }
 
     /**
-     * ★新規: 攻撃の命中結果（回避、クリティカル、防御）を総合的に判定します。
+     * 攻撃の命中結果（回避、クリティカル、防御）を総合的に判定します。
      * ActionSystemからロジックを移譲されました。
      * @param {object} context - 計算に必要なコンテキスト
      * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果
@@ -160,7 +156,7 @@ class DefaultCombatStrategy extends CombatStrategy {
             let armor = targetLegs.armor || 0;
             let bonusValue = 0;
 
-            // ★リファクタリング: caseをマジックストリングからAttackType定数に変更
+            // caseをマジックストリングからAttackType定数に変更
             switch (attackingPart.type) {
                 case AttackType.AIMED_SHOT:
                     bonusValue = Math.floor((attackerLegs.stability || 0) / 2);
@@ -219,13 +215,13 @@ class DefaultCombatStrategy extends CombatStrategy {
     }
 
     /**
-     * ★新規: 攻撃の命中結果（回避、クリティカル、防御）を総合的に判定します。
+     * 攻撃の命中結果（回避、クリティカル、防御）を総合的に判定します。
      * ActionSystemからロジックを移譲されました。
      * @param {{world: World, attackerId: number, targetId: number, attackingPart: object, targetLegs: object, initialTargetPartKey: string}} context
      * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果
      */
     resolveHitOutcome({ world, attackerId, targetId, attackingPart, targetLegs, initialTargetPartKey }) {
-        // ★リファクタリング: isSupportフラグをパーツオブジェクトから直接参照
+        // isSupportフラグをパーツオブジェクトから直接参照
         if (attackingPart.isSupport) {
             return { isHit: true, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
         }
@@ -286,6 +282,6 @@ export const CombatCalculator = {
     calculateCriticalChance(context) { return this.strategy.calculateCriticalChance(context); },
     calculateDamage(context) { return this.strategy.calculateDamage(context); },
     calculateSpeedMultiplier(context) { return this.strategy.calculateSpeedMultiplier(context); },
-    // ★新規: 移譲されたメソッドをシングルトンに追加
+    // 移譲されたメソッドをシングルトンに追加
     resolveHitOutcome(context) { return this.strategy.resolveHitOutcome(context); }
 };

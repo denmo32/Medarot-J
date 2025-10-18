@@ -2,18 +2,11 @@
  * @file AIパーツ選択戦略定義
  * このファイルは、AIの「メダルの性格」に基づいた多様な攻撃パーツ選択戦略（アルゴリズム）を定義します。
  */
-// ★修正: MedalPersonalityのインポートを維持
 import { MedalPersonality } from '../common/constants.js';
-// ★★★ 修正: partRoles.js へのインポートパスを正しい相対パスに修正 ★★★
 import { PartRoleKey } from '../data/partRoles.js';
 
 /**
- * ★廃止: createFocusStrategyにロジックが統合されたため不要になりました。
- */
-// const filterByRole = (parts, roleCondition) => { ... };
-
-/**
- * ★新規: 特定の役割(role)に焦点を当て、指定されたプロパティでソートする戦略を生成する高階関数。
+ * 特定の役割(role)に焦点を当て、指定されたプロパティでソートする戦略を生成する高階関数。
  * POWER_FOCUSやHEAL_FOCUSなど、類似した「絞り込み→ソート→選択」ロジックを共通化します。
  * @param {string} roleKey - フィルタリングするパーツの役割キー (PartRoleKey)
  * @param {function} sortFn - ソート関数 (例: (a, b) => b.might - a.might)
@@ -45,7 +38,6 @@ export const partSelectionStrategies = {
     /**
      * [デフォルト戦略]: 攻撃パーツの中で最も威力の高いものを選択します。
      * 多くの攻撃的な性格（HUNTER, CRUSHERなど）で共通して使用される基本戦略です。
-     * ★リファクタリング: createFocusStrategy高階関数を使用して再定義。コードが宣言的になり、意図が明確化されました。
      */
     POWER_FOCUS: createFocusStrategy(
         PartRoleKey.DAMAGE,
@@ -54,7 +46,6 @@ export const partSelectionStrategies = {
 
     /**
      * [回復優先戦略]: 回復パーツの中で最も効果の高いものを選択します。
-     * ★リファクタリング: createFocusStrategy高階関数を使用して再定義。
      */
     HEAL_FOCUS: createFocusStrategy(
         PartRoleKey.HEAL,
@@ -79,7 +70,7 @@ export const partSelectionStrategies = {
 };
 
 /**
- * ★新規: AIパーツ選択戦略のキーを定義する定数。
+ * AIパーツ選択戦略のキーを定義する定数。
  * 文字列リテラルへの依存をなくし、タイプセーフティを向上させます。
  * `personalityRegistry`などで使用されます。
  */

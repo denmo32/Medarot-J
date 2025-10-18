@@ -2,7 +2,7 @@
  * @file アプリケーションのエントリーポイント
  * このファイルは、ゲーム全体の初期化とメインループの管理を行います。
  */
-// ★リファクタリング: シーン管理機構をインポート
+// シーン管理機構をインポート
 import { SceneManager } from './scenes/SceneManager.js';
 import { MapScene } from './scenes/MapScene.js';
 import { BattleScene } from './scenes/BattleScene.js';
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const inputManager = new InputManager();
     const gameDataManager = new GameDataManager();
 
-    // ★新規: シーンマネージャーのセットアップ
+    // シーンマネージャーのセットアップ
     const sceneManager = new SceneManager(world);
     sceneManager.register('map', MapScene);
     sceneManager.register('battle', BattleScene);
@@ -30,10 +30,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const startNewGameButton = document.getElementById('start-new-game');
     const startFromSaveButton = document.getElementById('start-from-save');
 
-    /**
-     * ★リファクタリング: 各setup...関数はそれぞれのSceneクラスに移管されたため不要に。
-     */
-    
     // --- Main Game Loop ---
     let lastTime = 0;
     function gameLoop(timestamp) {
@@ -41,7 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const deltaTime = timestamp - lastTime;
         lastTime = timestamp;
 
-        // ★リファクタリング: SceneManagerに更新を委譲
+        // SceneManagerに更新を委譲
         sceneManager.update(deltaTime);
 
         // 入力マネージャーの状態を更新
@@ -63,8 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             gameDataManager.loadGame();
         }
         
-        // ★リファクタリング: SceneManagerを使って初期シーンを開始
-        // ★修正: inputManagerを初期データとして渡す
+        // SceneManagerを使って初期シーンを開始
+        // inputManagerを初期データとして渡す
         await sceneManager.switchTo('map', { gameDataManager, inputManager });
         
         titleContainer.classList.add('hidden');

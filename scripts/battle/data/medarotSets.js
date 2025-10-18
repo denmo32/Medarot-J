@@ -3,7 +3,7 @@
  * メダロットの機体名と、使用するパーツIDの組み合わせを定義します。
  */
 
-// ★改善: PartInfoを参照することで、パーツに関する定義元を一元化
+// PartInfoを参照することで、パーツに関する定義元を一元化
 import { PartInfo } from '../common/constants.js';
 
 export const MEDAROT_SETS = [

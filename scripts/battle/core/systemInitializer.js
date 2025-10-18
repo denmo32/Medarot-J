@@ -5,9 +5,7 @@ import { UIStateContext } from './UIStateContext.js';
 import { BattleHistoryContext } from './BattleHistoryContext.js';
 import { ViewSystem } from '../ui/viewSystem.js';
 import { DomFactorySystem } from '../ui/domFactorySystem.js';
-import { ActionPanelSystem } from '../ui/actionPanelSystem.js'; // ★新規: ActionPanelSystemをインポート
-// ★削除: RenderSystemは廃止されたためインポートしない
-// import { RenderSystem } from '../ui/renderSystem.js';
+import { ActionPanelSystem } from '../ui/actionPanelSystem.js';
 import { GaugeSystem } from '../systems/gaugeSystem.js';
 import { StateSystem } from '../systems/stateSystem.js';
 import { InputSystem } from '../ui/inputSystem.js';
@@ -17,12 +15,11 @@ import { GameFlowSystem } from '../systems/gameFlowSystem.js';
 import { MovementSystem } from '../systems/movementSystem.js';
 import { HistorySystem } from '../systems/historySystem.js';
 import { TurnSystem } from '../systems/turnSystem.js';
-// ★新規: EffectSystemをインポート
 import { EffectSystem } from '../systems/effectSystem.js';
-// ★新規: EffectApplicatorSystemをインポート
 import { EffectApplicatorSystem } from '../systems/effectApplicatorSystem.js';
 import { UIManager } from '../ui/UIManager.js';
-import { UISystem } from '../ui/UISystem.js'; // 追加
+import { UISystem } from '../ui/UISystem.js';
+import { MessageSystem } from '../systems/MessageSystem.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -46,7 +43,6 @@ export function initializeSystems(world) {
 
     const gameFlowSystem = new GameFlowSystem(world);
     const viewSystem = new ViewSystem(world); // アニメーション担当
-    // ★削除: RenderSystemは廃止
     // const renderSystem = new RenderSystem(world);
     const gaugeSystem = new GaugeSystem(world);
     const stateSystem = new StateSystem(world);
@@ -54,26 +50,26 @@ export function initializeSystems(world) {
     const actionSystem = new ActionSystem(world);
     const movementSystem = new MovementSystem(world);
     const historySystem = new HistorySystem(world);
-    // ★新規: EffectSystemのインスタンスを作成
     const effectSystem = new EffectSystem(world);
-    // ★新規: EffectApplicatorSystemのインスタンスを作成
     const effectApplicatorSystem = new EffectApplicatorSystem(world);
+    // MessageSystemをインスタンス化
+    const messageSystem = new MessageSystem(world);
 
 
     world.registerSystem(gameFlowSystem);
+    // MessageSystemを登録。UI系の手前、ロジック系の後が適切。
+    world.registerSystem(messageSystem);
     world.registerSystem(historySystem);
     world.registerSystem(stateSystem);
     world.registerSystem(turnSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(actionSystem);
     world.registerSystem(movementSystem);
-    // ★新規: EffectApplicatorSystemを登録。ActionSystemの後、他の結果処理系システムの前が適切。
+    // EffectApplicatorSystemを登録。ActionSystemの後、他の結果処理系システムの前が適切。
     world.registerSystem(effectApplicatorSystem);
-    // ★新規: EffectSystemを登録 (ActionSystemの後、UI系Systemの前が適切)
+    // EffectSystemを登録 (ActionSystemの後、UI系Systemの前が適切)
     world.registerSystem(effectSystem);
     world.registerSystem(viewSystem);
-    // ★削除: RenderSystemの登録を削除
-    // world.registerSystem(renderSystem);
     world.registerSystem(actionPanelSystem);
     world.registerSystem(new UISystem(world)); // DOM更新担当
 }

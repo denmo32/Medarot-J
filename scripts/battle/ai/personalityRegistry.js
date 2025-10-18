@@ -3,10 +3,8 @@
  * AIの「性格」と、それに対応する行動戦略（ターゲット選択、パーツ選択）の関連性を一元管理します。
  */
 import { MedalPersonality } from '../common/constants.js';
-import { targetingStrategies, TargetingStrategyKey } from './targetingStrategies.js'; // ★ TargetingStrategyKey をインポート
-import { partSelectionStrategies, PartSelectionStrategyKey } from './partSelectionStrategies.js'; // ★ PartSelectionStrategyKey をインポート
-// ★削除: これらのクエリはAiSystemの条件評価器(conditionEvaluator)が内部で使用するため、ここでのインポートは不要
-// import { getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
+import { targetingStrategies, TargetingStrategyKey } from './targetingStrategies.js';
+import { partSelectionStrategies, PartSelectionStrategyKey } from './partSelectionStrategies.js';
 
 /**
  * AIの性格と戦略のマッピング。
@@ -24,19 +22,16 @@ import { partSelectionStrategies, PartSelectionStrategyKey } from './partSelecti
  */
 export const personalityRegistry = {
     [MedalPersonality.HUNTER]: {
-        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、最もHPの低い敵パーツを狙う
             {
                 partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
                 targetStrategy: TargetingStrategyKey.HUNTER,
-                // ★廃止: targetCandidatesはパーツのactionDefinitionで定義されるため不要
             },
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.CRUSHER]: {
-        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、最もHPの高い敵パーツを狙う
             {
@@ -47,7 +42,6 @@ export const personalityRegistry = {
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.JOKER]: {
-        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: ランダムなパーツで、敵の全パーツからランダムにターゲットを選択
             {
@@ -58,7 +52,6 @@ export const personalityRegistry = {
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.COUNTER]: {
-        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、最後に自分を攻撃してきた敵を狙う
             {
@@ -69,7 +62,6 @@ export const personalityRegistry = {
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.GUARD]: {
-        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、味方リーダーを最後に攻撃してきた敵を狙う
             {
@@ -80,7 +72,6 @@ export const personalityRegistry = {
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.FOCUS]: {
-        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、自分が前回攻撃したパーツを狙う
             {
@@ -91,7 +82,6 @@ export const personalityRegistry = {
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.ASSIST]: {
-        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、味方が最後に攻撃した敵のパーツを狙う
             {
@@ -102,7 +92,6 @@ export const personalityRegistry = {
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.LEADER_FOCUS]: {
-        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も威力の高い攻撃パーツで、敵チームのリーダーを狙う
             {
@@ -113,7 +102,6 @@ export const personalityRegistry = {
         fallbackTargeting: targetingStrategies.RANDOM,
     },
     [MedalPersonality.RANDOM]: {
-        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: ランダムなパーツで、ランダムな敵を狙う
             {
@@ -123,15 +111,12 @@ export const personalityRegistry = {
         ],
         fallbackTargeting: targetingStrategies.RANDOM,
     },
-    // ★新規: HEALER性格の定義 (リファクタリング後)
     [MedalPersonality.HEALER]: {
-        // ★リファクタリング: 宣言的な思考ルーチンリストに変更
         routines: [
             // 優先度1: 最も効果の高い回復パーツで、最も損害の大きい味方を回復する
             {
                 partStrategy: PartSelectionStrategyKey.HEAL_FOCUS,
                 targetStrategy: TargetingStrategyKey.HEALER,
-                // ★リファクタリング: 実行条件をシリアライズ可能なデータオブジェクトに変更
                 condition: {
                     type: 'ANY_ALLY_DAMAGED', // AiSystemの`conditionEvaluators`で解釈されるキー
                     params: { includeSelf: true } // 評価関数に渡すパラメータ

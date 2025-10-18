@@ -95,17 +95,14 @@ export class MapScene extends BaseScene {
         
         this.world.on(MAP_EVENTS.BATTLE_TRIGGERED, () => {
             savePlayerPosition();
-            // ★修正: 次のシーンに必要なデータをすべて渡す
             this.sceneManager.switchTo('battle', { gameDataManager, inputManager });
         });
         this.world.on('NPC_INTERACTED', () => {
             savePlayerPosition();
-            // ★修正: 次のシーンに必要なデータをすべて渡す
             this.sceneManager.switchTo('battle', { gameDataManager, inputManager });
         });
         this.world.on('CUSTOMIZE_SCENE_REQUESTED', () => {
             savePlayerPosition();
-            // ★修正: 次のシーンに必要なデータをすべて渡す
             this.sceneManager.switchTo('customize', { gameDataManager, inputManager });
         });
 

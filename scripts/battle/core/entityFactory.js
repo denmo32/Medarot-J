@@ -1,15 +1,13 @@
 import { CONFIG } from '../common/config.js';
 import * as Components from './components/index.js';
-// ★改善: PartInfoを参照することで、パーツに関する定義元を一元化
 import { TeamID, MedalPersonality, PartInfo } from '../common/constants.js'; 
 import { PARTS_DATA } from '../data/parts.js'; 
 import { MEDAROT_SETS } from '../data/medarotSets.js'; 
-// ★新規: actionDefinitionsとpartRolesをインポートしてデータマージを行う
 import { ActionDefinitions } from '../data/actionDefinitions.js';
 import { PartRoles } from '../data/partRoles.js';
 
 /**
- * ★リファクタリング: マスターデータを元に、戦闘インスタンス用のパーツデータを生成します。
+ * マスターデータを元に、戦闘インスタンス用のパーツデータを生成します。
  * この関数は、パーツデータ、役割、行動定義をマージして、
  * 戦闘システムが直接利用できる単一のオブジェクトを構築します。
  * @param {object} partData - パーツのマスターデータ (`PARTS_DATA`の単一エントリ)
@@ -75,7 +73,6 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     const initialX = teamId === TeamID.TEAM1 ? 0 : 1;
     const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;
 
-    // ★修正: よりシンプルで正しいロジックにリファクタリング
     const rawPartsData = {};
     for (const partKey in medarotSet.parts) {
         const partId = medarotSet.parts[partKey];
@@ -85,7 +82,7 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
         }
     }
 
-    // ★リファクタリング: このファクトリ関数内でパーツデータを完全に構築する
+    // このファクトリ関数内でパーツデータを構築する
     const initializedParts = {
         head: initializePart(rawPartsData.head),
         rightArm: initializePart(rawPartsData.rightArm),
@@ -96,13 +93,12 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     world.addComponent(entityId, new Components.PlayerInfo(name, teamId, isLeader));
     world.addComponent(entityId, new Components.Gauge());
     world.addComponent(entityId, new Components.GameState());
-    // ★修正: 構築済みのパーツデータをPartsコンポーネントに渡す
+    // 構築済みのパーツデータをPartsコンポーネントに渡す
     world.addComponent(entityId, new Components.Parts(initializedParts.head, initializedParts.rightArm, initializedParts.leftArm, initializedParts.legs));
     world.addComponent(entityId, new Components.Action());
     world.addComponent(entityId, new Components.Medal(personality));
     world.addComponent(entityId, new Components.BattleLog());
     world.addComponent(entityId, new Components.Position(initialX, yPos));
-    // ★新規: ActiveEffectsコンポーネントを追加
     world.addComponent(entityId, new Components.ActiveEffects());
 
     return entityId;

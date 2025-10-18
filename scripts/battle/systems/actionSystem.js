@@ -6,23 +6,16 @@ import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action, ActiveEffects } from '../core/components/index.js';
 import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
-// ★改善: PartInfo, PartKeyToInfoMapを参照し、定義元を一元化
-// ★修正: ActionType, TargetTiming をインポート
 import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType, ActionType, TargetTiming } from '../common/constants.js';
-// ★修正: findGuardian をインポートし、findMostDamagedAllyPartを削除
 import { findBestDefensePart, findNearestEnemy, selectRandomPart, getValidAllies, findGuardian } from '../utils/queryUtils.js';
-// ★修正: combatFormulasからCombatCalculatorをインポート
 import { CombatCalculator } from '../utils/combatFormulas.js';
 import { BaseSystem } from '../../core/baseSystem.js';
 import { ErrorHandler, GameError, ErrorType } from '../utils/errorHandler.js';
-// ★新規: アクション効果の戦略をインポート
 import { effectStrategies } from '../effects/effectStrategies.js';
-// ★新規: 移動後ターゲット決定戦略をインポート
 import { postMoveTargetingStrategies } from '../ai/postMoveTargetingStrategies.js';
 
 /**
  * 「行動の実行」に特化したシステム。
- * なぜこのシステムが必要か？
  * StateSystemがエンティティを「行動実行準備完了」状態にした後、このシステムがバトンを受け取ります。
  * ダメージ計算、命中判定、結果のUI表示、最終的な結果の適用、といった一連の処理は複雑です。
  * これらを状態管理から分離することで、それぞれのロジックをシンプルに保ち、見通しを良くしています。
@@ -36,54 +29,10 @@ export class ActionSystem extends BaseSystem {
         this.isPaused = false;  // ゲームの一時停止状態を管理
         
         // イベント購読
-        this.world.on(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.onAttackDeclarationConfirmed.bind(this));
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
         this.world.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
         this.world.on(GameEvents.GAME_RESUMED, this.onResumeGame.bind(this));
     }
-
-    /**
-     * ★新規: 攻撃宣言モーダルが確認された際に呼び出されます。
-     * @param {object} detail - イベント詳細
-     */
-    onAttackDeclarationConfirmed(detail) {
-        try {
-            // ★変更: ペイロードから resolvedEffects, guardianInfo を受け取る
-            const { entityId, resolvedEffects, isEvaded, isSupport, guardianInfo } = detail;
-
-            // パラメータの検証
-            if (typeof entityId !== 'number') {
-                throw new GameError(
-                    `Invalid parameters in attack declaration confirmation: entityId=${entityId}`,
-                    ErrorType.VALIDATION_ERROR,
-                    { detail, method: 'onAttackDeclarationConfirmed' }
-                );
-            }
-
-            // ★変更: resolvedEffects, guardianInfo を含んだ新しいペイロードで ACTION_EXECUTED を発行
-            this.world.emit(GameEvents.ACTION_EXECUTED, {
-                attackerId: entityId,
-                resolvedEffects: resolvedEffects || [], // 効果がなくても空配列を渡す
-                isEvaded: isEvaded || false,
-                isSupport: isSupport || false,
-                guardianInfo: guardianInfo || null, // ★新規: ガード情報を引き継ぐ
-            });
-
-            // ゲームオーバーチェック
-            if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
-                return;
-            }
-
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'onAttackDeclarationConfirmed', detail });
-        }
-    }
-
-
-    /**
-     * ★廃止: このメソッドの責務はonAttackDeclarationConfirmedに統合されました。
-     */
-    // onActionExecutionConfirmed(detail) { ... }
 
     /**
      * 毎フレーム実行され、「行動実行準備完了」状態のエンティティを探して処理します。
@@ -101,13 +50,13 @@ export class ActionSystem extends BaseSystem {
             
             const action = this.getCachedComponent(executor, Action);
             const gameState = this.getCachedComponent(executor, GameState);
-            const parts = this.getCachedComponent(executor, Parts); // ★追加
+            const parts = this.getCachedComponent(executor, Parts);
             if (!action || !gameState || !parts) return;
             
             const selectedPart = parts[action.partKey];
             if (!selectedPart) return;
 
-            // ★リファクタリング: パーツにマージされた `targetTiming` を直接参照する
+            // パーツにマージされた `targetTiming` を直接参照する
             if (selectedPart.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
                 const strategyKey = selectedPart.postMoveTargeting;
                 const strategy = postMoveTargetingStrategies[strategyKey];
@@ -160,11 +109,11 @@ export class ActionSystem extends BaseSystem {
 
             // 手順2: ガード役を索敵し、必要であればターゲットを更新します。
             let guardian = null;
-            // ★リファクタリング: isSupportやactionTypeをパーツオブジェクトから直接参照
+            // isSupportやactionTypeをパーツオブジェクトから直接参照
             const isSingleDamageAction = !attackingPart.isSupport && [ActionType.SHOOT, ActionType.MELEE].includes(attackingPart.actionType) && action.targetId !== null;
 
             if (isSingleDamageAction) {
-                // ★修正: ガード役の索敵ロジックを queryUtils の findGuardian に移譲
+                // ガード役の索敵ロジックを queryUtils の findGuardian に移譲
                 guardian = findGuardian(this.world, action.targetId);
                 if (guardian) {
                     // ターゲットをガード役に上書き
@@ -177,7 +126,7 @@ export class ActionSystem extends BaseSystem {
             }
 
             // 手順3: 攻撃の命中結果（回避、クリティカル、防御）を決定します。
-            // ★リファクタリング: 複雑な命中判定ロジックを CombatCalculator に移譲
+            // 複雑な命中判定ロジックを CombatCalculator に移譲
             const outcome = CombatCalculator.resolveHitOutcome({
                 world: this.world,
                 attackerId: executor,
@@ -193,14 +142,14 @@ export class ActionSystem extends BaseSystem {
             if (outcome.isHit || !action.targetId) {
                 if (attackingPart.effects && Array.isArray(attackingPart.effects)) {
                     for (const effect of attackingPart.effects) {
-                        // ★新規: 確率(chance)に基づいた発動判定
+                        // 確率(chance)に基づいた発動判定
                         if (Math.random() >= (effect.chance || 1.0)) {
                             continue; // 確率判定に失敗した場合はこの効果をスキップ
                         }
                         
                         const strategy = effectStrategies[effect.type];
                         if (strategy) {
-                            // ★修正: effectStrategiesにpartKeyを渡す
+                            // effectStrategiesにpartKeyを渡す
                             const effectContext = {
                                 world: this.world,
                                 sourceId: executor,
@@ -213,6 +162,8 @@ export class ActionSystem extends BaseSystem {
                             };
                             const result = strategy(effectContext);
                             if (result) {
+                                // 使用パーツの貫通属性を効果結果に付与する
+                                result.penetrates = attackingPart.penetrates || false;
                                 resolvedEffects.push(result);
                             }
                         }
@@ -222,33 +173,21 @@ export class ActionSystem extends BaseSystem {
             
             const isSupportAction = attackingPart.isSupport;
             
-            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-            // ★修正: イベント発行順序を変更。モーダル表示を先に行い、UIのポーズ状態を確定させてから効果解決イベントを発行する。
-            
-            // 手順5: 攻撃宣言モーダルを表示し、計算結果をUI層に伝達します。
-            let declarationMessage;
-            if (isSupportAction) {
-                 declarationMessage = `${attackerInfo.name}の${attackingPart.action}行動！ ${attackingPart.trait}！`;
-            } else if (!action.targetId) {
-                declarationMessage = `${attackerInfo.name}の攻撃は空を切った！`;
-            } else {
-                declarationMessage = `${attackerInfo.name}の${attackingPart.type}攻撃！ ${attackingPart.trait}！`;
-            }
-
-            this.world.emit(GameEvents.SHOW_MODAL, {
-                type: ModalType.ATTACK_DECLARATION,
-                data: {
-                    entityId: executor,
-                    message: declarationMessage,
-                    isEvaded: !outcome.isHit,
-                    isSupport: isSupportAction,
-                    resolvedEffects: resolvedEffects,
-                    guardianInfo: guardian,
-                },
-                immediate: true
+            // メッセージ生成をMessageSystemに委譲するため、ACTION_DECLAREDイベントを発行
+            // モーダル表示はMessageSystemが担当する
+            this.world.emit(GameEvents.ACTION_DECLARED, {
+                attackerId: executor,
+                targetId: action.targetId,
+                attackingPart: attackingPart,
+                isSupport: isSupportAction,
+                guardianInfo: guardian,
+                // 他のシステムがモーダル確認後に利用するデータをペイロードに含める
+                resolvedEffects: resolvedEffects,
+                isEvaded: !outcome.isHit,
             });
 
-            // 手順6: 効果の「解決」が完了したことを、他のシステムに通知します。
+            // 手順5: 効果の「解決」が完了したことを、他のシステムに通知します。
+            // ※UIの確認を待たず、論理的な結果を即座に他システムへ通知する
             const resolvedPayload = {
                 attackerId: executor,
                 resolvedEffects: resolvedEffects,
@@ -257,8 +196,6 @@ export class ActionSystem extends BaseSystem {
                 guardianInfo: guardian,
             };
             this.world.emit(GameEvents.EFFECTS_RESOLVED, resolvedPayload);
-            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
-
 
             // リーダーが破壊されゲームオーバーになった場合、後続の処理をスキップ
             if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
@@ -297,16 +234,11 @@ export class ActionSystem extends BaseSystem {
             return { action, attackerInfo, attackerParts, targetInfo, targetParts };
         }
 
-        // ターゲットがいない場合（援護、格闘の空振りなど）
+        // ターゲットがいない場合（援護など）
+    	// ※※※格闘攻撃の空振りは、想定外の動作※※※
         return { action, attackerInfo, attackerParts, targetInfo: null, targetParts: null };
     }
 
-    /**
-     * @private
-     * ★廃止: このメソッドの責務は `utils/combatFormulas.js` の `CombatCalculator` に移管されました。
-     */
-    // _resolveHitOutcome(attackingPart, targetLegs, targetId, initialTargetPartKey, executorId) { ... }
-    
     onPauseGame() {
         this.isPaused = true;
     }

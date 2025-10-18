@@ -19,7 +19,6 @@ export const CONFIG = {
     CRITICAL_HIT: {
         // 攻撃成功度とターゲット機動度の差を確率に変換する際の係数
         DIFFERENCE_FACTOR: 200, 
-        // ★リファクタリング: キーをマジックストリングからAttackType定数に変更
         TYPE_BONUS: {
             [AttackType.STRIKE]: 0.25,
             [AttackType.AIMED_SHOT]: 0.50,
@@ -66,7 +65,6 @@ export const CONFIG = {
     
     // パーツタイプ別の補正値
     PART_TYPE_MODIFIERS: {
-        // ★リファクタリング: キーをマジックストリングからAttackType定数に変更
         [AttackType.SHOOT]: {
             // '撃つ'タイプはチャージとクールダウンの両方の時間に影響する
             speedMultiplier: 0.75 // 補正率を0.75にする（25%短縮）
@@ -125,7 +123,4 @@ export const CONFIG = {
         HOME_POSITION_BONUS: false,    // ホームポジションでの補正効果
         FRIENDLY_FIRE: false,          // チームメイトへのダメージ有効化
     },
-
-    // ★廃止: アクションの特性定義 (parts.jsに統合)
-    // ACTION_PROPERTIES: { ... },
 };

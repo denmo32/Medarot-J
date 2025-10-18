@@ -1,9 +1,8 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { PlayerInfo, Position, Gauge, GameState, Parts, Action, ActiveEffects } from '../core/components/index.js';
-import { PlayerStateType, EffectType, PartInfo } from '../common/constants.js'; // ★ PartInfo をインポート
+import { PlayerStateType, EffectType, PartInfo } from '../common/constants.js';
 import { UIManager } from './UIManager.js';
 import { GameEvents } from '../common/events.js'; // イベント定義をインポート
-// ★新規: UIStateContextをインポートして、UIの状態（ポーズ中かなど）を確認できるようにする
 import { UIStateContext } from '../core/index.js';
 
 /**
@@ -15,14 +14,14 @@ export class UISystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
-        // ★新規: UIStateContextへの参照を取得
+        // UIStateContextへの参照を取得
         this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
-        // ★リファクタリング: HP更新をイベント駆動にする
+        // HP更新をイベント駆動にする
         this.world.on(GameEvents.HP_UPDATED, this.onHpUpdated.bind(this));
     }
 
     /**
-     * ★新規: HP更新イベントのハンドラ。
+     * HP更新イベントのハンドラ。
      * @param {object} detail - HP_UPDATEDイベントのペイロード
      */
     onHpUpdated(detail) {
@@ -39,7 +38,7 @@ export class UISystem extends BaseSystem {
         const hpPercentage = (newHp / maxHp) * 100;
         partDom.bar.style.width = `${hpPercentage}%`;
 
-        // ★新規: HP数値のテキストを更新
+        // HP数値のテキストを更新
         if (partDom.value) {
             partDom.value.textContent = `${newHp}/${maxHp}`;
         }
@@ -77,7 +76,7 @@ export class UISystem extends BaseSystem {
 
         const position = this.getCachedComponent(entityId, Position);
         const gameState = this.getCachedComponent(entityId, GameState);
-        const parts = this.getCachedComponent(entityId, Parts); // ★ Partsをここで取得
+        const parts = this.getCachedComponent(entityId, Parts); // Partsをここで取得
         if (!position || !gameState || !parts) return;
 
         // 位置の更新
@@ -100,17 +99,10 @@ export class UISystem extends BaseSystem {
 
         domElements.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
         
-        // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-        // ★修正: 機能停止の判定を gameState.state から parts.head.isBroken に変更
+        // 機能停止の判定を gameState.state から parts.head.isBroken に変更
         domElements.iconElement.classList.toggle('broken', parts.head?.isBroken);
-        // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
 
-
-        // --- ▼▼▼ ここからがリファクタリング箇所 ▼▼▼ ---
-        // ★リファクタリング: HPバーの更新ロジックを削除。onHpUpdatedイベントハンドラに移管。
-        // --- ▲▲▲ リファクタリング箇所ここまで ▲▲▲ ---
-
-        // ★新規: ガードインジケーターの更新
+        // ガードインジケーターの更新
         const activeEffects = this.getCachedComponent(entityId, ActiveEffects);
         const guardIndicator = domElements.guardIndicatorElement;
 
@@ -125,6 +117,4 @@ export class UISystem extends BaseSystem {
             }
         }
     }
-
-    // ★削除: executeAttackAnimationメソッドはViewSystemに移管されました。
 }

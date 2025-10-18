@@ -51,7 +51,7 @@ export class MovementSystem {
                 case PlayerStateType.READY_EXECUTE:
                     positionXRatio = actionLine;
                     break;
-                case PlayerStateType.GUARDING: // ★新規: ガード中はアクションラインに留まる
+                case PlayerStateType.GUARDING: // ガード中はアクションラインに留まる
                     positionXRatio = actionLine;
                     break;
                 case PlayerStateType.COOLDOWN_COMPLETE:

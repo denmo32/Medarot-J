@@ -30,7 +30,7 @@ export class BattleScene extends BaseScene {
      */
     init(data) {
         console.log("Initializing Battle Scene...");
-        const { gameDataManager, inputManager } = data; // ★修正: inputManagerも受け取る
+        const { gameDataManager, inputManager } = data; // ★ inputManagerも受け取る
 
         // --- Battle Systems & Entities Setup ---
         initializeSystems(this.world);
@@ -47,12 +47,12 @@ export class BattleScene extends BaseScene {
         this.world.on(GameEvents.GAME_OVER, (result) => {
             gameDataManager.applyBattleResult(result);
             // 3秒後にマップシーンへ移行
-            // ★修正: 次のシーンに必要なデータをすべて渡す
+            // ★次のシーンに必要なデータをすべて渡す
             setTimeout(() => this.sceneManager.switchTo('map', { gameDataManager, inputManager }), 3000);
         });
 
         this.world.on(GameEvents.RESET_BUTTON_CLICKED, () => {
-            // ★修正: 次のシーンに必要なデータをすべて渡す
+            // ★次のシーンに必要なデータをすべて渡す
             this.sceneManager.switchTo('map', { gameDataManager, inputManager });
         });
 

@@ -37,7 +37,7 @@ export function getParts(world, entityId, includeBroken = false, attackableOnly 
  * @returns {[string, object][]} - [パーツキー, パーツオブジェクト]の配列
  */
 export function getAttackableParts(world, entityId) {
-    // ★追加: そもそも頭部が壊れていたら攻撃可能パーツは無い
+    // ★そもそも頭部が壊れていたら攻撃可能パーツは無い
     const parts = world.getComponent(entityId, Parts);
     if (parts?.head?.isBroken) {
         return [];
@@ -80,17 +80,17 @@ export function findBestDefensePart(world, entityId) {
 export function getValidEnemies(world, attackerId) {
     const attackerInfo = world.getComponent(attackerId, PlayerInfo);
     if (!attackerInfo) return [];
-    return world.getEntitiesWith(PlayerInfo, Parts) // ★ GameStateの代わりにPartsを取得
+    return world.getEntitiesWith(PlayerInfo, Parts) // GameStateの代わりにPartsを取得
         .filter(id => {
             const pInfo = world.getComponent(id, PlayerInfo);
             const parts = world.getComponent(id, Parts); // ★ Partsを取得
-            // ★修正: GameStateではなく、頭部パーツの破壊状態で生存を判定
+            // GameStateではなく、頭部パーツの破壊状態で生存を判定
             return id !== attackerId && pInfo.teamId !== attackerInfo.teamId && !parts.head?.isBroken;
         });
 }
 
 /**
- * ★新規: 生存している味方エンティティのリストを取得します
+ * 生存している味方エンティティのリストを取得します
  * @param {World} world
  * @param {number} sourceId - 基準となるエンティティID
  * @param {boolean} [includeSelf=false] - 結果に自分自身を含めるか
@@ -99,18 +99,18 @@ export function getValidEnemies(world, attackerId) {
 export function getValidAllies(world, sourceId, includeSelf = false) {
     const sourceInfo = world.getComponent(sourceId, PlayerInfo);
     if (!sourceInfo) return [];
-    return world.getEntitiesWith(PlayerInfo, Parts) // ★ GameStateの代わりにPartsを取得
+    return world.getEntitiesWith(PlayerInfo, Parts) // GameStateの代わりにPartsを取得
         .filter(id => {
             if (!includeSelf && id === sourceId) return false;
             const pInfo = world.getComponent(id, PlayerInfo);
             const parts = world.getComponent(id, Parts); // ★ Partsを取得
-            // ★修正: GameStateではなく、頭部パーツの破壊状態で生存を判定
+            // GameStateではなく、頭部パーツの破壊状態で生存を判定
             return pInfo.teamId === sourceInfo.teamId && !parts.head?.isBroken;
         });
 }
 
 /**
- * ★新規: 味方チーム内で最も損害を受けているパーツを検索します。
+ * 味方チーム内で最も損害を受けているパーツを検索します。
  * HEALER戦略や回復アクションのターゲット決定に利用されます。
  * @param {World} world - ワールドオブジェクト
  * @param {number[]} candidates - 検索対象となるエンティティIDの配列
@@ -152,7 +152,7 @@ export function findMostDamagedAllyPart(world, candidates) {
  */
 export function isValidTarget(world, targetId, partKey = null) {
     if (targetId === null || targetId === undefined) return false;
-    // ★修正: GameStateではなくPartsコンポーネントで生存確認
+    // GameStateではなくPartsコンポーネントで生存確認
     const parts = world.getComponent(targetId, Parts);
     if (!parts || parts.head?.isBroken) return false;
 
@@ -173,11 +173,33 @@ export function isValidTarget(world, targetId, partKey = null) {
 export function selectRandomPart(world, entityId) {
     if (!world || entityId === null || entityId === undefined) return null;
     const parts = world.getComponent(entityId, Parts);
-    if (!parts || parts.head?.isBroken) return null; // ★追加: 機能停止チェック
+    if (!parts || parts.head?.isBroken) return null; // 機能停止チェック
     const hittablePartKeys = Object.keys(parts).filter(key => parts[key] && !parts[key].isBroken);
     if (hittablePartKeys.length > 0) {
         const partKey = hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
         return { targetId: entityId, targetPartKey: partKey };
+    }
+    return null;
+}
+
+/**
+ * 貫通ダメージの対象となる、ランダムな未破壊パーツを選択します。
+ * @param {World} world - ワールドオブジェクト
+ * @param {number} entityId - ターゲットのエンティティID
+ * @param {string} excludedPartKey - 貫通元となった、既に破壊されたパーツのキー
+ * @returns {string | null} 貫通対象のパーツキー、またはnull
+ */
+export function findRandomPenetrationTarget(world, entityId, excludedPartKey) {
+    if (!world || entityId === null || entityId === undefined) return null;
+    const parts = world.getComponent(entityId, Parts);
+    if (!parts || parts.head?.isBroken) return null;
+
+    const hittablePartKeys = Object.keys(parts).filter(key => 
+        key !== excludedPartKey && parts[key] && !parts[key].isBroken
+    );
+
+    if (hittablePartKeys.length > 0) {
+        return hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
     }
     return null;
 }
@@ -209,8 +231,7 @@ export function findNearestEnemy(world, attackerId) {
 }
 
 /**
- * ★変更: 指定された候補エンティティリストから、破壊されていない全パーツを取得する
- * (旧: getAllEnemyParts)
+ * 指定された候補エンティティリストから、破壊されていない全パーツを取得する
  * @param {World} world
  * @param {number[]} candidateIds - 候補エンティティIDの配列
  * @returns {{entityId: number, partKey: string, part: object}[]}
@@ -220,7 +241,7 @@ export function getAllPartsFromCandidates(world, candidateIds) {
     if (!candidateIds) return []; // 候補がいない場合は空配列を返す
     for (const id of candidateIds) {
         const parts = world.getComponent(id, Parts);
-        if (!parts || parts.head?.isBroken) continue; // ★追加: 機能停止した機体のパーツは含めない
+        if (!parts || parts.head?.isBroken) continue; // 機能停止した機体のパーツは含めない
         Object.entries(parts).forEach(([key, part]) => {
             if (part && !part.isBroken) {
                 allParts.push({ entityId: id, partKey: key, part: part });
@@ -238,7 +259,6 @@ export function getAllPartsFromCandidates(world, candidateIds) {
  * @returns {{targetId: number, targetPartKey: string} | null}
  */
 export function selectPartByCondition(world, candidates, sortFn) {
-    // ★変更: getAllEnemyParts -> getAllPartsFromCandidates
     const allParts = getAllPartsFromCandidates(world, candidates);
     if (allParts.length === 0) return null;
     allParts.sort(sortFn);
@@ -265,10 +285,8 @@ export function findGuardian(world, originalTargetId) {
             const info = world.getComponent(id, PlayerInfo);
             const parts = world.getComponent(id, Parts);
             const activeEffects = world.getComponent(id, ActiveEffects);
-            // --- ▼▼▼ ここからが修正箇所 ▼▼▼ ---
-            // ★修正: ガード回数が1回以上残っていることを条件に追加
+            // ガード回数が1回以上残っていることを条件に追加
             const hasGuardEffect = activeEffects?.effects.some(e => e.type === EffectType.APPLY_GUARD && e.count > 0);
-            // --- ▲▲▲ 修正箇所ここまで ▲▲▲ ---
             
             return info.teamId === targetInfo.teamId && !parts.head?.isBroken && hasGuardEffect;
         })
