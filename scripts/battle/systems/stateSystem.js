@@ -12,6 +12,7 @@ import { ErrorHandler } from '../utils/errorHandler.js';
  * 「チャージ中は行動できない」「行動後はクールダウンに入る」といった
  * ゲームの基本的な流れは、すべてこのシステムによる状態遷移によって制御されています。
  * 他のシステムは、ここで設定された状態を見て、自身の振-舞いを決定します。
+ * このシステムは、イベントを受け取り、状態(`GameState.state`)を書き換えることに特化します。
  */
 export class StateSystem {
     constructor(world) {
@@ -22,14 +23,12 @@ export class StateSystem {
 
         // 他のシステムから発行される、状態遷移のきっかけとなるイベントを購読します。
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
-        // 購読イベントをEFFECTS_RESOLVEDからACTION_EXECUTEDに変更。
-        // これにより、GLITCHやGUARDなどの状態変化が、効果適用後に正しく行われます。
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
         this.world.on(GameEvents.ATTACK_SEQUENCE_COMPLETED, this.onAttackSequenceCompleted.bind(this));
         this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
-        // パーツ破壊イベントを購読し、行動予約のキャンセルをイベント駆動で行う
-        this.world.on(GameEvents.PART_BROKEN, this.onPartBroken.bind(this));
+        // ActionCancellationSystemが発行するキャンセルイベントを購読
+        this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
         // 効果が切れたイベントを購読し、状態遷移を管理する
         this.world.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
     }
@@ -142,13 +141,24 @@ export class StateSystem {
         const gameState = this.world.getComponent(entityId, GameState);
 
         // ガード状態の機体は行動完了後もクールダウンに移行せず、状態を維持します。
-        // これにより、行動実行ラインに留まり、味方を庇うことができます。
         if (gameState && gameState.state === PlayerStateType.GUARDING) {
-            // Actionコンポーネントのみをリセットし、次のガードに備えます。
             this.world.addComponent(entityId, new Action());
-            return; // クールダウン処理をスキップします。
+            return;
         }
 
+        //  クールダウン計算ロジック
+        const gauge = this.world.getComponent(entityId, Gauge);
+        const action = this.world.getComponent(entityId, Action);
+        const parts = this.world.getComponent(entityId, Parts);
+
+        if (action && action.partKey && parts && gauge) {
+            const usedPart = parts[action.partKey];
+            if (usedPart) {
+                gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: usedPart, factorType: 'cooldown' });
+            }
+        } else if (gauge) {
+            gauge.speedMultiplier = 1.0;
+        }
         this.resetEntityStateToCooldown(entityId);
     }
 
@@ -182,46 +192,15 @@ export class StateSystem {
     }
     
     /**
-     * リファクタリング: パーツ破壊イベントのハンドラ。
-     * 行動予約中のパーツが破壊されたり、ターゲットが機能停止した場合に行動をキャンセルします。
-     * @param {object} detail - PART_BROKEN イベントのペイロード { entityId, partKey }
+     * アクションがキャンセルされた際のイベントハンドラ。
+     * 状態をクールダウンに遷移させる責務のみを担います。
+     * @param {object} detail - ACTION_CANCELLED イベントのペイロード { entityId, reason }
      */
-    onPartBroken(detail) {
-        const { entityId: brokenEntityId, partKey: brokenPartKey } = detail;
-
-        // 行動予約中のエンティティを全てチェック
-        const actors = this.world.getEntitiesWith(GameState, Action, PlayerInfo, Parts);
-        for (const actorId of actors) {
-            const gameState = this.world.getComponent(actorId, GameState);
-            if (gameState.state !== PlayerStateType.SELECTED_CHARGING) {
-                continue;
-            }
-
-            const action = this.world.getComponent(actorId, Action);
-            const actorInfo = this.world.getComponent(actorId, PlayerInfo);
-            const actorParts = this.world.getComponent(actorId, Parts);
-            const selectedPart = actorParts[action.partKey];
-
-            // 1. 自身の予約パーツが破壊された場合
-            if (actorId === brokenEntityId && action.partKey === brokenPartKey) {
-                // メッセージ生成をMessageSystemに委譲するため、イベントを発行
-                this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: 'PART_BROKEN' });
-                this.resetEntityStateToCooldown(actorId, { interrupted: true });
-                // 一つのエンティティに対する処理は一度で十分なので、次のエンティティへ
-                continue; 
-            }
-            
-            // 2. ターゲットが機能停止した場合 (頭部破壊)
-            if (selectedPart?.targetScope?.endsWith('_SINGLE') &&
-                action.targetId === brokenEntityId && 
-                brokenPartKey === PartInfo.HEAD.key) 
-            {
-                // メッセージ生成をMessageSystemに委譲するため、イベントを発行
-                this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: 'TARGET_LOST' });
-                this.resetEntityStateToCooldown(actorId, { interrupted: true });
-                continue;
-            }
-        }
+    onActionCancelled(detail) {
+        const { entityId } = detail;
+        // reasonに応じて詳細な処理を分けることも可能だが、
+        // 現状はいずれの理由でもクールダウンに移行するため共通化。
+        this.resetEntityStateToCooldown(entityId, { interrupted: true });
     }
 
     /**
@@ -237,25 +216,28 @@ export class StateSystem {
             const parts = this.world.getComponent(entityId, Parts);
             const guardPart = parts[effect.partKey];
             if (guardPart?.isBroken) {
-                 // メッセージ生成をMessageSystemに委譲するため、イベントを発行
                  this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
             }
+            
+            // クールダウン速度をリセット
+            const gauge = this.world.getComponent(entityId, Gauge);
+            if(gauge) gauge.speedMultiplier = 1.0;
+            
             this.resetEntityStateToCooldown(entityId);
         }
     }
 
     /**
      * 攻撃者だけでなく、任意のエンティティの状態をクールダウン中にリセットする汎用関数。
-     * Actionコンポーネントをクリアします。
+     * クールダウン計算ロジックは削除され、純粋な状態リセットに特化します。
      * @param {number} entityId - 状態をリセットするエンティティのID
      * @param {object} options - 挙動を制御するオプション
      * @param {boolean} options.interrupted - 行動が中断されたかどうかのフラグ
      */
     resetEntityStateToCooldown(entityId, options = {}) {
         const { interrupted = false } = options;
-        const parts = this.world.getComponent(entityId, Parts); // Partsを最初に取得
+        const parts = this.world.getComponent(entityId, Parts);
         
-        // 機能停止している場合は、いかなる状態遷移も行わない
         if (parts?.head?.isBroken) {
             return;
         }
@@ -271,18 +253,13 @@ export class StateSystem {
                 activeEffects.effects = activeEffects.effects.filter(e => e.type !== EffectType.APPLY_GUARD);
             }
         }
-
-        if (action && action.partKey && parts && gauge) {
-            const usedPart = parts[action.partKey];
-            // CombatCalculator を使用して速度補正を計算
-            if (usedPart) {
-                gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: usedPart, factorType: 'cooldown' });
-            } else {
-                gauge.speedMultiplier = 1.0;
-            }
-        } else if (gauge) {
-            gauge.speedMultiplier = 1.0;
+        
+        // クールダウン計算ロジックは onAttackSequenceCompleted に移譲
+        if (!interrupted && gauge) {
+             // 正常完了時はspeedMultiplierをリセットすべきか検討の余地あり。
+             // 行動完了時に計算・設定されるため、ここでは何もしないのが正しい。
         }
+
         if (gameState) gameState.state = PlayerStateType.CHARGING;
         if (gauge) {
             if (interrupted) {
@@ -293,7 +270,6 @@ export class StateSystem {
             }
         }
         if (action) {
-            // Actionコンポーネントをリセット
             this.world.addComponent(entityId, new Action());
         }
     }
@@ -302,9 +278,6 @@ export class StateSystem {
      * 時間経過による状態遷移を管理します。
      */
     update(deltaTime) {
-        try {
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'StateSystem.update', deltaTime });
-        }
+        // このシステムは完全にイベント駆動になったため、update処理は不要です。
     }
 }
