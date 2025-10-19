@@ -92,8 +92,10 @@ export class MessageSystem extends BaseSystem {
         if (!attackerInfo) return;
 
         let messageSequence = [];
+        const isHealAction = appliedEffects && appliedEffects.some(e => e.type === EffectType.HEAL);
 
-        if (isSupport) {
+        if (isSupport && !isHealAction) {
+            // 回復以外の支援行動
             const supportMessage = this.generateSupportResultMessage(appliedEffects[0]);
             messageSequence.push({ text: supportMessage });
         } else if (isEvaded) {
@@ -160,37 +162,41 @@ export class MessageSystem extends BaseSystem {
     // --- ヘルパーメソッド ---
 
     /**
-     * 複数のダメージ効果（貫通含む）を元に、連結されたメッセージを生成します。
+     * 複数のダメージ/回復効果を元に、連結されたメッセージを生成します。
      * @private
      */
     generateDamageResultMessage(effects, guardianInfo) {
         let messages = [];
         if (!effects || effects.length === 0) return '';
     
-        // 最初のダメージメッセージを生成
         const firstEffect = effects[0];
-        let prefix = firstEffect.isCritical ? this.format(MessageKey.CRITICAL_HIT) : '';
-        const targetInfo = this.world.getComponent(firstEffect.targetId, PlayerInfo);
-        const partName = PartKeyToInfoMap[firstEffect.partKey]?.name || '不明部位';
     
-        if (guardianInfo) {
-            messages.push(prefix + this.format(MessageKey.GUARDIAN_DAMAGE, {
-                guardianName: guardianInfo.name,
-                partName: partName,
-                damage: firstEffect.value,
-            }));
-        } else if (firstEffect.isDefended) {
-            messages.push(prefix + this.format(MessageKey.DEFENSE_SUCCESS, {
-                targetName: targetInfo.name,
-                partName: partName,
-                damage: firstEffect.value,
-            }));
-        } else {
-            messages.push(prefix + this.format(MessageKey.DAMAGE_APPLIED, {
-                targetName: targetInfo.name,
-                partName: partName,
-                damage: firstEffect.value,
-            }));
+        if (firstEffect.type === EffectType.HEAL) {
+            messages.push(this._formatHealMessage(firstEffect));
+        } else { // HEAL以外はダメージ系として扱う
+            let prefix = firstEffect.isCritical ? this.format(MessageKey.CRITICAL_HIT) : '';
+            const targetInfo = this.world.getComponent(firstEffect.targetId, PlayerInfo);
+            const partName = PartKeyToInfoMap[firstEffect.partKey]?.name || '不明部位';
+    
+            if (guardianInfo) {
+                messages.push(prefix + this.format(MessageKey.GUARDIAN_DAMAGE, {
+                    guardianName: guardianInfo.name,
+                    partName: partName,
+                    damage: firstEffect.value,
+                }));
+            } else if (firstEffect.isDefended) {
+                messages.push(prefix + this.format(MessageKey.DEFENSE_SUCCESS, {
+                    targetName: targetInfo.name,
+                    partName: partName,
+                    damage: firstEffect.value,
+                }));
+            } else {
+                messages.push(prefix + this.format(MessageKey.DAMAGE_APPLIED, {
+                    targetName: targetInfo.name,
+                    partName: partName,
+                    damage: firstEffect.value,
+                }));
+            }
         }
     
         // 2つ目以降の貫通ダメージメッセージを生成
