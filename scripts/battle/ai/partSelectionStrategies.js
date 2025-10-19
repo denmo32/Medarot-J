@@ -12,7 +12,13 @@ import { PartRoleKey } from '../data/partRoles.js';
  * @param {function} sortFn - ソート関数 (例: (a, b) => b.might - a.might)
  * @returns {function} AIパーツ選択戦略関数
  */
-const createFocusStrategy = (roleKey, sortFn) => ({ availableParts }) => {
+const createFocusStrategy = (roleKey, sortFn) => 
+    /**
+     * 引数のシグネチャを ({ world, entityId, availableParts }) に統一。
+     * これにより、全てのパーツ選択戦略が同じインターフェースを持つことになり、一貫性が向上します。
+     * この戦略では world と entityId は使用しませんが、シグネチャの統一性を優先します。
+     */
+    ({ world, entityId, availableParts }) => {
     if (!availableParts || availableParts.length === 0) {
         return [null, null];
     }

@@ -50,31 +50,11 @@ export class ActionSystem extends BaseSystem {
             
             const action = this.getCachedComponent(executor, Action);
             const gameState = this.getCachedComponent(executor, GameState);
-            const parts = this.getCachedComponent(executor, Parts);
-            if (!action || !gameState || !parts) return;
+            if (!action || !gameState) return;
+
+            // 移動後ターゲット決定ロジックをプライベートメソッドに委譲
+            this._determinePostMoveTarget(executor);
             
-            const selectedPart = parts[action.partKey];
-            if (!selectedPart) return;
-
-            // パーツにマージされた `targetTiming` を直接参照する
-            if (selectedPart.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
-                const strategyKey = selectedPart.postMoveTargeting;
-                const strategy = postMoveTargetingStrategies[strategyKey];
-
-                if (strategy) {
-                    const targetData = strategy({ world: this.world, attackerId: executor });
-                    if (targetData) {
-                        action.targetId = targetData.targetId;
-                        action.targetPartKey = targetData.targetPartKey;
-                    } else {
-                        console.warn(`ActionSystem: Post-move strategy '${strategyKey}' found no target for ${executor}.`);
-                    }
-                } else if (strategyKey) {
-                    // パーツに戦略が定義されているのに、実装が見つからない場合
-                    console.error(`ActionSystem: Unknown post-move strategy '${strategyKey}' for part '${selectedPart.name}'.`);
-                }
-            }
-
             gameState.state = PlayerStateType.AWAITING_ANIMATION;
             this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
                 attackerId: executor,
@@ -82,6 +62,40 @@ export class ActionSystem extends BaseSystem {
             });
         } catch (error) {
             ErrorHandler.handle(error, { method: 'update', deltaTime, executor: executor || 'N/A' });
+        }
+    }
+    
+    /**
+     * 移動後にターゲットを決定するアクションのターゲットを解決します。
+     * updateメソッドの責務を明確化するためにロジックを分離しました。
+     * @param {number} executorId - 行動を実行するエンティティのID
+     * @private
+     */
+    _determinePostMoveTarget(executorId) {
+        const action = this.getCachedComponent(executorId, Action);
+        const parts = this.getCachedComponent(executorId, Parts);
+        if (!action || !parts) return;
+
+        const selectedPart = parts[action.partKey];
+        if (!selectedPart) return;
+
+        // パーツにマージされた `targetTiming` を直接参照し、ターゲットが未定の場合のみ処理
+        if (selectedPart.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
+            const strategyKey = selectedPart.postMoveTargeting;
+            const strategy = postMoveTargetingStrategies[strategyKey];
+
+            if (strategy) {
+                const targetData = strategy({ world: this.world, attackerId: executorId });
+                if (targetData) {
+                    action.targetId = targetData.targetId;
+                    action.targetPartKey = targetData.targetPartKey;
+                } else {
+                    console.warn(`ActionSystem: Post-move strategy '${strategyKey}' found no target for ${executorId}.`);
+                }
+            } else if (strategyKey) {
+                // パーツに戦略が定義されているのに、実装が見つからない場合
+                console.error(`ActionSystem: Unknown post-move strategy '${strategyKey}' for part '${selectedPart.name}'.`);
+            }
         }
     }
 
