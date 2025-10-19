@@ -158,23 +158,20 @@ export class ActionPanelSystem extends BaseSystem {
         if (this.currentSequenceIndex < this.currentMessageSequence.length) {
             this._displayCurrentSequenceStep();
         } else {
-            // シーケンスが完了した場合の処理
-            const originalData = this.currentModalData;
-            if (this.currentModalType === ModalType.ATTACK_DECLARATION) {
-                 const { attackerId, targetId, resolvedEffects, isEvaded, isSupport, guardianInfo } = originalData;
-                 this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { attackerId, targetId, resolvedEffects, isEvaded, isSupport, guardianInfo });
-                 
-                 // 現在のモーダル処理は完了し、次のモーダル表示要求(EXECUTION_RESULT)を待つため、
-                 // isProcessingQueueをfalseにする。
-                 // これにより、次のupdateループでキューに追加された新しいモーダルが処理される。
-                 // hideActionPanelは呼ばず、UIの表示は維持し、GAME_RESUMEDも発行しない。
-                 this.isProcessingQueue = false;
+            // シーケンス完了時の処理を汎用化
+            // どのモーダルが完了したかを、新しいUIイベントで通知する
+            this.world.emit(GameEvents.MODAL_SEQUENCE_COMPLETED, {
+                modalType: this.currentModalType,
+                originalData: this.currentModalData,
+            });
 
-            } else if (this.currentModalType === ModalType.EXECUTION_RESULT) {
-                this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: originalData.attackerId });
-                this.hideActionPanel();
+            // 攻撃宣言モーダルの場合、次のモーダル(結果表示)を待つためUIはそのまま
+            if (this.currentModalType === ModalType.ATTACK_DECLARATION) {
+                // isProcessingQueueをfalseにして、次のキュー(結果表示モーダル)を処理できるようにする
+                this.isProcessingQueue = false;
             } else {
-                this.hideActionPanel(); // デフォルトでは隠す
+                // それ以外のモーダルは完了後にパネルを隠す
+                this.hideActionPanel();
             }
         }
     }

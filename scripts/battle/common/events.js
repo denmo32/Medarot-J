@@ -316,6 +316,15 @@ export const GameEvents = {
     MODAL_CLOSED: 'MODAL_CLOSED',
     
     /**
+     * モーダルのメッセージシーケンスが完了したことを通知
+     * ActionPanelSystemが発行し、ActionSystemなどのロジックシステムがゲームフローを再開するために購読する。
+     * @event MODAL_SEQUENCE_COMPLETED
+     * @type {string}
+     * @payload {{ modalType: string, originalData: object }} - 完了したモーダルのタイプと、表示時に渡された元のデータ
+     */
+    MODAL_SEQUENCE_COMPLETED: 'MODAL_SEQUENCE_COMPLETED',
+    
+    /**
      * UIの初期構築を要求
      * @event SETUP_UI_REQUESTED
      * @type {string}

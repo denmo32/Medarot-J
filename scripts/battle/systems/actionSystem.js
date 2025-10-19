@@ -28,9 +28,13 @@ export class ActionSystem extends BaseSystem {
         this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
         this.isPaused = false;  // ゲームの一時停止状態を管理
         
+        // UIの応答を待つための状態を保持
+        this.pendingActionData = null;
+        
         // イベント購読
-        // 戦闘結果の判定が完了したら、このシステムが効果の計算（解決）を行います。
         this.world.on(GameEvents.COMBAT_OUTCOME_RESOLVED, this.onCombatOutcomeResolved.bind(this));
+        // UIモーダルの完了イベントを購読
+        this.world.on(GameEvents.MODAL_SEQUENCE_COMPLETED, this.onModalSequenceCompleted.bind(this));
         this.world.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
         this.world.on(GameEvents.GAME_RESUMED, this.onResumeGame.bind(this));
     }
@@ -40,7 +44,8 @@ export class ActionSystem extends BaseSystem {
      */
     update(deltaTime) {
         try {
-            if (this.isPaused) return;
+            // isPaused または pendingActionData が存在する場合(UI応答待ち)は、新たなアクションを開始しない
+            if (this.isPaused || this.pendingActionData) return;
             
             const entitiesWithState = this.world.getEntitiesWith(GameState);
             const executor = entitiesWithState.find(id => 
@@ -53,11 +58,8 @@ export class ActionSystem extends BaseSystem {
             const gameState = this.getCachedComponent(executor, GameState);
             if (!action || !gameState) return;
 
-            // 移動後ターゲット決定ロジックをプライベートメソッドに委譲
             this._determinePostMoveTarget(executor);
             
-            // 状態をアニメーション待ちに変更し、アニメーションの実行を要求します。
-            // この後の処理は、アニメーション完了後にイベント駆動でCombatResolutionSystemが開始します。
             gameState.state = PlayerStateType.AWAITING_ANIMATION;
             this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
                 attackerId: executor,
@@ -70,7 +72,6 @@ export class ActionSystem extends BaseSystem {
     
     /**
      * 移動後にターゲットを決定するアクションのターゲットを解決します。
-     * updateメソッドの責務を明確化するためにロジックを分離しました。
      * @param {number} executorId - 行動を実行するエンティティのID
      * @private
      */
@@ -82,7 +83,6 @@ export class ActionSystem extends BaseSystem {
         const selectedPart = parts[action.partKey];
         if (!selectedPart) return;
 
-        // パーツにマージされた `targetTiming` を直接参照し、ターゲットが未定の場合のみ処理
         if (selectedPart.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
             const strategyKey = selectedPart.postMoveTargeting;
             const strategy = postMoveTargetingStrategies[strategyKey];
@@ -96,58 +96,39 @@ export class ActionSystem extends BaseSystem {
                     console.warn(`ActionSystem: Post-move strategy '${strategyKey}' found no target for ${executorId}.`);
                 }
             } else if (strategyKey) {
-                // パーツに戦略が定義されているのに、実装が見つからない場合
                 console.error(`ActionSystem: Unknown post-move strategy '${strategyKey}' for part '${selectedPart.name}'.`);
             }
         }
     }
 
     /**
-     * CombatResolutionSystemによる戦闘結果の判定が完了した際に呼び出されます。
-     * このシステムの責務は、判定結果に基づいて「どのような効果が発生するか」を計算（解決）し、
-     * UI表示と効果適用のためにイベントを発行することです。
+     * 戦闘結果の判定が完了した際に呼び出されます。
      * @param {object} detail - COMBAT_OUTCOME_RESOLVED イベントのペイロード
      */
     onCombatOutcomeResolved(detail) {
         try {
-            const {
-                attackerId,
-                finalTargetId,
-                finalTargetPartKey,
-                attackingPart,
-                attackerInfo,
-                attackerParts,
-                outcome,
-                guardianInfo,
-            } = detail;
+            const { attackerId, attackingPart, attackerInfo, attackerParts, outcome, finalTargetId, finalTargetPartKey, guardianInfo } = detail;
 
-            // 手順1: パーツに定義された効果を解決(resolve)します。
             const resolvedEffects = [];
-            // 命中したか、ターゲットがいないアクション（援護など）の場合のみ効果を解決します。
             if (outcome.isHit || !finalTargetId) {
                 if (attackingPart.effects && Array.isArray(attackingPart.effects)) {
                     for (const effect of attackingPart.effects) {
-                        // 確率(chance)に基づいた発動判定
-                        if (Math.random() >= (effect.chance || 1.0)) {
-                            continue; // 確率判定に失敗した場合はこの効果をスキップ
-                        }
+                        if (Math.random() >= (effect.chance || 1.0)) continue;
                         
                         const strategy = effectStrategies[effect.type];
                         if (strategy) {
-                            // effectStrategiesに渡すコンテキストを構築
                             const effectContext = {
                                 world: this.world,
                                 sourceId: attackerId,
                                 targetId: finalTargetId,
                                 effect: effect,
                                 part: attackingPart,
-                                partKey: this.world.getComponent(attackerId, Action).partKey, // 使用パーツのキー
+                                partKey: this.world.getComponent(attackerId, Action).partKey,
                                 partOwner: { info: attackerInfo, parts: attackerParts },
-                                outcome: { ...outcome, finalTargetPartKey }, // 命中結果と最終ターゲット情報を渡す
+                                outcome: { ...outcome, finalTargetPartKey },
                             };
                             const result = strategy(effectContext);
                             if (result) {
-                                // 使用パーツの貫通属性を効果結果に付与する
                                 result.penetrates = attackingPart.penetrates || false;
                                 resolvedEffects.push(result);
                             }
@@ -156,28 +137,57 @@ export class ActionSystem extends BaseSystem {
                 }
             }
             
-            // 手順2: UI表示のためのイベントを発行します。
-            const isSupportAction = attackingPart.isSupport;
-            this.world.emit(GameEvents.ACTION_DECLARED, {
+            // UIの応答を待つため、後続処理に必要なデータを`pendingActionData`に保存
+            this.pendingActionData = {
                 attackerId: attackerId,
-                targetId: finalTargetId, // 最終的なターゲットIDを渡す
-                attackingPart: attackingPart,
-                isSupport: isSupportAction,
-                guardianInfo: guardianInfo,
-                // 他のシステムがモーダル確認後に利用するデータをペイロードに含める
+                targetId: finalTargetId,
                 resolvedEffects: resolvedEffects,
                 isEvaded: !outcome.isHit,
-            });
+                isSupport: attackingPart.isSupport,
+                guardianInfo: guardianInfo,
+            };
 
-            // リーダーが破壊されゲームオーバーになった場合、後続の処理をスキップ
-            if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
-                this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: attackerId });
-            }
+            // UI表示のためのイベントを発行
+            this.world.emit(GameEvents.ACTION_DECLARED, {
+                attackerId: attackerId,
+                targetId: finalTargetId,
+                attackingPart: attackingPart,
+                isSupport: attackingPart.isSupport,
+                guardianInfo: guardianInfo,
+            });
 
         } catch (error) {
             ErrorHandler.handle(error, { method: 'onCombatOutcomeResolved', detail });
         }
     }
+
+    /**
+     * UIモーダルの表示が完了した際に呼び出されるハンドラ。
+     * UIの応答を待ち状態だったゲームフローを再開します。
+     * @param {object} detail - MODAL_SEQUENCE_COMPLETED イベントのペイロード
+     */
+    onModalSequenceCompleted(detail) {
+        const { modalType, originalData } = detail;
+        
+        // 1. 攻撃宣言モーダルが完了した場合
+        if (modalType === ModalType.ATTACK_DECLARATION && this.pendingActionData) {
+            // 保存していたデータを使って、効果適用イベントを発行
+            this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.pendingActionData);
+            // 待機状態を解除
+            this.pendingActionData = null;
+        
+            // ゲームオーバー判定
+            if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
+                this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: originalData.attackerId });
+            }
+        }
+        // 2. 実行結果モーダルが完了した場合
+        else if (modalType === ModalType.EXECUTION_RESULT) {
+            // 攻撃シーケンスの完了を通知
+            this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: originalData.attackerId });
+        }
+    }
+
 
     onPauseGame() {
         this.isPaused = true;
