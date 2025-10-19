@@ -5,7 +5,7 @@
  */
 
 import { Parts, Position, PlayerInfo, GameState, ActiveEffects } from '../core/components/index.js';
-import { PartInfo, PlayerStateType, EffectType } from '../common/constants.js';
+import { PartInfo, PlayerStateType, EffectType, EffectScope } from '../common/constants.js';
 
 /**
  * 指定されたエンティティのパーツを取得します。
@@ -108,6 +108,32 @@ export function getValidAllies(world, sourceId, includeSelf = false) {
             return pInfo.teamId === sourceInfo.teamId && !parts.head?.isBroken;
         });
 }
+
+/**
+ * 指定された`targetScope`に基づいて、適切なターゲット候補のエンティティリストを返します。
+ * AiSystemとInputSystemに分散していたロジックをここに集約します。
+ * @param {World} world - ワールドオブジェクト
+ * @param {number} entityId - 行動主体のエンティティID
+ * @param {string} scope - ターゲットの範囲 (EffectScope定数)
+ * @returns {number[]} ターゲット候補のエンティティIDの配列
+ */
+export function getCandidatesByScope(world, entityId, scope) {
+    switch (scope) {
+        case EffectScope.ENEMY_SINGLE:
+        case EffectScope.ENEMY_TEAM:
+            return getValidEnemies(world, entityId);
+        case EffectScope.ALLY_SINGLE:
+            return getValidAllies(world, entityId, false); // 自分を含まない
+        case EffectScope.ALLY_TEAM:
+            return getValidAllies(world, entityId, true); // 自分を含む
+        case EffectScope.SELF:
+            return [entityId];
+        default:
+            console.warn(`getCandidatesByScope: Unknown targetScope '${scope}'. Defaulting to enemies.`);
+            return getValidEnemies(world, entityId);
+    }
+}
+
 
 /**
  * 味方チーム内で最も損害を受けているパーツを検索します。
@@ -309,8 +335,6 @@ export function findGuardian(world, originalTargetId) {
         .filter(g => g !== null);
 
     if (potentialGuardians.length === 0) return null;
-
     potentialGuardians.sort((a, b) => b.partHp - a.partHp);
-    
     return potentialGuardians[0];
 }

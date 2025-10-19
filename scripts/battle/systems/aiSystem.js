@@ -6,7 +6,7 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 import { Medal, Parts, PlayerInfo } from '../core/components/index.js';
-import { getAttackableParts, getValidEnemies, getValidAllies, isValidTarget, findMostDamagedAllyPart } from '../utils/queryUtils.js';
+import { getAttackableParts, getValidEnemies, getValidAllies, isValidTarget, findMostDamagedAllyPart, getCandidatesByScope } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
 import { determineTarget } from '../utils/targetingUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
@@ -105,26 +105,8 @@ export class AiSystem extends BaseSystem {
                 const [partKey, part] = partSelectionFunc(context);
                 if (!partKey) continue; // この戦略に合うパーツがなければ、次のルーチンへ
 
-                // 選択したパーツの`targetScope`に基づいてターゲット候補リストを作成
-                let candidates = [];
-                switch (part.targetScope) {
-                    case EffectScope.ENEMY_SINGLE:
-                    case EffectScope.ENEMY_TEAM:
-                        candidates = getValidEnemies(this.world, entityId);
-                        break;
-                    case EffectScope.ALLY_SINGLE:
-                        candidates = getValidAllies(this.world, entityId, false); // 自分を含まない
-                        break;
-                    case EffectScope.ALLY_TEAM:
-                        candidates = getValidAllies(this.world, entityId, true); // 自分を含む
-                        break;
-                    case EffectScope.SELF:
-                        candidates = [entityId];
-                        break;
-                    default:
-                        console.warn(`AiSystem: Unknown targetScope '${part.targetScope}'. Defaulting to enemies.`);
-                        candidates = getValidEnemies(this.world, entityId);
-                }
+                // ターゲット候補リストの作成をqueryUtilsの共通関数に委譲
+                const candidates = getCandidatesByScope(this.world, entityId, part.targetScope);
 
                 // 1b. ターゲット戦略でターゲットを決定
                 const targetSelectionFunc = targetingStrategies[targetStrategyKey];

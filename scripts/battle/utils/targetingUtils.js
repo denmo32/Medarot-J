@@ -6,7 +6,7 @@
  */
 import { PlayerInfo, GameState, Medal, Parts } from '../core/components/index.js';
 import { PlayerStateType, EffectScope } from '../common/constants.js';
-import { getValidEnemies, getValidAllies, isValidTarget } from '../utils/queryUtils.js';
+import { getValidEnemies, getValidAllies, isValidTarget, getCandidatesByScope } from '../utils/queryUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
 import { GameEvents } from '../common/events.js';
@@ -75,25 +75,8 @@ export function determineRecommendedTarget(world, entityId, part) {
     const strategies = getStrategiesFor(attackerMedal.personality);
     let target = null;
     
-    // パーツの`targetScope`に基づいてターゲット候補を決定
-    let candidates = [];
-    switch (part.targetScope) {
-        case EffectScope.ENEMY_SINGLE:
-        case EffectScope.ENEMY_TEAM:
-            candidates = getValidEnemies(world, entityId);
-            break;
-        case EffectScope.ALLY_SINGLE:
-            candidates = getValidAllies(world, entityId, false);
-            break;
-        case EffectScope.ALLY_TEAM:
-            candidates = getValidAllies(world, entityId, true);
-            break;
-        case EffectScope.SELF:
-             candidates = [entityId];
-             break;
-        default:
-            candidates = getValidEnemies(world, entityId);
-    }
+    // ターゲット候補の決定をqueryUtilsの共通関数に委譲
+    const candidates = getCandidatesByScope(world, entityId, part.targetScope);
 
     // 1. 性格に定義された最初の思考ルーチンでターゲットを試行
     if (strategies.routines && strategies.routines.length > 0) {

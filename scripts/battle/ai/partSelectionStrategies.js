@@ -6,13 +6,13 @@ import { MedalPersonality } from '../common/constants.js';
 import { PartRoleKey } from '../data/partRoles.js';
 
 /**
- * 特定の役割(role)に焦点を当て、指定されたプロパティでソートする戦略を生成する高階関数。
- * POWER_FOCUSやHEAL_FOCUSなど、類似した「絞り込み→ソート→選択」ロジックを共通化します。
- * @param {string} roleKey - フィルタリングするパーツの役割キー (PartRoleKey)
+ * 指定されたフィルター関数とソート関数に基づいてパーツ選択戦略を生成する高階関数。
+ * `POWER_FOCUS`や`HEAL_FOCUS`だけでなく、より複雑な条件（例: 特定のアクションタイプを持つパーツ）にも対応可能になります。
+ * @param {function} filterFn - パーツをフィルタリングする関数 (例: ([, part]) => part.role.key === PartRoleKey.DAMAGE)
  * @param {function} sortFn - ソート関数 (例: (a, b) => b.might - a.might)
  * @returns {function} AIパーツ選択戦略関数
  */
-const createFocusStrategy = (roleKey, sortFn) => 
+const createFilteredSortStrategy = (filterFn, sortFn) => 
     /**
      * 引数のシグネチャを ({ world, entityId, availableParts }) に統一。
      * これにより、全てのパーツ選択戦略が同じインターフェースを持つことになり、一貫性が向上します。
@@ -22,16 +22,16 @@ const createFocusStrategy = (roleKey, sortFn) =>
     if (!availableParts || availableParts.length === 0) {
         return [null, null];
     }
-    // 1. 指定された役割でパーツをフィルタリング
-    const roleParts = availableParts.filter(([, part]) => part.role && part.role.key === roleKey);
+    // 1. 指定されたフィルター関数でパーツをフィルタリング
+    const filteredParts = availableParts.filter(filterFn);
     
-    // 2. 該当する役割のパーツがなければ選択不可
-    if (roleParts.length === 0) {
+    // 2. 該当するパーツがなければ選択不可
+    if (filteredParts.length === 0) {
         return [null, null];
     }
     
     // 3. 指定されたソート関数で並び替え、最も優先度の高いものを返す
-    const sortedParts = [...roleParts].sort(sortFn);
+    const sortedParts = [...filteredParts].sort(sortFn);
     return sortedParts[0];
 };
 
@@ -45,17 +45,17 @@ export const partSelectionStrategies = {
      * [デフォルト戦略]: 攻撃パーツの中で最も威力の高いものを選択します。
      * 多くの攻撃的な性格（HUNTER, CRUSHERなど）で共通して使用される基本戦略です。
      */
-    POWER_FOCUS: createFocusStrategy(
-        PartRoleKey.DAMAGE,
-        ([, partA], [, partB]) => partB.might - partA.might
+    POWER_FOCUS: createFilteredSortStrategy(
+        ([, part]) => part.role && part.role.key === PartRoleKey.DAMAGE, // フィルター関数
+        ([, partA], [, partB]) => partB.might - partA.might // ソート関数
     ),
 
     /**
      * [回復優先戦略]: 回復パーツの中で最も効果の高いものを選択します。
      */
-    HEAL_FOCUS: createFocusStrategy(
-        PartRoleKey.HEAL,
-        ([, partA], [, partB]) => partB.might - partA.might
+    HEAL_FOCUS: createFilteredSortStrategy(
+        ([, part]) => part.role && part.role.key === PartRoleKey.HEAL, // フィルター関数
+        ([, partA], [, partB]) => partB.might - partA.might // ソート関数
     ),
 
     /**
