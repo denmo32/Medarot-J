@@ -22,7 +22,9 @@ export class StateSystem {
 
         // 他のシステムから発行される、状態遷移のきっかけとなるイベントを購読します。
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
-        this.world.on(GameEvents.EFFECTS_RESOLVED, this.onEffectsResolved.bind(this));
+        // 購読イベントをEFFECTS_RESOLVEDからACTION_EXECUTEDに変更。
+        // これにより、GLITCHやGUARDなどの状態変化が、効果適用後に正しく行われます。
+        this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
         this.world.on(GameEvents.ATTACK_SEQUENCE_COMPLETED, this.onAttackSequenceCompleted.bind(this));
         this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
@@ -99,13 +101,14 @@ export class StateSystem {
      * このシステムが担当する状態遷移（GLITCH, GUARD）に特化
      * @param {object} detail - 行動の実行結果
      */
-    onEffectsResolved(detail) {
-        const { resolvedEffects, attackerId } = detail;
-        if (!resolvedEffects || resolvedEffects.length === 0) {
+    onActionExecuted(detail) {
+        // ペイロードの構造をACTION_EXECUTEDに合わせる
+        const { appliedEffects, attackerId } = detail;
+        if (!appliedEffects || appliedEffects.length === 0) {
             return;
         }
 
-        for (const effect of resolvedEffects) {
+        for (const effect of appliedEffects) {
             // GLITCH効果による状態遷移をここで処理
             if (effect.type === EffectType.APPLY_GLITCH && effect.wasSuccessful) {
                 // 成功した場合、ターゲットの行動を中断させクールダウンに移行

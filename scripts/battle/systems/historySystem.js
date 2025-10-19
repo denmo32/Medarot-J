@@ -17,23 +17,21 @@ export class HistorySystem extends BaseSystem {
         // Use new BattleHistoryContext for battle history data
         this.battleHistoryContext = this.world.getSingletonComponent(BattleHistoryContext);
 
-        // 行動が実行された時ではなく、効果が「解決」された時点で履歴を更新する。
-        // これにより、UIの進行を待たずに、戦闘の論理的な結果を即座に記録できます。
-        this.world.on(GameEvents.EFFECTS_RESOLVED, this.onEffectsResolved.bind(this));
+        // 購読イベントをEFFECTS_RESOLVEDからACTION_EXECUTEDに変更。
+        // これにより、UIの確認を経て、実際に効果が適用された後に履歴を記録するようになります。
+        this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
     }
 
     /**
-     * プレイヤー破壊処理を責務として追加
-     * 戦闘の最も重要な結果であるプレイヤー破壊をこのシステムで処理することで、
-     * StateSystemを状態遷移に集中させ、責務を明確にします。
-     * @param {object} detail - EFFECTS_RESOLVED イベントのペイロード
+     * 実際に効果が適用された後に呼び出され、戦闘履歴を更新します。
+     * @param {object} detail - ACTION_EXECUTED イベントのペイロード
      */
-    onEffectsResolved(detail) {
-        // 新しいペイロード構造に対応
-        const { attackerId, resolvedEffects } = detail;
+    onActionExecuted(detail) {
+        // ペイロードの構造をACTION_EXECUTEDに合わせる
+        const { attackerId, appliedEffects } = detail;
         
         // 主なターゲット情報をダメージ効果から抽出
-        const damageEffect = resolvedEffects.find(e => e.type === EffectType.DAMAGE);
+        const damageEffect = appliedEffects.find(e => e.type === EffectType.DAMAGE);
 
         if (damageEffect) {
             const { targetId, partKey } = damageEffect;

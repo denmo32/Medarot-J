@@ -98,7 +98,7 @@ export class ActionSystem extends BaseSystem {
             const components = this._getCombatComponents(executor);
             if (!components) {
                 console.warn(`ActionSystem: Missing required components for attack calculation involving executor: ${executor}`);
-                this.world.emit(GameEvents.EFFECTS_RESOLVED, { attackerId: executor, resolvedEffects: [], isEvaded: false, isSupport: false, guardianInfo: null });
+                // EFFECTS_RESOLVEDがなくなったため、ATTACK_SEQUENCE_COMPLETEDのみを発行してシーケンスを正常に終了させる
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
                 return;
             }
@@ -186,17 +186,10 @@ export class ActionSystem extends BaseSystem {
                 isEvaded: !outcome.isHit,
             });
 
-            // 手順5: 効果の「解決」が完了したことを、他のシステムに通知します。
-            // ※UIの確認を待たず、論理的な結果を即座に他システムへ通知する
-            const resolvedPayload = {
-                attackerId: executor,
-                resolvedEffects: resolvedEffects,
-                isEvaded: !outcome.isHit,
-                isSupport: isSupportAction,
-                guardianInfo: guardian,
-            };
-            this.world.emit(GameEvents.EFFECTS_RESOLVED, resolvedPayload);
-
+            // EFFECTS_RESOLVEDイベントの発行を削除
+            // 効果の適用とそれに伴う履歴更新・状態遷移は、UIの確認後(ATTACK_DECLARATION_CONFIRMED)に
+            // EffectApplicatorSystemが起点となって行われるフローに統一されました。
+            
             // リーダーが破壊されゲームオーバーになった場合、後続の処理をスキップ
             if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: executor });
