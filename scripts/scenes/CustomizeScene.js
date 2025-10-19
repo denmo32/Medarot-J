@@ -3,7 +3,10 @@
  * @description カスタマイズ画面のセットアップとロジックをカプセル化するシーンクラス。
  */
 import { BaseScene } from './BaseScene.js';
-import { CustomizeSystem } from '../customize/CustomizeSystem.js';
+import { CustomizeInputSystem } from '../customize/systems/CustomizeInputSystem.js';
+import { CustomizeUISystem } from '../customize/systems/CustomizeUISystem.js';
+import { CustomizeLogicSystem } from '../customize/systems/CustomizeLogicSystem.js';
+import { CustomizeState } from '../customize/components/CustomizeState.js';
 import { GameModeContext, UIStateContext } from '../battle/core/index.js';
 
 /**
@@ -28,18 +31,26 @@ export class CustomizeScene extends BaseScene {
      */
     init(data) {
         console.log("Initializing Customize Scene...");
-        const { gameDataManager, inputManager } = data; // ★ inputManagerも受け取る
+        const { gameDataManager, inputManager } = data;
 
-        // --- Contexts ---
+        // --- Contexts and State ---
         const contextEntity = this.world.createEntity();
         this.world.addComponent(contextEntity, new GameModeContext());
         this.world.addComponent(contextEntity, new UIStateContext());
+        // カスタマイズ画面専用のUI状態コンポーネントを追加
+        this.world.addComponent(contextEntity, new CustomizeState());
+        
         const gameModeContext = this.world.getSingletonComponent(GameModeContext);
         gameModeContext.gameMode = 'customize';
 
         // --- Systems ---
-        const customizeSystem = new CustomizeSystem(this.world);
-        this.world.registerSystem(customizeSystem);
+        const customizeUISystem = new CustomizeUISystem(this.world);
+        const customizeInputSystem = new CustomizeInputSystem(this.world);
+        const customizeLogicSystem = new CustomizeLogicSystem(this.world);
+        
+        this.world.registerSystem(customizeUISystem);
+        this.world.registerSystem(customizeInputSystem);
+        this.world.registerSystem(customizeLogicSystem);
 
         // --- Event Listeners for Scene Transition ---
         this.world.on('CUSTOMIZE_EXIT_REQUESTED', () => {
@@ -55,10 +66,10 @@ export class CustomizeScene extends BaseScene {
 
     destroy() {
         console.log("Destroying Customize Scene...");
-        // CustomizeSystemがDOMを非表示にする処理を持つ場合、ここで呼び出す
-        const customizeSystem = this.world.systems.find(s => s instanceof CustomizeSystem);
-        if (customizeSystem && customizeSystem.destroy) {
-            customizeSystem.destroy();
+        // CustomizeUISystemがDOMを非表示にする処理を持つ
+        const customizeUISystem = this.world.systems.find(s => s instanceof CustomizeUISystem);
+        if (customizeUISystem && customizeUISystem.destroy) {
+            customizeUISystem.destroy();
         }
         super.destroy();
     }
