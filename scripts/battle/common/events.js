@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -144,12 +144,32 @@ export const GameEvents = {
     
     /**
      * 行動実行アニメーションの完了を通知
+     * CombatResolutionSystemが購読し、戦闘結果の判定を開始するトリガー。
      * @event EXECUTION_ANIMATION_COMPLETED
      * @type {string}
      * @payload {{ entityId: number }} - アニメーションが完了したエンティティID
      */
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED',
     
+    /**
+     * 戦闘結果（命中/回避/ガードなど）が解決された
+     * CombatResolutionSystemが発行し、ActionSystemが効果計算のために購読する。
+     * @event COMBAT_OUTCOME_RESOLVED
+     * @type {string}
+     * @payload {{
+     *   attackerId: number,
+     *   originalTargetId: number,
+     *   finalTargetId: number,
+     *   finalTargetPartKey: string,
+     *   attackingPart: object,
+     *   attackerInfo: object,
+     *   attackerParts: object,
+     *   outcome: { isHit: boolean, isCritical: boolean, isDefended: boolean },
+     *   guardianInfo: object | null
+     * }}
+     */
+    COMBAT_OUTCOME_RESOLVED: 'COMBAT_OUTCOME_RESOLVED',
+
     /**
      * 実際のアニメーション実行を要求
      * @event EXECUTE_ATTACK_ANIMATION
@@ -166,14 +186,6 @@ export const GameEvents = {
      * @payload {{ attackerId: number, targetId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
-    
-    /**
-     * 【リファクタリングにより削除】
-     * ActionSystemがアクション効果の計算を完了したことを通知する内部イベント。
-     * この責務は、UI確認後のATTACK_DECLARATION_CONFIRMEDと、効果適用後のACTION_EXECUTEDに統合されました。
-     * @deprecated
-     */
-    // EFFECTS_RESOLVED: 'EFFECTS_RESOLVED',
 
     /**
      * 行動の効果適用が完了したことを通知する統合イベント。

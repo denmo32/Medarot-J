@@ -20,6 +20,7 @@ import { EffectApplicatorSystem } from '../systems/effectApplicatorSystem.js';
 import { UIManager } from '../ui/UIManager.js';
 import { UISystem } from '../ui/UISystem.js';
 import { MessageSystem } from '../systems/MessageSystem.js';
+import { CombatResolutionSystem } from '../systems/combatResolutionSystem.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -43,16 +44,16 @@ export function initializeSystems(world) {
 
     const gameFlowSystem = new GameFlowSystem(world);
     const viewSystem = new ViewSystem(world); // アニメーション担当
-    // const renderSystem = new RenderSystem(world);
     const gaugeSystem = new GaugeSystem(world);
     const stateSystem = new StateSystem(world);
     const turnSystem = new TurnSystem(world);
     const actionSystem = new ActionSystem(world);
+    // 新しいCombatResolutionSystemをインスタンス化
+    const combatResolutionSystem = new CombatResolutionSystem(world);
     const movementSystem = new MovementSystem(world);
     const historySystem = new HistorySystem(world);
     const effectSystem = new EffectSystem(world);
     const effectApplicatorSystem = new EffectApplicatorSystem(world);
-    // MessageSystemをインスタンス化
     const messageSystem = new MessageSystem(world);
 
 
@@ -64,6 +65,8 @@ export function initializeSystems(world) {
     world.registerSystem(turnSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(actionSystem);
+    // CombatResolutionSystemを登録。ActionSystemの後、EffectApplicatorSystemの前が適切。
+    world.registerSystem(combatResolutionSystem);
     world.registerSystem(movementSystem);
     // EffectApplicatorSystemを登録。ActionSystemの後、他の結果処理系システムの前が適切。
     world.registerSystem(effectApplicatorSystem);
