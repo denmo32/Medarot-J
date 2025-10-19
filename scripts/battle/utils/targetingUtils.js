@@ -44,9 +44,9 @@ export function determineTarget(world, attackerId, strategy, candidates, strateg
     }
 
     // 戦略が成功した場合、イベントを発行する
-    // 各戦略からイベント発行コードを削除し、責務をここに集約する
-    // デバッグモードが有効な場合のみ、AIの思考プロセスをイベントとして発行
-    if (CONFIG.DEBUG && strategyKey) {
+    // デバッグ用のログ出力は、専門のDebugSystemがこのイベントを購読して担当する。
+    // これにより、このユーティリティ関数はデバッグの関心事から分離される。
+    if (strategyKey) {
         world.emit(GameEvents.STRATEGY_EXECUTED, {
             strategy: strategyKey,
             attackerId: attackerId,

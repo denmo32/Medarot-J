@@ -22,6 +22,8 @@ import { UISystem } from '../ui/UISystem.js';
 import { MessageSystem } from '../systems/MessageSystem.js';
 import { CombatResolutionSystem } from '../systems/combatResolutionSystem.js';
 import { ActionCancellationSystem } from '../systems/actionCancellationSystem.js';
+import { DebugSystem } from '../systems/DebugSystem.js';
+import { CONFIG } from '../common/config.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -57,6 +59,10 @@ export function initializeSystems(world) {
     const effectApplicatorSystem = new EffectApplicatorSystem(world);
     const messageSystem = new MessageSystem(world);
 
+    // デバッグモードが有効な場合のみ、DebugSystemをインスタンス化
+    if (CONFIG.DEBUG) {
+        new DebugSystem(world);
+    }
 
     world.registerSystem(gameFlowSystem);
     // MessageSystemを登録。UI系の手前、ロジック系の後が適切。
