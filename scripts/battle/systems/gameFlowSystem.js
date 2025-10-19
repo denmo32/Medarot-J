@@ -133,16 +133,7 @@ export class GameFlowSystem extends BaseSystem {
     }
 
     update(deltaTime) {
-        try {
-            // メッセージキューの処理 (use UIStateContext)
-            // ゲームがポーズされておらず、かつキューに表示待ちのメッセージがある場合にモーダルを表示します。
-            // これにより、モーダル表示の競合を防ぎ、安全なタイミングでメッセージを処理します。
-            if (!this.uiStateContext.isPausedByModal && this.uiStateContext.messageQueue && this.uiStateContext.messageQueue.length > 0) { // Use UIStateContext
-                const message = this.uiStateContext.messageQueue.shift(); // Use UIStateContext
-                this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.MESSAGE, data: { message } });
-                return; // メッセージ表示を要求したら、このフレームの他の処理はスキップ
-            }
-
+        try {           
             // BATTLE_START_CONFIRMフェーズの処理を追加
             if (this.battlePhaseContext.battlePhase === GamePhaseType.BATTLE_START_CONFIRM) { // Use BattlePhaseContext
                 // 全てのモーダルが閉じられたことを確認してから、バトル開始確認モーダルを表示

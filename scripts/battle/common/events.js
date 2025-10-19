@@ -1,4 +1,4 @@
-﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -162,7 +162,7 @@ export const GameEvents = {
      * 攻撃宣言モーダルのOKが押された
      * @event ATTACK_DECLARATION_CONFIRMED
      * @type {string}
-     * @payload {{ attackerId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
+     * @payload {{ attackerId: number, targetId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
     
@@ -180,7 +180,7 @@ export const GameEvents = {
      * 行動が実行され、ダメージなどが計算された
      * @event ACTION_EXECUTED
      * @type {string}
-     * @payload {{ attackerId: number, appliedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
+     * @payload {{ attackerId: number, targetId: number, appliedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     ACTION_EXECUTED: 'ACTION_EXECUTED',
     
@@ -282,7 +282,7 @@ export const GameEvents = {
      * モーダル表示を要求
      * @event SHOW_MODAL
      * @type {string}
-     * @payload {{ type: string, data: Object, immediate?: boolean, priority?: string }} - モーダルタイプ、データ、即時表示フラグなど
+     * @payload {{ type: string, data: Object, immediate?: boolean, priority?: string, messageSequence?: Array<Object> }} - モーダルタイプ、データ、即時表示フラグなど。messageSequenceで複数メッセージの順次表示も可能。
      */
     SHOW_MODAL: 'SHOW_MODAL',
     

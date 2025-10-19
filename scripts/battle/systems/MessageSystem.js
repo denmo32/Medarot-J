@@ -31,7 +31,7 @@ export class MessageSystem extends BaseSystem {
     }
 
     /**
-     * 行動が宣言された時に、攻撃宣言モーダルのメッセージを生成します。
+     * 行動が宣言された時に、攻撃宣言モーダルのメッセージシーケンスを生成します。
      * @param {object} detail - ACTION_DECLAREDイベントのペイロード
      */
     onActionDeclared(detail) {
@@ -39,76 +39,80 @@ export class MessageSystem extends BaseSystem {
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         if (!attackerInfo) return;
 
-        let message, guardMessage = null;
+        // メッセージを順番に表示するためのシーケンス配列
+        const messageSequence = [];
 
-        // メッセージテンプレートを選択
+        // --- 1. メインの宣言メッセージを生成 ---
+        let mainMessageText;
         if (isSupport) {
-            message = this.format(MessageKey.SUPPORT_DECLARATION, {
+            mainMessageText = this.format(MessageKey.SUPPORT_DECLARATION, {
                 attackerName: attackerInfo.name,
                 actionType: attackingPart.action,
                 trait: attackingPart.trait,
             });
         } else if (!targetId) {
-            message = this.format(MessageKey.ATTACK_MISSED, {
+            mainMessageText = this.format(MessageKey.ATTACK_MISSED, {
                 attackerName: attackerInfo.name,
             });
         } else {
-            message = this.format(MessageKey.ATTACK_DECLARATION, {
+            mainMessageText = this.format(MessageKey.ATTACK_DECLARATION, {
                 attackerName: attackerInfo.name,
                 attackType: attackingPart.type,
                 trait: attackingPart.trait,
             });
         }
+        // シーケンスの最初のステップとして追加
+        messageSequence.push({ text: mainMessageText });
 
-        // ガード役がいる場合、ガードメッセージも生成
+        // --- 2. ガードメッセージをシーケンスに追加 ---
         if (guardianInfo) {
-            guardMessage = this.format(MessageKey.GUARDIAN_TRIGGERED, {
+            const guardMessageText = this.format(MessageKey.GUARDIAN_TRIGGERED, {
                 guardianName: guardianInfo.name,
             });
+            // シーケンスの2番目のステップとして追加
+            messageSequence.push({ text: guardMessageText });
         }
 
-        // ActionPanelSystemにモーダル表示を要求
+        // --- 3. ActionPanelSystemにモーダル表示を要求 ---
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.ATTACK_DECLARATION,
-            data: {
-                ...detail, // 元のイベントデータを引き継ぐ
-                message,
-                guardMessage,
-            },
+            data: { ...detail }, // 元のイベントデータを引き継ぐ
+            messageSequence: messageSequence, // 生成したシーケンスを渡す
             immediate: true,
         });
     }
 
     /**
-     * 行動が実行された後に、結果表示モーダルのメッセージを生成します。
+     * 行動が実行された後に、結果表示モーダルのメッセージシーケンスを生成します。
      * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
      */
     onActionExecuted(detail) {
-        const { appliedEffects, isEvaded, isSupport, attackerId, guardianInfo } = detail;
+        const { appliedEffects, isEvaded, isSupport, attackerId, targetId, guardianInfo } = detail;
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         if (!attackerInfo) return;
 
-        let finalMessage = '';
+        let messageSequence = [];
 
         if (isSupport) {
-            finalMessage = this.generateSupportResultMessage(appliedEffects[0]);
+            const supportMessage = this.generateSupportResultMessage(appliedEffects[0]);
+            messageSequence.push({ text: supportMessage });
         } else if (isEvaded) {
-            const targetId = this.world.getComponent(attackerId, Parts)?.targetId;
             const targetName = targetId ? this.world.getComponent(targetId, PlayerInfo)?.name : '相手';
-            finalMessage = this.format(MessageKey.ATTACK_EVADED, { targetName });
+            const evadedMessage = this.format(MessageKey.ATTACK_EVADED, { targetName });
+            messageSequence.push({ text: evadedMessage });
         } else if (appliedEffects && appliedEffects.length > 0) {
-            finalMessage = this.generateDamageResultMessage(appliedEffects, guardianInfo);
+            // ダメージ/回復結果をシーケンスに変換
+            messageSequence = this.generateDamageResultSequence(appliedEffects, guardianInfo);
         } else {
-            finalMessage = this.format(MessageKey.ATTACK_MISSED, { attackerName: attackerInfo.name });
+            const missedMessage = this.format(MessageKey.ATTACK_MISSED, { attackerName: attackerInfo.name });
+            messageSequence.push({ text: missedMessage });
         }
         
         // ActionPanelSystemにモーダル表示を要求
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.EXECUTION_RESULT,
-            data: {
-                ...detail, // 元のイベントデータを引き継ぐ
-                message: finalMessage,
-            },
+            data: { ...detail }, // 元のイベントデータを引き継ぐ
+            messageSequence: messageSequence, // 生成したシーケンスを渡す
             immediate: true
         });
     }
@@ -133,10 +137,10 @@ export class MessageSystem extends BaseSystem {
         
         const message = this.format(messageKey, { actorName: actorInfo.name });
         
-        // 汎用メッセージモーダルで表示
+        // 汎用メッセージモーダルで表示（これは単一メッセージなのでシーケンスは不要）
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.MESSAGE,
-            data: { message }
+            data: { message: message }
         });
     }
 
@@ -149,7 +153,7 @@ export class MessageSystem extends BaseSystem {
         const message = this.format(MessageKey.GUARD_BROKEN);
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.MESSAGE,
-            data: { message }
+            data: { message: message }
         });
     }
     
@@ -202,6 +206,38 @@ export class MessageSystem extends BaseSystem {
         }
     
         return messages.join('<br>'); // HTMLの改行タグで連結
+    }
+
+    /**
+     * ダメージ/回復効果を元に、アニメーション待機を含むメッセージシーケンスを生成します。
+     * @private
+     */
+    generateDamageResultSequence(effects, guardianInfo) {
+        const sequence = [];
+        if (!effects || effects.length === 0) return [];
+        
+        // generateDamageResultMessageは<br>で連結された単一の文字列を返す
+        const messageLines = this.generateDamageResultMessage(effects, guardianInfo).split('<br>');
+
+        // HP変動があったかどうかのフラグ
+        const hasHpChange = effects.some(e => (e.type === EffectType.DAMAGE || e.type === EffectType.HEAL) && e.value > 0);
+
+        if (messageLines.length > 0) {
+            // 最初のメッセージを表示
+            sequence.push({ text: messageLines[0] });
+
+            // HP変動があった場合、アニメーション待機ステップを挿入
+            if (hasHpChange) {
+                sequence.push({ waitForAnimation: GameEvents.HP_BAR_ANIMATION_COMPLETED });
+            }
+
+            // 貫通など、2つ目以降のメッセージがあれば追加
+            for (let i = 1; i < messageLines.length; i++) {
+                sequence.push({ text: messageLines[i] });
+            }
+        }
+        
+        return sequence;
     }
 
     // 巨大なswitch文を廃止し、マップベースのディスパッチに変更

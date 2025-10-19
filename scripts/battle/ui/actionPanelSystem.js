@@ -10,8 +10,8 @@ import { createModalHandlers } from './modalHandlers.js';
 /**
  * @class ActionPanelSystem
  * @description UIのモーダル（アクションパネル）の表示とインタラクションを管理するシステム。
- * このシステムは、モーダルの種類に応じたロジックを`modalHandlers`に集約し、
- * 自身はそれらを呼び出すディスパッチャーとして機能します。
+ * このシステムは、全てのモーダル表示要求をキューで管理し、メッセージシーケンスの順次表示や
+ * アニメーションとの同期を制御する、UIフローの中心的な役割を担います。
  */
 export class ActionPanelSystem extends BaseSystem {
     constructor(world) {
@@ -35,6 +35,13 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentHandler = null;
         this.focusedButtonKey = null; // SELECTIONモーダル固有の状態
 
+        // --- New State for Queue and Sequence Management ---
+        this.modalQueue = [];           // 表示待ちモーダルのキュー
+        this.isProcessingQueue = false; // キュー処理中フラグ
+        this.currentMessageSequence = []; // 現在表示中のメッセージシーケンス
+        this.currentSequenceIndex = 0;    // シーケンスの現在位置
+        this.isWaitingForAnimation = false; // アニメーション完了待ちフラグ
+
         // --- Event Handlers ---
         this.boundHandlePanelClick = null;
 
@@ -42,7 +49,6 @@ export class ActionPanelSystem extends BaseSystem {
         this.modalHandlers = createModalHandlers(this);
         this.bindWorldEvents();
 
-        // パネル自体は常に表示するため、内容のリセットのみを行う
         // 初期状態ではパネルの内容をリセットする
         this.hideActionPanel();
     }
@@ -60,18 +66,26 @@ export class ActionPanelSystem extends BaseSystem {
      * Worldから発行されるイベントを購読します。
      */
     bindWorldEvents() {
-        this.world.on(GameEvents.SHOW_MODAL, (detail) => this.showActionPanel(detail.type, detail.data));
-        this.world.on(GameEvents.HIDE_MODAL, () => this.hideActionPanel());
-        // HPバーアニメーションの完了イベントを購読
+        // SHOW_MODALはキューに追加する役割に変更
+        this.world.on(GameEvents.SHOW_MODAL, this.queueModal.bind(this));
+        // HIDE_MODALは現在のモーダルを強制的に閉じる役割
+        this.world.on(GameEvents.HIDE_MODAL, this.hideActionPanel.bind(this));
         this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
-        // onActionExecutedはMessageSystemが担当するため、このシステムでは購読しない
     }
 
     /**
-     * 毎フレームの更新処理。主にキーボード入力を処理します。
+     * 毎フレームの更新処理。キュー処理とキーボード入力を担当します。
      */
     update(deltaTime) {
-        if (!this.currentHandler) return;
+        // --- 1. キュー処理 ---
+        // キューにタスクがあり、現在処理中でなければ、処理を開始
+        if (this.modalQueue.length > 0 && !this.isProcessingQueue) {
+            this._processModalQueue();
+        }
+
+        // --- 2. 入力処理 ---
+        // モーダルが表示されていて、アニメーション待ちでなければ入力を処理
+        if (!this.currentHandler || this.isWaitingForAnimation) return;
 
         // キー入力を現在のモーダルハンドラに委譲する
         if (this.currentHandler.handleNavigation) {
@@ -87,15 +101,38 @@ export class ActionPanelSystem extends BaseSystem {
             this.currentHandler.handleCancel?.(this, this.currentModalData);
         }
     }
+
+    /**
+     * モーダル表示要求をキューに追加します。
+     * @param {object} detail - SHOW_MODALイベントのペイロード
+     */
+    queueModal(detail) {
+        this.modalQueue.push(detail);
+    }
     
     /**
-     * アクションパネルを表示し、指定されたタイプのモーダルを構成します。
+     * モーダルキューの先頭から要求を取り出し、表示処理を開始します。
+     * @private
      */
-    showActionPanel(type, data) {
+    _processModalQueue() {
+        if (this.modalQueue.length === 0 || this.isProcessingQueue) {
+            return;
+        }
+        this.isProcessingQueue = true;
+        const modalRequest = this.modalQueue.shift();
+        this._showModal(modalRequest);
+    }
+    
+    /**
+     * 実際にモーダルを画面に表示する内部メソッド。
+     * @private
+     */
+    _showModal({ type, data, messageSequence = [] }) {
         this.currentHandler = this.modalHandlers[type];
         if (!this.currentHandler) {
             console.warn(`ActionPanelSystem: No handler found for modal type "${type}"`);
-            this.hideActionPanel();
+            this.isProcessingQueue = false; // 処理を終了して次のキューに進めるようにする
+            this._processModalQueue();
             return;
         }
 
@@ -103,38 +140,86 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentModalType = type;
         this.currentModalData = data;
         
-        // --- Reset Panel State ---
-        this.resetPanelDOM();
-
-        // --- Configure Panel using Handler ---
-        const { dom } = this;
-        const handler = this.currentHandler;
+        // メッセージシーケンスをセットアップ。シーケンスがなければ、単一の空メッセージを持つシーケンスとして扱う
+        this.currentMessageSequence = (messageSequence.length > 0) ? messageSequence : [{}]; // 空ステップでハンドラの表示ロジックを起動
+        this.currentSequenceIndex = 0;
         
-        // テキストコンテンツを設定
-        dom.actionPanelOwner.textContent = handler.getOwnerName?.(data) || '';
-        dom.actionPanelTitle.textContent = handler.getTitle?.(data) || '';
-        // innerHTMLを使用して複数行メッセージに対応
-        dom.actionPanelActor.innerHTML = handler.getActorName?.(data) || '';
-        // getContentHTML に this(system) を渡す
-        dom.actionPanelButtons.innerHTML = handler.getContentHTML?.(data, this) || '';
+        // 最初のメッセージシーケンスを表示
+        this._displayCurrentSequenceStep();
+    }
+    
+    /**
+     * メッセージシーケンスの次のステップに進みます。confirmハンドラから呼び出されます。
+     */
+    proceedToNextSequence() {
+        if (this.isWaitingForAnimation) return; // アニメーション中は進行しない
 
-        // イベントリスナーを設定
-        handler.setupEvents?.(this, dom.actionPanelButtons, data);
+        this.currentSequenceIndex++;
+        if (this.currentSequenceIndex < this.currentMessageSequence.length) {
+            this._displayCurrentSequenceStep();
+        } else {
+            // シーケンスが完了した場合の処理
+            const originalData = this.currentModalData;
+            if (this.currentModalType === ModalType.ATTACK_DECLARATION) {
+                 const { attackerId, targetId, resolvedEffects, isEvaded, isSupport, guardianInfo } = originalData;
+                 this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { attackerId, targetId, resolvedEffects, isEvaded, isSupport, guardianInfo });
+                 
+                 // 現在のモーダル処理は完了し、次のモーダル表示要求(EXECUTION_RESULT)を待つため、
+                 // isProcessingQueueをfalseにする。
+                 // これにより、次のupdateループでキューに追加された新しいモーダルが処理される。
+                 // hideActionPanelは呼ばず、UIの表示は維持し、GAME_RESUMEDも発行しない。
+                 this.isProcessingQueue = false;
 
-        // クリック可能かどうかの設定
-        if (handler.isClickable) {
-            dom.actionPanelIndicator.classList.remove('hidden');
-            dom.actionPanel.classList.add('clickable');
-            // イベントリスナーを一度だけバインド
-            if (!this.boundHandlePanelClick) {
-                // handleConfirmには現在のモーダルデータも渡す
-                this.boundHandlePanelClick = () => this.currentHandler?.handleConfirm?.(this, this.currentModalData);
+            } else if (this.currentModalType === ModalType.EXECUTION_RESULT) {
+                this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: originalData.attackerId });
+                this.hideActionPanel();
+            } else {
+                this.hideActionPanel(); // デフォルトでは隠す
             }
-            dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
         }
+    }
 
-        // 初期フォーカスを設定
-        handler.init?.(this, data);
+    /**
+     * 現在のシーケンスインデックスに基づいて、メッセージ表示やアニメーション待機を行います。
+     * @private
+     */
+    _displayCurrentSequenceStep() {
+        const currentStep = this.currentMessageSequence[this.currentSequenceIndex] || {};
+        
+        // 1. アニメーション待機ステップか？
+        if (currentStep.waitForAnimation) {
+            this.isWaitingForAnimation = true;
+            this.dom.actionPanel.classList.remove('clickable');
+            this.dom.actionPanelIndicator.classList.add('hidden');
+            // ViewSystemにHPバーのアニメーション再生を要求
+            this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { effects: this.currentModalData.appliedEffects || [] });
+            return;
+        }
+        
+        // 2. メッセージ表示またはUI構築ステップ
+        this.isWaitingForAnimation = false;
+        
+        this.resetPanelDOM();
+        const handler = this.currentHandler;
+        const displayData = { ...this.currentModalData, currentMessage: currentStep };
+
+        // コンテンツを設定
+        this.dom.actionPanelOwner.textContent = handler.getOwnerName?.(displayData) || '';
+        this.dom.actionPanelTitle.textContent = handler.getTitle?.(displayData) || '';
+        this.dom.actionPanelActor.innerHTML = handler.getActorName?.(displayData) || handler.getActorName?.(this.currentModalData) || ''; // 従来のdataもフォールバック
+        this.dom.actionPanelButtons.innerHTML = handler.getContentHTML?.(displayData, this) || '';
+
+        handler.setupEvents?.(this, this.dom.actionPanelButtons, displayData);
+
+        if (handler.isClickable) {
+            this.dom.actionPanelIndicator.classList.remove('hidden');
+            this.dom.actionPanel.classList.add('clickable');
+            if (!this.boundHandlePanelClick) {
+                this.boundHandlePanelClick = () => handler.handleConfirm?.(this, this.currentModalData);
+            }
+            this.dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
+        }
+        handler.init?.(this, displayData);
     }
     
     /**
@@ -149,26 +234,28 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentModalType = null;
         this.currentModalData = null;
         this.currentHandler = null;
+        this.currentMessageSequence = [];
+        this.currentSequenceIndex = 0;
+        this.isWaitingForAnimation = false;
+        this.isProcessingQueue = false;
 
         this.resetPanelDOM();
         this.resetHighlightsAndFocus();
+        
+        // キューに次のモーダルがあれば、次のフレームで処理を開始
+        // requestAnimationFrame(() => this._processModalQueue());
     }
-
-    // --- Event Handlers from World ---
 
     /**
      * ViewSystemからのHPバーアニメーション完了通知を受け取るハンドラ。
-     * 現在のモーダルハンドラに処理を委譲します。
      */
     onHpBarAnimationCompleted() {
-        if (this.currentHandler?.onHpBarAnimationCompleted) {
-            this.currentHandler.onHpBarAnimationCompleted(this);
+        if (this.isWaitingForAnimation) {
+            this.isWaitingForAnimation = false;
+            // アニメーションが完了したので、シーケンスの次のステップへ
+            this.proceedToNextSequence();
         }
     }
-
-    // onActionExecutedは削除。責務はMessageSystemに移譲。
-
-    // --- Helper Methods used by Handlers ---
 
     /**
      * パネルのDOM要素を初期状態にリセットします。
@@ -177,7 +264,7 @@ export class ActionPanelSystem extends BaseSystem {
         const { dom } = this;
         dom.actionPanelOwner.textContent = '';
         dom.actionPanelTitle.textContent = '';
-        dom.actionPanelActor.innerHTML = '待機中...'; // innerHTML
+        dom.actionPanelActor.innerHTML = '待機中...';
         dom.actionPanelButtons.innerHTML = '';
         dom.actionPanelIndicator.classList.add('hidden');
         dom.actionPanel.classList.remove('clickable');

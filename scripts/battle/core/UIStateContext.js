@@ -8,8 +8,6 @@ export class UIStateContext {
     constructor() {
         // Whether the game is paused due to a modal being displayed
         this.isPausedByModal = false;
-        // A queue for managing modal messages to avoid conflicts
-        this.messageQueue = [];
         // Flag to indicate a modal was just opened in the current frame
         this.modalJustOpened = false;
         // Map UI state

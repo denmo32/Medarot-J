@@ -178,60 +178,24 @@ export const createModalHandlers = (systemInstance) => ({ // 引数名を変更
     },
     // --- 攻撃宣言 ---
     [ModalType.ATTACK_DECLARATION]: {
-        // MessageSystemから渡されたメッセージをそのまま表示
-        getActorName: (data) => data.message,
+        // ActionPanelSystemから渡される現在のメッセージをそのまま表示
+        getActorName: (data) => data.currentMessage?.text || '',
         isClickable: true,
-        init: (system, data) => {
-            system.dom.actionPanelActor.dataset.guardMessageShown = 'false';
-        },
+        // メッセージ切り替えロジックを削除し、単純にconfirmをsystemに通知するだけ
         handleConfirm: (system, data) => {
-            // インタラクティブなメッセージ切り替えロジック
-            // メッセージ文字列はMessageSystemから受け取ったものを利用
-            const { attackerId, resolvedEffects, isEvaded, isSupport, guardianInfo, guardMessage } = data;
-            if (guardianInfo && guardMessage && system.dom.actionPanelActor.dataset.guardMessageShown === 'false') {
-                system.dom.actionPanelActor.textContent = guardMessage;
-                system.dom.actionPanelActor.dataset.guardMessageShown = 'true';
-                return; // メッセージを切り替えただけで、イベントはまだ発行しない
-            }
-            // 攻撃実行を確定するイベントを発行
-            system.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, { attackerId, resolvedEffects, isEvaded, isSupport, guardianInfo });
-            // ★注意: ここでhideActionPanelは呼ばない。後続のACTION_EXECUTEDイベントで結果表示に更新されるため。
+            // シーケンスの次のステップに進むようシステムに通知
+            system.proceedToNextSequence();
         }
     },
     // --- 結果表示 ---
     [ModalType.EXECUTION_RESULT]: {
-        getActorName: (data) => data.message, // MessageSystemから渡された整形済みのメッセージをそのまま表示
-        /**
-         * HPバーのアニメーションを要求するか、即座にクリック可能にします。
-         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
-         * @param {HTMLElement} container - ボタンコンテナ
-         * @param {object} data - モーダルデータ
-         */
-        setupEvents: (system, container, data) => {
-            const damageEffects = data.appliedEffects?.filter(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL) || [];
-            if (damageEffects.length === 0) {
-                // アニメーションがない場合は即座にクリック可能にする
-                system.currentHandler.onHpBarAnimationCompleted(system);
-                return;
-            }
-            // ViewSystemにHPバーのアニメーション再生を要求
-            system.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { effects: damageEffects });
-        },
-        /**
-         * HPバーアニメーション完了時に呼び出され、パネルをクリック可能にします。
-         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
-         */
-        onHpBarAnimationCompleted: (system) => {
-            system.dom.actionPanel.classList.add('clickable');
-            system.dom.actionPanelIndicator.classList.remove('hidden');
-            if (!system.boundHandlePanelClick) {
-                system.boundHandlePanelClick = () => system.currentHandler?.handleConfirm?.(system, system.currentModalData);
-                system.dom.actionPanel.addEventListener('click', system.boundHandlePanelClick);
-            }
-        },
+        // ActionPanelSystemから渡される現在のメッセージをそのまま表示
+        getActorName: (data) => data.currentMessage?.text || '',
+        isClickable: true, // クリック可能フラグは維持
+        // setupEventsとonHpBarAnimationCompletedは削除。アニメーション待機はActionPanelSystemがシーケンスオブジェクトを見て判断する
         handleConfirm: (system, data) => {
-            system.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: data.attackerId });
-            system.hideActionPanel();
+            // シーケンスの次のステップに進むようシステムに通知
+            system.proceedToNextSequence();
         }
     },
     // --- バトル開始確認 ---
@@ -249,7 +213,8 @@ export const createModalHandlers = (systemInstance) => ({ // 引数名を変更
     },
     // ---汎用メッセージ ---
     [ModalType.MESSAGE]: {
-        getActorName: (data) => data.message,
+        // data.messageから取得するように修正
+        getActorName: (data) => data.message || '',
         isClickable: true,
         handleConfirm: (system) => system.hideActionPanel(),
     },

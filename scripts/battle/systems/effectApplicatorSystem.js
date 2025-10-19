@@ -28,7 +28,8 @@ export class EffectApplicatorSystem extends BaseSystem {
      * @param {object} detail - ATTACK_DECLARATION_CONFIRMEDイベントのペイロード
      */
     onAttackDeclarationConfirmed(detail) {
-        const { attackerId, resolvedEffects, isEvaded, isSupport, guardianInfo } = detail;
+        // ペイロードに宣言時のターゲットID(targetId)を追加
+        const { attackerId, targetId, resolvedEffects, isEvaded, isSupport, guardianInfo } = detail;
         
         // 最終的に適用された全効果を格納するリスト
         const appliedEffects = [];
@@ -53,6 +54,7 @@ export class EffectApplicatorSystem extends BaseSystem {
             // 効果がなくても、他のシステムが結果を待っている可能性があるためイベントを発行
             this.world.emit(GameEvents.ACTION_EXECUTED, {
                 attackerId: attackerId,
+                targetId: targetId, // 宣言時のターゲットIDを渡す
                 appliedEffects: [],
                 isEvaded: isEvaded,
                 isSupport: isSupport,
@@ -115,6 +117,7 @@ export class EffectApplicatorSystem extends BaseSystem {
         // --- 3. 最終的な適用結果をイベントで発行 ---
         this.world.emit(GameEvents.ACTION_EXECUTED, {
             attackerId: attackerId,
+            targetId: targetId, // 宣言時のターゲットIDを渡す
             appliedEffects: appliedEffects, // 実際に適用された効果(貫通含む)のリスト
             isEvaded: isEvaded,
             isSupport: isSupport,
