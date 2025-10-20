@@ -7,7 +7,6 @@ import { ErrorHandler } from '../utils/errorHandler.js';
 
 /**
  * ゲーム全体のフロー（開始、戦闘、終了、リセット）を管理するシステム。
- * [リファクタリング] 責務をシーンの開始・終了管理に限定し、ターン中のフェーズ遷移はPhaseSystemに移譲。
  */
 export class GameFlowSystem extends BaseSystem {
     constructor(world) {
@@ -21,8 +20,6 @@ export class GameFlowSystem extends BaseSystem {
         this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
         this.world.on('BATTLE_START_CONFIRMED', this.onBattleStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CANCELLED, this.onBattleStartCancelled.bind(this));
-        // [削除] アニメーション完了イベントの購読をPhaseSystemに移譲
-        // this.world.on('BATTLE_ANIMATION_COMPLETED', this.onBattleAnimationCompleted.bind(this));
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
         this.world.on(GameEvents.GAME_PAUSED, this.onGamePaused.bind(this));
         this.world.on(GameEvents.GAME_RESUMED, this.onGameResumed.bind(this));
@@ -39,13 +36,11 @@ export class GameFlowSystem extends BaseSystem {
     _startInitialSelection() {
         this.battleContext.phase = BattlePhase.INITIAL_SELECTION;
 
-        // ゲージをリセットし、全プレイヤーを行動選択可能にする
         const players = this.world.getEntitiesWith(GameState, Gauge);
         players.forEach(id => {
             const gameState = this.world.getComponent(id, GameState);
             const gauge = this.world.getComponent(id, Gauge);
             
-            // 全プレイヤーのゲージをリセット
             if (gauge) gauge.value = 0;
 
             if (gameState.state !== PlayerStateType.BROKEN) {
@@ -76,9 +71,6 @@ export class GameFlowSystem extends BaseSystem {
         this.world.emit(GameEvents.SHOW_BATTLE_START_ANIMATION);
     }
 
-    // [削除] このメソッドはPhaseSystemに責務を移譲
-    // onBattleAnimationCompleted() { ... }
-
     onPlayerBroken(detail) {
         const { entityId, teamId } = detail;
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
@@ -94,6 +86,5 @@ export class GameFlowSystem extends BaseSystem {
     }
 
     update(deltaTime) {
-        // このupdateメソッド内のロジックはすべてPhaseSystemに移譲されたため、空にする
     }
 }
