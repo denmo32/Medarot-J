@@ -6,8 +6,8 @@
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import { GameState, PlayerInfo, Parts, Action, ActiveEffects } from '../core/components/index.js';
-import { BattlePhaseContext, UIStateContext } from '../core/index.js'; // Import new contexts
-import { PlayerStateType, ModalType, GamePhaseType, PartInfo, PartKeyToInfoMap, EffectType, ActionType, TargetTiming } from '../common/constants.js';
+import { BattleContext } from '../core/index.js';
+import { PlayerStateType, ModalType, BattlePhase, PartInfo, PartKeyToInfoMap, EffectType, ActionType, TargetTiming } from '../common/constants.js';
 import { findBestDefensePart, findNearestEnemy, selectRandomPart, getValidAllies, findGuardian } from '../utils/queryUtils.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 import { BaseSystem } from '../../core/baseSystem.js';
@@ -23,17 +23,13 @@ import { postMoveTargetingStrategies } from '../ai/postMoveTargetingStrategies.j
 export class ActionSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        // Use new context components
-        this.battlePhaseContext = this.world.getSingletonComponent(BattlePhaseContext);
-        this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
-        this.isPaused = false;  // ゲームの一時停止状態を管理
+        this.battleContext = this.world.getSingletonComponent(BattleContext);
+        this.isPaused = false;
         
-        // UIの応答を待つための状態を保持
         this.pendingActionData = null;
         
-        // イベント購読
+        // [修正] GameEventsオブジェクトからイベントキーを参照するように修正
         this.world.on(GameEvents.COMBAT_OUTCOME_RESOLVED, this.onCombatOutcomeResolved.bind(this));
-        // UIモーダルの完了イベントを購読
         this.world.on(GameEvents.MODAL_SEQUENCE_COMPLETED, this.onModalSequenceCompleted.bind(this));
         this.world.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
         this.world.on(GameEvents.GAME_RESUMED, this.onResumeGame.bind(this));
@@ -44,7 +40,6 @@ export class ActionSystem extends BaseSystem {
      */
     update(deltaTime) {
         try {
-            // isPaused または pendingActionData が存在する場合(UI応答待ち)は、新たなアクションを開始しない
             if (this.isPaused || this.pendingActionData) return;
             
             const entitiesWithState = this.world.getEntitiesWith(GameState);
@@ -137,7 +132,6 @@ export class ActionSystem extends BaseSystem {
                 }
             }
             
-            // UIの応答を待つため、後続処理に必要なデータを`pendingActionData`に保存
             this.pendingActionData = {
                 attackerId: attackerId,
                 targetId: finalTargetId,
@@ -147,7 +141,6 @@ export class ActionSystem extends BaseSystem {
                 guardianInfo: guardianInfo,
             };
 
-            // UI表示のためのイベントを発行
             this.world.emit(GameEvents.ACTION_DECLARED, {
                 attackerId: attackerId,
                 targetId: finalTargetId,
@@ -163,27 +156,20 @@ export class ActionSystem extends BaseSystem {
 
     /**
      * UIモーダルの表示が完了した際に呼び出されるハンドラ。
-     * UIの応答を待ち状態だったゲームフローを再開します。
      * @param {object} detail - MODAL_SEQUENCE_COMPLETED イベントのペイロード
      */
     onModalSequenceCompleted(detail) {
         const { modalType, originalData } = detail;
         
-        // 1. 攻撃宣言モーダルが完了した場合
         if (modalType === ModalType.ATTACK_DECLARATION && this.pendingActionData) {
-            // 保存していたデータを使って、効果適用イベントを発行
             this.world.emit(GameEvents.ATTACK_DECLARATION_CONFIRMED, this.pendingActionData);
-            // 待機状態を解除
             this.pendingActionData = null;
         
-            // ゲームオーバー判定
-            if (this.battlePhaseContext.battlePhase === GamePhaseType.GAME_OVER) {
+            if (this.battleContext.phase === BattlePhase.GAME_OVER) {
                 this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: originalData.attackerId });
             }
         }
-        // 2. 実行結果モーダルが完了した場合
         else if (modalType === ModalType.EXECUTION_RESULT) {
-            // 攻撃シーケンスの完了を通知
             this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: originalData.attackerId });
         }
     }

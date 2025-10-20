@@ -6,7 +6,8 @@ import { BaseScene } from './BaseScene.js';
 import { GameEvents } from '../battle/common/events.js';
 import { initializeSystems } from '../battle/core/systemInitializer.js';
 import { createPlayers } from '../battle/core/entityFactory.js';
-import { GameModeContext } from '../battle/core/index.js';
+// [リファクタリング] 古いGameModeContextの代わりに新しいBattleContextを参照します。
+import { BattleContext } from '../battle/core/index.js';
 
 /**
  * @typedef {import('../core/GameDataManager.js').GameDataManager} GameDataManager
@@ -38,9 +39,11 @@ export class BattleScene extends BaseScene {
         const playerTeamData = gameDataManager.getPlayerDataForBattle();
         createPlayers(this.world, playerTeamData);
 
-        const gameModeContext = this.world.getSingletonComponent(GameModeContext);
-        if (gameModeContext) {
-            gameModeContext.gameMode = 'battle';
+        // [リファクタリング] 新しいBattleContextが初期化時にgameModeを'battle'に設定するため、
+        // ここでの明示的な設定は不要になりますが、念のため残しておきます。
+        const battleContext = this.world.getSingletonComponent(BattleContext);
+        if (battleContext) {
+            battleContext.gameMode = 'battle';
         }
 
         // --- Event Listeners for Scene Transition ---

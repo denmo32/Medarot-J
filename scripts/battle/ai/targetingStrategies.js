@@ -3,16 +3,14 @@
  * このファイルは、AIの「メダルの性格」に基づいた多様なターゲティング戦略（アルゴリズム）を定義します。
  */
 import { Parts, PlayerInfo, GameState, BattleLog } from '../core/components/index.js';
-import { BattleHistoryContext } from '../core/index.js'; // Import new context
-import { PlayerStateType, MedalPersonality, PartInfo, TeamID } from '../common/constants.js'; // Import TeamID for context keys, add BattleHistoryContext import
+// [リファクタリング] 古いコンテキストを新しいBattleContextに置き換えます。
+import { BattleContext } from '../core/index.js';
+import { PlayerStateType, MedalPersonality, PartInfo, TeamID } from '../common/constants.js';
 import { isValidTarget, selectRandomPart, getAllPartsFromCandidates, selectPartByCondition, getValidEnemies, getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
 import { GameEvents } from '../common/events.js';
 
 /**
  * AIターゲティング戦略のキーを定義する定数。
- * MedalPersonality定数をベースにキーを生成し、targetingStrategiesオブジェクトのキー定義で
- * 利用できるように、オブジェクト定義より前に移動しました。
- * これにより、キー定義の一貫性が向上し、タイプセーフティが強化されます。
  */
 export const TargetingStrategyKey = {
     ...MedalPersonality,
@@ -21,29 +19,22 @@ export const TargetingStrategyKey = {
 
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。
- * これは「ストラテジーパターン」と呼ばれる設計パターンの一種です。AIの性格（戦略）ごとにアルゴリズムを分離して管理することで、
- * 新しい性格（例えば「回復パーツを優先的に狙う」など）を追加したくなった場合に、このオブジェクトに新しい関数を追加するだけで済み、
- * 他のコードに影響を与えることなく、容易にAIのバリエーションを増やすことができます。
  */
 export const targetingStrategies = {
     /**
      * [HUNTER]: 弱った敵から確実に仕留める、狩人のような性格。
-     * 敵全体のパーツの中で、現在HPが最も低いものを狙います。
      */
     [TargetingStrategyKey.HUNTER]: ({ world, candidates, attackerId }) => {
         return selectPartByCondition(world, candidates, (a, b) => a.part.hp - b.part.hp);
     },
     /**
      * [CRUSHER]: 頑丈なパーツを先に破壊し、敵の耐久力を削ぐ、破壊者のような性格。
-     * 敵全体のパーツの中で、現在HPが最も高いものを狙います。
      */
     [TargetingStrategyKey.CRUSHER]: ({ world, candidates, attackerId }) => {
         return selectPartByCondition(world, candidates, (a, b) => b.part.hp - a.part.hp);
     },
     /**
      * [JOKER]: 行動が予測不能で、戦況をかき乱す、トリックスターのような性格。
-     * 敵全体の「攻撃可能な全パーツ」を一つの大きなリストとみなし、その中から完全にランダムで1つをターゲットとします。
-     * 結果として、健在なパーツを多く持つ敵が狙われやすくなります。
      */
     [TargetingStrategyKey.JOKER]: ({ world, candidates, attackerId }) => {
         const allParts = getAllPartsFromCandidates(world, candidates);
@@ -53,7 +44,6 @@ export const targetingStrategies = {
     },
     /**
      * [COUNTER]: 受けた攻撃に即座にやり返す、短期的な性格。
-     * 自分を最後に攻撃してきた敵を狙います。いなければ、フォールバックとして別の戦略が選択されます。
      */
     [TargetingStrategyKey.COUNTER]: ({ world, attackerId }) => {
         const attackerLog = world.getComponent(attackerId, BattleLog);
@@ -62,24 +52,21 @@ export const targetingStrategies = {
     },
     /**
      * [GUARD]: リーダーを守ることを最優先する、護衛のような性格。
-     * 味方チームのリーダーを最後に攻撃した敵を狙います。
      */
     [TargetingStrategyKey.GUARD]: ({ world, attackerId }) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
-        const context = world.getSingletonComponent(BattleHistoryContext);
-        // Check if BattleHistoryContext and its data are available
-        if (context && context.leaderLastAttackedBy) {
-            const targetId = context.leaderLastAttackedBy[attackerInfo.teamId];
+        // [リファクタリング] BattleContextから履歴データを参照します。
+        const context = world.getSingletonComponent(BattleContext);
+        if (context && context.history.leaderLastAttackedBy) {
+            const targetId = context.history.leaderLastAttackedBy[attackerInfo.teamId];
             return targetId ? selectRandomPart(world, targetId) : null;
         } else {
-            // Return null if context is not ready; determineTarget will handle fallback
-            console.warn('BattleHistoryContext not ready for GUARD strategy, returning null for fallback.');
+            console.warn('BattleContext not ready for GUARD strategy, returning null for fallback.');
             return null;
         }
     },
     /**
      * [FOCUS]: 一度狙った獲物は逃さない、執拗な性格。
-     * 自分が前回攻撃したのと同じパーツを、執拗に狙い続けます。
      */
     [TargetingStrategyKey.FOCUS]: ({ world, attackerId }) => {
         const attackerLog = world.getComponent(attackerId, BattleLog);
@@ -88,24 +75,21 @@ export const targetingStrategies = {
     },
     /**
      * [ASSIST]: 味方と連携して同じ敵を攻撃する、協調的な性格。
-     * 味方が最後に攻撃した敵のパーツを狙い、集中攻撃を仕掛けます。
      */
     [TargetingStrategyKey.ASSIST]: ({ world, attackerId }) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
-        const context = world.getSingletonComponent(BattleHistoryContext);
-        // Check if BattleHistoryContext and its data are available
-        if (context && context.teamLastAttack) {
-            const teamLastAttack = context.teamLastAttack[attackerInfo.teamId];
+        // [リファクタリング] BattleContextから履歴データを参照します。
+        const context = world.getSingletonComponent(BattleContext);
+        if (context && context.history.teamLastAttack) {
+            const teamLastAttack = context.history.teamLastAttack[attackerInfo.teamId];
             return { targetId: teamLastAttack.targetId, targetPartKey: teamLastAttack.partKey };
         } else {
-            // Return null if context is not ready; determineTarget will handle fallback
-            console.warn('BattleHistoryContext not ready for ASSIST strategy, returning null for fallback.');
+            console.warn('BattleContext not ready for ASSIST strategy, returning null for fallback.');
             return null;
         }
     },
     /**
      * [LEADER_FOCUS]: リーダーを集中攻撃し、早期決着を狙う、極めて攻撃的な性格。
-     * 戦略の基本として、敵チームのリーダーを最優先で狙います。
      */
     [TargetingStrategyKey.LEADER_FOCUS]: ({ world, candidates, attackerId }) => {
         const leader = candidates.find(id => world.getComponent(id, PlayerInfo).isLeader);
@@ -113,8 +97,6 @@ export const targetingStrategies = {
     },
     /**
      * [RANDOM]: 基本的な性格であり、他の戦略が条件を満たさず実行できない場合の安全策（フォールバック）としての役割も持ちます。
-     * まず「敵1体」をランダムに選び、次にその敵のパーツをランダムに狙います。
-     * どの敵機体も等しい確率で選ばれます。
      */
     [TargetingStrategyKey.RANDOM]: ({ world, candidates, attackerId }) => {
         if (!candidates || candidates.length === 0) return null;
@@ -124,7 +106,6 @@ export const targetingStrategies = {
 
     /**
      * [HEALER]: 味方を回復することに専念する、支援的な性格。
-     * 味方全体のパーツの中で、最もHPの減りが大きい（最大HP - 現在HP が最大）ものを狙います。
      */
     [TargetingStrategyKey.HEALER]: ({ world, candidates, attackerId }) => {
         return findMostDamagedAllyPart(world, candidates);
@@ -132,8 +113,6 @@ export const targetingStrategies = {
 
     /**
      * [DO_NOTHING]: ターゲット選択に失敗した場合に、意図的に行動をキャンセルさせるための戦略。
-     * 常にnullを返すことで、フォールバックアクションを防ぎます。
-	 * 通常、この戦略が呼び出されることはないはずです。
      */
     [TargetingStrategyKey.DO_NOTHING]: () => null,
 };

@@ -11,23 +11,19 @@ import { PlayerStateType } from '../common/constants.js';
 export class EffectSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        // 行動実行完了（≒ターン終了）のイベントを購読
-        this.world.on(GameEvents.ATTACK_SEQUENCE_COMPLETED, this.onTurnEnd.bind(this));
+        // [修正] ATTACK_SEQUENCE_COMPLETED の代わりに TURN_END イベントを購読する
+        this.world.on(GameEvents.TURN_END, this.onTurnEnd.bind(this));
     }
 
     /**
      * ターン終了時に呼び出され、効果の持続時間を更新します。
-     * @param {object} detail - イベント詳細 ({ entityId })
+     * @param {object} detail - イベント詳細 ({ turnNumber })
      */
     onTurnEnd(detail) {
-        const { entityId } = detail;
-
-        // 行動したエンティティ自身の効果を更新
-        this._updateEffectsForEntity(entityId);
-
-        // ★将来的な拡張: ゲームのルールによっては、敵・味方全員の効果をここで更新することも可能
-        // const allEntities = this.world.getEntitiesWith(ActiveEffects);
-        // allEntities.forEach(id => this._updateEffectsForEntity(id));
+        // [修正] ターン終了時は、行動したエンティティだけでなく、
+        // 全てのエンティティの効果を更新するのが一般的。
+        const allEntities = this.world.getEntitiesWith(ActiveEffects);
+        allEntities.forEach(id => this._updateEffectsForEntity(id));
     }
 
     /**
@@ -41,21 +37,16 @@ export class EffectSystem extends BaseSystem {
             return;
         }
 
-        // 新しい効果の配列を作成
         const nextEffects = [];
 
         for (const effect of activeEffects.effects) {
-            // durationが有限のものは1減らす
             if (effect.duration > 0) {
                 effect.duration--;
             }
 
-            // durationが未定義（回数制など）か、まだ残っている効果だけを次の配列に追加します。
-            // 効果が切れたらイベントを発行し、StateSystemに状態遷移を委譲
             if (effect.duration === undefined || effect.duration > 0 || effect.duration === Infinity) {
                 nextEffects.push(effect);
             } else {
-                // 効果が切れたことを通知するイベントを発行
                 this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId, effect });
             }
         }

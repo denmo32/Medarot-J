@@ -1,7 +1,10 @@
-﻿﻿﻿﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
+ * @description [リファクタリング] 処理フローの簡素化に伴い、イベントの種類を整理・削減しました。
+ * ターン単位のイベントを新設し、同期処理への移行を促します。
+ * [修正] リファクタリング過渡期において、既存システムが依存しているイベントキーを一時的に復活させます。
  */
 
 /**
@@ -34,15 +37,15 @@ export const GameEvents = {
      * @payload {}
      */
     GAME_WILL_RESET: 'GAME_WILL_RESET',
-    
+
     /**
-     * 「ロボトルファイト！」がクリックされた
-     * @event BATTLE_START_CONFIRMED
+     * バトルシーンの初期化が完了したことを通知
+     * @event BATTLE_INITIALIZED
      * @type {string}
      * @payload {}
      */
-    BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED',
-    
+    BATTLE_INITIALIZED: 'BATTLE_INITIALIZED',
+
     /**
      * 戦闘開始がキャンセルされた
      * @event BATTLE_START_CANCELLED
@@ -58,14 +61,6 @@ export const GameEvents = {
      * @payload {}
      */
     SHOW_BATTLE_START_ANIMATION: 'SHOW_BATTLE_START_ANIMATION',
-
-    /**
-     * 戦闘開始アニメーションの完了を通知
-     * @event BATTLE_ANIMATION_COMPLETED
-     * @type {string}
-     * @payload {}
-     */
-    BATTLE_ANIMATION_COMPLETED: 'BATTLE_ANIMATION_COMPLETED',
     
     /**
      * UIによるゲームの一時停止イベント
@@ -135,14 +130,7 @@ export const GameEvents = {
     ACTION_DECLARED: 'ACTION_DECLARED',
 
     /**
-     * 行動実行アニメーションの開始を要求
-     * @event EXECUTION_ANIMATION_REQUESTED
-     * @type {string}
-     * @payload {{ attackerId: number, targetId: number }}
-     */
-    EXECUTION_ANIMATION_REQUESTED: 'EXECUTION_ANIMATION_REQUESTED',
-    
-    /**
+     * [修正] 互換性のために復活
      * 行動実行アニメーションの完了を通知
      * CombatResolutionSystemが購読し、戦闘結果の判定を開始するトリガー。
      * @event EXECUTION_ANIMATION_COMPLETED
@@ -152,6 +140,7 @@ export const GameEvents = {
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED',
     
     /**
+     * [修正] 互換性のために復活
      * 戦闘結果（命中/回避/ガードなど）が解決された
      * CombatResolutionSystemが発行し、ActionSystemが効果計算のために購読する。
      * @event COMBAT_OUTCOME_RESOLVED
@@ -169,16 +158,9 @@ export const GameEvents = {
      * }}
      */
     COMBAT_OUTCOME_RESOLVED: 'COMBAT_OUTCOME_RESOLVED',
-
-    /**
-     * 実際のアニメーション実行を要求
-     * @event EXECUTE_ATTACK_ANIMATION
-     * @type {string}
-     * @payload {{ attackerId: number, targetId: number }}
-     */
-    EXECUTE_ATTACK_ANIMATION: 'EXECUTE_ATTACK_ANIMATION',
     
     /**
+     * [修正] 互換性のために復活
      * 攻撃宣言モーダルのOKが押された
      * EffectApplicatorSystemが購読し、効果適用を開始するトリガー。
      * @event ATTACK_DECLARATION_CONFIRMED
@@ -188,16 +170,7 @@ export const GameEvents = {
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
 
     /**
-     * 行動の効果適用が完了したことを通知する統合イベント。
-     * EffectApplicatorSystemが発行し、MessageSystem, HistorySystem, StateSystemがこれを購読して、
-     * 結果表示、履歴記録、状態遷移といった後続処理をそれぞれ実行します。
-     * @event ACTION_EXECUTED
-     * @type {string}
-     * @payload {{ attackerId: number, targetId: number, appliedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
-     */
-    ACTION_EXECUTED: 'ACTION_EXECUTED',
-    
-    /**
+     * [修正] 互換性のために復活
      * 攻撃シーケンス全体が完了した
      * @event ATTACK_SEQUENCE_COMPLETED
      * @type {string}
@@ -205,7 +178,39 @@ export const GameEvents = {
      */
     ATTACK_SEQUENCE_COMPLETED: 'ATTACK_SEQUENCE_COMPLETED',
 
+    /**
+     * 実際のアニメーション実行を要求
+     * @event EXECUTE_ATTACK_ANIMATION
+     * @type {string}
+     * @payload {{ attackerId: number, targetId: number }}
+     */
+    EXECUTE_ATTACK_ANIMATION: 'EXECUTE_ATTACK_ANIMATION',
+
+    /**
+     * 行動の効果適用が完了したことを通知する統合イベント。
+     * @event ACTION_EXECUTED
+     * @type {string}
+     * @payload {{ attackerId: number, targetId: number, appliedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
+     */
+    ACTION_EXECUTED: 'ACTION_EXECUTED',
+    
     // --- 状態 & ターン管理イベント ---
+    /**
+     * 新しいターンが開始したことを通知
+     * @event TURN_START
+     * @type {string}
+     * @payload {{ turnNumber: number }}
+     */
+    TURN_START: 'TURN_START',
+
+    /**
+     * ターンが終了したことを通知
+     * @event TURN_END
+     * @type {string}
+     * @payload {{ turnNumber: number }}
+     */
+    TURN_END: 'TURN_END',
+    
     /**
      * ゲージが満タンになった
      * @event GAUGE_FULL

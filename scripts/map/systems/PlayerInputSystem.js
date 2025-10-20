@@ -1,7 +1,8 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import * as MapComponents from '../components.js';
 import { CONFIG, PLAYER_STATES } from '../constants.js';
-import { UIStateContext } from '../../battle/core/UIStateContext.js';
+// [リファクタリング] MapSceneで定義した専用コンポーネントをインポート
+import { MapUIState } from '../../scenes/MapScene.js';
 
 /**
  * プレイヤーの入力に基づいて目標タイルを設定し、状態を遷移させるシステム。
@@ -15,9 +16,10 @@ export class PlayerInputSystem extends BaseSystem {
     }
 
     update() {
-        const uiStateContext = this.world.getSingletonComponent(UIStateContext);
+        // [リファクタリング] MapUIStateコンポーネントを参照する
+        const mapUIState = this.world.getSingletonComponent(MapUIState);
         // メニューやモーダル表示中はプレイヤーのマップ操作をブロック
-        if (uiStateContext && uiStateContext.isPausedByModal) {
+        if (mapUIState && mapUIState.isPausedByModal) {
             return;
         }
 

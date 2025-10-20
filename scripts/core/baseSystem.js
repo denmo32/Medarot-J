@@ -1,11 +1,9 @@
-// scripts/systems/baseSystem.js
-
 /**
  * すべてのシステムクラスの基底クラス
  * 共通の初期化処理とユーティリティを提供
- * Note: After GameContext separation, systems should retrieve their specific context components
- * (e.g., BattlePhaseContext, UIStateContext, GameModeContext, BattleHistoryContext) manually in their constructors.
- * This base class no longer provides a generic 'this.context' reference to the old GameContext.
+ * [リファクタリング] GameContextの分割後、各システムはBattleContextなどの
+ * 専門的なコンテキストをコンストラクタで直接取得するようになりました。
+ * この基底クラスは汎用的なWorldへの参照のみを提供します。
  */
 export class BaseSystem {
     constructor(world) {

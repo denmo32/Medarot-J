@@ -1,13 +1,17 @@
 /**
  * ゲーム全体の状態を定義する定数
+ * @description 旧GamePhaseTypeをBattlePhaseに改名し、新しい処理フローに合わせた状態を追加しました。
  */
-export const GamePhaseType = {
-    IDLE: 'IDLE',
-    INITIAL_SELECTION: 'INITIAL_SELECTION',
-    BATTLE_START_CONFIRM: 'BATTLE_START_CONFIRM',
-    PRE_BATTLE_ANIMATION: 'PRE_BATTLE_ANIMATION',
-    BATTLE: 'BATTLE',
-    GAME_OVER: 'GAME_OVER'
+export const BattlePhase = {
+    IDLE: 'IDLE',                       // 待機中
+    BATTLE_START: 'BATTLE_START',         // 戦闘開始アニメーションなど
+    INITIAL_SELECTION: 'INITIAL_SELECTION', // 初回行動選択
+    TURN_START: 'TURN_START',           // ターン開始
+    ACTION_SELECTION: 'ACTION_SELECTION', // 行動選択
+    ACTION_EXECUTION: 'ACTION_EXECUTION', // 行動実行
+    ACTION_RESOLUTION: 'ACTION_RESOLUTION', // 結果解決
+    TURN_END: 'TURN_END',               // ターン終了
+    GAME_OVER: 'GAME_OVER'              // ゲーム終了
 };
 
 /**

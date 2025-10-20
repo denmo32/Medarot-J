@@ -1,8 +1,5 @@
 import * as Components from './components/index.js';
-import { GameModeContext } from './GameModeContext.js';
-import { BattlePhaseContext } from './BattlePhaseContext.js';
-import { UIStateContext } from './UIStateContext.js';
-import { BattleHistoryContext } from './BattleHistoryContext.js';
+import { BattleContext } from './BattleContext.js';
 import { ViewSystem } from '../ui/viewSystem.js';
 import { DomFactorySystem } from '../ui/domFactorySystem.js';
 import { ActionPanelSystem } from '../ui/actionPanelSystem.js';
@@ -24,6 +21,8 @@ import { CombatResolutionSystem } from '../systems/combatResolutionSystem.js';
 import { ActionCancellationSystem } from '../systems/actionCancellationSystem.js';
 import { DebugSystem } from '../systems/DebugSystem.js';
 import { CONFIG } from '../common/config.js';
+// [追加] 新しいPhaseSystemをインポート
+import { PhaseSystem } from '../systems/PhaseSystem.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -31,13 +30,9 @@ import { CONFIG } from '../common/config.js';
  */
 export function initializeSystems(world) {
     // --- シングルトンコンポーネントの作成 ---
-    // Old GameContext responsibilities are now split into separate singleton components
     const contextEntity = world.createEntity();
-    world.addComponent(contextEntity, new GameModeContext()); // Manages game mode (map, battle)
-    world.addComponent(contextEntity, new BattlePhaseContext()); // Manages battle phase (idle, battle, game over)
-    world.addComponent(contextEntity, new UIStateContext()); // Manages UI state (paused by modal, message queue)
-    world.addComponent(contextEntity, new BattleHistoryContext()); // Manages battle history for AI personalities
-    world.addComponent(contextEntity, new UIManager()); // Manages UI elements mapping to entities
+    world.addComponent(contextEntity, new BattleContext());
+    world.addComponent(contextEntity, new UIManager());
 
     // --- システムの登録 ---
     new InputSystem(world);
@@ -46,7 +41,9 @@ export function initializeSystems(world) {
     const actionPanelSystem = new ActionPanelSystem(world);
 
     const gameFlowSystem = new GameFlowSystem(world);
-    const viewSystem = new ViewSystem(world); // アニメーション担当
+    // [追加] PhaseSystemをインスタンス化
+    const phaseSystem = new PhaseSystem(world);
+    const viewSystem = new ViewSystem(world);
     const gaugeSystem = new GaugeSystem(world);
     const stateSystem = new StateSystem(world);
     const turnSystem = new TurnSystem(world);
@@ -59,13 +56,13 @@ export function initializeSystems(world) {
     const effectApplicatorSystem = new EffectApplicatorSystem(world);
     const messageSystem = new MessageSystem(world);
 
-    // デバッグモードが有効な場合のみ、DebugSystemをインスタンス化
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
     }
 
     world.registerSystem(gameFlowSystem);
-    // MessageSystemを登録。UI系の手前、ロジック系の後が適切。
+    // [追加] PhaseSystemを登録。GameFlowの直後が適切。
+    world.registerSystem(phaseSystem);
     world.registerSystem(messageSystem);
     world.registerSystem(historySystem);
     world.registerSystem(stateSystem);
@@ -73,14 +70,11 @@ export function initializeSystems(world) {
     world.registerSystem(gaugeSystem);
     world.registerSystem(actionSystem);
     world.registerSystem(combatResolutionSystem);
-    // ActionCancellationSystemを登録。StateSystemの前が論理的に自然。
     world.registerSystem(actionCancellationSystem);
     world.registerSystem(movementSystem);
-    // EffectApplicatorSystemを登録。ActionSystemの後、他の結果処理系システムの前が適切。
     world.registerSystem(effectApplicatorSystem);
-    // EffectSystemを登録 (ActionSystemの後、UI系Systemの前が適切)
     world.registerSystem(effectSystem);
     world.registerSystem(viewSystem);
     world.registerSystem(actionPanelSystem);
-    world.registerSystem(new UISystem(world)); // DOM更新担当
+    world.registerSystem(new UISystem(world));
 }
