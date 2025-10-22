@@ -37,6 +37,9 @@ export class ActionSelectionSystem extends BaseSystem {
                     this.battleContext.turn.currentActorId = nextActorId;
                     this.triggerActionSelection(nextActorId);
                 }
+            } else if (turnSystem && turnSystem.actionQueue.length === 0) {
+                // [改善案] 行動キューが空で、現在のアクターもいない場合、選択フェーズ完了とみなす
+                this.world.emit(GameEvents.ACTION_SELECTION_COMPLETED);
             }
         }
     }

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
@@ -170,13 +170,10 @@ export const GameEvents = {
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
 
     /**
-     * [修正] 互換性のために復活
-     * 攻撃シーケンス全体が完了した
-     * @event ATTACK_SEQUENCE_COMPLETED
-     * @type {string}
-     * @payload {{ entityId: number }} - 攻撃シーケンスが完了したエンティティID
+     * [改善案] このイベントは廃止され、ActionResolutionSystemが直接状態を遷移させます。
+     * @deprecated
      */
-    ATTACK_SEQUENCE_COMPLETED: 'ATTACK_SEQUENCE_COMPLETED',
+    // ATTACK_SEQUENCE_COMPLETED: 'ATTACK_SEQUENCE_COMPLETED',
 
     /**
      * 実際のアニメーション実行を要求
@@ -195,6 +192,30 @@ export const GameEvents = {
     ACTION_EXECUTED: 'ACTION_EXECUTED',
     
     // --- 状態 & ターン管理イベント ---
+    /**
+     * [改善案] 行動選択フェーズの完了を通知
+     * @event ACTION_SELECTION_COMPLETED
+     * @type {string}
+     * @payload {}
+     */
+    ACTION_SELECTION_COMPLETED: 'ACTION_SELECTION_COMPLETED',
+    
+    /**
+     * [改善案] 行動実行フェーズの完了を通知
+     * @event ACTION_EXECUTION_COMPLETED
+     * @type {string}
+     * @payload {}
+     */
+    ACTION_EXECUTION_COMPLETED: 'ACTION_EXECUTION_COMPLETED',
+    
+    /**
+     * [改善案] 行動解決フェーズの完了を通知
+     * @event ACTION_RESOLUTION_COMPLETED
+     * @type {string}
+     * @payload {}
+     */
+    ACTION_RESOLUTION_COMPLETED: 'ACTION_RESOLUTION_COMPLETED',
+
     /**
      * 新しいターンが開始したことを通知
      * @event TURN_START

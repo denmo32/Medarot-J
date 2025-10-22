@@ -18,62 +18,15 @@ export class PhaseSystem extends BaseSystem {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         this.world.on('BATTLE_ANIMATION_COMPLETED', this.onBattleAnimationCompleted.bind(this));
-    }
-
-    update(deltaTime) {
-        if (!this.battleContext) return;
-
-        // [追加] READY_EXECUTE状態の機体をチェックし、実行フェーズに移行するロジック
-        // このチェックは、主要なゲージ進行フェーズで行う
-        const activePhases = [BattlePhase.TURN_START, BattlePhase.ACTION_SELECTION, BattlePhase.TURN_END];
-        if (activePhases.includes(this.battleContext.phase)) {
-            if (this.isAnyEntityReadyToExecute()) {
-                this.battleContext.phase = BattlePhase.ACTION_EXECUTION;
-                return; // フェーズが変更されたので、このフレームの以降のswitch処理はスキップ
-            }
-        }
-
-        switch (this.battleContext.phase) {
-            case BattlePhase.INITIAL_SELECTION:
-                this.checkInitialSelectionComplete();
-                break;
-            
-            case 'BATTLE_START_CONFIRM':
-                this.handleBattleStartConfirm();
-                break;
-
-            case BattlePhase.BATTLE_START:
-                break;
-
-            case BattlePhase.TURN_START:
-                this.battleContext.phase = BattlePhase.ACTION_SELECTION;
-                break;
-
-            case BattlePhase.ACTION_SELECTION:
-                this.checkActionSelectionComplete();
-                break;
-            
-            case BattlePhase.ACTION_EXECUTION:
-                if (this.isExecutionFinished()) {
-                    this.battleContext.phase = BattlePhase.ACTION_RESOLUTION;
-                }
-                break;
-            
-            case BattlePhase.ACTION_RESOLUTION:
-                if (this.isResolutionFinished()) {
-                    this.battleContext.phase = BattlePhase.TURN_END;
-                }
-                break;
-
-            case BattlePhase.TURN_END:
-                this.battleContext.turn.number++;
-                this.battleContext.phase = BattlePhase.TURN_START;
-                this.world.emit(GameEvents.TURN_END, { turnNumber: this.battleContext.turn.number - 1 });
-                this.world.emit(GameEvents.TURN_START, { turnNumber: this.battleContext.turn.number });
-                break;
-        }
+        
+        // [改善案] フェーズ完了イベントを購読し、フェーズ遷移を管理
+        this.world.on(GameEvents.ACTION_SELECTION_COMPLETED, this.onActionSelectionCompleted.bind(this));
+        this.world.on(GameEvents.ACTION_EXECUTION_COMPLETED, this.onActionExecutionCompleted.bind(this));
+        this.world.on(GameEvents.ACTION_RESOLUTION_COMPLETED, this.onActionResolutionCompleted.bind(this));
     }
     
+    // --- イベントハンドラ ---
+
     onBattleAnimationCompleted() {
         if (this.battleContext.phase === BattlePhase.BATTLE_START) {
             this.world.getEntitiesWith(GameState).forEach(id => {
@@ -84,6 +37,88 @@ export class PhaseSystem extends BaseSystem {
         }
     }
 
+    /** [改善案] 行動選択完了イベントを受け、実行フェーズに移行するか判断 */
+    onActionSelectionCompleted() {
+        if (this.battleContext.phase !== BattlePhase.ACTION_SELECTION) return;
+        
+        // 誰か一人でもチャージ中の機体がいれば、ターンはまだ終わらない
+        if (this.isAnyEntityInCharging()) {
+            // READY_EXECUTE状態の機体がいれば実行フェーズへ、いなければゲージ進行に戻る
+             if (this.isAnyEntityReadyToExecute()) {
+                this.battleContext.phase = BattlePhase.ACTION_EXECUTION;
+             } else {
+                // 実行対象がいないが、まだチャージ中の機体がいる場合はターン続行（ゲージ進行）
+                // フェーズは変えずに、各システムが自身のupdateで処理を続ける
+             }
+        } else {
+             // 選択も完了し、誰もチャージしていない場合はターン終了
+             this.battleContext.phase = BattlePhase.TURN_END;
+        }
+    }
+
+    /** [改善案] 行動実行完了イベントを受け、解決フェーズへ移行 */
+    onActionExecutionCompleted() {
+        if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) return;
+        this.battleContext.phase = BattlePhase.ACTION_RESOLUTION;
+    }
+
+    /** [改善案] 行動解決完了イベントを受け、ターン終了フェーズへ移行 */
+    onActionResolutionCompleted() {
+        if (this.battleContext.phase !== BattlePhase.ACTION_RESOLUTION) return;
+        // コンテキストをクリアしてからターン終了へ
+        this.battleContext.turn.selectedActions.clear();
+        this.battleContext.turn.resolvedActions = [];
+        this.battleContext.phase = BattlePhase.TURN_END;
+    }
+
+    update(deltaTime) {
+        if (!this.battleContext) return;
+
+        // [改善案] ゲージ進行フェーズ中、READY_EXECUTE状態の機体が現れたら即座に実行フェーズへ移行
+        const activePhases = [BattlePhase.TURN_START, BattlePhase.ACTION_SELECTION, BattlePhase.TURN_END];
+        if (activePhases.includes(this.battleContext.phase)) {
+            if (this.isAnyEntityReadyToExecute()) {
+                this.battleContext.phase = BattlePhase.ACTION_EXECUTION;
+                return; // フェーズが変更されたので、このフレームの以降のswitch処理はスキップ
+            }
+        }
+
+        switch (this.battleContext.phase) {
+            case BattlePhase.INITIAL_SELECTION:
+                // 初期選択の完了チェック（これは特殊なケースなので残す）
+                this.checkInitialSelectionComplete();
+                break;
+            
+            case 'BATTLE_START_CONFIRM':
+                this.handleBattleStartConfirm();
+                break;
+
+            case BattlePhase.BATTLE_START:
+                // アニメーション完了イベント待ち
+                break;
+
+            case BattlePhase.TURN_START:
+                // 即座に行動選択フェーズへ
+                this.battleContext.phase = BattlePhase.ACTION_SELECTION;
+                break;
+
+            case BattlePhase.ACTION_SELECTION:
+            case BattlePhase.ACTION_EXECUTION:
+            case BattlePhase.ACTION_RESOLUTION:
+                // [改善案] これらのフェーズの完了はイベント駆動で処理されるため、updateでのチェックは不要
+                break;
+            
+            case BattlePhase.TURN_END:
+                // ターン終了処理を行い、次のターンへ
+                this.battleContext.turn.number++;
+                this.world.emit(GameEvents.TURN_END, { turnNumber: this.battleContext.turn.number - 1 });
+                
+                this.battleContext.phase = BattlePhase.TURN_START;
+                this.world.emit(GameEvents.TURN_START, { turnNumber: this.battleContext.turn.number });
+                break;
+        }
+    }
+    
     checkInitialSelectionComplete() {
         const allPlayers = this.world.getEntitiesWith(GameState);
         if (allPlayers.length === 0) return;
@@ -110,33 +145,8 @@ export class PhaseSystem extends BaseSystem {
         }
     }
     
-    checkActionSelectionComplete() {
-        const turnSystem = this.world.systems.find(s => s instanceof TurnSystem);
-        const actionSelectionSystem = this.world.systems.find(s => s instanceof ActionSelectionSystem);
-
-        if (turnSystem && actionSelectionSystem &&
-            turnSystem.actionQueue.length === 0 &&
-            actionSelectionSystem.battleContext.turn.currentActorId === null) 
-        {
-            // [修正] 全員の選択が終わったら、あとはREADY_EXECUTE待ちなので、何もしない。
-            // ターンエンドの判定は、READY_EXECUTEが誰もいない状況で行う。
-            if (this.battleContext.turn.selectedActions.size === 0 && !this.isAnyEntityReadyToExecute() && !this.isAnyEntityInCharging()) {
-                 this.battleContext.phase = BattlePhase.TURN_END;
-            }
-        }
-    }
-
-    isExecutionFinished() {
-        const execSystem = this.world.systems.find(s => s instanceof ActionExecutionSystem);
-        return execSystem && !execSystem.isExecuting && execSystem.executionQueue.length === 0;
-    }
-    
-    isResolutionFinished() {
-        return this.battleContext.turn.resolvedActions.length === 0;
-    }
-    
     /**
-     * [追加] 1機でも行動実行準備完了状態の機体がいるかチェックする
+     * [改善案] 1機でも行動実行準備完了状態の機体がいるかチェックする
      */
     isAnyEntityReadyToExecute() {
         const entities = this.world.getEntitiesWith(GameState);
@@ -147,7 +157,7 @@ export class PhaseSystem extends BaseSystem {
     }
 
     /**
-     * [追加] 誰か一人でもチャージ中の機体がいるかチェックする（ターンエンド判定用）
+     * [改善案] 誰か一人でもチャージ中の機体がいるかチェックする（ターンエンド判定用）
      */
     isAnyEntityInCharging() {
         const entities = this.world.getEntitiesWith(GameState);

@@ -6,7 +6,7 @@
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { BattleContext } from '../core/index.js';
-import { Action, ActiveEffects, BattleLog, GameState, Parts, PlayerInfo } from '../core/components/index.js';
+import { Action, ActiveEffects, BattleLog, GameState, Gauge, Parts, PlayerInfo } from '../core/components/index.js'; // ★ Gauge をインポート
 import { BattlePhase, PlayerStateType, EffectType, ActionType, PartInfo, ModalType } from '../common/constants.js';
 import { GameEvents } from '../common/events.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
@@ -18,7 +18,7 @@ export class ActionResolutionSystem extends BaseSystem {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
 
-        // [追加] UIの結果表示モーダル完了イベントを購読する
+        // [改善案] UIの結果表示モーダル完了イベントを購読し、行動後の状態遷移まで担当
         this.world.on(GameEvents.MODAL_SEQUENCE_COMPLETED, this.onModalSequenceCompleted.bind(this));
     }
 
@@ -27,9 +27,11 @@ export class ActionResolutionSystem extends BaseSystem {
             return;
         }
 
+        // 解決すべきアクションが残っているか確認
         const resolvedAction = this.battleContext.turn.resolvedActions.shift();
         if (!resolvedAction) {
-            this.endResolutionPhase();
+            // [改善案] すべてのアクションの解決が終わったら、完了イベントを発行
+            this.world.emit(GameEvents.ACTION_RESOLUTION_COMPLETED);
             return;
         }
         
@@ -37,22 +39,62 @@ export class ActionResolutionSystem extends BaseSystem {
     }
 
     /**
-     * [追加] UIモーダルの完了イベントハンドラ
+     * [改善案] UIモーダルの完了イベントハンドラ
+     * 攻撃シーケンスの完了通知を発行する代わりに、直接クールダウンへの状態遷移を行う
      * @param {object} detail 
      */
     onModalSequenceCompleted(detail) {
         const { modalType, originalData } = detail;
 
-        // 実行結果モーダルが完了したら、攻撃シーケンスの完了を通知する
         if (modalType === ModalType.EXECUTION_RESULT && originalData && originalData.attackerId !== undefined) {
-            this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: originalData.attackerId });
+            const entityId = originalData.attackerId;
+            const gameState = this.world.getComponent(entityId, GameState);
+            
+            // ガード状態の機体はクールダウンに移行しない
+            if (gameState && gameState.state === PlayerStateType.GUARDING) {
+                this.world.addComponent(entityId, new Action()); // Actionコンポーネントのみリセット
+                return;
+            }
+            
+            // クールダウンへの状態遷移処理を実行
+            this.resetEntityToCooldown(entityId);
         }
     }
     
+    /**
+     * [改善案] StateSystemから移譲されたクールダウン移行処理
+     * @param {number} entityId 
+     */
+    resetEntityToCooldown(entityId) {
+        const parts = this.world.getComponent(entityId, Parts);
+        if (parts?.head?.isBroken) return;
+
+        const gameState = this.world.getComponent(entityId, GameState);
+        const gauge = this.world.getComponent(entityId, Gauge);
+        const action = this.world.getComponent(entityId, Action);
+
+        // クールダウン用の速度補正を計算
+        if (action && action.partKey && parts && gauge) {
+            const usedPart = parts[action.partKey];
+            if (usedPart) {
+                gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: usedPart, factorType: 'cooldown' });
+            }
+        } else if (gauge) {
+            gauge.speedMultiplier = 1.0;
+        }
+
+        if (gameState) gameState.state = PlayerStateType.CHARGING;
+        if (gauge) gauge.value = 0;
+        
+        // Actionコンポーネントをリセット
+        this.world.addComponent(entityId, new Action());
+    }
+
     resolveAction(attackerId) {
         const components = this._getCombatComponents(attackerId);
         if (!components) {
-            this.world.emit(GameEvents.ATTACK_SEQUENCE_COMPLETED, { entityId: attackerId });
+            // コンポーネントが取得できない場合でも、後続処理のためにクールダウンへ移行させる
+            this.resetEntityToCooldown(attackerId);
             return;
         }
         const { action, attackerInfo, attackerParts } = components;
@@ -231,18 +273,12 @@ export class ActionResolutionSystem extends BaseSystem {
             this.battleContext.history.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
         }
     }
-
-    endResolutionPhase() {
-        this.battleContext.turn.selectedActions.clear();
-        this.battleContext.turn.resolvedActions = [];
-        this.battleContext.phase = BattlePhase.TURN_END;
-    }
     
     _getCombatComponents(attackerId) {
         const action = this.world.getComponent(attackerId, Action);
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         const attackerParts = this.world.getComponent(attackerId, Parts);
-        if (!action || !attackerInfo || !attackerParts) return null;
+        if (!action || !attackerInfo || !attackerParts || !action.partKey) return null; // ★ action.partKey の存在チェックを追加
         return { action, attackerInfo, attackerParts };
     }
 }

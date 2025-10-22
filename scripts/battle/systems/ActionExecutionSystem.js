@@ -23,6 +23,7 @@ export class ActionExecutionSystem extends BaseSystem {
 
     update(deltaTime) {
         if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
+            // [改善案] フェーズが切り替わったら内部状態をリセット
             if (this.executionQueue.length > 0 || this.isExecuting) {
                 this.executionQueue = [];
                 this.isExecuting = false;
@@ -31,23 +32,26 @@ export class ActionExecutionSystem extends BaseSystem {
             return;
         }
 
+        // 実行キューが空で、かつまだアクションを実行中でなければ、実行準備完了のエンティティからキューを生成
         if (this.executionQueue.length === 0 && !this.isExecuting) {
-            // [修正] populateはREADY_EXECUTE状態の機体から行う
             this.populateExecutionQueueFromReady();
+            // キューを生成しても実行対象がいない場合
             if (this.executionQueue.length === 0) {
-                // 実行対象がいない場合は、フェーズを戻すか進めるかPhaseSystemに任せる
-                // ここでは何もしない
+                // [改善案] 実行対象がいない場合、このフェーズは完了したとみなし、完了イベントを発行
+                // PhaseSystemが次のフェーズへ遷移させる
+                this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
                 return;
             }
         }
 
+        // 実行中でなく、キューにアクションがあれば次のアクションを実行
         if (!this.isExecuting && this.executionQueue.length > 0) {
             this.executeNextAction();
         }
     }
     
     /**
-     * [修正] READY_EXECUTE状態のエンティティから実行キューを作成する
+     * READY_EXECUTE状態のエンティティから実行キューを作成する
      */
     populateExecutionQueueFromReady() {
         const readyEntities = this.world.getEntitiesWith(GameState).filter(id => {
@@ -96,6 +100,7 @@ export class ActionExecutionSystem extends BaseSystem {
 
     onAnimationCompleted(detail) {
         if (this.isExecuting && this.currentExecutingActorId === detail.entityId) {
+            // 解決フェーズに渡すために、完了したアクションをコンテキストに記録
             this.battleContext.turn.resolvedActions.push({ entityId: detail.entityId });
             this.isExecuting = false;
             this.currentExecutingActorId = null;

@@ -93,12 +93,23 @@ export class AiSystem extends BaseSystem {
                     }
                 }
 
-                const { partStrategy: partStrategyKey, targetStrategy: targetStrategyKey } = routine;
+                const { partStrategy, targetStrategy: targetStrategyKey } = routine;
                 
-                // 1a. パーツ戦略でパーツを決定
-                const partSelectionFunc = partSelectionStrategies[partStrategyKey];
+                // [改善案] partStrategyがオブジェクトか文字列かを判定し、動的に戦略関数を生成
+                let partSelectionFunc;
+                if (typeof partStrategy === 'object' && partStrategy.type) {
+                    // オブジェクト形式の場合、動的に戦略を生成
+                    const baseStrategy = partSelectionStrategies[partStrategy.type];
+                    if (baseStrategy) {
+                        partSelectionFunc = baseStrategy(partStrategy.params);
+                    }
+                } else if (typeof partStrategy === 'string') {
+                    // 文字列キーの場合、既存の戦略を取得
+                    partSelectionFunc = partSelectionStrategies[partStrategy];
+                }
+
                 if (!partSelectionFunc) {
-                    console.warn(`AiSystem: Unknown partStrategy '${partStrategyKey}' in routines for ${attackerMedal.personality}.`);
+                    console.warn(`AiSystem: Unknown or invalid partStrategy in routines for ${attackerMedal.personality}.`, partStrategy);
                     continue;
                 }
                 

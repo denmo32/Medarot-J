@@ -9,16 +9,17 @@ import { ErrorHandler } from '../utils/errorHandler.js';
 
 /**
  * エンティティの「状態」を管理するステートマシンとしての役割を担うシステム。
+ * [改善案] 責務を削減し、状態遷移ロジックのコア部分に特化させました。
+ * - 行動選択後のセットアップは ActionSetupSystem へ移譲。
+ * - 行動完了後のクールダウン移行は ActionResolutionSystem へ移譲。
  */
 export class StateSystem {
     constructor(world) {
         this.world = world;
         this.battleContext = this.world.getSingletonComponent(BattleContext);
-
-        this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
+        
+        // [改善案] 購読するイベントを削減
         this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
-        // [修正] ATTACK_SEQUENCE_COMPLETED を購読するように戻す（これは行動単位の完了通知として利用）
-        this.world.on(GameEvents.ATTACK_SEQUENCE_COMPLETED, this.onAttackSequenceCompleted.bind(this));
         this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
         this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
@@ -39,34 +40,7 @@ export class StateSystem {
         this.world.addComponent(entityId, new Action());
     }
 
-
-    onActionSelected(detail) {
-        const { entityId, partKey, targetId, targetPartKey } = detail;
-        const action = this.world.getComponent(entityId, Action);
-        const parts = this.world.getComponent(entityId, Parts);
-        const gameState = this.world.getComponent(entityId, GameState);
-        const gauge = this.world.getComponent(entityId, Gauge);
-
-        if (!partKey || !parts[partKey] || parts[partKey].isBroken) {
-            console.warn(`StateSystem: Invalid or broken part selected for entity ${entityId}. Re-queueing.`, detail);
-            this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
-            return;
-        }
-
-        const selectedPart = parts[partKey];
-
-        action.partKey = partKey;
-        action.type = selectedPart.action;
-        action.targetId = targetId;
-        action.targetPartKey = targetPartKey;
-        action.targetTiming = selectedPart.targetTiming;
-
-        gameState.state = PlayerStateType.SELECTED_CHARGING;
-        
-        gauge.value = 0;
-        gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: selectedPart, factorType: 'charge' });
-    }
-
+    // [改善案] onActionSelected は ActionSetupSystem へ移譲されたため削除
 
     onActionExecuted(detail) {
         const { appliedEffects, attackerId } = detail;
@@ -76,13 +50,16 @@ export class StateSystem {
 
         for (const effect of appliedEffects) {
             if (effect.type === EffectType.APPLY_GLITCH && effect.wasSuccessful) {
+                // 妨害成功時、ターゲットを強制的にクールダウンへ
                 this.resetEntityStateToCooldown(effect.targetId, { interrupted: true });
             } 
             else if (effect.type === EffectType.APPLY_GUARD) {
+                // ガード成功時、自身の状態をガード中へ
                 const gameState = this.world.getComponent(attackerId, GameState);
                 if (gameState) {
                     gameState.state = PlayerStateType.GUARDING;
                     
+                    // アクションラインに留まるよう位置を固定
                     const position = this.world.getComponent(attackerId, Position);
                     const playerInfo = this.world.getComponent(attackerId, PlayerInfo);
                     if (position && playerInfo) {
@@ -95,29 +72,7 @@ export class StateSystem {
         }
     }
 
-    onAttackSequenceCompleted(detail) {
-        const { entityId } = detail;
-        const gameState = this.world.getComponent(entityId, GameState);
-
-        if (gameState && gameState.state === PlayerStateType.GUARDING) {
-            this.world.addComponent(entityId, new Action());
-            return;
-        }
-
-        const gauge = this.world.getComponent(entityId, Gauge);
-        const action = this.world.getComponent(entityId, Action);
-        const parts = this.world.getComponent(entityId, Parts);
-
-        if (action && action.partKey && parts && gauge) {
-            const usedPart = parts[action.partKey];
-            if (usedPart) {
-                gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: usedPart, factorType: 'cooldown' });
-            }
-        } else if (gauge) {
-            gauge.speedMultiplier = 1.0;
-        }
-        this.resetEntityStateToCooldown(entityId);
-    }
+    // [改善案] onAttackSequenceCompleted は廃止されたため削除
 
     onGaugeFull(detail) {
         const { entityId } = detail;
@@ -126,26 +81,29 @@ export class StateSystem {
 
         if (!gauge || !gameState) return;
 
+        // 通常チャージ完了 -> 行動選択準備完了
         if (gameState.state === PlayerStateType.CHARGING) {
-            gameState.state = PlayerStateType.COOLDOWN_COMPLETE;
             gameState.state = PlayerStateType.READY_SELECT;
             this.world.emit(GameEvents.ACTION_QUEUE_REQUEST, { entityId });
-        } else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
+        } 
+        // 行動選択後チャージ完了 -> 行動実行準備完了
+        else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
             gameState.state = PlayerStateType.READY_EXECUTE;
 
+            // 実行ラインへ移動（MovementSystemが位置を更新するが、念のため即時反映）
             const position = this.world.getComponent(entityId, Position);
             const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-
-            if (playerInfo.teamId === TeamID.TEAM1) {
-                position.x = CONFIG.BATTLEFIELD.ACTION_LINE_TEAM1;
-            } else {
-                position.x = CONFIG.BATTLEFIELD.ACTION_LINE_TEAM2;
+            if (position && playerInfo) {
+                position.x = playerInfo.teamId === TeamID.TEAM1
+                    ? CONFIG.BATTLEFIELD.ACTION_LINE_TEAM1
+                    : CONFIG.BATTLEFIELD.ACTION_LINE_TEAM2;
             }
         }
     }
     
     onActionCancelled(detail) {
         const { entityId } = detail;
+        // 行動がキャンセルされた場合、中断されたものとしてクールダウンへ
         this.resetEntityStateToCooldown(entityId, { interrupted: true });
     }
 
@@ -153,6 +111,7 @@ export class StateSystem {
         const { entityId, effect } = detail;
         const gameState = this.world.getComponent(entityId, GameState);
         
+        // ガード効果が切れた場合
         if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
             const parts = this.world.getComponent(entityId, Parts);
             const guardPart = parts[effect.partKey];
@@ -160,13 +119,22 @@ export class StateSystem {
                  this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
             }
             
+            // 速度補正を元に戻す
             const gauge = this.world.getComponent(entityId, Gauge);
             if(gauge) gauge.speedMultiplier = 1.0;
             
+            // 通常のクールダウンへ移行
             this.resetEntityStateToCooldown(entityId);
         }
     }
 
+    /**
+     * エンティティの状態をクールダウン（CHARGING）にリセットします。
+     * このメソッドは、妨害や効果切れなど、通常の行動フロー外で状態をリセットする必要がある場合に呼び出されます。
+     * @param {number} entityId 
+     * @param {object} [options={}]
+     * @param {boolean} [options.interrupted=false] - 行動が中断されたか
+     */
     resetEntityStateToCooldown(entityId, options = {}) {
         const { interrupted = false } = options;
         const parts = this.world.getComponent(entityId, Parts);
@@ -179,6 +147,7 @@ export class StateSystem {
         const gauge = this.world.getComponent(entityId, Gauge);
         const action = this.world.getComponent(entityId, Action);
 
+        // ガード状態だった場合は解除
         if (gameState && gameState.state === PlayerStateType.GUARDING) {
             const activeEffects = this.world.getComponent(entityId, ActiveEffects);
             if (activeEffects) {
@@ -186,17 +155,18 @@ export class StateSystem {
             }
         }
         
-        if (!interrupted && gauge) {
-        }
-
         if (gameState) gameState.state = PlayerStateType.CHARGING;
         if (gauge) {
             if (interrupted) {
+                // 中断された場合、残りのチャージ量をクールダウン時間に変換
                 gauge.value = gauge.max - gauge.value;
             } else {
                 gauge.value = 0;
             }
+            // 速度補正もリセット
+            gauge.speedMultiplier = 1.0;
         }
+        // Actionコンポーネントをクリア
         if (action) {
             this.world.addComponent(entityId, new Action());
         }

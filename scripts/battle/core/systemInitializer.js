@@ -19,8 +19,9 @@ import { DebugSystem } from '../systems/DebugSystem.js';
 import { CONFIG } from '../common/config.js';
 import { PhaseSystem } from '../systems/PhaseSystem.js';
 
-// [追加] 新しいアクションシステムをインポート
+// [改善案] 新しいアクションシステム群をインポート
 import { ActionSelectionSystem } from '../systems/ActionSelectionSystem.js';
+import { ActionSetupSystem } from '../systems/ActionSetupSystem.js'; // ★ 新規追加
 import { ActionExecutionSystem } from '../systems/ActionExecutionSystem.js';
 import { ActionResolutionSystem } from '../systems/ActionResolutionSystem.js';
 
@@ -51,8 +52,9 @@ export function initializeSystems(world) {
     const messageSystem = new MessageSystem(world);
     const actionCancellationSystem = new ActionCancellationSystem(world);
     
-    // [追加] 新しいアクションシステムのインスタンス化
+    // [改善案] 新しいアクションシステム群のインスタンス化
     const actionSelectionSystem = new ActionSelectionSystem(world);
+    const actionSetupSystem = new ActionSetupSystem(world); // ★ 新規追加
     const actionExecutionSystem = new ActionExecutionSystem(world);
     const actionResolutionSystem = new ActionResolutionSystem(world);
 
@@ -67,8 +69,9 @@ export function initializeSystems(world) {
     world.registerSystem(gaugeSystem);
     world.registerSystem(stateSystem);
     
-    // [追加] 新しいアクションシステムを登録
+    // [改善案] 新しいアクションシステム群を登録
     world.registerSystem(actionSelectionSystem);
+    world.registerSystem(actionSetupSystem); // ★ 新規追加
     world.registerSystem(actionExecutionSystem);
     world.registerSystem(actionResolutionSystem);
 
