@@ -12,19 +12,14 @@ import { ErrorHandler } from '../utils/errorHandler.js';
 
 /**
  * ゲームの「ターン」や行動順を管理するシステム。
+ * このシステムは行動キューの管理に専念し、イベント駆動で動作します。
+ * 実際の行動選択のトリガーはActionSelectionSystemが担当します。
  */
 export class TurnSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        
         this.actionQueue = [];
-        
         this.battleContext = this.world.getSingletonComponent(BattleContext);
-        this.isPaused = false;
-        
-        this.world.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
-        this.world.on(GameEvents.GAME_RESUMED, this.onResumeGame.bind(this));
-
         this.world.on(GameEvents.ACTION_QUEUE_REQUEST, this.onActionQueueRequest.bind(this));
         this.world.on(GameEvents.ACTION_REQUEUE_REQUEST, this.onActionRequeueRequest.bind(this));
     }
@@ -52,59 +47,11 @@ export class TurnSystem extends BaseSystem {
     }
 
     /**
-     * 毎フレーム実行され、行動キューを処理します。
+     * このシステムのupdateロジックはActionSelectionSystemに移管されました。
+     * このシステムはイベントに応じてキューを操作するだけの、よりシンプルな責務を持ちます。
      */
     update(deltaTime) {
-        try {
-            // [修正] TurnSystemが動作するフェーズを拡大。BATTLE_START以降、GAME_OVER前まで動作するようにする。
-            const activePhases = [
-                BattlePhase.INITIAL_SELECTION,
-                BattlePhase.TURN_START,
-                BattlePhase.ACTION_SELECTION,
-                BattlePhase.ACTION_EXECUTION,
-                BattlePhase.ACTION_RESOLUTION,
-                BattlePhase.TURN_END,
-            ];
-            if (!activePhases.includes(this.battleContext.phase)) {
-                return;
-            }
-
-            if (this.actionQueue.length === 0 || this.isPaused) {
-                return;
-            }
-            
-            // [修正] ACTION_SELECTIONフェーズでのみキューを処理するように限定。
-            // これにより、他のフェーズで意図せず行動選択が開始されるのを防ぐ。
-            if (this.battleContext.phase !== BattlePhase.ACTION_SELECTION && this.battleContext.phase !== BattlePhase.INITIAL_SELECTION) {
-                return;
-            }
-
-            const entityId = this.actionQueue.shift();
-
-            const gameState = this.world.getComponent(entityId, GameState);
-            const parts = this.world.getComponent(entityId, Parts);
-
-            if (gameState.state !== PlayerStateType.READY_SELECT || parts[PartInfo.HEAD.key]?.isBroken) {
-                return;
-            }
-            
-            const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-            
-            const eventToEmit = playerInfo.teamId === TeamID.TEAM1 
-                ? GameEvents.PLAYER_INPUT_REQUIRED 
-                : GameEvents.AI_ACTION_REQUIRED;
-            
-            this.world.emit(eventToEmit, { entityId });
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'TurnSystem.update', deltaTime });
-        }
-    }
-    
-    onPauseGame() {
-        this.isPaused = true;
-    }
-    
-    onResumeGame() {
-        this.isPaused = false;
+        // This system is now event-driven and does not require an update loop.
+        // The ActionSelectionSystem is responsible for processing the actionQueue.
     }
 }

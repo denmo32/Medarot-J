@@ -1,16 +1,12 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
- * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
- * @description [リファクタリング] 処理フローの簡素化に伴い、イベントの種類を整理・削減しました。
- * ターン単位のイベントを新設し、同期処理への移行を促します。
- * [修正] リファクタリング過渡期において、既存システムが依存しているイベントキーを一時的に復活させます。
+ * ペイロード構造と使用方法を明確にドキュメント化します。
  */
 
 /**
  * @enum {Object} GameEvents
  * @description ゲーム内で発生する全イベントを定義します。
- * 各イベントの詳細な仕様は、以下にコメントで記載されています。
  */
 export const GameEvents = {
     // --- ゲームフローイベント ---
@@ -130,7 +126,6 @@ export const GameEvents = {
     ACTION_DECLARED: 'ACTION_DECLARED',
 
     /**
-     * [修正] 互換性のために復活
      * 行動実行アニメーションの完了を通知
      * CombatResolutionSystemが購読し、戦闘結果の判定を開始するトリガー。
      * @event EXECUTION_ANIMATION_COMPLETED
@@ -140,7 +135,6 @@ export const GameEvents = {
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED',
     
     /**
-     * [修正] 互換性のために復活
      * 戦闘結果（命中/回避/ガードなど）が解決された
      * CombatResolutionSystemが発行し、ActionSystemが効果計算のために購読する。
      * @event COMBAT_OUTCOME_RESOLVED
@@ -160,7 +154,6 @@ export const GameEvents = {
     COMBAT_OUTCOME_RESOLVED: 'COMBAT_OUTCOME_RESOLVED',
     
     /**
-     * [修正] 互換性のために復活
      * 攻撃宣言モーダルのOKが押された
      * EffectApplicatorSystemが購読し、効果適用を開始するトリガー。
      * @event ATTACK_DECLARATION_CONFIRMED
@@ -168,12 +161,6 @@ export const GameEvents = {
      * @payload {{ attackerId: number, targetId: number, resolvedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
      */
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
-
-    /**
-     * [改善案] このイベントは廃止され、ActionResolutionSystemが直接状態を遷移させます。
-     * @deprecated
-     */
-    // ATTACK_SEQUENCE_COMPLETED: 'ATTACK_SEQUENCE_COMPLETED',
 
     /**
      * 実際のアニメーション実行を要求
@@ -193,7 +180,7 @@ export const GameEvents = {
     
     // --- 状態 & ターン管理イベント ---
     /**
-     * [改善案] 行動選択フェーズの完了を通知
+     * 行動選択フェーズの完了を通知
      * @event ACTION_SELECTION_COMPLETED
      * @type {string}
      * @payload {}
@@ -201,7 +188,7 @@ export const GameEvents = {
     ACTION_SELECTION_COMPLETED: 'ACTION_SELECTION_COMPLETED',
     
     /**
-     * [改善案] 行動実行フェーズの完了を通知
+     * 行動実行フェーズの完了を通知
      * @event ACTION_EXECUTION_COMPLETED
      * @type {string}
      * @payload {}
@@ -209,12 +196,21 @@ export const GameEvents = {
     ACTION_EXECUTION_COMPLETED: 'ACTION_EXECUTION_COMPLETED',
     
     /**
-     * [改善案] 行動解決フェーズの完了を通知
+     * 行動解決フェーズの完了を通知
      * @event ACTION_RESOLUTION_COMPLETED
      * @type {string}
      * @payload {}
      */
     ACTION_RESOLUTION_COMPLETED: 'ACTION_RESOLUTION_COMPLETED',
+    
+    /**
+     * 行動解決後のUI表示（モーダル）が完了したことを通知
+     * StateSystemが購読し、クールダウンへの状態遷移を行うトリガー。
+     * @event ACTION_RESOLUTION_FINISHED
+     * @type {string}
+     * @payload {{ entityId: number }}
+     */
+    ACTION_RESOLUTION_FINISHED: 'ACTION_RESOLUTION_FINISHED',
 
     /**
      * 新しいターンが開始したことを通知

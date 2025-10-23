@@ -1,5 +1,5 @@
 /**
- * @file ActionExecutionSystem.js (新規作成)
+ * @file ActionExecutionSystem.js
  * @description 行動実行フェーズの管理を担当するシステム。
  * BattleContextに格納されたアクションを順番に実行し、アニメーションを要求する。
  */
@@ -8,7 +8,7 @@ import { BattleContext } from '../core/index.js';
 import { Action, GameState, Parts } from '../core/components/index.js';
 import { BattlePhase, PlayerStateType, TargetTiming } from '../common/constants.js';
 import { GameEvents } from '../common/events.js';
-import { postMoveTargetingStrategies } from '../ai/postMoveTargetingStrategies.js';
+import { targetingStrategies } from '../ai/targetingStrategies.js';
 
 export class ActionExecutionSystem extends BaseSystem {
     constructor(world) {
@@ -23,7 +23,7 @@ export class ActionExecutionSystem extends BaseSystem {
 
     update(deltaTime) {
         if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
-            // [改善案] フェーズが切り替わったら内部状態をリセット
+            // フェーズが切り替わったら内部状態をリセット
             if (this.executionQueue.length > 0 || this.isExecuting) {
                 this.executionQueue = [];
                 this.isExecuting = false;
@@ -37,7 +37,7 @@ export class ActionExecutionSystem extends BaseSystem {
             this.populateExecutionQueueFromReady();
             // キューを生成しても実行対象がいない場合
             if (this.executionQueue.length === 0) {
-                // [改善案] 実行対象がいない場合、このフェーズは完了したとみなし、完了イベントを発行
+                // 実行対象がいない場合、このフェーズは完了したとみなし、完了イベントを発行
                 // PhaseSystemが次のフェーズへ遷移させる
                 this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
                 return;
@@ -113,7 +113,7 @@ export class ActionExecutionSystem extends BaseSystem {
         const selectedPart = parts[action.partKey];
 
         if (selectedPart.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
-            const strategy = postMoveTargetingStrategies[selectedPart.postMoveTargeting];
+            const strategy = targetingStrategies[selectedPart.postMoveTargeting];
             if (strategy) {
                 const targetData = strategy({ world: this.world, attackerId: executorId });
                 if (targetData) {

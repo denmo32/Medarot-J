@@ -1,5 +1,5 @@
 /**
- * @file ActionResolutionSystem.js (新規作成)
+ * @file ActionResolutionSystem.js
  * @description 行動解決フェーズの管理を担当するシステム。
  * CombatResolution, EffectApplicator, HistorySystemの責務を統合し、
  * 戦闘結果の判定、効果適用、履歴更新を同期的に実行する。
@@ -18,7 +18,7 @@ export class ActionResolutionSystem extends BaseSystem {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
 
-        // [改善案] UIの結果表示モーダル完了イベントを購読し、行動後の状態遷移まで担当
+        // UIの結果表示モーダル完了イベントを購読し、行動後の状態遷移まで担当
         this.world.on(GameEvents.MODAL_SEQUENCE_COMPLETED, this.onModalSequenceCompleted.bind(this));
     }
 
@@ -30,7 +30,7 @@ export class ActionResolutionSystem extends BaseSystem {
         // 解決すべきアクションが残っているか確認
         const resolvedAction = this.battleContext.turn.resolvedActions.shift();
         if (!resolvedAction) {
-            // [改善案] すべてのアクションの解決が終わったら、完了イベントを発行
+            // すべてのアクションの解決が終わったら、完了イベントを発行
             this.world.emit(GameEvents.ACTION_RESOLUTION_COMPLETED);
             return;
         }
@@ -39,62 +39,24 @@ export class ActionResolutionSystem extends BaseSystem {
     }
 
     /**
-     * [改善案] UIモーダルの完了イベントハンドラ
-     * 攻撃シーケンスの完了通知を発行する代わりに、直接クールダウンへの状態遷移を行う
+     * UIモーダルの完了イベントハンドラ
+     * 攻撃シーケンスの完了通知を発行する代わりに、StateSystemに状態遷移を依頼するイベントを発行します。
      * @param {object} detail 
      */
     onModalSequenceCompleted(detail) {
         const { modalType, originalData } = detail;
 
         if (modalType === ModalType.EXECUTION_RESULT && originalData && originalData.attackerId !== undefined) {
-            const entityId = originalData.attackerId;
-            const gameState = this.world.getComponent(entityId, GameState);
-            
-            // ガード状態の機体はクールダウンに移行しない
-            if (gameState && gameState.state === PlayerStateType.GUARDING) {
-                this.world.addComponent(entityId, new Action()); // Actionコンポーネントのみリセット
-                return;
-            }
-            
-            // クールダウンへの状態遷移処理を実行
-            this.resetEntityToCooldown(entityId);
+            // 状態遷移を直接行わず、StateSystemに依頼するためのイベントを発行します。
+            this.world.emit(GameEvents.ACTION_RESOLUTION_FINISHED, { entityId: originalData.attackerId });
         }
-    }
-    
-    /**
-     * [改善案] StateSystemから移譲されたクールダウン移行処理
-     * @param {number} entityId 
-     */
-    resetEntityToCooldown(entityId) {
-        const parts = this.world.getComponent(entityId, Parts);
-        if (parts?.head?.isBroken) return;
-
-        const gameState = this.world.getComponent(entityId, GameState);
-        const gauge = this.world.getComponent(entityId, Gauge);
-        const action = this.world.getComponent(entityId, Action);
-
-        // クールダウン用の速度補正を計算
-        if (action && action.partKey && parts && gauge) {
-            const usedPart = parts[action.partKey];
-            if (usedPart) {
-                gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: usedPart, factorType: 'cooldown' });
-            }
-        } else if (gauge) {
-            gauge.speedMultiplier = 1.0;
-        }
-
-        if (gameState) gameState.state = PlayerStateType.CHARGING;
-        if (gauge) gauge.value = 0;
-        
-        // Actionコンポーネントをリセット
-        this.world.addComponent(entityId, new Action());
     }
 
     resolveAction(attackerId) {
         const components = this._getCombatComponents(attackerId);
         if (!components) {
-            // コンポーネントが取得できない場合でも、後続処理のためにクールダウンへ移行させる
-            this.resetEntityToCooldown(attackerId);
+            // コンポーネントが取得できない場合でも、後続処理のために完了イベントを発行する
+            this.world.emit(GameEvents.ACTION_RESOLUTION_FINISHED, { entityId: attackerId });
             return;
         }
         const { action, attackerInfo, attackerParts } = components;
