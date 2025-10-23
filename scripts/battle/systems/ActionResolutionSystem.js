@@ -123,9 +123,9 @@ export class ActionResolutionSystem extends BaseSystem {
         
         const appliedEffects = this.applyAllEffects({ attackerId, resolvedEffects, guardianInfo });
         
-        this.updateHistory({ attackerId, appliedEffects });
+        // 履歴更新時に使用するため、attackingPartを渡す
+        this.updateHistory({ attackerId, appliedEffects, attackingPart });
         
-        // ACTION_DECLAREDとACTION_EXECUTEDを統合し、新しいイベントCOMBAT_SEQUENCE_RESOLVEDを一度だけ発行する
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, {
             attackerId,
             targetId: finalTargetId,
@@ -235,22 +235,48 @@ export class ActionResolutionSystem extends BaseSystem {
         });
     }
     
-    updateHistory({ attackerId, appliedEffects }) {
-        const damageEffect = appliedEffects.find(e => e.type === EffectType.DAMAGE);
-        if (!damageEffect) return;
-        const { targetId, partKey } = damageEffect;
-        if (!targetId) return;
+    /**
+     * 履歴更新ロジックを厳格化
+     * @param {object} context
+     * @param {number} context.attackerId
+     * @param {Array<object>} context.appliedEffects
+     * @param {object} context.attackingPart
+     */
+    updateHistory({ attackerId, appliedEffects, attackingPart }) {
+        // 履歴更新の対象となる主要な効果を探す (ダメージまたは回復)
+        const mainEffect = appliedEffects.find(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL);
+        if (!mainEffect) return;
+
+        const { targetId, partKey } = mainEffect;
+        if (targetId === null || targetId === undefined) return;
         
+        // --- 1. 個人履歴 (BattleLog) の更新 ---
         const attackerLog = this.world.getComponent(attackerId, BattleLog);
-        if (attackerLog) attackerLog.lastAttack = { targetId, partKey };
+        if (attackerLog) {
+            // FOCUS性格などのために、行動対象は常に記録する
+            attackerLog.lastAttack = { targetId, partKey };
+        }
         
-        const targetLog = this.world.getComponent(targetId, BattleLog);
-        if (targetLog) targetLog.lastAttackedBy = attackerId;
-        
+        // ダメージを与えた場合のみ、被攻撃履歴を更新
+        if (mainEffect.type === EffectType.DAMAGE) {
+            const targetLog = this.world.getComponent(targetId, BattleLog);
+            if (targetLog) {
+                targetLog.lastAttackedBy = attackerId;
+            }
+        }
+
+        // --- 2. チーム履歴 (BattleContext) の更新 ---
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         const targetInfo = this.world.getComponent(targetId, PlayerInfo);
-        this.battleContext.history.teamLastAttack[attackerInfo.teamId] = { targetId, partKey };
-        if (targetInfo.isLeader) {
+
+        // 攻撃アクションの場合のみ teamLastAttack を更新する
+        // これにより、回復行動がASSIST性格のターゲット選択に影響を与えるのを防ぐ
+        if (!attackingPart.isSupport && mainEffect.type === EffectType.DAMAGE) {
+            this.battleContext.history.teamLastAttack[attackerInfo.teamId] = { targetId, partKey };
+        }
+
+        // 敵リーダーにダメージを与えた場合のみ leaderLastAttackedBy を更新する
+        if (targetInfo.isLeader && !attackingPart.isSupport && mainEffect.type === EffectType.DAMAGE) {
             this.battleContext.history.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
         }
     }

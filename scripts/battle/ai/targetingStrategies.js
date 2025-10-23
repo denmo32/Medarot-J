@@ -103,12 +103,18 @@ export const targetingStrategies = {
         const context = world.getSingletonComponent(BattleContext);
         if (context && context.history.teamLastAttack) {
             const teamLastAttack = context.history.teamLastAttack[attackerInfo.teamId];
-            // ターゲットが有効かどうかのチェックを追加
-            if (isValidTarget(world, teamLastAttack.targetId, teamLastAttack.partKey)) {
+            if (teamLastAttack.targetId === null) return null; // 履歴がなければ何もしない
+
+            // ターゲットが敵であることを保証するチェックを追加 (フェイルセーフ)
+            // これにより、万が一履歴に味方が記録されても、それを攻撃対象にしないようにする。
+            const targetInfo = world.getComponent(teamLastAttack.targetId, PlayerInfo);
+            const isEnemy = targetInfo && targetInfo.teamId !== attackerInfo.teamId;
+
+            if (isEnemy && isValidTarget(world, teamLastAttack.targetId, teamLastAttack.partKey)) {
                 return { targetId: teamLastAttack.targetId, targetPartKey: teamLastAttack.partKey };
             }
         }
-        console.warn('BattleContext not ready or target is invalid for ASSIST strategy, returning null for fallback.');
+        console.warn('BattleContext not ready or target is invalid/not an enemy for ASSIST strategy, returning null for fallback.');
         return null;
     },
     /**
