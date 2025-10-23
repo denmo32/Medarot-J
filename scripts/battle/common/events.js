@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * ペイロード構造と使用方法を明確にドキュメント化します。
@@ -117,41 +117,30 @@ export const GameEvents = {
 
     // --- 行動実行イベント ---
     /**
-     * 行動が宣言され、メッセージ生成が必要になったことを通知する
-     * MessageSystemが購読し、攻撃宣言モーダルのメッセージを生成する。
-     * @event ACTION_DECLARED
+     * 戦闘シーケンス（宣言から結果まで）が解決されたことを通知する統合イベント。
+     * MessageSystemが購読し、宣言と結果のメッセージシーケンスを一度に生成する。
+     * @event COMBAT_SEQUENCE_RESOLVED
      * @type {string}
-     * @payload {{ attackerId: number, targetId: number, attackingPart: object, isSupport: boolean, guardianInfo: object | null }}
+     * @payload {{
+     *   attackerId: number,
+     *   targetId: number,
+     *   attackingPart: object,
+     *   isSupport: boolean,
+     *   guardianInfo: object | null,
+     *   outcome: { isHit: boolean, isCritical: boolean, isDefended: boolean },
+     *   appliedEffects: Array<object>
+     * }}
      */
-    ACTION_DECLARED: 'ACTION_DECLARED',
+    COMBAT_SEQUENCE_RESOLVED: 'COMBAT_SEQUENCE_RESOLVED',
 
     /**
      * 行動実行アニメーションの完了を通知
-     * CombatResolutionSystemが購読し、戦闘結果の判定を開始するトリガー。
+     * ActionResolutionSystemが購読し、戦闘結果の判定を開始するトリガー。
      * @event EXECUTION_ANIMATION_COMPLETED
      * @type {string}
      * @payload {{ entityId: number }} - アニメーションが完了したエンティティID
      */
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED',
-    
-    /**
-     * 戦闘結果（命中/回避/ガードなど）が解決された
-     * CombatResolutionSystemが発行し、ActionSystemが効果計算のために購読する。
-     * @event COMBAT_OUTCOME_RESOLVED
-     * @type {string}
-     * @payload {{
-     *   attackerId: number,
-     *   originalTargetId: number,
-     *   finalTargetId: number,
-     *   finalTargetPartKey: string,
-     *   attackingPart: object,
-     *   attackerInfo: object,
-     *   attackerParts: object,
-     *   outcome: { isHit: boolean, isCritical: boolean, isDefended: boolean },
-     *   guardianInfo: object | null
-     * }}
-     */
-    COMBAT_OUTCOME_RESOLVED: 'COMBAT_OUTCOME_RESOLVED',
     
     /**
      * 攻撃宣言モーダルのOKが押された
@@ -169,14 +158,6 @@ export const GameEvents = {
      * @payload {{ attackerId: number, targetId: number }}
      */
     EXECUTE_ATTACK_ANIMATION: 'EXECUTE_ATTACK_ANIMATION',
-
-    /**
-     * 行動の効果適用が完了したことを通知する統合イベント。
-     * @event ACTION_EXECUTED
-     * @type {string}
-     * @payload {{ attackerId: number, targetId: number, appliedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
-     */
-    ACTION_EXECUTED: 'ACTION_EXECUTED',
     
     // --- 状態 & ターン管理イベント ---
     /**
@@ -203,15 +184,6 @@ export const GameEvents = {
      */
     ACTION_RESOLUTION_COMPLETED: 'ACTION_RESOLUTION_COMPLETED',
     
-    /**
-     * 行動解決後のUI表示（モーダル）が完了したことを通知
-     * StateSystemが購読し、クールダウンへの状態遷移を行うトリガー。
-     * @event ACTION_RESOLUTION_FINISHED
-     * @type {string}
-     * @payload {{ entityId: number }}
-     */
-    ACTION_RESOLUTION_FINISHED: 'ACTION_RESOLUTION_FINISHED',
-
     /**
      * 新しいターンが開始したことを通知
      * @event TURN_START

@@ -6,7 +6,7 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { BattleContext } from '../core/index.js';
 import { Action, GameState, Parts } from '../core/components/index.js';
-import { BattlePhase, PlayerStateType, TargetTiming } from '../common/constants.js';
+import { BattlePhase, PlayerStateType, TargetTiming, ModalType } from '../common/constants.js';
 import { GameEvents } from '../common/events.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
 
@@ -18,7 +18,10 @@ export class ActionExecutionSystem extends BaseSystem {
         this.isExecuting = false;
         this.currentExecutingActorId = null;
 
+        // アニメーション完了イベントに加え、UIモーダル完了イベントも購読する
+        // これにより、結果表示が完了してから次のアクションに移ることを保証する
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onAnimationCompleted.bind(this));
+        this.world.on(GameEvents.MODAL_SEQUENCE_COMPLETED, this.onModalSequenceCompleted.bind(this));
     }
 
     update(deltaTime) {
@@ -99,9 +102,25 @@ export class ActionExecutionSystem extends BaseSystem {
     }
 
     onAnimationCompleted(detail) {
+        // アニメーション完了時にはisExecutingフラグを操作せず、
+        // ActionResolutionSystemに解決処理を開始するよう通知するだけ。
+        // これにより、アニメーションと結果表示〜クールダウンまでの一連のフローを保証する。
         if (this.isExecuting && this.currentExecutingActorId === detail.entityId) {
-            // 解決フェーズに渡すために、完了したアクションをコンテキストに記録
-            this.battleContext.turn.resolvedActions.push({ entityId: detail.entityId });
+            // このイベントを ActionResolutionSystem が購読し、解決処理を開始する
+        }
+    }
+
+    /**
+     * UI（結果表示モーダル）の完了を待ち、次のアクション実行を許可する
+     * @param {object} detail 
+     */
+    onModalSequenceCompleted(detail) {
+        // 現在実行中のアクターの、結果表示モーダルが閉じたことを確認
+        if (this.isExecuting && 
+            detail.modalType === ModalType.EXECUTION_RESULT && 
+            detail.originalData?.attackerId === this.currentExecutingActorId) 
+        {
+            // isExecutingをfalseにすることで、updateループが次のアクションに移る
             this.isExecuting = false;
             this.currentExecutingActorId = null;
         }

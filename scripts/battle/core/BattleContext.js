@@ -36,8 +36,6 @@ export class BattleContext {
             actionQueue: [],
             /** @type {Map<number, object>} - 選択されたアクションのマップ { entityId: actionData } */
             selectedActions: new Map(),
-            /** @type {Array<object>} - このターンに実行・解決されたアクションの結果リスト */
-            resolvedActions: [],
         };
 
         /**

@@ -18,10 +18,8 @@ import { ActionCancellationSystem } from '../systems/actionCancellationSystem.js
 import { DebugSystem } from '../systems/DebugSystem.js';
 import { CONFIG } from '../common/config.js';
 import { PhaseSystem } from '../systems/PhaseSystem.js';
-
-// [改善案] 新しいアクションシステム群をインポート
 import { ActionSelectionSystem } from '../systems/ActionSelectionSystem.js';
-import { ActionSetupSystem } from '../systems/ActionSetupSystem.js'; // ★ 新規追加
+import { ActionSetupSystem } from '../systems/ActionSetupSystem.js';
 import { ActionExecutionSystem } from '../systems/ActionExecutionSystem.js';
 import { ActionResolutionSystem } from '../systems/ActionResolutionSystem.js';
 
@@ -51,12 +49,10 @@ export function initializeSystems(world) {
     const effectSystem = new EffectSystem(world);
     const messageSystem = new MessageSystem(world);
     const actionCancellationSystem = new ActionCancellationSystem(world);
-    
-    // [改善案] 新しいアクションシステム群のインスタンス化
     const actionSelectionSystem = new ActionSelectionSystem(world);
-    const actionSetupSystem = new ActionSetupSystem(world); // ★ 新規追加
+    const actionSetupSystem = new ActionSetupSystem(world);
+    const actionResolutionSystem = new ActionResolutionSystem(world, stateSystem);
     const actionExecutionSystem = new ActionExecutionSystem(world);
-    const actionResolutionSystem = new ActionResolutionSystem(world);
 
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
@@ -68,18 +64,14 @@ export function initializeSystems(world) {
     world.registerSystem(turnSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(stateSystem);
-    
-    // [改善案] 新しいアクションシステム群を登録
     world.registerSystem(actionSelectionSystem);
-    world.registerSystem(actionSetupSystem); // ★ 新規追加
+    world.registerSystem(actionSetupSystem);
     world.registerSystem(actionExecutionSystem);
     world.registerSystem(actionResolutionSystem);
-
     world.registerSystem(actionCancellationSystem);
     world.registerSystem(movementSystem);
     world.registerSystem(effectSystem);
     world.registerSystem(messageSystem);
-    
     world.registerSystem(viewSystem);
     world.registerSystem(actionPanelSystem);
     world.registerSystem(new UISystem(world));

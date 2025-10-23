@@ -18,12 +18,11 @@ export class GaugeSystem extends BaseSystem {
 
     update(deltaTime) {
         try {
-            // [修正] ゲージが進行するべきフェーズをTURN_START以降に限定する
+            // ゲージが進行するべきフェーズリストからACTION_RESOLUTIONを削除
             const activePhases = [
                 BattlePhase.TURN_START,
                 BattlePhase.ACTION_SELECTION,
                 BattlePhase.ACTION_EXECUTION,
-                BattlePhase.ACTION_RESOLUTION,
                 BattlePhase.TURN_END,
             ];
 

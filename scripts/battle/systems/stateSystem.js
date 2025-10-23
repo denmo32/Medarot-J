@@ -18,13 +18,15 @@ export class StateSystem {
         this.world = world;
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         
-        this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
+        // ACTION_EXECUTEDは妨害・ガードなどの即時状態変化にのみ使用する
+        this.world.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
         this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
         this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
         this.world.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
-        // 行動解決完了イベントを購読し、クールダウンへの状態遷移を担当します。
-        this.world.on(GameEvents.ACTION_RESOLUTION_FINISHED, this.onActionResolutionFinished.bind(this));
+        // ACTION_RESOLUTION_FINISHEDイベントは廃止され、
+        // ActionResolutionSystemからtransitionToCooldownが直接呼び出されるようになったため、
+        // このイベントの購読は不要になりました。
     }
     
     onPlayerBroken(detail) {
@@ -41,7 +43,12 @@ export class StateSystem {
         this.world.addComponent(entityId, new Action());
     }
 
-    onActionExecuted(detail) {
+    /**
+     * イベント名をACTION_EXECUTEDからCOMBAT_SEQUENCE_RESOLVEDに変更。
+     * 妨害やガードといった、行動解決時に即座に状態を変化させる効果を処理します。
+     * @param {object} detail 
+     */
+    onCombatSequenceResolved(detail) {
         const { appliedEffects, attackerId } = detail;
         if (!appliedEffects || appliedEffects.length === 0) {
             return;
@@ -68,24 +75,6 @@ export class StateSystem {
                 }
             }
         }
-    }
-
-    /**
-     * 行動解決が完了したエンティティをクールダウン状態に遷移させます。
-     * @param {object} detail - イベントペイロード { entityId }
-     */
-    onActionResolutionFinished(detail) {
-        const { entityId } = detail;
-        const gameState = this.world.getComponent(entityId, GameState);
-        
-        // ガード状態の機体はクールダウンに移行せず、Actionコンポーネントのみリセット
-        if (gameState && gameState.state === PlayerStateType.GUARDING) {
-            this.world.addComponent(entityId, new Action());
-            return;
-        }
-        
-        // 通常のクールダウンへの状態遷移処理を実行
-        this.transitionToCooldown(entityId);
     }
 
     onGaugeFull(detail) {
@@ -133,7 +122,7 @@ export class StateSystem {
     }
 
     /**
-     * ActionResolutionSystemから移譲された、行動完了後のクールダウン移行処理。
+     * ActionResolutionSystemから直接呼び出される、行動完了後のクールダウン移行処理。
      * @param {number} entityId 
      */
     transitionToCooldown(entityId) {
@@ -141,6 +130,12 @@ export class StateSystem {
         if (parts?.head?.isBroken) return;
 
         const gameState = this.world.getComponent(entityId, GameState);
+        // ガード状態の機体はクールダウンに移行せず、Actionコンポーネントのみリセット
+        if (gameState && gameState.state === PlayerStateType.GUARDING) {
+            this.world.addComponent(entityId, new Action());
+            return;
+        }
+
         const gauge = this.world.getComponent(entityId, Gauge);
         const action = this.world.getComponent(entityId, Action);
 

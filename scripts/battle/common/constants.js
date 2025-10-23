@@ -9,7 +9,6 @@ export const BattlePhase = {
     TURN_START: 'TURN_START',           // ターン開始
     ACTION_SELECTION: 'ACTION_SELECTION', // 行動選択
     ACTION_EXECUTION: 'ACTION_EXECUTION', // 行動実行
-    ACTION_RESOLUTION: 'ACTION_RESOLUTION', // 結果解決
     TURN_END: 'TURN_END',               // ターン終了
     GAME_OVER: 'GAME_OVER'              // ゲーム終了
 };

@@ -1,5 +1,5 @@
 /**
- * @file PhaseSystem.js (新規作成)
+ * @file PhaseSystem.js
  * @description バトル全体のフェーズ遷移を管理するシステム。
  * BattleContextのphaseプロパティを監視し、条件に応じて次のフェーズへ移行させる責務を持つ。
  * これにより、複雑なイベント駆動のフローを、状態に基づいた明確な遷移ロジックに置き換える。
@@ -19,10 +19,10 @@ export class PhaseSystem extends BaseSystem {
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         this.world.on('BATTLE_ANIMATION_COMPLETED', this.onBattleAnimationCompleted.bind(this));
         
-        // [改善案] フェーズ完了イベントを購読し、フェーズ遷移を管理
+        // フェーズ完了イベントを購読し、フェーズ遷移を管理
         this.world.on(GameEvents.ACTION_SELECTION_COMPLETED, this.onActionSelectionCompleted.bind(this));
         this.world.on(GameEvents.ACTION_EXECUTION_COMPLETED, this.onActionExecutionCompleted.bind(this));
-        this.world.on(GameEvents.ACTION_RESOLUTION_COMPLETED, this.onActionResolutionCompleted.bind(this));
+        // ACTION_RESOLUTION_COMPLETED イベントは廃止されたため、購読を停止
     }
     
     // --- イベントハンドラ ---
@@ -37,7 +37,7 @@ export class PhaseSystem extends BaseSystem {
         }
     }
 
-    /** [改善案] 行動選択完了イベントを受け、実行フェーズに移行するか判断 */
+    /** 行動選択完了イベントを受け、実行フェーズに移行するか判断 */
     onActionSelectionCompleted() {
         if (this.battleContext.phase !== BattlePhase.ACTION_SELECTION) return;
         
@@ -56,25 +56,26 @@ export class PhaseSystem extends BaseSystem {
         }
     }
 
-    /** [改善案] 行動実行完了イベントを受け、解決フェーズへ移行 */
+    /**
+     * 行動実行完了イベントを受け、解決フェーズをスキップしてターン継続/終了の判断を行う
+     */
     onActionExecutionCompleted() {
         if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) return;
-        this.battleContext.phase = BattlePhase.ACTION_RESOLUTION;
-    }
 
-    /** [改善案] 行動解決完了イベントを受け、ターン終了フェーズへ移行 */
-    onActionResolutionCompleted() {
-        if (this.battleContext.phase !== BattlePhase.ACTION_RESOLUTION) return;
-        // コンテキストをクリアしてからターン終了へ
-        this.battleContext.turn.selectedActions.clear();
-        this.battleContext.turn.resolvedActions = [];
-        this.battleContext.phase = BattlePhase.TURN_END;
+        // まだ行動待ち（チャージ中）のエンティティがいるかチェック
+        if (this.isAnyEntityInCharging()) {
+            // いる場合: ゲージ進行と次の行動選択を待つため、ACTION_SELECTIONフェーズに戻る
+            this.battleContext.phase = BattlePhase.ACTION_SELECTION;
+        } else {
+            // いない場合: 全員の行動が完了したので、ターン終了フェーズへ
+            this.battleContext.phase = BattlePhase.TURN_END;
+        }
     }
 
     update(deltaTime) {
         if (!this.battleContext) return;
 
-        // [改善案] ゲージ進行フェーズ中、READY_EXECUTE状態の機体が現れたら即座に実行フェーズへ移行
+        // ゲージ進行フェーズ中、READY_EXECUTE状態の機体が現れたら即座に実行フェーズへ移行
         const activePhases = [BattlePhase.TURN_START, BattlePhase.ACTION_SELECTION, BattlePhase.TURN_END];
         if (activePhases.includes(this.battleContext.phase)) {
             if (this.isAnyEntityReadyToExecute()) {
@@ -104,8 +105,7 @@ export class PhaseSystem extends BaseSystem {
 
             case BattlePhase.ACTION_SELECTION:
             case BattlePhase.ACTION_EXECUTION:
-            case BattlePhase.ACTION_RESOLUTION:
-                // [改善案] これらのフェーズの完了はイベント駆動で処理されるため、updateでのチェックは不要
+                // これらのフェーズの完了はイベント駆動で処理されるため、updateでのチェックは不要
                 break;
             
             case BattlePhase.TURN_END:
@@ -146,7 +146,7 @@ export class PhaseSystem extends BaseSystem {
     }
     
     /**
-     * [改善案] 1機でも行動実行準備完了状態の機体がいるかチェックする
+     * 1機でも行動実行準備完了状態の機体がいるかチェックする
      */
     isAnyEntityReadyToExecute() {
         const entities = this.world.getEntitiesWith(GameState);
@@ -157,7 +157,7 @@ export class PhaseSystem extends BaseSystem {
     }
 
     /**
-     * [改善案] 誰か一人でもチャージ中の機体がいるかチェックする（ターンエンド判定用）
+     * 誰か一人でもチャージ中の機体がいるかチェックする（ターンエンド判定用）
      */
     isAnyEntityInCharging() {
         const entities = this.world.getEntitiesWith(GameState);
