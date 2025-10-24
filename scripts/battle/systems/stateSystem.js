@@ -24,9 +24,8 @@ export class StateSystem {
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
         this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
         this.world.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
-        // ACTION_RESOLUTION_FINISHEDイベントは廃止され、
-        // ActionResolutionSystemからtransitionToCooldownが直接呼び出されるようになったため、
-        // このイベントの購読は不要になりました。
+        // ActionResolutionSystemからの直接呼び出しの代わりに、イベントを購読してクールダウンへ移行
+        this.world.on(GameEvents.ACTION_COMPLETED, this.onActionCompleted.bind(this));
     }
     
     onPlayerBroken(detail) {
@@ -106,6 +105,14 @@ export class StateSystem {
         this.resetEntityStateToCooldown(entityId, { interrupted: true });
     }
 
+    /**
+     * 行動完了イベントを処理し、クールダウンへ移行させます。
+     * @param {object} detail - ACTION_COMPLETED イベントのペイロード { entityId }
+     */
+    onActionCompleted(detail) {
+        this.transitionToCooldown(detail.entityId);
+    }
+
     onEffectExpired(detail) {
         const { entityId, effect } = detail;
         const gameState = this.world.getComponent(entityId, GameState);
@@ -122,7 +129,7 @@ export class StateSystem {
     }
 
     /**
-     * ActionResolutionSystemから直接呼び出される、行動完了後のクールダウン移行処理。
+     * 行動完了後のクールダウン移行処理。
      * @param {number} entityId 
      */
     transitionToCooldown(entityId) {

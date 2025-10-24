@@ -195,8 +195,7 @@ export const createModalHandlers = (systemInstance) => ({
         getActorName: () => '合意と見てよろしいですね！？',
         isClickable: true,
         handleConfirm: (system) => {
-            // [再修正] イベント名を 'BATTLE_START_CONFIRMED' に戻す
-            system.world.emit('BATTLE_START_CONFIRMED', {});
+            system.world.emit(GameEvents.BATTLE_START_CONFIRMED, {});
             system.hideActionPanel();
         },
         handleCancel: (system) => {

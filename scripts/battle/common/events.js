@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * ペイロード構造と使用方法を明確にドキュメント化します。
@@ -49,6 +49,14 @@ export const GameEvents = {
      * @payload {}
      */
     BATTLE_START_CANCELLED: 'BATTLE_START_CANCELLED',
+
+    /**
+     * 戦闘開始モーダルで「はい」が押されたイベント。文字列リテラルを定数化。
+     * @event BATTLE_START_CONFIRMED
+     * @type {string}
+     * @payload {}
+     */
+    BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED',
 
     /**
      * 戦闘開始アニメーションの表示を要求
@@ -132,6 +140,15 @@ export const GameEvents = {
      * }}
      */
     COMBAT_SEQUENCE_RESOLVED: 'COMBAT_SEQUENCE_RESOLVED',
+
+    /**
+     * 行動が完了し、クールダウンへ移行すべきことを通知するイベント。
+     * システム間の直接参照をなくし、疎結合を促進します。
+     * @event ACTION_COMPLETED
+     * @type {string}
+     * @payload {{ entityId: number }}
+     */
+    ACTION_COMPLETED: 'ACTION_COMPLETED',
 
     /**
      * 行動実行アニメーションの完了を通知
@@ -284,7 +301,16 @@ export const GameEvents = {
      */
     GUARD_BROKEN: 'GUARD_BROKEN',
 
-    // --- UIイベント ---
+    // --- UI & Sceneイベント ---
+    /**
+     * シーン遷移を要求する汎用イベント。
+     * setTimeoutによる不安定な遷移を排除し、シーン間の疎結合を促進します。
+     * @event SCENE_CHANGE_REQUESTED
+     * @type {string}
+     * @payload {{ sceneName: string, data: object }}
+     */
+    SCENE_CHANGE_REQUESTED: 'SCENE_CHANGE_REQUESTED',
+
     /**
      * モーダル表示を要求
      * @event SHOW_MODAL

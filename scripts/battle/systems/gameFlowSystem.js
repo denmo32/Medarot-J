@@ -4,6 +4,7 @@ import { BattleContext } from '../core/index.js';
 import { GameEvents } from '../common/events.js';
 import { BattlePhase, PlayerStateType, TeamID, ModalType } from '../common/constants.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
+import { Timer } from '../../core/components/Timer.js';
 
 /**
  * ゲーム全体のフロー（開始、戦闘、終了、リセット）を管理するシステム。
@@ -18,7 +19,7 @@ export class GameFlowSystem extends BaseSystem {
 
     bindWorldEvents() {
         this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
-        this.world.on('BATTLE_START_CONFIRMED', this.onBattleStartConfirmed.bind(this));
+        this.world.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CANCELLED, this.onBattleStartCancelled.bind(this));
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
         this.world.on(GameEvents.GAME_PAUSED, this.onGamePaused.bind(this));
@@ -81,6 +82,19 @@ export class GameFlowSystem extends BaseSystem {
             this.battleContext.phase = BattlePhase.GAME_OVER;
             this.battleContext.winningTeam = winningTeam;
 
+            // setTimeoutを廃止し、ECSベースのTimerに置き換える
+            // 3秒後にシーン遷移を要求するタイマーエンティティを作成
+            const timerEntity = this.world.createEntity();
+            this.world.addComponent(timerEntity, new Timer(3000, () => {
+                // BattleSceneがこのイベントを購読し、シーン遷移を実行する
+                this.world.emit(GameEvents.SCENE_CHANGE_REQUESTED, {
+                    sceneName: 'map',
+                    // BattleScene側でGameDataManagerを取得するため、ここではデータを渡さない
+                    data: { result: { winningTeam } } 
+                });
+            }));
+
+            // ゲームオーバーモーダルはタイマーとは独立してすぐに表示
             this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.GAME_OVER, data: { winningTeam } });
         }
     }

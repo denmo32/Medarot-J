@@ -22,6 +22,7 @@ import { ActionSelectionSystem } from '../systems/ActionSelectionSystem.js';
 import { ActionSetupSystem } from '../systems/ActionSetupSystem.js';
 import { ActionExecutionSystem } from '../systems/ActionExecutionSystem.js';
 import { ActionResolutionSystem } from '../systems/ActionResolutionSystem.js';
+import { TimerSystem } from '../../core/systems/TimerSystem.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -51,8 +52,9 @@ export function initializeSystems(world) {
     const actionCancellationSystem = new ActionCancellationSystem(world);
     const actionSelectionSystem = new ActionSelectionSystem(world);
     const actionSetupSystem = new ActionSetupSystem(world);
-    const actionResolutionSystem = new ActionResolutionSystem(world, stateSystem);
+    const actionResolutionSystem = new ActionResolutionSystem(world);
     const actionExecutionSystem = new ActionExecutionSystem(world);
+    const timerSystem = new TimerSystem(world);
 
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
@@ -62,6 +64,8 @@ export function initializeSystems(world) {
     world.registerSystem(gameFlowSystem);
     world.registerSystem(phaseSystem);
     world.registerSystem(turnSystem);
+    // TimerSystemを登録。メインロジックの前に更新するのが望ましい。
+    world.registerSystem(timerSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(stateSystem);
     world.registerSystem(actionSelectionSystem);

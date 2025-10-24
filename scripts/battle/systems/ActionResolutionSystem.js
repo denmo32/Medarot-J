@@ -16,18 +16,15 @@ import { effectStrategies } from '../effects/effectStrategies.js';
 export class ActionResolutionSystem extends BaseSystem {
     /**
      * @param {World} world 
-     * @param {StateSystem} stateSystem - StateSystemへの直接参照を保持
      */
-    constructor(world, stateSystem) {
+    constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
-        // StateSystemへの参照を保持し、クールダウン移行を直接呼び出す
-        this.stateSystem = stateSystem;
+        // StateSystemへの直接参照を削除し、疎結合化を実現
 
         // updateループの代わりに、アニメーション完了イベントをトリガーとする
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
-        // UIの結果表示モーダル完了イベントを購読し、行動後の状態遷移まで担当
-        this.world.on(GameEvents.MODAL_SEQUENCE_COMPLETED, this.onModalSequenceCompleted.bind(this));
+        // UIモーダル完了イベントの購読を削除。このシステムの責務ではなくなったため。
     }
 
     /**
@@ -42,33 +39,18 @@ export class ActionResolutionSystem extends BaseSystem {
      * @param {object} detail 
      */
     onExecutionAnimationCompleted(detail) {
-        // ACTION_RESOLUTIONフェーズは廃止されたため、チェック対象から外す
+        // 廃止されたACTION_RESOLUTIONフェーズのチェックを削除
         if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
             return;
         }
         this.resolveAction(detail.entityId);
     }
 
-    /**
-     * UIモーダルの完了イベントハンドラ
-     * StateSystemに状態遷移を依頼するイベントを発行する代わりに、直接メソッドを呼び出します。
-     * @param {object} detail 
-     */
-    onModalSequenceCompleted(detail) {
-        const { modalType, originalData } = detail;
-
-        if (modalType === ModalType.EXECUTION_RESULT && originalData && originalData.attackerId !== undefined) {
-            // StateSystemのメソッドを直接呼び出してクールダウンへ移行させる
-            this.stateSystem.transitionToCooldown(originalData.attackerId);
-        }
-    }
-
     resolveAction(attackerId) {
         const components = this._getCombatComponents(attackerId);
         if (!components) {
-            // コンポーネントが取得できない場合でも、後続処理のために完了イベントを発行する
-            // ACTION_RESOLUTION_FINISHEDの代わりに、直接クールダウン処理を試みる
-            this.stateSystem.transitionToCooldown(attackerId);
+            // コンポーネントが取得できない場合、後続処理のために完了イベントを発行
+            this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: attackerId });
             return;
         }
         const { action, attackerInfo, attackerParts } = components;

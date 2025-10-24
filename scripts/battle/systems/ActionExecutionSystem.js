@@ -120,6 +120,9 @@ export class ActionExecutionSystem extends BaseSystem {
             detail.modalType === ModalType.EXECUTION_RESULT && 
             detail.originalData?.attackerId === this.currentExecutingActorId) 
         {
+            // StateSystemへの直接参照をなくし、汎用的なイベントを発行してクールダウン移行を依頼する
+            this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: this.currentExecutingActorId });
+
             // isExecutingをfalseにすることで、updateループが次のアクションに移る
             this.isExecuting = false;
             this.currentExecutingActorId = null;
