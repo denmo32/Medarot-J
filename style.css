@@ -636,12 +636,23 @@ body {
 
 
 /* リストのスタイル */
-#medarot-select-list, #equipped-parts-list, #parts-list {
+/* #equipped-medal-list をセレクタに追加 */
+#medarot-select-list, #equipped-parts-list, #equipped-medal-list, #parts-list {
     list-style: none;
     padding: 0;
     margin: 0;
     overflow-y: auto;
-    flex-grow: 1;
+}
+
+#equipped-parts-list {
+    flex-grow: 1; /* パーツリストが残りの高さを埋めるように */
+}
+
+/* 装備メダルリストのスタイル */
+#equipped-medal-list {
+    margin-top: 10px; /* パーツリストとの間にスペース */
+    flex-grow: 0; /* 高さが伸びないように */
+    flex-shrink: 0; /* 縮まないように */
 }
 
 .medarot-list-item, .equipped-part-item, .part-list-item {
