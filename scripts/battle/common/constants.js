@@ -53,6 +53,16 @@ export const PartType = Object.values(PartInfo).reduce((acc, { key }) => {
 }, {});
 
 /**
+ * カスタマイズ画面の装備スロットタイプを定義する定数
+ * パーツのスロットキーとメダルスロットを統合して管理することで、
+ * マジックストリング 'medal' を排除し、コードの堅牢性を向上させます。
+ */
+export const EquipSlotType = {
+    ...PartType,
+    MEDAL: 'medal'
+};
+
+/**
  * パーツキー(例: 'head')から対応するPartInfoオブジェクトを逆引きするためのマップ
  * 動的なキー文字列から関連情報(名前、アイコン等)を効率的に取得できます。
  */
