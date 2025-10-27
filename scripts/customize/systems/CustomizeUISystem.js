@@ -39,7 +39,8 @@ export class CustomizeUISystem extends BaseSystem {
 
         // マジックストリングを排除し、定数を使用して装備スロットを定義
         this.partSlots = [EquipSlotType.HEAD, EquipSlotType.RIGHT_ARM, EquipSlotType.LEFT_ARM, EquipSlotType.LEGS];
-        this.equipSlots = [...this.partSlots, EquipSlotType.MEDAL];
+        // 装備スロットの順序をメダルが先頭になるように変更
+        this.equipSlots = [EquipSlotType.MEDAL, ...this.partSlots];
         
         this.currentPartListData = [];
         this.currentMedalListData = [];
@@ -222,30 +223,33 @@ export class CustomizeUISystem extends BaseSystem {
 
         this.dom.equippedMedarotName.textContent = medarot.name;
 
-        // パーツを描画
-        this.partSlots.forEach((slotKey, index) => {
-            const part = medarot.parts[slotKey];
-            const clone = this.templates.equippedPartItem.content.cloneNode(true);
-            const item = clone.querySelector('li');
-            item.dataset.index = index;
-            item.dataset.slot = slotKey;
+        // 新しい equipSlots の順序に基づいて描画
+        this.equipSlots.forEach((slotKey, index) => {
+            if (slotKey === EquipSlotType.MEDAL) {
+                // メダルを描画
+                const medal = medarot.medal;
+                const clone = this.templates.equippedMedalItem.content.cloneNode(true);
+                const item = clone.querySelector('li');
+                item.dataset.index = index;
+                item.dataset.slot = slotKey;
+                item.querySelector('.part-name').textContent = medal.data ? medal.data.name : 'なし';
+                this.dom.equippedMedalList.appendChild(clone);
+            } else {
+                // パーツを描画
+                const part = medarot.parts[slotKey];
+                const clone = this.templates.equippedPartItem.content.cloneNode(true);
+                const item = clone.querySelector('li');
+                item.dataset.index = index;
+                item.dataset.slot = slotKey;
 
-            const slotInfo = PartKeyToInfoMap[slotKey];
-            item.querySelector('.part-slot-name').textContent = slotInfo ? slotInfo.name : '不明';
-            item.querySelector('.part-name').textContent = part.data ? part.data.name : 'なし';
-            this.dom.equippedPartsList.appendChild(clone);
+                const slotInfo = PartKeyToInfoMap[slotKey];
+                item.querySelector('.part-slot-name').textContent = slotInfo ? slotInfo.name : '不明';
+                item.querySelector('.part-name').textContent = part.data ? part.data.name : 'なし';
+                this.dom.equippedPartsList.appendChild(clone);
+            }
         });
-
-        // メダルを描画
-        const medal = medarot.medal;
-        const clone = this.templates.equippedMedalItem.content.cloneNode(true);
-        const item = clone.querySelector('li');
-        // インデックスとスロットキーを定数から設定
-        item.dataset.index = this.partSlots.length;
-        item.dataset.slot = EquipSlotType.MEDAL;
-        item.querySelector('.part-name').textContent = medal.data ? medal.data.name : 'なし';
-        this.dom.equippedMedalList.appendChild(clone);
     }
+
 
     renderSelectionList() {
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
@@ -327,9 +331,10 @@ export class CustomizeUISystem extends BaseSystem {
         });
 
         // 装備パネルのフォーカス
+        // DOMの構造変更に合わせて取得順序を変更
         const allEquipItems = [
-            ...this.dom.equippedPartsList.querySelectorAll('li'),
-            ...this.dom.equippedMedalList.querySelectorAll('li')
+            ...this.dom.equippedMedalList.querySelectorAll('li'),
+            ...this.dom.equippedPartsList.querySelectorAll('li')
         ];
         allEquipItems.forEach(li => {
             const isFocused = this.uiState.focus === 'EQUIP_PANEL' && parseInt(li.dataset.index) === this.uiState.selectedEquipIndex;
