@@ -12,6 +12,11 @@ import { GameEvents } from '../common/events.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 import { findGuardian, findRandomPenetrationTarget, getValidAllies } from '../utils/queryUtils.js';
 import { effectStrategies } from '../effects/effectStrategies.js';
+// 新しい効果適用ロジック(Applicator)をインポート
+import { applyDamage } from '../effects/applicators/damageApplicator.js';
+import { applyHeal } from '../effects/applicators/healApplicator.js';
+import { applyTeamEffect, applySelfEffect } from '../effects/applicators/statusEffectApplicator.js';
+
 
 export class ActionResolutionSystem extends BaseSystem {
     /**
@@ -20,11 +25,17 @@ export class ActionResolutionSystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
-        // StateSystemへの直接参照を削除し、疎結合化を実現
+        
+        // 効果の適用ロジックをまとめたマップを定義
+        this.effectApplicators = {
+            [EffectType.DAMAGE]: applyDamage,
+            [EffectType.HEAL]: applyHeal,
+            [EffectType.APPLY_SCAN]: applyTeamEffect,
+            [EffectType.APPLY_GUARD]: applySelfEffect,
+            // APPLY_GLITCH は StateSystem が直接状態を変化させるため、ここでは不要
+        };
 
-        // updateループの代わりに、アニメーション完了イベントをトリガーとする
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
-        // UIモーダル完了イベントの購読を削除。このシステムの責務ではなくなったため。
     }
 
     /**
@@ -39,7 +50,6 @@ export class ActionResolutionSystem extends BaseSystem {
      * @param {object} detail 
      */
     onExecutionAnimationCompleted(detail) {
-        // 廃止されたACTION_RESOLUTIONフェーズのチェックを削除
         if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
             return;
         }
@@ -49,7 +59,6 @@ export class ActionResolutionSystem extends BaseSystem {
     resolveAction(attackerId) {
         const components = this._getCombatComponents(attackerId);
         if (!components) {
-            // コンポーネントが取得できない場合、後続処理のために完了イベントを発行
             this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: attackerId });
             return;
         }
@@ -105,7 +114,6 @@ export class ActionResolutionSystem extends BaseSystem {
         
         const appliedEffects = this.applyAllEffects({ attackerId, resolvedEffects, guardianInfo });
         
-        // 履歴更新時に使用するため、attackingPartを渡す
         this.updateHistory({ attackerId, appliedEffects, attackingPart });
         
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, {
@@ -119,103 +127,62 @@ export class ActionResolutionSystem extends BaseSystem {
         });
     }
 
+    /**
+     * 全ての効果を適用するプロセス。ロジックを外部のApplicatorに移譲し、自身はフロー制御に専念する。
+     * @param {object} context - { attackerId, resolvedEffects, guardianInfo }
+     * @returns {Array<object>} 実際に適用された効果の結果リスト
+     */
     applyAllEffects({ attackerId, resolvedEffects, guardianInfo }) {
         const appliedEffects = [];
         const effectQueue = [...resolvedEffects];
 
+        // ガードが発動した場合、ガード回数を消費させる
         if (guardianInfo) {
-            const guardEffect = this.world.getComponent(guardianInfo.id, ActiveEffects)?.effects.find(e => e.type === EffectType.APPLY_GUARD);
+            const guardEffectComp = this.world.getComponent(guardianInfo.id, ActiveEffects);
+            const guardEffect = guardEffectComp?.effects.find(e => e.type === EffectType.APPLY_GUARD);
             if (guardEffect) {
                 guardEffect.count--;
-                if (guardEffect.count <= 0) this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId: guardianInfo.id, effect: guardEffect });
+                if (guardEffect.count <= 0) {
+                    this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId: guardianInfo.id, effect: guardEffect });
+                }
             }
         }
 
         while (effectQueue.length > 0) {
             const effect = effectQueue.shift();
+            // Applicatorマップから対応する適用関数を取得
+            const applicator = this.effectApplicators[effect.type];
             let result = null;
-            switch(effect.type) {
-                case EffectType.DAMAGE: result = this._applyDamage(effect); break;
-                case EffectType.HEAL: result = this._applyHeal(effect); break;
-                case EffectType.APPLY_SCAN: this._applyTeamEffect(effect); result = effect; break;
-                case EffectType.APPLY_GUARD: this._applySingleEffect({ ...effect, targetId: attackerId }); result = effect; break;
-                default: result = effect;
+
+            if (applicator) {
+                // Applicatorに関数を委譲
+                result = applicator({ world: this.world, effect });
+            } else {
+                // Applicatorが定義されていない効果は、そのまま結果として扱う
+                result = effect;
             }
 
             if (result) {
                 appliedEffects.push(result);
+                // 貫通ダメージの処理
                 if (result.isPartBroken && result.penetrates && result.overkillDamage > 0) {
                     const nextTarget = findRandomPenetrationTarget(this.world, result.targetId, result.partKey);
                     if (nextTarget) {
-                        effectQueue.unshift({ ...effect, partKey: nextTarget, value: result.overkillDamage, isPenetration: true });
+                        // 次の貫通ダメージ効果をキューの先頭に追加
+                        effectQueue.unshift({ 
+                            ...effect, 
+                            partKey: nextTarget, 
+                            value: result.overkillDamage, 
+                            isPenetration: true 
+                        });
                     }
                 }
             }
         }
         return appliedEffects;
     }
-
-    _applyDamage(effect) {
-        const { targetId, partKey, value } = effect;
-        const part = this.world.getComponent(targetId, Parts)?.[partKey];
-        if (!part) return null;
-
-        const oldHp = part.hp;
-        const newHp = Math.max(0, oldHp - value);
-        part.hp = newHp;
-        const actualDamage = oldHp - newHp;
-        const isPartBroken = oldHp > 0 && newHp === 0;
-
-        this.world.emit(GameEvents.HP_UPDATED, { entityId: targetId, partKey, newHp, maxHp: part.maxHp, change: -actualDamage, isHeal: false });
-        if (isPartBroken) {
-            part.isBroken = true;
-            this.world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey });
-            if (partKey === PartInfo.HEAD.key) {
-                this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId, teamId: this.world.getComponent(targetId, PlayerInfo).teamId });
-            }
-        }
-        return { ...effect, value: actualDamage, isPartBroken, overkillDamage: value - actualDamage };
-    }
     
-    _applyHeal(effect) {
-        const { targetId, partKey, value } = effect;
-        if (!targetId) return effect;
-
-        const part = this.world.getComponent(targetId, Parts)?.[partKey];
-        if (!part) return null;
-
-        let actualHealAmount = 0;
-        if (!part.isBroken) {
-            const oldHp = part.hp;
-            part.hp = Math.min(part.maxHp, part.hp + value);
-            actualHealAmount = part.hp - oldHp;
-            if (actualHealAmount > 0) {
-                this.world.emit(GameEvents.HP_UPDATED, { entityId: targetId, partKey, newHp: part.hp, maxHp: part.maxHp, change: actualHealAmount, isHeal: true });
-            }
-        }
-        return { ...effect, value: actualHealAmount };
-    }
-
-    _applyTeamEffect(effect) {
-        if (!effect.scope?.endsWith('_TEAM')) return;
-        const sourceInfo = this.world.getComponent(effect.targetId, PlayerInfo);
-        if (!sourceInfo) return;
-        const allies = getValidAllies(this.world, effect.targetId, true);
-        allies.forEach(id => this._applySingleEffect({ ...effect, targetId: id }));
-    }
-
-    _applySingleEffect(effect) {
-        const activeEffects = this.world.getComponent(effect.targetId, ActiveEffects);
-        if (!activeEffects) return;
-        activeEffects.effects = activeEffects.effects.filter(e => e.type !== effect.type);
-        activeEffects.effects.push({
-            type: effect.type,
-            value: effect.value,
-            duration: effect.duration,
-            count: effect.value,
-            partKey: effect.partKey,
-        });
-    }
+    // _applyDamage, _applyHeal, _applyTeamEffect, _applySingleEffect は外部Applicatorに移譲したため削除
     
     /**
      * 履歴更新ロジックを厳格化

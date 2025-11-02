@@ -11,21 +11,17 @@ import { ErrorHandler } from '../utils/errorHandler.js';
  * エンティティの「状態」を管理するステートマシンとしての役割を担うシステム。
  * 責務を削減し、状態遷移ロジックのコア部分に特化させました。
  * - 行動選択後のセットアップは ActionSetupSystem へ移譲。
- * - 行動完了後のクールダウン移行はこのシステムが一元管理します。
+ * - 行動完了後のクールダウン移行は CooldownSystem へ移譲。
  */
 export class StateSystem {
     constructor(world) {
         this.world = world;
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         
-        // ACTION_EXECUTEDは妨害・ガードなどの即時状態変化にのみ使用する
         this.world.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
         this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
         this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
-        this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
-        this.world.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
-        // ActionResolutionSystemからの直接呼び出しの代わりに、イベントを購読してクールダウンへ移行
-        this.world.on(GameEvents.ACTION_COMPLETED, this.onActionCompleted.bind(this));
+        // クールダウン移行に関連するイベント購読を CooldownSystem に移譲
     }
     
     onPlayerBroken(detail) {
@@ -43,7 +39,6 @@ export class StateSystem {
     }
 
     /**
-     * イベント名をACTION_EXECUTEDからCOMBAT_SEQUENCE_RESOLVEDに変更。
      * 妨害やガードといった、行動解決時に即座に状態を変化させる効果を処理します。
      * @param {object} detail 
      */
@@ -56,7 +51,9 @@ export class StateSystem {
         for (const effect of appliedEffects) {
             if (effect.type === EffectType.APPLY_GLITCH && effect.wasSuccessful) {
                 // 妨害成功時、ターゲットを強制的にクールダウンへ
-                this.resetEntityStateToCooldown(effect.targetId, { interrupted: true });
+                // CooldownSystem が ACTION_CANCELLED を購読しているため、イベントを発行して処理を委譲
+                // ★★★ 修正: MessageSystemなどが理由を判別できるよう 'INTERRUPTED' を追加 ★★★
+                this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: effect.targetId, reason: 'INTERRUPTED' });
             } 
             else if (effect.type === EffectType.APPLY_GUARD) {
                 // ガード成功時、自身の状態をガード中へ
@@ -100,108 +97,7 @@ export class StateSystem {
         }
     }
     
-    onActionCancelled(detail) {
-        const { entityId } = detail;
-        this.resetEntityStateToCooldown(entityId, { interrupted: true });
-    }
-
-    /**
-     * 行動完了イベントを処理し、クールダウンへ移行させます。
-     * @param {object} detail - ACTION_COMPLETED イベントのペイロード { entityId }
-     */
-    onActionCompleted(detail) {
-        this.transitionToCooldown(detail.entityId);
-    }
-
-    onEffectExpired(detail) {
-        const { entityId, effect } = detail;
-        const gameState = this.world.getComponent(entityId, GameState);
-        
-        if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
-            const parts = this.world.getComponent(entityId, Parts);
-            const guardPart = parts[effect.partKey];
-            if (guardPart?.isBroken) {
-                 this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
-            }
-            
-            this.resetEntityStateToCooldown(entityId);
-        }
-    }
-
-    /**
-     * 行動完了後のクールダウン移行処理。
-     * @param {number} entityId 
-     */
-    transitionToCooldown(entityId) {
-        const parts = this.world.getComponent(entityId, Parts);
-        if (parts?.head?.isBroken) return;
-
-        const gameState = this.world.getComponent(entityId, GameState);
-        // ガード状態の機体はクールダウンに移行せず、Actionコンポーネントのみリセット
-        if (gameState && gameState.state === PlayerStateType.GUARDING) {
-            this.world.addComponent(entityId, new Action());
-            return;
-        }
-
-        const gauge = this.world.getComponent(entityId, Gauge);
-        const action = this.world.getComponent(entityId, Action);
-
-        // クールダウン用の速度補正を計算
-        if (action && action.partKey && parts && gauge) {
-            const usedPart = parts[action.partKey];
-            if (usedPart) {
-                gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: usedPart, factorType: 'cooldown' });
-            }
-        } else if (gauge) {
-            gauge.speedMultiplier = 1.0;
-        }
-
-        if (gameState) gameState.state = PlayerStateType.CHARGING;
-        if (gauge) gauge.value = 0;
-        
-        this.world.addComponent(entityId, new Action());
-    }
-
-    /**
-     * エンティティの状態をクールダウン（CHARGING）にリセットします。
-     * このメソッドは、妨害や効果切れなど、通常の行動フロー外で状態をリセットする必要がある場合に呼び出されます。
-     * @param {number} entityId 
-     * @param {object} [options={}]
-     * @param {boolean} [options.interrupted=false] - 行動が中断されたか
-     */
-    resetEntityStateToCooldown(entityId, options = {}) {
-        const { interrupted = false } = options;
-        const parts = this.world.getComponent(entityId, Parts);
-        
-        if (parts?.head?.isBroken) {
-            return;
-        }
-        
-        const gameState = this.world.getComponent(entityId, GameState);
-        const gauge = this.world.getComponent(entityId, Gauge);
-        const action = this.world.getComponent(entityId, Action);
-
-        if (gameState && gameState.state === PlayerStateType.GUARDING) {
-            const activeEffects = this.world.getComponent(entityId, ActiveEffects);
-            if (activeEffects) {
-                activeEffects.effects = activeEffects.effects.filter(e => e.type !== EffectType.APPLY_GUARD);
-            }
-        }
-        
-        if (gameState) gameState.state = PlayerStateType.CHARGING;
-        if (gauge) {
-            if (interrupted) {
-                gauge.value = gauge.max - gauge.value;
-            } else {
-                gauge.value = 0;
-            }
-            gauge.speedMultiplier = 1.0;
-        }
-        if (action) {
-            this.world.addComponent(entityId, new Action());
-        }
-    }
-
     update(deltaTime) {
+        // このシステムはイベント駆動のため、update処理は不要です。
     }
 }

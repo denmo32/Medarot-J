@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
+﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
  * ペイロード構造と使用方法を明確にドキュメント化します。
@@ -246,7 +246,7 @@ export const GameEvents = {
      * MessageSystemが購読し、キャンセル理由に応じたメッセージを生成する。
      * @event ACTION_CANCELLED
      * @type {string}
-     * @payload {{ entityId: number, reason: 'PART_BROKEN' | 'TARGET_LOST' }}
+     * @payload {{ entityId: number, reason: 'PART_BROKEN' | 'TARGET_LOST' | 'INTERRUPTED' }}
      */
     ACTION_CANCELLED: 'ACTION_CANCELLED',
     

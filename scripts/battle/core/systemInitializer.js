@@ -23,6 +23,8 @@ import { ActionSetupSystem } from '../systems/ActionSetupSystem.js';
 import { ActionExecutionSystem } from '../systems/ActionExecutionSystem.js';
 import { ActionResolutionSystem } from '../systems/ActionResolutionSystem.js';
 import { TimerSystem } from '../../core/systems/TimerSystem.js';
+// CooldownSystemをインポート
+import { CooldownSystem } from '../systems/cooldownSystem.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -55,6 +57,8 @@ export function initializeSystems(world) {
     const actionResolutionSystem = new ActionResolutionSystem(world);
     const actionExecutionSystem = new ActionExecutionSystem(world);
     const timerSystem = new TimerSystem(world);
+    // CooldownSystemをインスタンス化
+    const cooldownSystem = new CooldownSystem(world);
 
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
@@ -68,6 +72,8 @@ export function initializeSystems(world) {
     world.registerSystem(timerSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(stateSystem);
+    // 新しいCooldownSystemを登録
+    world.registerSystem(cooldownSystem);
     world.registerSystem(actionSelectionSystem);
     world.registerSystem(actionSetupSystem);
     world.registerSystem(actionExecutionSystem);

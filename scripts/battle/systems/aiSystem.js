@@ -12,29 +12,11 @@ import { determineTarget } from '../utils/targetingUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
 import { partSelectionStrategies } from '../ai/partSelectionStrategies.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
+// 外部ファイルに移管した conditionEvaluators をインポート
+import { conditionEvaluators } from '../ai/conditionEvaluators.js';
 import { EffectScope } from '../common/constants.js';
 
-
-/**
- * AI思考ルーチンの実行条件を評価する関数のコレクション。
- * personalityRegistry`で定義された`condition`データオブジェクトを解釈します。
- * @type {Object.<string, function({world: World, entityId: number, params: object}): boolean>}
- */
-const conditionEvaluators = {
-    /**
-     * 味方（自分を含む/含まない）の誰かがダメージを受けているかを評価します。
-     * @param {object} context - 評価コンテキスト
-     * @returns {boolean} - ダメージを受けている味方がいればtrue
-     */
-    ANY_ALLY_DAMAGED: ({ world, entityId, params }) => {
-        const { includeSelf = false } = params || {};
-        const allies = getValidAllies(world, entityId, includeSelf);
-        // 最もダメージを受けた味方パーツが存在するかどうかで判断
-        return findMostDamagedAllyPart(world, allies) !== null;
-    },
-    // 将来的な条件を追加する例:
-    // IS_LEADER: ({ world, entityId }) => world.getComponent(entityId, PlayerInfo)?.isLeader,
-};
+// AiSystem内に直接定義されていた conditionEvaluators は conditionEvaluators.js に移管
 
 /**
  * AIの「脳」として機能するシステム。
@@ -113,15 +95,12 @@ export class AiSystem extends BaseSystem {
                 const [partKey, part] = partSelectionFunc(context);
                 if (!partKey) continue; 
 
-                // ターゲット候補リストの作成を削除。各戦略が自身で候補を決定します。
-                
                 const targetSelectionFunc = targetingStrategies[targetStrategyKey];
                 if (!targetSelectionFunc) {
                     console.warn(`AiSystem: Unknown targetStrategy '${targetStrategyKey}' in routines for ${attackerMedal.personality}.`);
                     continue;
                 }
                 
-                // 候補リスト(candidates)を渡さずにターゲットを決定
                 const target = determineTarget(this.world, entityId, targetSelectionFunc, targetStrategyKey);
 
                 if (target) {
@@ -141,7 +120,6 @@ export class AiSystem extends BaseSystem {
             if (partKey) {
                 selectedPartKey = partKey;
                 const fallbackKey = Object.keys(targetingStrategies).find(key => targetingStrategies[key] === strategies.fallbackTargeting);
-                // 候補リスト(candidates)を渡さずにターゲットを決定
                 finalTarget = determineTarget(this.world, entityId, strategies.fallbackTargeting, fallbackKey);
             }
         }
