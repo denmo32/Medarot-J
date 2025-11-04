@@ -9,34 +9,21 @@ import { BattleContext } from '../core/index.js';
 import { GameState, PlayerInfo } from '../core/components/index.js';
 import { BattlePhase, PlayerStateType } from '../common/constants.js';
 import { GameEvents } from '../common/events.js';
-import { TurnSystem } from './turnSystem.js';
 
 export class ActionSelectionSystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         
-        // コンストラクタ実行時点では他のシステムが登録されていないため、nullで初期化します。
-        // 実際の参照は、全システムが登録された後の最初のupdate時に解決します。
-        this.turnSystem = null;
-
         // プレイヤーまたはAIが行動を決定したイベントを購読
         this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
+        // TurnSystemから次のアクターが決定した通知を購読
+        this.world.on(GameEvents.NEXT_ACTOR_DETERMINED, this.onNextActorDetermined.bind(this));
     }
 
     update(deltaTime) {
-        // 初回のupdate実行時にTurnSystemへの参照を安全に取得します。
-        if (!this.turnSystem) {
-            this.turnSystem = this.world.systems.find(s => s instanceof TurnSystem);
-            if (!this.turnSystem) {
-                // このエラーが出た場合、TurnSystemがsystemInitializer.jsに登録されていないことを意味します。
-                console.error("ActionSelectionSystem could not find the TurnSystem. Ensure it is registered in systemInitializer.js.");
-                return;
-            }
-        }
+        // TurnSystemへの参照解決ロジックを削除
 
-        // このシステムが動作するべきフェーズに INITIAL_SELECTION を追加します。
-        // これにより、バトル開始直後の最初の行動選択が正しくトリガーされます。
         const activePhases = [
             BattlePhase.ACTION_SELECTION,
             BattlePhase.INITIAL_SELECTION 
@@ -45,27 +32,28 @@ export class ActionSelectionSystem extends BaseSystem {
             return;
         }
 
-        // 現在行動すべきアクターがいない場合、ターンキューから次のアクターを取り出す
+        // キューからのアクター取り出しロジックをTurnSystemに移管。
+        // このupdateでは、キューが空になったことを検知してフェーズ完了を通知する責務のみ残す。
         if (this.battleContext.turn.currentActorId === null) {
-            // TurnSystemのキューを直接参照して処理します。
-            if (this.turnSystem && this.turnSystem.actionQueue.length > 0) {
-                const nextActorId = this.turnSystem.actionQueue.shift();
-                
-                // 行動可能か最終チェック
-                const gameState = this.world.getComponent(nextActorId, GameState);
-                if (gameState && gameState.state === PlayerStateType.READY_SELECT) {
-                    this.battleContext.turn.currentActorId = nextActorId;
-                    this.triggerActionSelection(nextActorId);
-                }
-            } else if (this.turnSystem && this.turnSystem.actionQueue.length === 0) {
+            // TurnSystemのキューを参照するのではなく、BattleContextの状態とイベントで判断
+            const turnSystem = this.world.systems.find(s => s.constructor.name === 'TurnSystem');
+            if (turnSystem && turnSystem.actionQueue.length === 0) {
                 // 行動キューが空で、現在のアクターもいない場合、選択フェーズ完了とみなす
-                // INITIAL_SELECTIONフェーズでは、完了判定はPhaseSystemが担当するため、
-                // ACTION_SELECTIONフェーズでのみ完了イベントを発行する。
                 if (this.battleContext.phase === BattlePhase.ACTION_SELECTION) {
                     this.world.emit(GameEvents.ACTION_SELECTION_COMPLETED);
                 }
             }
         }
+    }
+
+    /**
+     * 次のアクターが決定した際のハンドラ
+     * @param {object} detail - { entityId }
+     */
+    onNextActorDetermined(detail) {
+        const { entityId } = detail;
+        this.battleContext.turn.currentActorId = entityId;
+        this.triggerActionSelection(entityId);
     }
 
     /**

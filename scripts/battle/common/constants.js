@@ -177,3 +177,13 @@ export const ModalType = {
     GAME_OVER: 'game_over',
     MESSAGE: 'message'
 };
+
+/**
+ * アクションキャンセルの理由を定義する定数
+ * 文字列リテラルへの依存をなくし、タイプミスによるバグを防ぎます。
+ */
+export const ActionCancelReason = {
+    PART_BROKEN: 'PART_BROKEN',
+    TARGET_LOST: 'TARGET_LOST',
+    INTERRUPTED: 'INTERRUPTED',
+};

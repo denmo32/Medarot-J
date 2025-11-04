@@ -242,11 +242,19 @@ export const GameEvents = {
     ACTION_REQUEUE_REQUEST: 'ACTION_REQUEUE_REQUEST',
 
     /**
+     * 次に行動すべきアクターが決定したことを通知する
+     * @event NEXT_ACTOR_DETERMINED
+     * @type {string}
+     * @payload {{ entityId: number }}
+     */
+    NEXT_ACTOR_DETERMINED: 'NEXT_ACTOR_DETERMINED',
+
+    /**
      * 予約されていた行動がキャンセルされたことを通知する
      * MessageSystemが購読し、キャンセル理由に応じたメッセージを生成する。
      * @event ACTION_CANCELLED
      * @type {string}
-     * @payload {{ entityId: number, reason: 'PART_BROKEN' | 'TARGET_LOST' | 'INTERRUPTED' }}
+     * @payload {{ entityId: number, reason: string }} - reasonはActionCancelReason定数
      */
     ACTION_CANCELLED: 'ACTION_CANCELLED',
     

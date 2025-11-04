@@ -47,11 +47,29 @@ export class TurnSystem extends BaseSystem {
     }
 
     /**
-     * このシステムのupdateロジックはActionSelectionSystemに移管されました。
-     * このシステムはイベントに応じてキューを操作するだけの、よりシンプルな責務を持ちます。
+     * updateロジックを復活させ、キューからアクターを決定する責務を担う。
+     * このシステムのupdateロジックはActionSelectionSystemから移管されました。
      */
     update(deltaTime) {
-        // This system is now event-driven and does not require an update loop.
-        // The ActionSelectionSystem is responsible for processing the actionQueue.
+        // 行動選択フェーズでのみ動作
+        const activePhases = [
+            BattlePhase.ACTION_SELECTION,
+            BattlePhase.INITIAL_SELECTION 
+        ];
+        if (!activePhases.includes(this.battleContext.phase)) {
+            return;
+        }
+
+        // 現在行動すべきアクターがおらず、キューに待機者がいる場合
+        if (this.battleContext.turn.currentActorId === null && this.actionQueue.length > 0) {
+            const nextActorId = this.actionQueue.shift();
+            
+            // 行動可能か最終チェック
+            const gameState = this.world.getComponent(nextActorId, GameState);
+            if (gameState && gameState.state === PlayerStateType.READY_SELECT) {
+                // ActionSelectionSystemに次のアクターを通知
+                this.world.emit(GameEvents.NEXT_ACTOR_DETERMINED, { entityId: nextActorId });
+            }
+        }
     }
 }

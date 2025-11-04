@@ -23,9 +23,9 @@ import { BattleContext } from '../battle/core/index.js';
 export class BattleScene extends BaseScene {
     constructor(world, sceneManager) {
         super(world, sceneManager);
-        // シーン間で受け渡すデータを保持するためのプロパティ
-        this.gameDataManager = null;
-        this.inputManager = null;
+        // シーン間で受け渡すデータはinitで受け取るため、プロパティを削除
+        // this.gameDataManager = null;
+        // this.inputManager = null;
     }
 
     /**
@@ -34,9 +34,7 @@ export class BattleScene extends BaseScene {
     init(data) {
         console.log("Initializing Battle Scene...");
         const { gameDataManager, inputManager } = data;
-        // gameDataManagerとinputManagerをインスタンスプロパティとして保持
-        this.gameDataManager = gameDataManager;
-        this.inputManager = inputManager;
+        // gameDataManagerとinputManagerはローカル変数または必要なシステムに直接渡す
 
         // --- Battle Systems & Entities Setup ---
         initializeSystems(this.world);
@@ -52,7 +50,7 @@ export class BattleScene extends BaseScene {
         }
 
         // シーン遷移の責務をイベントハンドラに集約
-        this.bindSceneTransitionEvents();
+        this.bindSceneTransitionEvents(gameDataManager);
 
         // --- Start Battle Flow ---
         this.world.emit(GameEvents.SETUP_UI_REQUESTED);
@@ -61,19 +59,17 @@ export class BattleScene extends BaseScene {
 
     /**
      * シーン遷移に関連するイベントリスナーをここに集約します。
+     * @param {GameDataManager} gameDataManager
      */
-    bindSceneTransitionEvents() {
+    bindSceneTransitionEvents(gameDataManager) {
         // ゲーム終了後の処理とシーン遷移要求を分離
         this.world.on(GameEvents.SCENE_CHANGE_REQUESTED, (detail) => {
             // このシーンで発生した戦闘結果をゲームデータに反映
             if (detail.data && detail.data.result) {
-                this.gameDataManager.applyBattleResult(detail.data.result);
+                gameDataManager.applyBattleResult(detail.data.result);
             }
-            // 次のシーンに必要なグローバルインスタンスを渡して遷移
-            this.sceneManager.switchTo(detail.sceneName, {
-                gameDataManager: this.gameDataManager,
-                inputManager: this.inputManager
-            });
+            // switchToの呼び出しを簡潔化。グローバルコンテキストは自動で渡される。
+            this.sceneManager.switchTo(detail.sceneName, detail.data);
         });
 
         // UIからのリセットボタンクリックを処理

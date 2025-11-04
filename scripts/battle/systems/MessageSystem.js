@@ -6,11 +6,17 @@
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { ModalType, PartKeyToInfoMap, EffectType } from '../common/constants.js';
+import { ModalType, PartKeyToInfoMap, EffectType, ActionCancelReason } from '../common/constants.js';
 import { MessageTemplates, MessageKey } from '../data/messageRepository.js';
 import { PlayerInfo, Parts } from '../core/components/index.js';
 
-// ★★★ 修正: クラスをエクスポートする ★★★
+// キャンセル理由とメッセージキーのマッピングを定義
+const cancelReasonToMessageKey = {
+    [ActionCancelReason.PART_BROKEN]: MessageKey.CANCEL_PART_BROKEN,
+    [ActionCancelReason.TARGET_LOST]: MessageKey.CANCEL_TARGET_LOST,
+    [ActionCancelReason.INTERRUPTED]: MessageKey.CANCEL_INTERRUPTED,
+};
+
 export class MessageSystem extends BaseSystem {
     constructor(world) {
         super(world);
@@ -116,20 +122,10 @@ export class MessageSystem extends BaseSystem {
         const actorInfo = this.world.getComponent(entityId, PlayerInfo);
         if (!actorInfo) return;
 
-        let messageKey;
-        // ★★★ 妨害による中断 'INTERRUPTED' のケースを追加 ★★★
-        switch (reason) {
-            case 'PART_BROKEN':
-                messageKey = MessageKey.CANCEL_PART_BROKEN;
-                break;
-            case 'TARGET_LOST':
-                messageKey = MessageKey.CANCEL_TARGET_LOST;
-                break;
-            // case 'INTERRUPTED':
-            //    messageKey = MessageKey.CANCEL_INTERRUPTED;
-            //    break;
-            default:
-                return; // 不明な理由の場合は何もしない
+        // switch文をマップオブジェクトによる参照に置き換え
+        const messageKey = cancelReasonToMessageKey[reason];
+        if (!messageKey) {
+            return; // 不明な理由の場合は何もしない
         }
         
         const message = this.format(messageKey, { actorName: actorInfo.name });

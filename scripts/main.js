@@ -25,6 +25,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     sceneManager.register('battle', BattleScene);
     sceneManager.register('customize', CustomizeScene);
 
+    // SceneManagerにグローバルコンテキストを登録
+    sceneManager.registerGlobalContext('gameDataManager', gameDataManager);
+    sceneManager.registerGlobalContext('inputManager', inputManager);
+
     // --- UI Elements ---
     const titleContainer = document.getElementById('title-container');
     const startNewGameButton = document.getElementById('start-new-game');
@@ -59,9 +63,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             gameDataManager.loadGame();
         }
         
-        // SceneManagerを使って初期シーンを開始
-        // inputManagerを初期データとして渡す
-        await sceneManager.switchTo('map', { gameDataManager, inputManager });
+        // switchToの呼び出しを簡潔化
+        await sceneManager.switchTo('map');
         
         titleContainer.classList.add('hidden');
         inputManager.update(); // シーン切り替え直後の入力をリセット

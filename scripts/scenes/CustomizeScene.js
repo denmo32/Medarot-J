@@ -33,6 +33,7 @@ export class CustomizeScene extends BaseScene {
      */
     init(data) {
         console.log("Initializing Customize Scene...");
+        // initで渡されるgameDataManager, inputManagerはローカル変数として使用
         const { gameDataManager, inputManager } = data;
 
         // --- Contexts and State ---
@@ -52,8 +53,8 @@ export class CustomizeScene extends BaseScene {
         // --- Event Listeners for Scene Transition ---
         this.world.on('CUSTOMIZE_EXIT_REQUESTED', () => {
             // 前のシーン（マップ）に戻る
-            // 次のシーンに必要なデータをすべて渡す
-            this.sceneManager.switchTo('map', { gameDataManager, inputManager, restoreMenu: true });
+            // switchToの呼び出しを簡潔化
+            this.sceneManager.switchTo('map', { restoreMenu: true });
         });
     }
 

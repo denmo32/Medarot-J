@@ -11,6 +11,7 @@ import { getStrategiesFor } from '../ai/personalityRegistry.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
 import { GameEvents } from '../common/events.js';
 import { CONFIG } from '../common/config.js';
+import { conditionEvaluators } from '../ai/conditionEvaluators.js';
 
 /**
  * この関数は、指定された「戦略」を実行することにのみ責任を持つ。
@@ -53,42 +54,74 @@ export function determineTarget(world, attackerId, strategy, strategyKey) {
     return target;
 }
 
+/**
+ * AIとプレイヤー補助のターゲット決定ロジックを統合した新しい共通関数。
+ * @param {object} context - { world: World, entityId: number }
+ * @returns {{target: {targetId: number, targetPartKey: string} | null, strategyKey: string | null}} 決定されたターゲット情報と使用された戦略キー
+ */
+export function determineTargetByPersonality({ world, entityId }) {
+    const attackerMedal = world.getComponent(entityId, Medal);
+    if (!attackerMedal) return { target: null, strategyKey: null };
+
+    const strategies = getStrategiesFor(attackerMedal.personality);
+    const context = { world, entityId };
+    let finalTarget = null;
+    let usedStrategyKey = null;
+
+    // --- Step 1: 思考ルーチンに定義されたターゲット戦略を順番に試行 ---
+    if (strategies.routines && strategies.routines.length > 0) {
+        for (const routine of strategies.routines) {
+            // ルーチンに実行条件(condition)が定義されていれば評価する
+            if (routine.condition) {
+                const evaluator = conditionEvaluators[routine.condition.type];
+                if (evaluator) {
+                    if (!evaluator({ ...context, params: routine.condition.params })) {
+                        continue; // 条件を満たさなければこのルーチンはスキップ
+                    }
+                } else {
+                    console.warn(`determineTargetByPersonality: Unknown condition type '${routine.condition.type}' for ${attackerMedal.personality}.`);
+                    continue;
+                }
+            }
+            
+            const targetSelectionFunc = targetingStrategies[routine.targetStrategy];
+            if (!targetSelectionFunc) {
+                console.warn(`determineTargetByPersonality: Unknown targetStrategy '${routine.targetStrategy}' in routines for ${attackerMedal.personality}.`);
+                continue;
+            }
+            
+            const target = determineTarget(world, entityId, targetSelectionFunc, routine.targetStrategy);
+
+            if (target) {
+                finalTarget = target;
+                usedStrategyKey = routine.targetStrategy;
+                break; // 有効なターゲットが見つかったらループを抜ける
+            }
+        }
+    }
+
+    // --- Step 2: ルーチンでターゲットが決まらなかった場合の最終フォールバック ---
+    if (!finalTarget && strategies.fallbackTargeting) {
+        const fallbackKey = Object.keys(targetingStrategies).find(key => targetingStrategies[key] === strategies.fallbackTargeting);
+        finalTarget = determineTarget(world, entityId, strategies.fallbackTargeting, fallbackKey);
+        usedStrategyKey = fallbackKey;
+    }
+
+    return { target: finalTarget, strategyKey: usedStrategyKey };
+}
+
 
 /**
  * @function determineRecommendedTarget
  * @description プレイヤーの行動選択時に推奨ターゲットを提示するための共通関数。
- * エンティティの性格に基づき、最も優先度の高い思考ルーチンを実行してターゲットを決定します。
- * AIの思考ロジックの一部をプレイヤー補助のために再利用します。
+ * 内部ロジックを新しい共通関数`determineTargetByPersonality`に置き換えます。
  * @param {World} world - ワールドオブジェクト
  * @param {number} entityId - 行動主体のエンティティID
- * @param {object} part - 選択が検討されているパーツオブジェクト
+ * @param {object} part - 選択が検討されているパーツオブジェクト (現在は未使用ですが、将来的な拡張のため残置)
  * @returns {{targetId: number, targetPartKey: string} | null} 推奨ターゲット情報、またはnull
  */
 export function determineRecommendedTarget(world, entityId, part) {
-    const attackerMedal = world.getComponent(entityId, Medal);
-    if (!attackerMedal) return null;
-
-    const strategies = getStrategiesFor(attackerMedal.personality);
-    let target = null;
-    
-    // 候補リストの作成は各戦略に委譲するため、ここでは不要。
-
-    // 1. 性格に定義された最初の思考ルーチンでターゲットを試行
-    if (strategies.routines && strategies.routines.length > 0) {
-        const primaryRoutine = strategies.routines[0];
-        const primaryTargetingFunc = targetingStrategies[primaryRoutine.targetStrategy];
-        if (primaryTargetingFunc) {
-            // 候補リストを渡さずに呼び出し
-            target = determineTarget(world, entityId, primaryTargetingFunc, primaryRoutine.targetStrategy);
-        }
-    }
-
-    // 2. 最初のルーチンでターゲットが見つからない場合、フォールバック戦略を試行
-    if (!target && strategies.fallbackTargeting) {
-        const fallbackKey = Object.keys(targetingStrategies).find(key => targetingStrategies[key] === strategies.fallbackTargeting);
-        // 候補リストを渡さずに呼び出し
-        target = determineTarget(world, entityId, strategies.fallbackTargeting, fallbackKey);
-    }
-
+    // ターゲット決定ロジックを共通関数に委譲し、ターゲット情報のみを返す
+    const { target } = determineTargetByPersonality({ world, entityId });
     return target;
 }

@@ -12,10 +12,10 @@ import { GameEvents } from '../common/events.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 import { findGuardian, findRandomPenetrationTarget, getValidAllies } from '../utils/queryUtils.js';
 import { effectStrategies } from '../effects/effectStrategies.js';
-// 新しい効果適用ロジック(Applicator)をインポート
 import { applyDamage } from '../effects/applicators/damageApplicator.js';
 import { applyHeal } from '../effects/applicators/healApplicator.js';
 import { applyTeamEffect, applySelfEffect } from '../effects/applicators/statusEffectApplicator.js';
+import { applyGlitch } from '../effects/applicators/glitchApplicator.js';
 
 
 export class ActionResolutionSystem extends BaseSystem {
@@ -32,7 +32,8 @@ export class ActionResolutionSystem extends BaseSystem {
             [EffectType.HEAL]: applyHeal,
             [EffectType.APPLY_SCAN]: applyTeamEffect,
             [EffectType.APPLY_GUARD]: applySelfEffect,
-            // APPLY_GLITCH は StateSystem が直接状態を変化させるため、ここでは不要
+            // 妨害効果の適用ロジックをマップに追加
+            [EffectType.APPLY_GLITCH]: applyGlitch,
         };
 
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));

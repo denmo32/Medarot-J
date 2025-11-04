@@ -31,6 +31,7 @@ export const MessageTemplates = {
     // --- 行動中断 ---
     CANCEL_PART_BROKEN: '行動予約パーツ破壊！　{actorName}は放熱に移行！',
     CANCEL_TARGET_LOST: 'ターゲットロスト！　{actorName}は放熱に移行！',
+    // 【削除】妨害による行動中断メッセージ
     // CANCEL_INTERRUPTED: '妨害成功！　{actorName}は放熱に移行！',
 };
 

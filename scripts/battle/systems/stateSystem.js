@@ -2,7 +2,7 @@ import { Gauge, GameState, Parts, PlayerInfo, Action, Position, ActiveEffects } 
 import { BattleContext } from '../core/index.js';
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
-import { PlayerStateType, ModalType, BattlePhase, TeamID, EffectType, EffectScope, PartInfo, TargetTiming } from '../common/constants.js';
+import { PlayerStateType, ModalType, BattlePhase, TeamID, EffectType, EffectScope, PartInfo, TargetTiming, ActionCancelReason } from '../common/constants.js';
 import { isValidTarget } from '../utils/queryUtils.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -39,7 +39,7 @@ export class StateSystem {
     }
 
     /**
-     * 妨害やガードといった、行動解決時に即座に状態を変化させる効果を処理します。
+     * ガード効果など、行動解決時に即座に状態を変化させる効果を処理します。
      * @param {object} detail 
      */
     onCombatSequenceResolved(detail) {
@@ -49,13 +49,8 @@ export class StateSystem {
         }
 
         for (const effect of appliedEffects) {
-            if (effect.type === EffectType.APPLY_GLITCH && effect.wasSuccessful) {
-                // 妨害成功時、ターゲットを強制的にクールダウンへ
-                // CooldownSystem が ACTION_CANCELLED を購読しているため、イベントを発行して処理を委譲
-                // ★★★ 修正: MessageSystemなどが理由を判別できるよう 'INTERRUPTED' を追加 ★★★
-                this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: effect.targetId, reason: 'INTERRUPTED' });
-            } 
-            else if (effect.type === EffectType.APPLY_GUARD) {
+            // 妨害効果の処理を削除。glitchApplicatorが担当する。
+            if (effect.type === EffectType.APPLY_GUARD) {
                 // ガード成功時、自身の状態をガード中へ
                 const gameState = this.world.getComponent(attackerId, GameState);
                 if (gameState) {
