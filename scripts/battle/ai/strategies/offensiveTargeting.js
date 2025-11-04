@@ -11,34 +11,53 @@ import {
     selectPartByCondition, 
     getValidEnemies 
 } from '../../utils/queryUtils.js';
-// ★★★ 修正: 循環参照を避けるため、独立した strategyKeys.js からインポートする ★★★
 import { TargetingStrategyKey } from '../strategyKeys.js';
+
+// 敵を対象とする戦略を生成するための高階関数
+/**
+ * 敵候補リストの取得という共通処理をカプセル化し、戦略定義の重複を削減する高階関数。
+ * @param {function({world: World, attackerId: number, candidates: number[]}): {targetId: number, targetPartKey: string} | null} logicFn 
+ *   - 実際のターゲティングロジックを持つ関数。敵候補リスト(candidates)を引数として受け取る。
+ * @returns {function({world: World, attackerId: number}): {targetId: number, targetPartKey: string} | null} 
+ *   - 標準的なターゲティング戦略関数。
+ */
+const createEnemyTargetingStrategy = (logicFn) => {
+    return ({ world, attackerId }) => {
+        const candidates = getValidEnemies(world, attackerId);
+        if (candidates.length === 0) {
+            return null;
+        }
+        // 共通化されたロジックに候補リストを渡す
+        return logicFn({ world, attackerId, candidates });
+    };
+};
+
 
 export const offensiveStrategies = {
     /**
      * [HUNTER]: 弱った敵から確実に仕留める、狩人のような性格。
      */
-    [TargetingStrategyKey.HUNTER]: ({ world, attackerId }) => {
-        const candidates = getValidEnemies(world, attackerId);
+    // 高階関数を使用して戦略を定義
+    [TargetingStrategyKey.HUNTER]: createEnemyTargetingStrategy(({ world, candidates }) => {
         return selectPartByCondition(world, candidates, (a, b) => a.part.hp - b.part.hp);
-    },
+    }),
     /**
      * [CRUSHER]: 頑丈なパーツを先に破壊し、敵の耐久力を削ぐ、破壊者のような性格。
      */
-    [TargetingStrategyKey.CRUSHER]: ({ world, attackerId }) => {
-        const candidates = getValidEnemies(world, attackerId);
+    // 高階関数を使用して戦略を定義
+    [TargetingStrategyKey.CRUSHER]: createEnemyTargetingStrategy(({ world, candidates }) => {
         return selectPartByCondition(world, candidates, (a, b) => b.part.hp - a.part.hp);
-    },
+    }),
     /**
      * [JOKER]: 行動が予測不能で、戦況をかき乱す、トリックスターのような性格。
      */
-    [TargetingStrategyKey.JOKER]: ({ world, attackerId }) => {
-        const candidates = getValidEnemies(world, attackerId);
+    // 高階関数を使用して戦略を定義
+    [TargetingStrategyKey.JOKER]: createEnemyTargetingStrategy(({ world, candidates }) => {
         const allParts = getAllPartsFromCandidates(world, candidates);
         if (allParts.length === 0) return null;
         const randomIndex = Math.floor(Math.random() * allParts.length);
         return { targetId: allParts[randomIndex].entityId, targetPartKey: allParts[randomIndex].partKey };
-    },
+    }),
     /**
      * [COUNTER]: 受けた攻撃に即座にやり返す、短期的な性格。
      */
@@ -95,20 +114,20 @@ export const offensiveStrategies = {
     /**
      * [LEADER_FOCUS]: リーダーを集中攻撃し、早期決着を狙う、極めて攻撃的な性格。
      */
-    [TargetingStrategyKey.LEADER_FOCUS]: ({ world, attackerId }) => {
-        const candidates = getValidEnemies(world, attackerId);
+    // 高階関数を使用して戦略を定義
+    [TargetingStrategyKey.LEADER_FOCUS]: createEnemyTargetingStrategy(({ world, candidates }) => {
         const leader = candidates.find(id => world.getComponent(id, PlayerInfo).isLeader);
         return leader ? selectRandomPart(world, leader) : null;
-    },
+    }),
     /**
      * [RANDOM]: 基本的な性格であり、他の戦略が条件を満たさず実行できない場合の安全策（フォールバック）としての役割も持ちます。
      */
-    [TargetingStrategyKey.RANDOM]: ({ world, attackerId }) => {
-        const candidates = getValidEnemies(world, attackerId);
+    // 高階関数を使用して戦略を定義
+    [TargetingStrategyKey.RANDOM]: createEnemyTargetingStrategy(({ world, candidates }) => {
         if (!candidates || candidates.length === 0) return null;
         const targetId = candidates[Math.floor(Math.random() * candidates.length)];
         return selectRandomPart(world, targetId);
-    },
+    }),
     /**
      * [DO_NOTHING]: ターゲット選択に失敗した場合に、意図的に行動をキャンセルさせるための戦略。
      */

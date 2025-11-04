@@ -4,6 +4,7 @@ import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import { PlayerStateType, ModalType, BattlePhase, TeamID, EffectType, EffectScope, PartInfo, TargetTiming, ActionCancelReason } from '../common/constants.js';
 import { isValidTarget } from '../utils/queryUtils.js';
+import { snapToActionLine } from '../utils/positionUtils.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 
@@ -56,13 +57,8 @@ export class StateSystem {
                 if (gameState) {
                     gameState.state = PlayerStateType.GUARDING;
                     
-                    const position = this.world.getComponent(attackerId, Position);
-                    const playerInfo = this.world.getComponent(attackerId, PlayerInfo);
-                    if (position && playerInfo) {
-                        position.x = playerInfo.teamId === TeamID.TEAM1
-                            ? CONFIG.BATTLEFIELD.ACTION_LINE_TEAM1
-                            : CONFIG.BATTLEFIELD.ACTION_LINE_TEAM2;
-                    }
+                    // 位置設定ロジックを共通関数に置き換え
+                    snapToActionLine(this.world, attackerId);
                 }
             }
         }
@@ -82,13 +78,8 @@ export class StateSystem {
         else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
             gameState.state = PlayerStateType.READY_EXECUTE;
 
-            const position = this.world.getComponent(entityId, Position);
-            const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-            if (position && playerInfo) {
-                position.x = playerInfo.teamId === TeamID.TEAM1
-                    ? CONFIG.BATTLEFIELD.ACTION_LINE_TEAM1
-                    : CONFIG.BATTLEFIELD.ACTION_LINE_TEAM2;
-            }
+            // 位置設定ロジックを共通関数に置き換え
+            snapToActionLine(this.world, entityId);
         }
     }
     

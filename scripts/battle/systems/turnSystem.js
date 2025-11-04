@@ -18,7 +18,7 @@ import { ErrorHandler } from '../utils/errorHandler.js';
 export class TurnSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        this.actionQueue = [];
+        // ローカルのactionQueueを廃止し、BattleContextのキューを信頼できる唯一の情報源とする
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         this.world.on(GameEvents.ACTION_QUEUE_REQUEST, this.onActionQueueRequest.bind(this));
         this.world.on(GameEvents.ACTION_REQUEUE_REQUEST, this.onActionRequeueRequest.bind(this));
@@ -30,8 +30,9 @@ export class TurnSystem extends BaseSystem {
      */
     onActionQueueRequest(detail) {
         const { entityId } = detail;
-        if (!this.actionQueue.includes(entityId)) {
-            this.actionQueue.push(entityId);
+        // BattleContextのキューを直接操作する
+        if (!this.battleContext.turn.actionQueue.includes(entityId)) {
+            this.battleContext.turn.actionQueue.push(entityId);
         }
     }
     
@@ -41,8 +42,9 @@ export class TurnSystem extends BaseSystem {
      */
     onActionRequeueRequest(detail) {
         const { entityId } = detail;
-        if (!this.actionQueue.includes(entityId)) {
-            this.actionQueue.unshift(entityId);
+        // BattleContextのキューを直接操作する
+        if (!this.battleContext.turn.actionQueue.includes(entityId)) {
+            this.battleContext.turn.actionQueue.unshift(entityId);
         }
     }
 
@@ -61,8 +63,9 @@ export class TurnSystem extends BaseSystem {
         }
 
         // 現在行動すべきアクターがおらず、キューに待機者がいる場合
-        if (this.battleContext.turn.currentActorId === null && this.actionQueue.length > 0) {
-            const nextActorId = this.actionQueue.shift();
+        // BattleContextのキューを参照
+        if (this.battleContext.turn.currentActorId === null && this.battleContext.turn.actionQueue.length > 0) {
+            const nextActorId = this.battleContext.turn.actionQueue.shift();
             
             // 行動可能か最終チェック
             const gameState = this.world.getComponent(nextActorId, GameState);

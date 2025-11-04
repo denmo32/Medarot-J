@@ -34,14 +34,11 @@ export class ActionSelectionSystem extends BaseSystem {
 
         // キューからのアクター取り出しロジックをTurnSystemに移管。
         // このupdateでは、キューが空になったことを検知してフェーズ完了を通知する責務のみ残す。
-        if (this.battleContext.turn.currentActorId === null) {
-            // TurnSystemのキューを参照するのではなく、BattleContextの状態とイベントで判断
-            const turnSystem = this.world.systems.find(s => s.constructor.name === 'TurnSystem');
-            if (turnSystem && turnSystem.actionQueue.length === 0) {
-                // 行動キューが空で、現在のアクターもいない場合、選択フェーズ完了とみなす
-                if (this.battleContext.phase === BattlePhase.ACTION_SELECTION) {
-                    this.world.emit(GameEvents.ACTION_SELECTION_COMPLETED);
-                }
+        // TurnSystemへの直接参照を削除し、BattleContextの共有状態を参照する
+        if (this.battleContext.turn.currentActorId === null && this.battleContext.turn.actionQueue.length === 0) {
+            // 行動キューが空で、現在のアクターもいない場合、選択フェーズ完了とみなす
+            if (this.battleContext.phase === BattlePhase.ACTION_SELECTION) {
+                this.world.emit(GameEvents.ACTION_SELECTION_COMPLETED);
             }
         }
     }

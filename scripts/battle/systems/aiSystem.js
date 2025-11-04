@@ -90,8 +90,15 @@ export class AiSystem extends BaseSystem {
             
             // フォールバック用のターゲットを再決定（ターゲットがまだ決まっていない場合のみ）
             if (!finalTarget) {
-                const fallbackKey = Object.keys(targetingStrategies).find(key => targetingStrategies[key] === strategies.fallbackTargeting);
-                finalTarget = determineTarget(this.world, entityId, strategies.fallbackTargeting, fallbackKey);
+                // レジストリから戦略キーを取得し、動的に戦略関数を解決する
+                const fallbackKey = strategies.fallbackTargeting;
+                const fallbackStrategy = targetingStrategies[fallbackKey];
+                if (fallbackStrategy) {
+                    finalTarget = determineTarget(this.world, entityId, fallbackStrategy, fallbackKey);
+                } else {
+                    console.error(`AI ${entityId}: Fallback strategy key "${fallbackKey}" not found.`);
+                    finalTarget = null; // 安全のためnullに
+                }
             }
         }
         

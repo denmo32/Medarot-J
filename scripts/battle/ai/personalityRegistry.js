@@ -18,7 +18,7 @@ import { partSelectionStrategies, PartSelectionStrategyKey } from './partSelecti
  *   - `condition`: (任意) このルーチンを実行するための条件を評価するデータオブジェクト。
  *       - `type`: AiSystemの`conditionEvaluators`で定義された評価キー (例: 'ANY_ALLY_DAMAGED')。
  *       - `params`: (任意) 評価関数に渡すパラメータ。
- * @property {function} fallbackTargeting - `routines`の全試行が失敗した場合に実行される最終的なターゲット選択戦略。
+ * @property {string} fallbackTargeting - `routines`の全試行が失敗した場合に実行される最終的なターゲット選択戦略のキー。
  */
 export const personalityRegistry = {
     [MedalPersonality.HUNTER]: {
@@ -29,7 +29,8 @@ export const personalityRegistry = {
                 targetStrategy: TargetingStrategyKey.HUNTER,
             },
         ],
-        fallbackTargeting: targetingStrategies.RANDOM,
+        // fallbackTargetingの値を関数参照から戦略キーに変更
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.CRUSHER]: {
         routines: [
@@ -39,7 +40,8 @@ export const personalityRegistry = {
                 targetStrategy: TargetingStrategyKey.CRUSHER,
             },
         ],
-        fallbackTargeting: targetingStrategies.RANDOM,
+        // fallbackTargetingの値を関数参照から戦略キーに変更
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.JOKER]: {
         routines: [
@@ -49,7 +51,8 @@ export const personalityRegistry = {
                 targetStrategy: TargetingStrategyKey.JOKER,
             },
         ],
-        fallbackTargeting: targetingStrategies.RANDOM,
+        // fallbackTargetingの値を関数参照から戦略キーに変更
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.COUNTER]: {
         routines: [
@@ -59,7 +62,8 @@ export const personalityRegistry = {
                 targetStrategy: TargetingStrategyKey.COUNTER,
             },
         ],
-        fallbackTargeting: targetingStrategies.RANDOM,
+        // fallbackTargetingの値を関数参照から戦略キーに変更
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.GUARD]: {
         routines: [
@@ -69,7 +73,8 @@ export const personalityRegistry = {
                 targetStrategy: TargetingStrategyKey.GUARD,
             },
         ],
-        fallbackTargeting: targetingStrategies.RANDOM,
+        // fallbackTargetingの値を関数参照から戦略キーに変更
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.FOCUS]: {
         routines: [
@@ -79,7 +84,8 @@ export const personalityRegistry = {
                 targetStrategy: TargetingStrategyKey.FOCUS,
             },
         ],
-        fallbackTargeting: targetingStrategies.RANDOM,
+        // fallbackTargetingの値を関数参照から戦略キーに変更
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.ASSIST]: {
         routines: [
@@ -89,7 +95,8 @@ export const personalityRegistry = {
                 targetStrategy: TargetingStrategyKey.ASSIST,
             },
         ],
-        fallbackTargeting: targetingStrategies.RANDOM,
+        // fallbackTargetingの値を関数参照から戦略キーに変更
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.LEADER_FOCUS]: {
         routines: [
@@ -99,7 +106,8 @@ export const personalityRegistry = {
                 targetStrategy: TargetingStrategyKey.LEADER_FOCUS,
             },
         ],
-        fallbackTargeting: targetingStrategies.RANDOM,
+        // fallbackTargetingの値を関数参照から戦略キーに変更
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.RANDOM]: {
         routines: [
@@ -109,7 +117,8 @@ export const personalityRegistry = {
                 targetStrategy: TargetingStrategyKey.RANDOM,
             },
         ],
-        fallbackTargeting: targetingStrategies.RANDOM,
+        // fallbackTargetingの値を関数参照から戦略キーに変更
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.HEALER]: {
         routines: [
@@ -128,7 +137,8 @@ export const personalityRegistry = {
                 targetStrategy: TargetingStrategyKey.RANDOM,
             },
         ],
-        fallbackTargeting: targetingStrategies.RANDOM,
+        // fallbackTargetingの値を関数参照から戦略キーに変更
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
 };
 
@@ -136,7 +146,7 @@ export const personalityRegistry = {
  * 指定された性格に対応する戦略セットを取得します。
  * レジストリに存在しない性格の場合は、デフォルトとしてRANDOMの戦略を返します。
  * @param {string} personality - メダルの性格 (MedalPersonality)
- * @returns {{routines: Array<{partStrategy: string, targetStrategy: string}>, fallbackTargeting: Function}}
+ * @returns {{routines: Array<{partStrategy: string, targetStrategy: string}>, fallbackTargeting: string}}
  */
 export function getStrategiesFor(personality) {
     return personalityRegistry[personality] || personalityRegistry[MedalPersonality.RANDOM];
