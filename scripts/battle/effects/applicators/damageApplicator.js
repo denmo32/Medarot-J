@@ -5,10 +5,12 @@
 import { Parts, PlayerInfo } from '../../core/components/index.js';
 import { GameEvents } from '../../common/events.js';
 import { PartInfo } from '../../common/constants.js';
+import { findRandomPenetrationTarget } from '../../utils/queryUtils.js';
 
 /**
  * ダメージ効果をターゲットに適用します。
  * HPの更新、パーツ破壊、プレイヤー破壊の判定とイベント発行を行います。
+ * 貫通ダメージが発生した場合、次の効果を生成して返します。
  * @param {object} context - 適用に必要なコンテキスト
  * @param {World} context.world - ワールドオブジェクト
  * @param {object} context.effect - 適用する効果オブジェクト
@@ -38,11 +40,28 @@ export const applyDamage = ({ world, effect }) => {
         }
     }
 
+    // 貫通ダメージの連鎖ロジック
+    let nextEffect = null;
+    const overkillDamage = value - actualDamage;
+    if (isPartBroken && effect.penetrates && overkillDamage > 0) {
+        const nextTargetPartKey = findRandomPenetrationTarget(world, targetId, partKey);
+        if (nextTargetPartKey) {
+            // 次の貫通ダメージ効果を生成
+            nextEffect = { 
+                ...effect, 
+                partKey: nextTargetPartKey, 
+                value: overkillDamage, 
+                isPenetration: true 
+            };
+        }
+    }
+
     // 適用結果を返す (貫通ダメージ計算で使用)
     return { 
         ...effect, 
         value: actualDamage, 
         isPartBroken, 
-        overkillDamage: value - actualDamage 
+        overkillDamage: overkillDamage,
+        nextEffect: nextEffect, // 次の効果を追加
     };
 };

@@ -28,6 +28,21 @@ const focusTransitionMap = {
     },
 };
 
+// UIフォーカス遷移を管理するナビゲーショングラフ
+const navGraph = {
+    // MEDAROT_SELECT と ITEM_LIST は単純な垂直リストなので、グラフは不要
+    EQUIP_PANEL: {
+        // キーは equipSlots の文字列 (e.g., 'medal', 'head')
+        // 値は { direction: nextSlot } のマップ
+        [EquipSlotType.MEDAL]:     { down: EquipSlotType.HEAD },
+        [EquipSlotType.HEAD]:      { up: EquipSlotType.MEDAL,     down: EquipSlotType.RIGHT_ARM }, // 腕はどちらか片方を代表とする
+        [EquipSlotType.RIGHT_ARM]: { up: EquipSlotType.HEAD,      down: EquipSlotType.LEGS,      right: EquipSlotType.LEFT_ARM },
+        [EquipSlotType.LEFT_ARM]:  { up: EquipSlotType.HEAD,      down: EquipSlotType.LEGS,      left: EquipSlotType.RIGHT_ARM },
+        [EquipSlotType.LEGS]:      { up: EquipSlotType.RIGHT_ARM }, // 腕はどちらか片方を代表とする
+    }
+};
+
+
 export class CustomizeUISystem extends BaseSystem {
     constructor(world) {
         super(world);
@@ -80,38 +95,61 @@ export class CustomizeUISystem extends BaseSystem {
     }
 
     // --- イベントハンドラ ---
-
+    
+    /**
+     * ナビゲーションロジックをリファクタリングし、navGraphを使用
+     */
     handleNavigation(detail) {
         const { direction } = detail;
         let stateChanged = false;
 
-        if (direction === 'up' || direction === 'down') {
-            const verticalMove = direction === 'down' ? 1 : -1;
-            switch (this.uiState.focus) {
-                case 'MEDAROT_SELECT':
-                    const medarotCount = this.dataManager.gameData.playerMedarots.length;
-                    this.uiState.selectedMedarotIndex = (this.uiState.selectedMedarotIndex + verticalMove + medarotCount) % medarotCount;
-                    this.uiState.selectedEquipIndex = 0;
-                    stateChanged = true;
-                    break;
-                case 'EQUIP_PANEL':
-                    this.uiState.selectedEquipIndex = (this.uiState.selectedEquipIndex + verticalMove + this.equipSlots.length) % this.equipSlots.length;
-                    stateChanged = true;
-                    break;
-                case 'ITEM_LIST':
-                    const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
-                    const isMedalList = selectedSlotType === EquipSlotType.MEDAL;
-                    if (isMedalList) {
-                        if (this.currentMedalListData.length > 0) {
-                            this.uiState.selectedMedalListIndex = (this.uiState.selectedMedalListIndex + verticalMove + this.currentMedalListData.length) % this.currentMedalListData.length;
-                        }
-                    } else {
-                        if (this.currentPartListData.length > 0) {
-                            this.uiState.selectedPartListIndex = (this.uiState.selectedPartListIndex + verticalMove + this.currentPartListData.length) % this.currentPartListData.length;
-                        }
+        switch (this.uiState.focus) {
+            case 'MEDAROT_SELECT': {
+                const verticalMove = direction === 'down' ? 1 : direction === 'up' ? -1 : 0;
+                if (verticalMove === 0) break; // 水平移動は無視
+
+                const medarotCount = this.dataManager.gameData.playerMedarots.length;
+                this.uiState.selectedMedarotIndex = (this.uiState.selectedMedarotIndex + verticalMove + medarotCount) % medarotCount;
+                this.uiState.selectedEquipIndex = 0; // 機体を変えたら装備選択はリセット
+                stateChanged = true;
+                break;
+            }
+            case 'EQUIP_PANEL': {
+                const currentSlot = this.equipSlots[this.uiState.selectedEquipIndex];
+                let nextSlot = navGraph.EQUIP_PANEL[currentSlot]?.[direction];
+
+                // 特殊ケース: 脚部から上に移動する際は、左右どちらの腕にも戻れるようにする
+                if (currentSlot === EquipSlotType.LEGS && direction === 'up') {
+                    nextSlot = EquipSlotType.RIGHT_ARM; // 暫定的に右腕を優先
+                }
+                
+                if (nextSlot) {
+                    const nextIndex = this.equipSlots.indexOf(nextSlot);
+                    if (nextIndex > -1) {
+                        this.uiState.selectedEquipIndex = nextIndex;
+                        stateChanged = true;
                     }
-                    stateChanged = true;
-                    break;
+                }
+                break;
+            }
+            case 'ITEM_LIST': {
+                const verticalMove = direction === 'down' ? 1 : direction === 'up' ? -1 : 0;
+                if (verticalMove === 0) break; // 水平移動は無視
+                
+                const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
+                const isMedalList = selectedSlotType === EquipSlotType.MEDAL;
+
+                if (isMedalList) {
+                    if (this.currentMedalListData.length > 0) {
+                        this.uiState.selectedMedalListIndex = (this.uiState.selectedMedalListIndex + verticalMove + this.currentMedalListData.length) % this.currentMedalListData.length;
+                    }
+                } else {
+                    if (this.currentPartListData.length > 0) {
+                        this.uiState.selectedPartListIndex = (this.uiState.selectedPartListIndex + verticalMove + this.currentPartListData.length) % this.currentPartListData.length;
+                    }
+                }
+                stateChanged = true;
+                break;
             }
         }
 

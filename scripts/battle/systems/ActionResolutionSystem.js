@@ -156,18 +156,10 @@ export class ActionResolutionSystem extends BaseSystem {
 
             if (result) {
                 appliedEffects.push(result);
-                // 貫通ダメージの処理
-                if (result.isPartBroken && result.penetrates && result.overkillDamage > 0) {
-                    const nextTarget = findRandomPenetrationTarget(this.world, result.targetId, result.partKey);
-                    if (nextTarget) {
-                        // 次の貫通ダメージ効果をキューの先頭に追加
-                        effectQueue.unshift({ 
-                            ...effect, 
-                            partKey: nextTarget, 
-                            value: result.overkillDamage, 
-                            isPenetration: true 
-                        });
-                    }
+                // 貫通ダメージの処理を、Applicatorから返された nextEffect に基づく汎用的なロジックに変更
+                if (result.nextEffect) {
+                    // 次の効果をキューの先頭に追加して連鎖させる
+                    effectQueue.unshift(result.nextEffect);
                 }
             }
         }

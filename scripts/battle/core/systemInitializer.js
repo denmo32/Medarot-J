@@ -23,8 +23,8 @@ import { ActionSetupSystem } from '../systems/ActionSetupSystem.js';
 import { ActionExecutionSystem } from '../systems/ActionExecutionSystem.js';
 import { ActionResolutionSystem } from '../systems/ActionResolutionSystem.js';
 import { TimerSystem } from '../../core/systems/TimerSystem.js';
-// CooldownSystemをインポート
 import { CooldownSystem } from '../systems/cooldownSystem.js';
+import { WinConditionSystem } from '../systems/WinConditionSystem.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -43,6 +43,8 @@ export function initializeSystems(world) {
     const actionPanelSystem = new ActionPanelSystem(world);
 
     const gameFlowSystem = new GameFlowSystem(world);
+    // WinConditionSystemをインスタンス化
+    const winConditionSystem = new WinConditionSystem(world);
     const phaseSystem = new PhaseSystem(world);
     const viewSystem = new ViewSystem(world);
     const gaugeSystem = new GaugeSystem(world);
@@ -57,7 +59,6 @@ export function initializeSystems(world) {
     const actionResolutionSystem = new ActionResolutionSystem(world);
     const actionExecutionSystem = new ActionExecutionSystem(world);
     const timerSystem = new TimerSystem(world);
-    // CooldownSystemをインスタンス化
     const cooldownSystem = new CooldownSystem(world);
 
     if (CONFIG.DEBUG) {
@@ -66,13 +67,13 @@ export function initializeSystems(world) {
     
     // --- システムの登録順序を整理 ---
     world.registerSystem(gameFlowSystem);
+    // WinConditionSystemを登録。勝利判定はゲームフローの直後が自然
+    world.registerSystem(winConditionSystem);
     world.registerSystem(phaseSystem);
     world.registerSystem(turnSystem);
-    // TimerSystemを登録。メインロジックの前に更新するのが望ましい。
     world.registerSystem(timerSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(stateSystem);
-    // 新しいCooldownSystemを登録
     world.registerSystem(cooldownSystem);
     world.registerSystem(actionSelectionSystem);
     world.registerSystem(actionSetupSystem);

@@ -142,6 +142,16 @@ export const GameEvents = {
     COMBAT_SEQUENCE_RESOLVED: 'COMBAT_SEQUENCE_RESOLVED',
 
     /**
+     * 戦闘結果の表示が完了したことを通知するイベント。
+     * ActionPanelSystemが発行し、ActionExecutionSystemが購読する。
+     * これにより、ロジックシステムがUIの詳細（モーダルなど）に依存するのを防ぐ。
+     * @event COMBAT_RESOLUTION_DISPLAYED
+     * @type {string}
+     * @payload {{ attackerId: number }} - 行動を実行したアクターのID
+     */
+    COMBAT_RESOLUTION_DISPLAYED: 'COMBAT_RESOLUTION_DISPLAYED',
+
+    /**
      * 行動が完了し、クールダウンへ移行すべきことを通知するイベント。
      * システム間の直接参照をなくし、疎結合を促進します。
      * @event ACTION_COMPLETED

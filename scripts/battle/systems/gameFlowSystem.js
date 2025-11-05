@@ -21,7 +21,8 @@ export class GameFlowSystem extends BaseSystem {
         this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CANCELLED, this.onBattleStartCancelled.bind(this));
-        this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
+        // PLAYER_BROKEN の購読を GAME_OVER に変更し、勝利判定ロジックを分離
+        this.world.on(GameEvents.GAME_OVER, this.onGameOver.bind(this));
         this.world.on(GameEvents.GAME_PAUSED, this.onGamePaused.bind(this));
         this.world.on(GameEvents.GAME_RESUMED, this.onGameResumed.bind(this));
     }
@@ -72,13 +73,16 @@ export class GameFlowSystem extends BaseSystem {
         this.world.emit(GameEvents.SHOW_BATTLE_START_ANIMATION);
     }
 
-    onPlayerBroken(detail) {
-        const { entityId, teamId } = detail;
-        const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+    /**
+     * ゲームオーバーイベントのハンドラ
+     * WinConditionSystemからゲームの終了が通知された際の処理を行います。
+     * @param {object} detail - GAME_OVER イベントのペイロード { winningTeam }
+     */
+    onGameOver(detail) {
+        const { winningTeam } = detail;
 
-        if (playerInfo && playerInfo.isLeader && this.battleContext.phase !== BattlePhase.GAME_OVER) {
-            const winningTeam = teamId === TeamID.TEAM1 ? TeamID.TEAM2 : TeamID.TEAM1;
-            
+        // ゲームオーバー状態への遷移は一度だけ行う
+        if (this.battleContext.phase !== BattlePhase.GAME_OVER) {
             this.battleContext.phase = BattlePhase.GAME_OVER;
             this.battleContext.winningTeam = winningTeam;
 

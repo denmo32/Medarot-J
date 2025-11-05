@@ -18,10 +18,9 @@ export class ActionExecutionSystem extends BaseSystem {
         this.isExecuting = false;
         this.currentExecutingActorId = null;
 
-        // アニメーション完了イベントに加え、UIモーダル完了イベントも購読する
-        // これにより、結果表示が完了してから次のアクションに移ることを保証する
+        // MODAL_SEQUENCE_COMPLETED の代わりに COMBAT_RESOLUTION_DISPLAYED を購読
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onAnimationCompleted.bind(this));
-        this.world.on(GameEvents.MODAL_SEQUENCE_COMPLETED, this.onModalSequenceCompleted.bind(this));
+        this.world.on(GameEvents.COMBAT_RESOLUTION_DISPLAYED, this.onResolutionDisplayed.bind(this));
     }
 
     update(deltaTime) {
@@ -111,15 +110,12 @@ export class ActionExecutionSystem extends BaseSystem {
     }
 
     /**
-     * UI（結果表示モーダル）の完了を待ち、次のアクション実行を許可する
-     * @param {object} detail 
+     * UI（結果表示）の完了を待ち、次のアクション実行を許可する
+     * @param {object} detail - COMBAT_RESOLUTION_DISPLAYED イベントのペイロード { attackerId }
      */
-    onModalSequenceCompleted(detail) {
-        // 現在実行中のアクターの、結果表示モーダルが閉じたことを確認
-        if (this.isExecuting && 
-            detail.modalType === ModalType.EXECUTION_RESULT && 
-            detail.originalData?.attackerId === this.currentExecutingActorId) 
-        {
+    onResolutionDisplayed(detail) {
+        // 現在実行中のアクターの結果表示が完了したことを確認
+        if (this.isExecuting && detail.attackerId === this.currentExecutingActorId) {
             // StateSystemへの直接参照をなくし、汎用的なイベントを発行してクールダウン移行を依頼する
             this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: this.currentExecutingActorId });
 
