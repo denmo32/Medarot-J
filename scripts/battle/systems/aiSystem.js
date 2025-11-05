@@ -8,12 +8,13 @@ import { GameEvents } from '../common/events.js';
 import { Medal, Parts, PlayerInfo } from '../core/components/index.js';
 import { getAttackableParts, getValidEnemies, getValidAllies, isValidTarget, findMostDamagedAllyPart, getCandidatesByScope } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
-import { determineTarget, determineTargetByPersonality } from '../utils/targetingUtils.js';
+import { determineTargetByPersonality } from '../ai/aiDecisionUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
 import { partSelectionStrategies } from '../ai/partSelectionStrategies.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
 import { conditionEvaluators } from '../ai/conditionEvaluators.js';
 import { EffectScope } from '../common/constants.js';
+import { determineTarget } from '../utils/targetingUtils.js';
 
 // AiSystem内に直接定義されていた conditionEvaluators は conditionEvaluators.js に移管
 
@@ -52,6 +53,7 @@ export class AiSystem extends BaseSystem {
         let finalTarget = null;
 
         // --- Step 1: ターゲットを決定 ---
+        // ★変更: 汎用targetingUtilsからAI専用のaiDecisionUtilsへインポート元を変更 (提案1-2)
         const { target, strategyKey: usedStrategyKey } = determineTargetByPersonality(context);
         finalTarget = target;
 

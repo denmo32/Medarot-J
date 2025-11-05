@@ -5,6 +5,7 @@
 import { MedalPersonality } from '../common/constants.js';
 import { targetingStrategies, TargetingStrategyKey } from './targetingStrategies.js';
 import { partSelectionStrategies, PartSelectionStrategyKey } from './partSelectionStrategies.js';
+import { ConditionEvaluatorKey } from './conditionEvaluators.js';
 
 /**
  * AIの性格と戦略のマッピング。
@@ -127,7 +128,8 @@ export const personalityRegistry = {
                 partStrategy: PartSelectionStrategyKey.HEAL_FOCUS,
                 targetStrategy: TargetingStrategyKey.HEALER,
                 condition: {
-                    type: 'ANY_ALLY_DAMAGED', // AiSystemの`conditionEvaluators`で解釈されるキー
+                    // 文字列リテラルを定数に置き換え
+                    type: ConditionEvaluatorKey.ANY_ALLY_DAMAGED,
                     params: { includeSelf: true } // 評価関数に渡すパラメータ
                 }
             },

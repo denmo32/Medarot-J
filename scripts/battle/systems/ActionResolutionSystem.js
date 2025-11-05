@@ -12,10 +12,8 @@ import { GameEvents } from '../common/events.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 import { findGuardian, findRandomPenetrationTarget, getValidAllies } from '../utils/queryUtils.js';
 import { effectStrategies } from '../effects/effectStrategies.js';
-import { applyDamage } from '../effects/applicators/damageApplicator.js';
-import { applyHeal } from '../effects/applicators/healApplicator.js';
-import { applyTeamEffect, applySelfEffect } from '../effects/applicators/statusEffectApplicator.js';
-import { applyGlitch } from '../effects/applicators/glitchApplicator.js';
+// 効果適用ロジックを外部モジュールからインポート
+import { effectApplicators } from '../effects/applicators/applicatorIndex.js';
 
 
 export class ActionResolutionSystem extends BaseSystem {
@@ -26,15 +24,8 @@ export class ActionResolutionSystem extends BaseSystem {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         
-        // 効果の適用ロジックをまとめたマップを定義
-        this.effectApplicators = {
-            [EffectType.DAMAGE]: applyDamage,
-            [EffectType.HEAL]: applyHeal,
-            [EffectType.APPLY_SCAN]: applyTeamEffect,
-            [EffectType.APPLY_GUARD]: applySelfEffect,
-            // 妨害効果の適用ロジックをマップに追加
-            [EffectType.APPLY_GLITCH]: applyGlitch,
-        };
+        // 効果適用ロジックのマップを外部からインポート
+        this.effectApplicators = effectApplicators;
 
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
     }

@@ -71,6 +71,27 @@ export function findBestDefensePart(world, entityId) {
     return defendableParts[0][0];
 }
 
+// チームベースのエンティティ取得ロジックを共通化
+/**
+ * チームIDと条件に基づいて、生存しているエンティティのリストを取得する内部ヘルパー関数。
+ * @param {World} world
+ * @param {string} sourceTeamId - 基準となるチームID
+ * @param {boolean} isAlly - 味方を検索する場合はtrue, 敵を検索する場合はfalse
+ * @returns {number[]}
+ * @private
+ */
+const _getValidEntitiesByTeam = (world, sourceTeamId, isAlly) => {
+    return world.getEntitiesWith(PlayerInfo, Parts)
+        .filter(id => {
+            const pInfo = world.getComponent(id, PlayerInfo);
+            const parts = world.getComponent(id, Parts);
+            // チームIDが一致するかどうかと、生存しているか（頭部未破壊）をチェック
+            const teamCondition = isAlly ? (pInfo.teamId === sourceTeamId) : (pInfo.teamId !== sourceTeamId);
+            return teamCondition && !parts.head?.isBroken;
+        });
+};
+
+
 /**
  * 生存している敵エンティティのリストを取得します
  * @param {World} world
@@ -80,13 +101,8 @@ export function findBestDefensePart(world, entityId) {
 export function getValidEnemies(world, attackerId) {
     const attackerInfo = world.getComponent(attackerId, PlayerInfo);
     if (!attackerInfo) return [];
-    return world.getEntitiesWith(PlayerInfo, Parts) // GameStateの代わりにPartsを取得
-        .filter(id => {
-            const pInfo = world.getComponent(id, PlayerInfo);
-            const parts = world.getComponent(id, Parts); // ★ Partsを取得
-            // GameStateではなく、頭部パーツの破壊状態で生存を判定
-            return id !== attackerId && pInfo.teamId !== attackerInfo.teamId && !parts.head?.isBroken;
-        });
+    // 共通ヘルパー関数を利用
+    return _getValidEntitiesByTeam(world, attackerInfo.teamId, false);
 }
 
 /**
@@ -99,14 +115,12 @@ export function getValidEnemies(world, attackerId) {
 export function getValidAllies(world, sourceId, includeSelf = false) {
     const sourceInfo = world.getComponent(sourceId, PlayerInfo);
     if (!sourceInfo) return [];
-    return world.getEntitiesWith(PlayerInfo, Parts) // GameStateの代わりにPartsを取得
-        .filter(id => {
-            if (!includeSelf && id === sourceId) return false;
-            const pInfo = world.getComponent(id, PlayerInfo);
-            const parts = world.getComponent(id, Parts); // ★ Partsを取得
-            // GameStateではなく、頭部パーツの破壊状態で生存を判定
-            return pInfo.teamId === sourceInfo.teamId && !parts.head?.isBroken;
-        });
+    // 共通ヘルパー関数を利用
+    const allies = _getValidEntitiesByTeam(world, sourceInfo.teamId, true);
+    if (includeSelf) {
+        return allies;
+    }
+    return allies.filter(id => id !== sourceId);
 }
 
 /**

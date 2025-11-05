@@ -30,3 +30,13 @@ export const conditionEvaluators = {
     // 将来的な条件を追加する例:
     // IS_LEADER: ({ world, entityId }) => world.getComponent(entityId, PlayerInfo)?.isLeader,
 };
+
+// AIの思考条件キーを定数化
+/**
+ * AI思考条件のキーを定義する定数。
+ * `personalityRegistry`などで使用され、文字列リテラルへの依存をなくします。
+ */
+export const ConditionEvaluatorKey = Object.keys(conditionEvaluators).reduce((acc, key) => {
+    acc[key] = key;
+    return acc;
+}, {});

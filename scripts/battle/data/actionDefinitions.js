@@ -5,8 +5,7 @@
  * 新しい行動の追加を容易にし、システムの変更を最小限に抑えます。
  */
 import { TargetTiming, EffectType, EffectScope } from '../common/constants.js';
-// ★★★ 修正: 循環参照を避けるため、targetingStrategies.js 経由でインポートする ★★★
-import { TargetingStrategyKey } from '../ai/targetingStrategies.js';
+import { TargetingStrategyKey } from '../ai/strategyKeys.js';
 
 export const ActionDefinitions = {
     /**
