@@ -3,7 +3,6 @@ import { PlayerInfo, Position, Gauge, GameState, Parts, Action, ActiveEffects } 
 import { PlayerStateType, EffectType, PartInfo } from '../common/constants.js';
 import { UIManager } from './UIManager.js';
 import { GameEvents } from '../common/events.js';
-// [リファクタリング] UIStateContext の代わりに BattleContext を使用します。
 import { BattleContext } from '../core/index.js';
 
 /**
@@ -15,9 +14,11 @@ export class UISystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
-        // [リファクタリング] BattleContextへの参照を保持します。
+        // BattleContextへの参照を保持
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         this.world.on(GameEvents.HP_UPDATED, this.onHpUpdated.bind(this));
+        // HPバーアニメーション完了イベントを購読し、破壊状態のUIを更新する
+        this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpAnimationCompleted.bind(this));
     }
 
     /**
@@ -41,15 +42,44 @@ export class UISystem extends BaseSystem {
         if (partDom.value) {
             partDom.value.textContent = `${newHp}/${maxHp}`;
         }
-
+        
+        // 破壊状態のクラス付与は onHpAnimationCompleted に移譲
+        // 色の更新のみここで行う
         if (newHp === 0) {
-            partDom.container.classList.add('broken');
             partDom.bar.style.backgroundColor = '#4a5568';
         } else {
-            partDom.container.classList.remove('broken');
             if (hpPercentage > 50) partDom.bar.style.backgroundColor = '#68d391';
             else if (hpPercentage > 20) partDom.bar.style.backgroundColor = '#f6e05e';
             else partDom.bar.style.backgroundColor = '#f56565';
+        }
+    }
+    
+    /**
+     * HPバーのアニメーション完了後に、パーツおよび機体の破壊状態をUIに反映します。
+     * @param {object} detail - HP_BAR_ANIMATION_COMPLETED イベントのペイロード { appliedEffects }
+     */
+    onHpAnimationCompleted(detail) {
+        const { appliedEffects } = detail;
+        if (!appliedEffects) return;
+
+        for (const effect of appliedEffects) {
+            const domElements = this.uiManager.getDOMElements(effect.targetId);
+            if (!domElements) continue;
+
+            // パーツ破壊のUI更新
+            if (effect.isPartBroken) {
+                const partDom = domElements.partDOMElements?.[effect.partKey];
+                if (partDom) {
+                    partDom.container.classList.add('broken');
+                }
+            }
+
+            // 機体機能停止のUI更新
+            if (effect.isPlayerBroken) {
+                 if (domElements.iconElement) {
+                    domElements.iconElement.classList.add('broken');
+                }
+            }
         }
     }
 
@@ -94,7 +124,7 @@ export class UISystem extends BaseSystem {
         }
 
         domElements.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
-        domElements.iconElement.classList.toggle('broken', parts.head?.isBroken);
+        // 毎フレームの機能停止チェックを削除し、イベント駆動に変更
 
         const activeEffects = this.getCachedComponent(entityId, ActiveEffects);
         const guardIndicator = domElements.guardIndicatorElement;
