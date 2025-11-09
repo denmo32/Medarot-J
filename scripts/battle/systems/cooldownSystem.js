@@ -19,8 +19,8 @@ export class CooldownSystem extends BaseSystem {
         this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
         // 効果が切れた場合（例: ガード効果）にも状態をリセットします。
         this.world.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
-        // パーツ破壊イベントを購読し、ガード状態の解除を判定します。
-        this.world.on(GameEvents.PART_BROKEN, this.onPartBroken.bind(this));
+        // HPバーアニメーション完了イベントを購読
+        this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
     }
 
     /**
@@ -40,31 +40,38 @@ export class CooldownSystem extends BaseSystem {
     }
 
     /**
-     * パーツ破壊イベントを処理し、ガード状態の解除を判定します。
-     * @param {object} detail - PART_BROKEN イベントのペイロード { entityId, partKey }
+     * HPバーアニメーション完了後にガード状態の解除を判定します。
+     * @param {object} detail - HP_BAR_ANIMATION_COMPLETED イベントのペイロード { appliedEffects }
      */
-    onPartBroken(detail) {
-        const { entityId, partKey } = detail;
-        const gameState = this.world.getComponent(entityId, GameState);
+    onHpBarAnimationCompleted(detail) {
+        const { appliedEffects } = detail;
+        if (!appliedEffects) return;
 
-        // ガード状態の機体でなければ何もしない
-        if (gameState?.state !== PlayerStateType.GUARDING) {
-            return;
-        }
+        for (const effect of appliedEffects) {
+            if (!effect.isPartBroken) continue;
+            
+            const { targetId: entityId, partKey } = effect;
+            const gameState = this.world.getComponent(entityId, GameState);
 
-        const activeEffects = this.world.getComponent(entityId, ActiveEffects);
-        if (!activeEffects) return;
+            // ガード状態の機体でなければ何もしない
+            if (gameState?.state !== PlayerStateType.GUARDING) {
+                continue;
+            }
 
-        // 破壊されたパーツが、現在発動中のガード効果で使用されているパーツか確認
-        const isGuardPartBroken = activeEffects.effects.some(
-            effect => effect.type === EffectType.APPLY_GUARD && effect.partKey === partKey
-        );
+            const activeEffects = this.world.getComponent(entityId, ActiveEffects);
+            if (!activeEffects) continue;
 
-        if (isGuardPartBroken) {
-            // UIにガード破壊を通知
-            this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
-            // ガード状態をリセットしてクールダウンへ移行
-            this.resetEntityStateToCooldown(entityId);
+            // 破壊されたパーツが、現在発動中のガード効果で使用されているパーツか確認
+            const isGuardPartBroken = activeEffects.effects.some(
+                activeEffect => activeEffect.type === EffectType.APPLY_GUARD && activeEffect.partKey === partKey
+            );
+
+            if (isGuardPartBroken) {
+                // UIにガード破壊を通知
+                this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
+                // ガード状態をリセットしてクールダウンへ移行
+                this.resetEntityStateToCooldown(entityId);
+            }
         }
     }
 

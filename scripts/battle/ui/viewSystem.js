@@ -147,7 +147,7 @@ export class ViewSystem extends BaseSystem {
         const { effects } = detail;
 
         if (!effects || effects.length === 0) {
-            this.world.emit(GameEvents.HP_BAR_ANIMATION_COMPLETED);
+            this.world.emit(GameEvents.HP_BAR_ANIMATION_COMPLETED, { appliedEffects: [] });
             return;
         }
 
@@ -155,7 +155,8 @@ export class ViewSystem extends BaseSystem {
             await this.animateHpBar(effect);
         }
 
-        this.world.emit(GameEvents.HP_BAR_ANIMATION_COMPLETED);
+        // 完了イベントにペイロードを追加
+        this.world.emit(GameEvents.HP_BAR_ANIMATION_COMPLETED, { appliedEffects: effects });
     }
 
     animateHpBar(effect) {

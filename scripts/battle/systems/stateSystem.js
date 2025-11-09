@@ -21,22 +21,40 @@ export class StateSystem {
         
         this.world.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
         this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
-        this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
+        // HPバーアニメーション完了イベントを購読
+        this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
         // クールダウン移行に関連するイベント購読を CooldownSystem に移譲
     }
     
-    onPlayerBroken(detail) {
-        const { entityId } = detail;
-        const gameState = this.world.getComponent(entityId, GameState);
-        const gauge = this.world.getComponent(entityId, Gauge);
+    /**
+     * HPバーアニメーション完了後に、機体の状態を「破壊済み」に遷移させます。
+     * @param {object} detail - HP_BAR_ANIMATION_COMPLETED イベントのペイロード
+     */
+    onHpBarAnimationCompleted(detail) {
+        const { appliedEffects } = detail;
+        if (!appliedEffects) return;
 
-        if (gameState) {
-            gameState.state = PlayerStateType.BROKEN;
+        for (const effect of appliedEffects) {
+            if (effect.isPlayerBroken) {
+                const { targetId: entityId } = effect;
+                const gameState = this.world.getComponent(entityId, GameState);
+                const gauge = this.world.getComponent(entityId, Gauge);
+
+                if (gameState) {
+                    gameState.state = PlayerStateType.BROKEN;
+                }
+                if (gauge) {
+                    gauge.value = 0;
+                }
+                this.world.addComponent(entityId, new Action());
+
+                // 破壊イベントをここで発行
+                const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+                if (playerInfo) {
+                    this.world.emit(GameEvents.PLAYER_BROKEN, { entityId, teamId: playerInfo.teamId });
+                }
+            }
         }
-        if (gauge) {
-            gauge.value = 0;
-        }
-        this.world.addComponent(entityId, new Action());
     }
 
     /**

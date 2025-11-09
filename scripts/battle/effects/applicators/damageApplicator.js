@@ -26,6 +26,7 @@ export const applyDamage = ({ world, effect }) => {
     part.hp = newHp;
     const actualDamage = oldHp - newHp;
     const isPartBroken = oldHp > 0 && newHp === 0;
+    let isPlayerBroken = false; // プレイヤー破壊フラグを追加
 
     // HP更新イベントを発行
     world.emit(GameEvents.HP_UPDATED, { entityId: targetId, partKey, newHp, maxHp: part.maxHp, change: -actualDamage, isHeal: false });
@@ -33,10 +34,9 @@ export const applyDamage = ({ world, effect }) => {
     // パーツ破壊処理
     if (isPartBroken) {
         part.isBroken = true;
-        world.emit(GameEvents.PART_BROKEN, { entityId: targetId, partKey });
-        // 頭部破壊時はプレイヤー破壊イベントも発行
+        // 頭部破壊時はプレイヤー破壊フラグを立てる
         if (partKey === PartInfo.HEAD.key) {
-            world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId, teamId: world.getComponent(targetId, PlayerInfo).teamId });
+            isPlayerBroken = true;
         }
     }
 
@@ -61,6 +61,7 @@ export const applyDamage = ({ world, effect }) => {
         ...effect, 
         value: actualDamage, 
         isPartBroken, 
+        isPlayerBroken, // プレイヤー破壊フラグを結果に含める
         overkillDamage: overkillDamage,
         nextEffect: nextEffect, // 次の効果を追加
     };

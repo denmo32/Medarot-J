@@ -379,10 +379,10 @@ export const GameEvents = {
     HP_BAR_ANIMATION_REQUESTED: 'HP_BAR_ANIMATION_REQUESTED',
 
     /**
-     * HPバーのアニメーション完了を通知
+     * HPバーのアニメーション完了を通知。破壊関連のロジックはこのイベントをトリガーとする。
      * @event HP_BAR_ANIMATION_COMPLETED
      * @type {string}
-     * @payload {}
+     * @payload {{ appliedEffects: Array<object> }} - アニメーションの元となった適用済み効果のリスト
      */
     HP_BAR_ANIMATION_COMPLETED: 'HP_BAR_ANIMATION_COMPLETED',
 };

@@ -253,7 +253,7 @@ export class ActionPanelSystem extends BaseSystem {
     /**
      * ViewSystemからのHPバーアニメーション完了通知を受け取るハンドラ。
      */
-    onHpBarAnimationCompleted() {
+    onHpBarAnimationCompleted(detail) {
         if (this.isWaitingForAnimation) {
             this.isWaitingForAnimation = false;
             // アニメーションが完了したので、シーケンスの次のステップへ

@@ -217,10 +217,11 @@ export class MessageSystem extends BaseSystem {
 
         const hasHpChange = effects.some(e => (e.type === EffectType.DAMAGE || e.type === EffectType.HEAL) && e.value > 0);
 
-        if (messageLines.length > 0) {
+        if (messageLines.length > 0 && messageLines[0] !== '') {
             sequence.push({ text: messageLines[0] });
 
             if (hasHpChange) {
+                // HPバーアニメーション完了を待つステップを追加
                 sequence.push({ waitForAnimation: GameEvents.HP_BAR_ANIMATION_COMPLETED });
             }
 

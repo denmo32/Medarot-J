@@ -17,49 +17,51 @@ import { ErrorHandler } from '../utils/errorHandler.js';
 export class ActionCancellationSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        // パーツ破壊イベントを購読し、キャンセル判定のトリガーとします。
-        this.world.on(GameEvents.PART_BROKEN, this.onPartBroken.bind(this));
+        // HPバーアニメーション完了イベントを購読
+        this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
     }
 
     /**
-     * パーツが破壊された際に呼び出され、関連する行動予約のキャンセルを検討します。
-     * @param {object} detail - PART_BROKEN イベントのペイロード { entityId, partKey }
+     * HPバーアニメーション完了後に呼び出され、関連する行動予約のキャンセルを検討します。
+     * @param {object} detail - HP_BAR_ANIMATION_COMPLETED イベントのペイロード { appliedEffects }
      */
-    onPartBroken(detail) {
+    onHpBarAnimationCompleted(detail) {
         try {
-            const { entityId: brokenEntityId, partKey: brokenPartKey } = detail;
+            const { appliedEffects } = detail;
+            if (!appliedEffects) return;
 
-            // 行動予約中(`SELECTED_CHARGING`)のエンティティのみをチェック対象とします。
-            const actors = this.world.getEntitiesWith(GameState, Action, Parts);
-            for (const actorId of actors) {
-                const gameState = this.world.getComponent(actorId, GameState);
-                if (gameState.state !== PlayerStateType.SELECTED_CHARGING) {
-                    continue;
-                }
+            for (const effect of appliedEffects) {
+                if (!effect.isPartBroken) continue;
 
-                const action = this.world.getComponent(actorId, Action);
-                const actorParts = this.world.getComponent(actorId, Parts);
-                const selectedPart = actorParts[action.partKey];
+                const { targetId: brokenEntityId, partKey: brokenPartKey } = effect;
 
-                // 判定1: 自身の予約パーツが破壊された場合
-                if (actorId === brokenEntityId && action.partKey === brokenPartKey) {
-                    // 文字列リテラルを定数に置き換え
-                    this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.PART_BROKEN });
-                    continue; // このアクターに対する処理は完了
-                }
-                
-                // 判定2: ターゲットが機能停止した場合 (頭部破壊)
-                // selectedPartが存在し、かつ単体対象のアクションの場合のみチェック
-                if (selectedPart && selectedPart.targetScope?.endsWith('_SINGLE') &&
-                    action.targetId === brokenEntityId && 
-                    brokenPartKey === PartInfo.HEAD.key) 
-                {
-                    // 文字列リテラルを定数に置き換え
-                    this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.TARGET_LOST });
+                // 行動予約中(`SELECTED_CHARGING`)のエンティティのみをチェック対象とします。
+                const actors = this.world.getEntitiesWith(GameState, Action, Parts);
+                for (const actorId of actors) {
+                    const gameState = this.world.getComponent(actorId, GameState);
+                    if (gameState.state !== PlayerStateType.SELECTED_CHARGING) {
+                        continue;
+                    }
+
+                    const action = this.world.getComponent(actorId, Action);
+                    const actorParts = this.world.getComponent(actorId, Parts);
+                    const selectedPart = actorParts[action.partKey];
+
+                    // 判定1: 自身の予約パーツが破壊された場合
+                    if (actorId === brokenEntityId && action.partKey === brokenPartKey) {
+                        this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.PART_BROKEN });
+                        continue; // このアクターに対する処理は完了
+                    }
+                    
+                    // 判定2: ターゲットが機能停止した場合 (頭部破壊)
+                    // isPlayerBroken フラグで判定
+                    if (effect.isPlayerBroken && selectedPart && selectedPart.targetScope?.endsWith('_SINGLE') && action.targetId === brokenEntityId) {
+                        this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.TARGET_LOST });
+                    }
                 }
             }
         } catch (error) {
-            ErrorHandler.handle(error, { method: 'onPartBroken', detail });
+            ErrorHandler.handle(error, { method: 'onHpBarAnimationCompleted', detail });
         }
     }
 

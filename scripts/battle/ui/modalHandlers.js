@@ -205,9 +205,17 @@ export const createModalHandlers = (systemInstance) => ({
     },
     // ---汎用メッセージ ---
     [ModalType.MESSAGE]: {
-        getActorName: (data) => data.message || '',
+        // messageSequence形式と従来のdata.message形式の両方に対応
+        getActorName: (data) => data?.currentMessage?.text || data?.message || '',
         isClickable: true,
-        handleConfirm: (system) => system.hideActionPanel(),
+        handleConfirm: (system) => {
+            // messageSequenceに対応
+            if (system.currentMessageSequence && system.currentMessageSequence.length > 1) {
+                system.proceedToNextSequence();
+            } else {
+                system.hideActionPanel();
+            }
+        },
     },
     // --- ゲームオーバー ---
     [ModalType.GAME_OVER]: {
