@@ -12,11 +12,12 @@ import { MEDALS_DATA } from '../battle/data/medals.js';
 import { PartInfo } from '../battle/common/constants.js';
 import { CONFIG as MAP_CONFIG } from '../map/constants.js';
 
-// デフォルトのプレイヤー初期位置
+// デフォルトのプレイヤー初期位置に `direction` を追加
 const initialPlayerPosition = {
     x: 1 * MAP_CONFIG.TILE_SIZE + (MAP_CONFIG.TILE_SIZE - MAP_CONFIG.PLAYER_SIZE) / 2,
     y: 1 * MAP_CONFIG.TILE_SIZE + (MAP_CONFIG.TILE_SIZE - MAP_CONFIG.PLAYER_SIZE) / 2,
-    mapName: 'map.json'
+    mapName: 'map.json',
+    direction: 'down',
 };
 
 // デフォルトのプレイヤー所持メダロットデータに `medalId` を追加
@@ -146,6 +147,12 @@ export class GameDataManager {
                     this.gameData.playerMedarots.push(...medarotsToAppend.slice(0, 3 - this.gameData.playerMedarots.length));
                     needsSave = true;
                 }
+                
+                // 向き情報の互換性チェック
+                if (this.gameData.playerPosition && !this.gameData.playerPosition.direction) {
+                    this.gameData.playerPosition.direction = 'down';
+                    needsSave = true;
+                }
 
                 if (needsSave) this.saveGame(); // データを更新・補完した場合は保存
 
@@ -173,7 +180,7 @@ export class GameDataManager {
 
     /**
      * マップモードで必要となるプレイヤーのデータを取得します。
-     * @returns {{position: {x: number, y: number, mapName: string}}}
+     * @returns {{position: {x: number, y: number, mapName: string, direction: string}}}
      */
     getPlayerDataForMap() {
         return {
@@ -300,14 +307,14 @@ export class GameDataManager {
 
 
     /**
-     * プレイヤーのマップ上の位置を更新します。
-     * @param {number} x - 新しいX座標
-     * @param {number} y - 新しいY座標
+     * プレイヤーのマップ上の状態（位置と向き）を更新します。
+     * @param {object} mapState - { x, y, direction }
      */
-    updatePlayerPosition(x, y) {
+    updatePlayerMapState({ x, y, direction }) {
         if (this.gameData && this.gameData.playerPosition) {
             this.gameData.playerPosition.x = x;
             this.gameData.playerPosition.y = y;
+            this.gameData.playerPosition.direction = direction;
         }
     }
 

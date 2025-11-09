@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const startGame = async (isNewGame) => {
         if (isNewGame) {
             gameDataManager.resetToDefault();
-            gameDataManager.saveGame();
+            // 新規ゲーム開始時はセーブしない
         } else {
             gameDataManager.loadGame();
         }

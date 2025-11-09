@@ -44,7 +44,6 @@ export class CustomizeLogicSystem extends BaseSystem {
         if (!newPartId) return;
 
         this.dataManager.updateMedarotPart(medarotIndex, partSlot, newPartId);
-        this.dataManager.saveGame(); // パーツ交換のたびにセーブ
 
         // 装備完了をUIシステムに通知し、再描画をトリガーさせる
         this.world.emit('PART_EQUIPPED');
@@ -59,7 +58,6 @@ export class CustomizeLogicSystem extends BaseSystem {
         if (!newMedalId) return;
 
         this.dataManager.updateMedarotMedal(medarotIndex, newMedalId);
-        this.dataManager.saveGame(); // メダル交換のたびにセーブ
 
         // 装備完了をUIシステムに通知し、再描画をトリガーさせる
         this.world.emit('MEDAL_EQUIPPED');

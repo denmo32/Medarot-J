@@ -1,5 +1,4 @@
 import { BaseSystem } from '../../core/baseSystem.js';
-// [リファクタリング] MapSceneで定義した専用コンポーネントをインポート
 import { MapUIState } from '../../scenes/MapScene.js';
 import * as MapComponents from '../components.js';
 
@@ -11,7 +10,7 @@ export class MapUISystem extends BaseSystem {
     constructor(world, inputManager) {
         super(world);
         this.input = inputManager;
-        // [リファクタリング] MapUIStateコンポーネントを参照する
+        // MapUIStateコンポーネントを参照する
         this.mapUIState = this.world.getSingletonComponent(MapUIState);
 
         // DOM要素の参照
@@ -54,7 +53,6 @@ export class MapUISystem extends BaseSystem {
     }
 
     // --- Menu Logic --- //
-
     toggleMenu() {
         if (!this.dom.menu) {
             console.error('MapUISystem: map-menu element not found!');
@@ -144,10 +142,8 @@ export class MapUISystem extends BaseSystem {
     }
 
     saveGame() {
-        const playerEntity = this.world.getEntitiesWith(MapComponents.PlayerControllable)[0];
-        if (!playerEntity) return;
-        const position = this.world.getComponent(playerEntity, MapComponents.Position);
-        this.world.emit('GAME_SAVE_REQUESTED', { position: { x: position.x, y: position.y } });
+        // イベント発行時にペイロードを渡さない
+        this.world.emit('GAME_SAVE_REQUESTED');
         console.log('Game save requested.');
     }
 

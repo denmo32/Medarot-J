@@ -15,7 +15,7 @@ import { RenderSystem as MapRenderSystem } from '../map/systems/RenderSystem.js'
 import { MapUISystem } from '../map/systems/MapUISystem.js';
 import { InteractionSystem } from '../map/systems/InteractionSystem.js';
 
-// [リファクタリング] マップシーン専用のUI状態コンポーネントを定義
+// マップシーン専用のUI状態コンポーネントを定義
 export class MapUIState {
     constructor() {
         this.isMapMenuVisible = false;
@@ -91,33 +91,40 @@ export class MapScene extends BaseScene {
         this.world.addComponent(playerEntityId, new MapComponents.PlayerControllable());
         this.world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
         this.world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
-        this.world.addComponent(playerEntityId, new MapComponents.FacingDirection('down'));
+        // 保存された向き情報でFacingDirectionコンポーネントを初期化
+        this.world.addComponent(playerEntityId, new MapComponents.FacingDirection(mapPlayerData.position.direction));
 
         // --- Event Listeners for Scene Transition ---
-        const savePlayerPosition = () => {
+        const savePlayerState = () => {
             const pos = this.world.getComponent(playerEntityId, MapComponents.Position);
-            if (pos) gameDataManager.updatePlayerPosition(pos.x, pos.y);
+            // 向き情報も取得
+            const dir = this.world.getComponent(playerEntityId, MapComponents.FacingDirection);
+            if (pos && dir) {
+                // 位置と向きをまとめて更新
+                gameDataManager.updatePlayerMapState({ x: pos.x, y: pos.y, direction: dir.direction });
+            }
         };
         
         this.world.on(MAP_EVENTS.BATTLE_TRIGGERED, () => {
-            savePlayerPosition();
+            savePlayerState();
             this.sceneManager.switchTo('battle', { gameDataManager, inputManager });
         });
         this.world.on('NPC_INTERACTED', () => {
-            savePlayerPosition();
+            savePlayerState();
             this.sceneManager.switchTo('battle', { gameDataManager, inputManager });
         });
         this.world.on('CUSTOMIZE_SCENE_REQUESTED', () => {
-            savePlayerPosition();
+            savePlayerState();
             this.sceneManager.switchTo('customize', { gameDataManager, inputManager });
         });
 
         // --- Other Event Listeners ---
-        this.world.on('GAME_SAVE_REQUESTED', (payload) => {
-            if (payload && payload.position) {
-                gameDataManager.updatePlayerPosition(payload.position.x, payload.position.y);
-                gameDataManager.saveGame();
-            }
+        // セーブ要求イベントのハンドラを更新
+        this.world.on('GAME_SAVE_REQUESTED', () => {
+            // 現在の位置と向きでセーブデータを更新
+            savePlayerState();
+            // セーブを実行
+            gameDataManager.saveGame();
         });
 
         // --- Initial State ---
