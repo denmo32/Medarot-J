@@ -11,11 +11,20 @@ import { TargetingStrategyKey } from '../strategyKeys.js';
  * @param {object} context - 戦略コンテキスト
  * @param {World} context.world - ワールドオブジェクト
  * @param {number} context.attackerId - 行動主体のエンティティID
- * @returns {{targetId: number, targetPartKey: string} | null}
+ * @returns {Array<{ target: { targetId: number, targetPartKey: string }, weight: number }> | null} ターゲット候補リスト
  */
 const findMostDamagedStrategy = ({ world, attackerId }) => {
     const allies = getValidAllies(world, attackerId, true); // 自分を含む
-    return findMostDamagedAllyPart(world, allies);
+    const mostDamagedTarget = findMostDamagedAllyPart(world, allies);
+
+    // 単一のターゲットが見つかった場合、それを唯一の候補として高い重みで返す
+    if (mostDamagedTarget) {
+        return [{
+            target: mostDamagedTarget,
+            weight: 10
+        }];
+    }
+    return null;
 };
 
 export const supportStrategies = {

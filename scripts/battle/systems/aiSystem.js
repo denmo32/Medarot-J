@@ -5,18 +5,12 @@
 
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { Medal, Parts, PlayerInfo } from '../core/components/index.js';
-import { getAttackableParts, getValidEnemies, getValidAllies, isValidTarget, findMostDamagedAllyPart, getCandidatesByScope } from '../utils/queryUtils.js';
+import { Medal, PlayerInfo } from '../core/components/index.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
-import { determineTargetByPersonality } from '../ai/aiDecisionUtils.js';
+import { determineTargetCandidatesByPersonality } from '../ai/aiDecisionUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
 import { partSelectionStrategies } from '../ai/partSelectionStrategies.js';
-import { targetingStrategies } from '../ai/targetingStrategies.js';
-import { conditionEvaluators } from '../ai/conditionEvaluators.js';
-import { EffectScope } from '../common/constants.js';
-import { determineTarget } from '../utils/targetingUtils.js';
-
-// AiSystem内に直接定義されていた conditionEvaluators は conditionEvaluators.js に移管
+import { determineActionPlans } from '../utils/targetingUtils.js';
 
 /**
  * AIの「脳」として機能するシステム。
@@ -26,85 +20,99 @@ import { determineTarget } from '../utils/targetingUtils.js';
 export class AiSystem extends BaseSystem {
     constructor(world) {
         super(world);
-
-        // AIの行動が必要になった時（AIのターンが来た時）のイベントのみを購読します。
         this.world.on(GameEvents.AI_ACTION_REQUIRED, this.onAiActionRequired.bind(this));
     }
 
     /**
-     * TurnSystemからAIの行動選択が要求された際のハンドラ。AIの思考プロセスを開始します。
-     * ターゲット決定ロジックを修正し、パーツ選択との連携を改善します。
+     * AIの行動選択が要求された際のハンドラ。AIの思考プロセスを開始します。
+     * 人間と同じ「ターゲット候補リスト→行動プラン→パーツ選択」のフローで意思決定を行います。
      * @param {object} detail - イベントの詳細 ({ entityId })
      */
     onAiActionRequired(detail) {
         const { entityId } = detail;
+        const context = { world: this.world, entityId };
 
-        const availableParts = getAttackableParts(this.world, entityId);
-        if (availableParts.length === 0) {
+        // --- Step 1: 性格に基づきターゲット候補リストを取得 ---
+        const targetCandidates = determineTargetCandidatesByPersonality(context);
+
+        if (!targetCandidates || targetCandidates.length === 0) {
+            console.warn(`AI ${entityId}: No target candidates found by personality. Action will be cancelled.`);
+            // 行動を決定せず、選択キューに再登録を要求して他のAIの選択を待つ
+            this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
+            return;
+        }
+
+        // --- Step 2: ターゲット候補と使用可能パーツから、行動プランのリストを生成 ---
+        const actionPlans = determineActionPlans({ ...context, targetCandidates });
+        
+        if (actionPlans.length === 0) {
+            // 使用可能なパーツがない場合は機能停止
             this.world.emit(GameEvents.PLAYER_BROKEN, { entityId });
             return;
         }
 
-        const attackerMedal = this.world.getComponent(entityId, Medal);
-        const strategies = getStrategiesFor(attackerMedal.personality);
-        const context = { world: this.world, entityId, availableParts };
+        // --- Step 3: 行動プランの中から最適なものを一つ選択 ---
+        const finalPlan = this.selectBestActionPlan(entityId, actionPlans);
 
-        let selectedPartKey = null;
-        let finalTarget = null;
-
-        // --- Step 1: ターゲットを決定 ---
-        // ★変更: 汎用targetingUtilsからAI専用のaiDecisionUtilsへインポート元を変更 (提案1-2)
-        const { target, strategyKey: usedStrategyKey } = determineTargetByPersonality(context);
-        finalTarget = target;
-
-        // --- Step 2: ターゲットが決まった場合、それに最適なパーツを選択 ---
-        if (finalTarget) {
-            // 思考ルーチンの中から、使用されたターゲット戦略に一致するものを探す
-            const matchingRoutine = strategies.routines.find(routine => routine.targetStrategy === usedStrategyKey);
-            
-            if (matchingRoutine) {
-                const { partStrategy } = matchingRoutine;
-                let partSelectionFunc;
-                if (typeof partStrategy === 'string') {
-                    partSelectionFunc = partSelectionStrategies[partStrategy];
-                } else if (typeof partStrategy === 'object' && partStrategy.type) {
-                    const baseStrategy = partSelectionStrategies[partStrategy.type];
-                    if (baseStrategy) partSelectionFunc = baseStrategy(partStrategy.params);
-                }
-
-                if (partSelectionFunc) {
-                    const [partKey] = partSelectionFunc(context);
-                    if (partKey) {
-                        selectedPartKey = partKey;
-                    }
-                }
-            }
-        }
-
-        // --- Step 3: フォールバック処理 ---
-        // ターゲットが見つからない、または最適なパーツが見つからない場合
-        if (!finalTarget || !selectedPartKey) {
-            console.warn(`AI ${entityId} (${attackerMedal.personality}) could not decide action. Using full fallback.`);
-            
-            // ランダムなパーツを選択
-            const [partKey] = partSelectionStrategies.RANDOM(context);
-            selectedPartKey = partKey;
-            
-            // フォールバック用のターゲットを再決定（ターゲットがまだ決まっていない場合のみ）
-            if (!finalTarget) {
-                // レジストリから戦略キーを取得し、動的に戦略関数を解決する
-                const fallbackKey = strategies.fallbackTargeting;
-                const fallbackStrategy = targetingStrategies[fallbackKey];
-                if (fallbackStrategy) {
-                    finalTarget = determineTarget(this.world, entityId, fallbackStrategy, fallbackKey);
-                } else {
-                    console.error(`AI ${entityId}: Fallback strategy key "${fallbackKey}" not found.`);
-                    finalTarget = null; // 安全のためnullに
-                }
-            }
+        if (!finalPlan) {
+            console.error(`AI ${entityId}: Could not select a final action plan. This should not happen.`);
+            // フェイルセーフとしてランダムなプランを選択
+            const randomPlan = actionPlans[Math.floor(Math.random() * actionPlans.length)];
+            decideAndEmitAction(this.world, entityId, randomPlan.partKey, randomPlan.target);
+            return;
         }
         
         // --- Step 4: 最終決定した行動を発行 ---
-        decideAndEmitAction(this.world, entityId, selectedPartKey, finalTarget);
+        decideAndEmitAction(this.world, entityId, finalPlan.partKey, finalPlan.target);
+    }
+
+    /**
+     * 与えられた行動プランのリストから、AIの性格に基づいて最適なプランを1つ選択します。
+     * @param {number} entityId - AIのエンティティID
+     * @param {Array<object>} actionPlans - 評価対象の行動プランリスト
+     * @returns {object | null} 最適と判断された行動プラン
+     */
+    selectBestActionPlan(entityId, actionPlans) {
+        const attackerMedal = this.world.getComponent(entityId, Medal);
+        const strategies = getStrategiesFor(attackerMedal.personality);
+        const attackerInfo = this.world.getComponent(entityId, PlayerInfo);
+        let partStrategyKey;
+
+        // 1. どのパーツ選択戦略を使うか決定する
+        // まず、ターゲットが事前に決まっているプラン(pre-move)を探す
+        const preMovePlan = actionPlans.find(plan => plan.target !== null);
+
+        if (preMovePlan) {
+            // pre-moveプランがあれば、そのターゲット情報を基に戦略を決定
+            const targetInfo = this.world.getComponent(preMovePlan.target.targetId, PlayerInfo);
+            if (targetInfo && attackerInfo.teamId === targetInfo.teamId) {
+                partStrategyKey = strategies.partStrategyMap.ally;
+            } else {
+                partStrategyKey = strategies.partStrategyMap.enemy;
+            }
+        } else {
+            // pre-moveプランがない場合（全てpost-move）、敵を狙う戦略をデフォルトで選択
+            // (現状のpost-moveアクションは全て敵対象であるため)
+            partStrategyKey = strategies.partStrategyMap.enemy;
+        }
+
+        if (!partStrategyKey) {
+            console.warn(`AI ${entityId} (${attackerMedal.personality}): No part strategy found for the target type. Falling back.`);
+            return actionPlans[Math.floor(Math.random() * actionPlans.length)];
+        }
+
+        // 2. パーツ選択戦略を実行して最適なパーツを決定する
+        const partSelectionFunc = partSelectionStrategies[partStrategyKey];
+        if (!partSelectionFunc) {
+            console.error(`AI ${entityId}: Part strategy '${partStrategyKey}' not found. Falling back.`);
+            return actionPlans[Math.floor(Math.random() * actionPlans.length)];
+        }
+        
+        // パーツ選択戦略は `[partKey, part]` の形式の配列を期待するため、プランから変換する
+        const availablePartsForStrategy = actionPlans.map(plan => [plan.partKey, plan.part]);
+        const [bestPartKey] = partSelectionFunc({ world: this.world, entityId, availableParts: availablePartsForStrategy });
+
+        // 3. 最適なパーツキーに対応する行動プランを返す
+        return actionPlans.find(plan => plan.partKey === bestPartKey) || null;
     }
 }

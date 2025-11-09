@@ -1,49 +1,46 @@
 /**
- * @file ターゲット決定ユーティリティ
- * このファイルは、AIと思考ルーチン、そしてプレイヤーの入力補助から共通して利用される、
- * ターゲットを決定するためのユーティリティ関数を提供します。
- * 元々は `ai/` ディレクトリにありましたが、プレイヤーの補助機能にも使われるため汎用的な場所へ移動しました。
+ * @file ターゲット決定および行動計画ユーティリティ
+ * このファイルは、AIやプレイヤーの入力補助から共通して利用される、
+ * 「行動プラン」を生成するための関数を提供します。
  */
-import { isValidTarget } from '../utils/queryUtils.js';
-import { GameEvents } from '../common/events.js';
+import { getAttackableParts, selectItemByProbability } from './queryUtils.js';
+import { TargetTiming } from '../common/constants.js';
 
 /**
- * この関数は、指定された「戦略」を実行することにのみ責任を持つ。
- * ターゲット候補リストの作成は各戦略関数自身が担当します。
- * 
- * @param {World} world - ワールドオブジェクト
- * @param {number} attackerId - 攻撃者のエンティティID
- * @param {Function} strategy - 実行するターゲティング戦略関数
- * @param {string} strategyKey - 実行した戦略のキー (イベント発行用)
- * @returns {{targetId: number, targetPartKey: string} | null} ターゲット情報、またはnull
+ * 重み付けされたターゲット候補リストと使用可能パーツから、パーツごとの行動プランリストを生成します。
+ * 各パーツは、候補リストから確率的にターゲットを一つ選択します。
+ * targetTimingが'post-move'のパーツについては、ターゲットをnullに設定します。
+ * @param {object} context - { world: World, entityId: number, targetCandidates: Array }
+ * @returns {Array<{ partKey: string, part: object, target: { targetId: number, targetPartKey: string } | null }>} 行動プランのリスト
  */
-export function determineTarget(world, attackerId, strategy, strategyKey) {
-    if (!strategy) {
-        return null;
+export function determineActionPlans({ world, entityId, targetCandidates }) {
+    if (!targetCandidates || targetCandidates.length === 0) {
+        return [];
+    }
+    
+    const availableParts = getAttackableParts(world, entityId);
+    if (availableParts.length === 0) {
+        return [];
     }
 
-    // 戦略の実行に必要なコンテキストを作成
-    const strategyContext = {
-        world,
-        attackerId,
-    };
+    const actionPlans = [];
+    for (const [partKey, part] of availableParts) {
+        let selectedTarget = null;
 
-    // 戦略を実行してターゲットを決定
-    const target = strategy(strategyContext);
+        // targetTimingが pre-move の場合のみ、事前にターゲットを決定する
+        if (part.targetTiming === TargetTiming.PRE_MOVE) {
+            const selectedCandidate = selectItemByProbability(targetCandidates);
+            if (selectedCandidate) {
+                selectedTarget = selectedCandidate.target;
+            }
+        }
+        // post-move の場合は selectedTarget は null のまま
 
-    // ターゲットが無効であればnullを返す
-    if (!target || !isValidTarget(world, target.targetId, target.targetPartKey)) {
-        return null;
-    }
-
-    // 戦略が成功した場合、イベントを発行する
-    if (strategyKey) {
-        world.emit(GameEvents.STRATEGY_EXECUTED, {
-            strategy: strategyKey,
-            attackerId: attackerId,
-            target: target
+        actionPlans.push({
+            partKey,
+            part,
+            target: selectedTarget,
         });
     }
-
-    return target;
+    return actionPlans;
 }

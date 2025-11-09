@@ -7,7 +7,7 @@
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components/index.js';
-import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
+import { ModalType, PartInfo, PartKeyToInfoMap, EffectScope } from '../common/constants.js';
 
 /**
  * ActionPanelSystemのインスタンスをコンテキストとして受け取り、
@@ -64,12 +64,14 @@ export const createModalHandlers = (systemInstance) => ({
         setupEvents: (system, container, data) => {
             const _updateTargetHighlight = (partKey, show) => {
                 const buttonData = data.buttons.find(b => b.partKey === partKey);
-                if (!buttonData || buttonData.targetTiming !== 'pre-move') return;
+                // ターゲット情報がボタンデータに含まれているかチェック
+                if (!buttonData || !buttonData.target) return;
+                
                 const target = buttonData.target;
                 if (target?.targetId !== null) {
                     const targetDom = system.uiManager.getDOMElements(target.targetId);
-                    if (targetDom?.iconElement) {
-                        targetDom.iconElement.style.boxShadow = show ? '0 0 15px cyan' : '';
+                    if (targetDom?.targetIndicatorElement) {
+                        targetDom.targetIndicatorElement.classList.toggle('active', show);
                     }
                 }
             };
@@ -80,17 +82,16 @@ export const createModalHandlers = (systemInstance) => ({
                 if (!buttonEl) return;
         
                 buttonEl.onclick = () => {
-                    const target = btnData.target;
                     system.world.emit(GameEvents.PART_SELECTED, {
                         entityId: data.entityId,
                         partKey: btnData.partKey,
-                        targetId: target?.targetId ?? null,
-                        targetPartKey: target?.targetPartKey ?? null,
+                        target: btnData.target, // ボタンに紐づくターゲット情報を渡す
                     });
                     system.hideActionPanel();
                 };
         
-                if ([EffectScope.ENEMY_SINGLE, EffectScope.ALLY_SINGLE].includes(btnData.targetScope) && btnData.targetTiming === 'pre-move') {
+                // ターゲットを持つボタンにのみマウスオーバーイベントを設定
+                if (btnData.target) {
                     buttonEl.onmouseover = () => _updateTargetHighlight(btnData.partKey, true);
                     buttonEl.onmouseout = () => _updateTargetHighlight(btnData.partKey, false);
                 }
@@ -104,27 +105,31 @@ export const createModalHandlers = (systemInstance) => ({
         handleNavigation: (system, key) => {
             const _updateTargetHighlight = (partKey, show) => {
                 const buttonData = system.currentModalData?.buttons.find(b => b.partKey === partKey);
-                if (!buttonData || buttonData.targetTiming !== 'pre-move') return;
+                if (!buttonData || !buttonData.target) return;
+
                 const target = buttonData.target;
                 if (target?.targetId !== null) {
                     const targetDom = system.uiManager.getDOMElements(target.targetId);
-                    if (targetDom?.iconElement) {
-                        targetDom.iconElement.style.boxShadow = show ? '0 0 15px cyan' : '';
+                    if (targetDom?.targetIndicatorElement) {
+                         targetDom.targetIndicatorElement.classList.toggle('active', show);
                     }
                 }
             };
+
             const updateFocus = (newKey) => {
                 if (system.focusedButtonKey === newKey) return;
+                // 古いフォーカスとハイライトを解除
                 if (system.focusedButtonKey) {
                     _updateTargetHighlight(system.focusedButtonKey, false);
                     const oldButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${system.focusedButtonKey}`);
                     if (oldButton) oldButton.classList.remove('focused');
                 }
+                // 新しいフォーカスとハイライトを設定
                 _updateTargetHighlight(newKey, true);
                 const newButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${newKey}`);
                 if (newButton) {
                     newButton.classList.add('focused');
-                    system.focusedButtonKey = newKey; // systemの状態を更新
+                    system.focusedButtonKey = newKey;
                 } else {
                     system.focusedButtonKey = null;
                 }
@@ -170,9 +175,9 @@ export const createModalHandlers = (systemInstance) => ({
             const initialFocusKey = available.find(b => b.partKey === PartInfo.HEAD.key)?.partKey ||
                                     available.find(b => b.partKey === PartInfo.RIGHT_ARM.key)?.partKey ||
                                     available.find(b => b.partKey === PartInfo.LEFT_ARM.key)?.partKey;
-            // setTimeoutでレンダリング後の実行を保証
             if (initialFocusKey) setTimeout(() => system.currentHandler.handleNavigation(system, initialFocusKey), 0);
-        }
+        },
+        // hideActionPanel 時にハイライトを消す処理が必要
     },
     // --- 攻撃宣言 ---
     [ModalType.ATTACK_DECLARATION]: {

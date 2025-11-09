@@ -292,7 +292,7 @@ export class ActionPanelSystem extends BaseSystem {
         const allPlayerIds = this.world.getEntitiesWith(Components.PlayerInfo);
         allPlayerIds.forEach(id => {
             const dom = this.uiManager.getDOMElements(id);
-            if (dom?.iconElement) dom.iconElement.style.boxShadow = '';
+            if (dom?.targetIndicatorElement) dom.targetIndicatorElement.classList.remove('active');
         });
 
         if (this.focusedButtonKey) {
