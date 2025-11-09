@@ -78,10 +78,7 @@ export class ActionPanelSystem extends BaseSystem {
      */
     update(deltaTime) {
         // --- 1. キュー処理 ---
-        // キューにタスクがあり、現在処理中でなければ、処理を開始
-        if (this.modalQueue.length > 0 && !this.isProcessingQueue) {
-            this._processModalQueue();
-        }
+        // キュー処理はイベント駆動で即時実行されるため、updateでのポーリングは不要
 
         // --- 2. 入力処理 ---
         // モーダルが表示されていて、アニメーション待ちでなければ入力を処理
@@ -108,6 +105,11 @@ export class ActionPanelSystem extends BaseSystem {
      */
     queueModal(detail) {
         this.modalQueue.push(detail);
+        // キュー処理中でなければ、即座に処理を開始する
+        if (!this.isProcessingQueue) {
+            // updateループを待たずにキュー処理を即座に開始
+            this._processModalQueue();
+        }
     }
     
     /**
@@ -115,12 +117,15 @@ export class ActionPanelSystem extends BaseSystem {
      * @private
      */
     _processModalQueue() {
-        if (this.modalQueue.length === 0 || this.isProcessingQueue) {
-            return;
+        // シンプルなキュー処理ロジックに
+        if (this.modalQueue.length > 0) {
+            this.isProcessingQueue = true;
+            const modalRequest = this.modalQueue.shift();
+            this._showModal(modalRequest);
+        } else {
+            // 念のため、キューが空ならフラグをリセット
+            this.isProcessingQueue = false;
         }
-        this.isProcessingQueue = true;
-        const modalRequest = this.modalQueue.shift();
-        this._showModal(modalRequest);
     }
     
     /**
@@ -176,6 +181,8 @@ export class ActionPanelSystem extends BaseSystem {
             if (this.currentModalType === ModalType.ATTACK_DECLARATION) {
                 // isProcessingQueueをfalseにして、次のキュー(結果表示モーダル)を処理できるようにする
                 this.isProcessingQueue = false;
+                // 次のキューを処理
+                this._processModalQueue();
             } else {
                 // それ以外のモーダルは完了後にパネルを隠す
                 this.hideActionPanel();
@@ -246,8 +253,8 @@ export class ActionPanelSystem extends BaseSystem {
         this.resetPanelDOM();
         this.resetHighlightsAndFocus();
         
-        // キューに次のモーダルがあれば、次のフレームで処理を開始
-        // requestAnimationFrame(() => this._processModalQueue());
+        // パネルを閉じた直後に、キューに次のモーダルがあれば処理を開始
+        this._processModalQueue();
     }
 
     /**
