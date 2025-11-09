@@ -28,21 +28,6 @@ const focusTransitionMap = {
     },
 };
 
-// UIフォーカス遷移を管理するナビゲーショングラフ
-const navGraph = {
-    // MEDAROT_SELECT と ITEM_LIST は単純な垂直リストなので、グラフは不要
-    EQUIP_PANEL: {
-        // キーは equipSlots の文字列 (e.g., 'medal', 'head')
-        // 値は { direction: nextSlot } のマップ
-        [EquipSlotType.MEDAL]:     { down: EquipSlotType.HEAD },
-        [EquipSlotType.HEAD]:      { up: EquipSlotType.MEDAL,     down: EquipSlotType.RIGHT_ARM }, // 腕はどちらか片方を代表とする
-        [EquipSlotType.RIGHT_ARM]: { up: EquipSlotType.HEAD,      down: EquipSlotType.LEGS,      right: EquipSlotType.LEFT_ARM },
-        [EquipSlotType.LEFT_ARM]:  { up: EquipSlotType.HEAD,      down: EquipSlotType.LEGS,      left: EquipSlotType.RIGHT_ARM },
-        [EquipSlotType.LEGS]:      { up: EquipSlotType.RIGHT_ARM }, // 腕はどちらか片方を代表とする
-    }
-};
-
-
 export class CustomizeUISystem extends BaseSystem {
     constructor(world) {
         super(world);
@@ -97,7 +82,8 @@ export class CustomizeUISystem extends BaseSystem {
     // --- イベントハンドラ ---
     
     /**
-     * ナビゲーションロジックをリファクタリングし、navGraphを使用
+     * ナビゲーションロジックを改修。
+     * 上下キーでフォーカス移動、左右キーは装備中のアイテムを直接切り替えるショートカットに。
      */
     handleNavigation(detail) {
         const { direction } = detail;
@@ -115,20 +101,16 @@ export class CustomizeUISystem extends BaseSystem {
                 break;
             }
             case 'EQUIP_PANEL': {
-                const currentSlot = this.equipSlots[this.uiState.selectedEquipIndex];
-                let nextSlot = navGraph.EQUIP_PANEL[currentSlot]?.[direction];
-
-                // 特殊ケース: 脚部から上に移動する際は、左右どちらの腕にも戻れるようにする
-                if (currentSlot === EquipSlotType.LEGS && direction === 'up') {
-                    nextSlot = EquipSlotType.RIGHT_ARM; // 暫定的に右腕を優先
-                }
-                
-                if (nextSlot) {
-                    const nextIndex = this.equipSlots.indexOf(nextSlot);
-                    if (nextIndex > -1) {
-                        this.uiState.selectedEquipIndex = nextIndex;
-                        stateChanged = true;
-                    }
+                if (direction === 'up' || direction === 'down') {
+                    // 上下キーで装備スロットを移動
+                    const move = direction === 'down' ? 1 : -1;
+                    const slotCount = this.equipSlots.length;
+                    this.uiState.selectedEquipIndex = (this.uiState.selectedEquipIndex + move + slotCount) % slotCount;
+                    stateChanged = true;
+                } else if (direction === 'left' || direction === 'right') {
+                    // 左右キーで装備中のアイテムを直接変更（ショートカット）
+                    this.changeEquippedItem(direction);
+                    // changeEquippedItemがイベントを発行し、on...Equippedが再描画するのでここでは stateChanged にしない
                 }
                 break;
             }
@@ -222,15 +204,70 @@ export class CustomizeUISystem extends BaseSystem {
     }
 
     onPartEquipped() {
-        this.uiState.focus = 'EQUIP_PANEL';
+        // アイテムリストから装備した場合はフォーカスを EQUIP_PANEL に戻す
+        // ショートカットの場合はフォーカスは EQUIP_PANEL のまま
+        if (this.uiState.focus !== 'EQUIP_PANEL') {
+            this.uiState.focus = 'EQUIP_PANEL';
+        }
         this.renderAll();
     }
 
     onMedalEquipped() {
-        this.uiState.focus = 'EQUIP_PANEL';
+        if (this.uiState.focus !== 'EQUIP_PANEL') {
+            this.uiState.focus = 'EQUIP_PANEL';
+        }
         this.renderAll();
     }
     
+    /**
+     * 装備パネルフォーカス時に左右キーでアイテムを切り替えるショートカット機能。
+     * @param {'left' | 'right'} direction - 入力方向
+     * @private
+     */
+    changeEquippedItem(direction) {
+        const medarotIndex = this.uiState.selectedMedarotIndex;
+        const slotIndex = this.uiState.selectedEquipIndex;
+        const slotKey = this.equipSlots[slotIndex];
+        const move = direction === 'right' ? 1 : -1;
+
+        const medarot = this.dataManager.getMedarot(medarotIndex);
+        if (!medarot) return;
+
+        if (slotKey === EquipSlotType.MEDAL) {
+            const availableItems = this.dataManager.getAvailableMedals();
+            if (availableItems.length <= 1) return; // 変更先がなければ何もしない
+
+            const currentId = medarot.medal?.id;
+            const currentIndex = currentId ? availableItems.findIndex(item => item.id === currentId) : -1;
+            
+            // 現在装備中のアイテムが見つからない場合、リストの先頭/末尾から始める
+            const nextIndex = (currentIndex === -1) 
+                ? (move > 0 ? 0 : availableItems.length - 1)
+                : (currentIndex + move + availableItems.length) % availableItems.length;
+
+            const newItem = availableItems[nextIndex];
+            if (newItem) {
+                this.world.emit('EQUIP_MEDAL_REQUESTED', { medarotIndex, newMedalId: newItem.id });
+            }
+
+        } else { // Parts
+            const availableItems = this.dataManager.getAvailableParts(slotKey);
+            if (availableItems.length <= 1) return;
+
+            const currentId = medarot.parts[slotKey]?.id;
+            const currentIndex = currentId ? availableItems.findIndex(item => item.id === currentId) : -1;
+            
+            const nextIndex = (currentIndex === -1)
+                ? (move > 0 ? 0 : availableItems.length - 1)
+                : (currentIndex + move + availableItems.length) % availableItems.length;
+
+            const newItem = availableItems[nextIndex];
+            if (newItem) {
+                this.world.emit('EQUIP_PART_REQUESTED', { medarotIndex, partSlot: slotKey, newPartId: newItem.id });
+            }
+        }
+    }
+
     // --- 描画メソッド ---
 
     renderAll() {
