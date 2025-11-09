@@ -7,14 +7,12 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { BattleContext } from '../core/index.js';
 import { Action, ActiveEffects, BattleLog, GameState, Gauge, Parts, PlayerInfo } from '../core/components/index.js';
-import { BattlePhase, PlayerStateType, EffectType, ActionType, PartInfo, ModalType } from '../common/constants.js';
+import { BattlePhase, PlayerStateType, EffectType, ActionType, PartInfo, ModalType, ActionCancelReason } from '../common/constants.js';
 import { GameEvents } from '../common/events.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
-import { findGuardian, findRandomPenetrationTarget, getValidAllies } from '../utils/queryUtils.js';
+import { findGuardian, findRandomPenetrationTarget, getValidAllies, isValidTarget } from '../utils/queryUtils.js';
 import { effectStrategies } from '../effects/effectStrategies.js';
-// 効果適用ロジックを外部モジュールからインポート
 import { effectApplicators } from '../effects/applicators/applicatorIndex.js';
-
 
 export class ActionResolutionSystem extends BaseSystem {
     /**
@@ -56,6 +54,15 @@ export class ActionResolutionSystem extends BaseSystem {
         }
         const { action, attackerInfo, attackerParts } = components;
         const attackingPart = attackerParts[action.partKey];
+        
+        // フェイルセーフ: ターゲットを必要とするアクションで、かつターゲットが無効になっている場合は、アクションを解決せずに終了する
+        const isTargetRequired = attackingPart.targetScope && (attackingPart.targetScope.endsWith('_SINGLE') || attackingPart.targetScope.endsWith('_TEAM'));
+        if (isTargetRequired && !isValidTarget(this.world, action.targetId, action.targetPartKey)) {
+            console.warn(`ActionResolutionSystem: Target for entity ${attackerId} is no longer valid at resolution time. Cancelling action.`);
+            // アクションをキャンセル済みとしてクールダウンへ移行させる
+            this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: attackerId, reason: ActionCancelReason.TARGET_LOST });
+            return;
+        }
         
         let finalTargetId = action.targetId;
         let finalTargetPartKey = action.targetPartKey;

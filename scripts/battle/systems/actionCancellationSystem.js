@@ -57,6 +57,13 @@ export class ActionCancellationSystem extends BaseSystem {
                     // isPlayerBroken フラグで判定
                     if (effect.isPlayerBroken && selectedPart && selectedPart.targetScope?.endsWith('_SINGLE') && action.targetId === brokenEntityId) {
                         this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.TARGET_LOST });
+                        continue; // 重複キャンセルを防ぐ
+                    }
+
+                    // 判定3: ターゲットの特定のパーツが破壊された場合
+                    if (selectedPart && selectedPart.targetScope?.endsWith('_SINGLE') && action.targetId === brokenEntityId && action.targetPartKey === brokenPartKey) {
+                        this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.TARGET_LOST });
+                        continue; // このアクターに対する処理は完了
                     }
                 }
             }
