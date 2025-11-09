@@ -8,7 +8,7 @@ import {
     isValidTarget, 
     selectRandomPart, 
     getAllPartsFromCandidates, 
-    selectPartByCondition, 
+    selectPartByProbability, 
     getValidEnemies 
 } from '../../utils/queryUtils.js';
 import { TargetingStrategyKey } from '../strategyKeys.js';
@@ -39,14 +39,22 @@ export const offensiveStrategies = {
      */
     // 高階関数を使用して戦略を定義
     [TargetingStrategyKey.HUNTER]: createEnemyTargetingStrategy(({ world, candidates }) => {
-        return selectPartByCondition(world, candidates, (a, b) => a.part.hp - b.part.hp);
+        const allParts = getAllPartsFromCandidates(world, candidates);
+        if (allParts.length === 0) return null;
+        // HPが低い順にソート（昇順）
+        allParts.sort((a, b) => a.part.hp - b.part.hp);
+        return selectPartByProbability(allParts);
     }),
     /**
      * [CRUSHER]: 頑丈なパーツを先に破壊し、敵の耐久力を削ぐ、破壊者のような性格。
      */
     // 高階関数を使用して戦略を定義
     [TargetingStrategyKey.CRUSHER]: createEnemyTargetingStrategy(({ world, candidates }) => {
-        return selectPartByCondition(world, candidates, (a, b) => b.part.hp - a.part.hp);
+        const allParts = getAllPartsFromCandidates(world, candidates);
+        if (allParts.length === 0) return null;
+        // HPが高い順にソート（降順）
+        allParts.sort((a, b) => b.part.hp - a.part.hp);
+        return selectPartByProbability(allParts);
     }),
     /**
      * [JOKER]: 行動が予測不能で、戦況をかき乱す、トリックスターのような性格。

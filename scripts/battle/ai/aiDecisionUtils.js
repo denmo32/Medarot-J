@@ -78,12 +78,12 @@ export function determineTargetByPersonality({ world, entityId }) {
 
 /**
  * @function determineRecommendedTarget
- * @description プレイヤーの行動選択時に推奨ターゲットを提示するための共通関数。
+ * @description プレイヤーの行動選択時に、狙っているターゲットを表示するための共通関数。
  * 内部ロジックを`determineTargetByPersonality`に委譲します。
  * @param {World} world - ワールドオブジェクト
  * @param {number} entityId - 行動主体のエンティティID
  * @param {object} part - 選択が検討されているパーツオブジェクト (現在は未使用ですが、将来的な拡張のため残置)
- * @returns {{targetId: number, targetPartKey: string} | null} 推奨ターゲット情報、またはnull
+ * @returns {{targetId: number, targetPartKey: string} | null} 予定ターゲット情報、またはnull
  */
 export function determineRecommendedTarget(world, entityId, part) {
     // ターゲット決定ロジックを共通関数に委譲し、ターゲット情報のみを返す

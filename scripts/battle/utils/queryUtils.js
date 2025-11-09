@@ -323,6 +323,43 @@ export function selectPartByCondition(world, candidates, sortFn) {
 }
 
 /**
+ * ソート済みのパーツリストから、指定された確率分布に従ってパーツを1つ選択します。
+ * @param {Array<{entityId: number, partKey: string, part: object}>} sortedParts - 評価順にソートされたパーツのリスト
+ * @param {number[]} [weights=[4, 3, 1]] - 確率の重み。1位、2位、3位...の選択されやすさを定義します。
+ * @returns {{targetId: number, targetPartKey: string} | null} 選択されたターゲット情報、またはnull
+ */
+export function selectPartByProbability(sortedParts, weights = [4, 3, 1]) {
+    if (!sortedParts || sortedParts.length === 0) {
+        return null;
+    }
+
+    // 候補がweightsの長さより少ない場合は、候補数に合わせる
+    const effectiveWeights = weights.slice(0, sortedParts.length);
+    const totalWeight = effectiveWeights.reduce((sum, w) => sum + w, 0);
+    
+    if (totalWeight === 0) {
+        // 重みがない場合は、先頭の要素を返す（安全策）
+        const selectedPart = sortedParts[0];
+        return { targetId: selectedPart.entityId, targetPartKey: selectedPart.partKey };
+    }
+
+    const randomValue = Math.random() * totalWeight;
+    let cumulativeWeight = 0;
+
+    for (let i = 0; i < effectiveWeights.length; i++) {
+        cumulativeWeight += effectiveWeights[i];
+        if (randomValue < cumulativeWeight) {
+            const selectedPart = sortedParts[i];
+            return { targetId: selectedPart.entityId, targetPartKey: selectedPart.partKey };
+        }
+    }
+
+    // フォールバック（通常は到達しないはず）
+    const selectedPart = sortedParts[0];
+    return { targetId: selectedPart.entityId, targetPartKey: selectedPart.partKey };
+}
+
+/**
  * @function findGuardian
  * @description 指定されたターゲットのチームから、ガード状態の機体を探します。
  * 複数いる場合は、ガードパーツのHPが最も高い機体を返します。
