@@ -14,42 +14,52 @@ import { MedalPersonality } from '../common/constants.js';
 export const MEDALS_DATA = {
     'kabuto': {
         id: 'kabuto',
-        name: 'カブトメダル',
+        name: 'カブト',
         personality: MedalPersonality.HUNTER,
     },
     'kuwagata': {
         id: 'kuwagata',
-        name: 'クワガタメダル',
+        name: 'クワガタ',
         personality: MedalPersonality.CRUSHER,
     },
-    'bear': {
-        id: 'bear',
-        name: 'ベアーメダル',
+	'hunter': {
+        id: 'hunterTest',
+        name: 'ハンターテスト',
+        personality: MedalPersonality.HUNTER,
+    },
+    'crusher': {
+        id: 'crusherTest',
+        name: 'クラッシャーテスト',
+        personality: MedalPersonality.CRUSHER,
+    },
+    'counter': {
+        id: 'counterTest',
+        name: 'カウンターテスト',
         personality: MedalPersonality.COUNTER,
     },
     'joker': {
-        id: 'joker',
-        name: 'ジョーカーメダル',
+        id: 'jokerTest',
+        name: 'ジョーカーテスト',
         personality: MedalPersonality.JOKER,
     },
     'healer': {
-        id: 'healer',
-        name: 'ヒーラーメダル',
+        id: 'healerTest',
+        name: 'ヒーラーテスト',
         personality: MedalPersonality.HEALER,
     },
     'guard': {
-        id: 'guard',
-        name: 'ガードメダル',
+        id: 'guardTest',
+        name: 'ガードテスト',
         personality: MedalPersonality.GUARD,
     },
     'assist': {
-        id: 'assist',
-        name: 'アシストメダル',
+        id: 'assistTest',
+        name: 'アシストテスト',
         personality: MedalPersonality.ASSIST,
     },
     'focus': {
-        id: 'focus',
-        name: 'フォーカスメダル',
+        id: 'focusTest',
+        name: 'フォーカステスト',
         personality: MedalPersonality.FOCUS,
     },
 };
