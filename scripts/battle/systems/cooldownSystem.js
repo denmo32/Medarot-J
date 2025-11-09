@@ -19,6 +19,8 @@ export class CooldownSystem extends BaseSystem {
         this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
         // 効果が切れた場合（例: ガード効果）にも状態をリセットします。
         this.world.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
+        // パーツ破壊イベントを購読し、ガード状態の解除を判定します。
+        this.world.on(GameEvents.PART_BROKEN, this.onPartBroken.bind(this));
     }
 
     /**
@@ -38,6 +40,35 @@ export class CooldownSystem extends BaseSystem {
     }
 
     /**
+     * パーツ破壊イベントを処理し、ガード状態の解除を判定します。
+     * @param {object} detail - PART_BROKEN イベントのペイロード { entityId, partKey }
+     */
+    onPartBroken(detail) {
+        const { entityId, partKey } = detail;
+        const gameState = this.world.getComponent(entityId, GameState);
+
+        // ガード状態の機体でなければ何もしない
+        if (gameState?.state !== PlayerStateType.GUARDING) {
+            return;
+        }
+
+        const activeEffects = this.world.getComponent(entityId, ActiveEffects);
+        if (!activeEffects) return;
+
+        // 破壊されたパーツが、現在発動中のガード効果で使用されているパーツか確認
+        const isGuardPartBroken = activeEffects.effects.some(
+            effect => effect.type === EffectType.APPLY_GUARD && effect.partKey === partKey
+        );
+
+        if (isGuardPartBroken) {
+            // UIにガード破壊を通知
+            this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
+            // ガード状態をリセットしてクールダウンへ移行
+            this.resetEntityStateToCooldown(entityId);
+        }
+    }
+
+    /**
      * 効果失効イベントを処理し、必要に応じて状態をリセットします。
      * @param {object} detail - EFFECT_EXPIRED イベントのペイロード { entityId, effect }
      */
@@ -45,14 +76,9 @@ export class CooldownSystem extends BaseSystem {
         const { entityId, effect } = detail;
         const gameState = this.world.getComponent(entityId, GameState);
         
-        // ガード効果が切れ、かつガード状態だった場合にクールダウンへ移行
+        // ガード効果が切れ（回数が0になり）、かつガード状態だった場合にクールダウンへ移行
         if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
-            const parts = this.world.getComponent(entityId, Parts);
-            const guardPart = parts[effect.partKey];
-            if (guardPart?.isBroken) {
-                 this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
-            }
-            
+            // パーツ破壊の判定は onPartBroken に集約されたため、ここでは不要
             this.resetEntityStateToCooldown(entityId);
         }
     }
