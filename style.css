@@ -224,7 +224,7 @@ body {
             font-size: 0.8em; /* テキストを小さく */
         }
         /* parts-container は削除 */
-        .part-hp { display: flex; align-items: center; gap: 8px; width: 100%; padding-left: 8px; } /* gapとpaddingを調整 */
+        .part-hp { display: flex; align-items: center; gap: 0px; width: 100%; padding-left: 0px; }
         .part-hp-bar-container {
             width: 80px;
             height: 12px; /* 高さを調整 */
@@ -241,6 +241,9 @@ body {
             font-weight: bold; /* 太字 */
             color: var(--color-text-primary); /* 白に近い色 */
             font-family: 'Roboto Mono', monospace; /* 数字が見やすいフォントに */
+            width: 40px; /* HP数値表示のための幅を固定 */
+            text-align: right; /* 右寄せにして桁数の変動に対応 */
+            flex-shrink: 0; /* flexコンテナ内で縮まないように設定 */
         }
         .part-hp-bar {
             height: 100%;
