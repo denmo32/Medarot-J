@@ -44,6 +44,16 @@ export const personalityRegistry = {
         // fallbackTargetingの値を関数参照から戦略キーに変更
         fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
+    [MedalPersonality.SPEED]: {
+        routines: [
+            // 優先度1: 最も威力の高い攻撃パーツで、最も推進力の高い敵の脚部を狙う
+            {
+                partStrategy: PartSelectionStrategyKey.POWER_FOCUS,
+                targetStrategy: TargetingStrategyKey.SPEED,
+            },
+        ],
+        fallbackTargeting: TargetingStrategyKey.RANDOM,
+    },
     [MedalPersonality.JOKER]: {
         routines: [
             // 優先度1: ランダムなパーツで、敵の全パーツからランダムにターゲットを選択

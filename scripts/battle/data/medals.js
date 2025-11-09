@@ -15,12 +15,12 @@ export const MEDALS_DATA = {
     'kabuto': {
         id: 'kabuto',
         name: 'カブト',
-        personality: MedalPersonality.HUNTER,
+        personality: MedalPersonality.SPEED,
     },
     'kuwagata': {
         id: 'kuwagata',
         name: 'クワガタ',
-        personality: MedalPersonality.CRUSHER,
+        personality: MedalPersonality.SPEED,
     },
 	'hunter': {
         id: 'hunterTest',

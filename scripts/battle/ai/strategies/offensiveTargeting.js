@@ -2,7 +2,7 @@
  * @file AI攻撃系ターゲティング戦略
  * @description 攻撃、反撃、汎用的なターゲット選択など、主に敵を対象とする戦略を定義します。
  */
-import { PlayerInfo, BattleLog } from '../../core/components/index.js';
+import { PlayerInfo, BattleLog, Parts } from '../../core/components/index.js';
 import { BattleContext } from '../../core/index.js';
 import { 
     isValidTarget, 
@@ -12,6 +12,7 @@ import {
     getValidEnemies 
 } from '../../utils/queryUtils.js';
 import { TargetingStrategyKey } from '../strategyKeys.js';
+import { PartInfo } from '../../common/constants.js';
 
 // 敵を対象とする戦略を生成するための高階関数
 /**
@@ -34,6 +35,57 @@ const createEnemyTargetingStrategy = (logicFn) => {
 
 
 export const offensiveStrategies = {
+    /**
+     * [SPEED]: 敵の機動力を削ぐため、推進力の高い脚部を優先的に狙う、速攻型の性格。
+     */
+    [TargetingStrategyKey.SPEED]: createEnemyTargetingStrategy(({ world, candidates }) => {
+        // 候補エンティティを脚部の推進力が高い順にソートする
+        const sortedCandidates = candidates.slice().sort((a, b) => {
+            const partsA = world.getComponent(a, Parts);
+            const partsB = world.getComponent(b, Parts);
+            const propulsionA = partsA?.legs?.propulsion || 0;
+            const propulsionB = partsB?.legs?.propulsion || 0;
+            return propulsionB - propulsionA;
+        });
+
+        if (sortedCandidates.length === 0) return null;
+
+        // 確率に基づいてターゲットエンティティIDを決定するロジック
+        const weights = [4, 3, 1]; // 上位3候補への重み付け
+        const effectiveWeights = weights.slice(0, sortedCandidates.length);
+        const totalWeight = effectiveWeights.reduce((sum, w) => sum + w, 0);
+        let targetId;
+
+        if (totalWeight > 0) {
+            const randomValue = Math.random() * totalWeight;
+            let cumulativeWeight = 0;
+            let selectedIndex = -1;
+
+            for (let i = 0; i < effectiveWeights.length; i++) {
+                cumulativeWeight += effectiveWeights[i];
+                if (randomValue < cumulativeWeight) {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+            targetId = sortedCandidates[selectedIndex];
+        } else {
+            // 重みがない or 候補が1つの場合は先頭を選択
+            targetId = sortedCandidates[0];
+        }
+        
+        if (targetId === null || targetId === undefined) return null;
+
+        const targetParts = world.getComponent(targetId, Parts);
+        
+        // 1. 脚部が未破壊かチェック
+        if (targetParts?.legs && !targetParts.legs.isBroken) {
+            return { targetId, targetPartKey: PartInfo.LEGS.key };
+        }
+
+        // 2. 脚部が破壊済みの場合、他の未破壊パーツからランダムに選択
+        return selectRandomPart(world, targetId);
+    }),
     /**
      * [HUNTER]: 弱った敵から確実に仕留める、狩人のような性格。
      */

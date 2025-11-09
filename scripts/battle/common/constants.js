@@ -88,6 +88,7 @@ export const MedalPersonality = {
     RANDOM: 'RANDOM',             // ターゲットをランダムに選択する
     HUNTER: 'HUNTER',             // 最も現在HPが低いパーツを狙う
     CRUSHER: 'CRUSHER',           // 最も現在HPが高いパーツを狙う
+    SPEED: 'SPEED',               // 推進の高い敵脚部を狙う
     JOKER: 'JOKER',               // 敵の全パーツからランダムに選択
     COUNTER: 'COUNTER',           // 自分を最後に攻撃してきた敵に反撃
     GUARD: 'GUARD',               // 味方リーダーを最後に攻撃してきた敵を狙う
