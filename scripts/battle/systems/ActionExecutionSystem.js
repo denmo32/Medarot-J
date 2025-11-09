@@ -9,6 +9,7 @@ import { Action, GameState, Parts } from '../core/components/index.js';
 import { BattlePhase, PlayerStateType, TargetTiming, ModalType } from '../common/constants.js';
 import { GameEvents } from '../common/events.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
+import { compareByPropulsion } from '../utils/queryUtils.js';
 
 export class ActionExecutionSystem extends BaseSystem {
     constructor(world) {
@@ -61,7 +62,8 @@ export class ActionExecutionSystem extends BaseSystem {
             return state.state === PlayerStateType.READY_EXECUTE;
         });
 
-        // TODO: 素早さ順にソート
+        // 実行準備完了のエンティティを「推進」が高い順にソート
+        readyEntities.sort(compareByPropulsion(this.world));
         
         // Actionコンポーネントからアクション詳細を取得してキューに追加
         this.executionQueue = readyEntities.map(id => {

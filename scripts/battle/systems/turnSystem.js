@@ -9,6 +9,7 @@ import { BattleContext } from '../core/index.js';
 import { GameEvents } from '../common/events.js';
 import { PlayerStateType, TeamID, BattlePhase, PartInfo } from '../common/constants.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
+import { compareByPropulsion } from '../utils/queryUtils.js';
 
 /**
  * ゲームの「ターン」や行動順を管理するシステム。
@@ -20,6 +21,8 @@ export class TurnSystem extends BaseSystem {
         super(world);
         // ローカルのactionQueueを廃止し、BattleContextのキューを信頼できる唯一の情報源とする
         this.battleContext = this.world.getSingletonComponent(BattleContext);
+        // 同一フレームで行動可能になったエンティティを一時的に保持するキュー
+        this.pendingQueue = [];
         this.world.on(GameEvents.ACTION_QUEUE_REQUEST, this.onActionQueueRequest.bind(this));
         this.world.on(GameEvents.ACTION_REQUEUE_REQUEST, this.onActionRequeueRequest.bind(this));
     }
@@ -30,9 +33,9 @@ export class TurnSystem extends BaseSystem {
      */
     onActionQueueRequest(detail) {
         const { entityId } = detail;
-        // BattleContextのキューを直接操作する
-        if (!this.battleContext.turn.actionQueue.includes(entityId)) {
-            this.battleContext.turn.actionQueue.push(entityId);
+        // 直接 actionQueue に追加せず、保留キューに追加する
+        if (!this.pendingQueue.includes(entityId) && !this.battleContext.turn.actionQueue.includes(entityId)) {
+            this.pendingQueue.push(entityId);
         }
     }
     
@@ -53,6 +56,24 @@ export class TurnSystem extends BaseSystem {
      * このシステムのupdateロジックはActionSelectionSystemから移管されました。
      */
     update(deltaTime) {
+        // 保留キューの処理
+        if (this.pendingQueue.length > 0) {
+            // 現在のフェーズに応じてソート戦略を決定
+            if (this.battleContext.phase === BattlePhase.INITIAL_SELECTION) {
+                // 初回行動選択時はエンティティIDの昇順でソート
+                this.pendingQueue.sort((a, b) => a - b);
+            } else {
+                // 通常時は脚部パーツの「推進」が高い順にソート
+                this.pendingQueue.sort(compareByPropulsion(this.world));
+            }
+            
+            // ソート済みのエンティティを正式な行動キューに追加
+            this.battleContext.turn.actionQueue.push(...this.pendingQueue);
+            // 保留キューをクリア
+            this.pendingQueue = [];
+        }
+
+
         // 行動選択フェーズでのみ動作
         const activePhases = [
             BattlePhase.ACTION_SELECTION,

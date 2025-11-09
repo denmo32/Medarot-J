@@ -8,6 +8,22 @@ import { Parts, Position, PlayerInfo, GameState, ActiveEffects } from '../core/c
 import { PartInfo, PlayerStateType, EffectType, EffectScope } from '../common/constants.js';
 
 /**
+ * 2つのエンティティを脚部パーツの「推進」の値で比較するためのソート関数を生成する高階関数。
+ * @param {World} world - ワールドオブジェクト
+ * @returns {function(number, number): number} - Array.sort() に渡せる比較関数
+ */
+export const compareByPropulsion = (world) => (entityA, entityB) => {
+    const partsA = world.getComponent(entityA, Parts);
+    const partsB = world.getComponent(entityB, Parts);
+
+    const propulsionA = partsA?.legs?.propulsion || 0;
+    const propulsionB = partsB?.legs?.propulsion || 0;
+
+    // 推進力が高い順（降順）にソート
+    return propulsionB - propulsionA;
+};
+
+/**
  * 指定されたエンティティのパーツを取得します。
  * @param {World} world
  * @param {number} entityId
