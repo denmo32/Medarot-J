@@ -26,11 +26,13 @@ export const MessageTemplates = {
     INTERRUPT_GLITCH_SUCCESS: '{targetName}は放熱へ移行！',
     INTERRUPT_GLITCH_FAILED: '妨害失敗！　放熱中機体には効果がない！',
     DEFEND_GUARD_SUCCESS: '味方への攻撃を{guardCount}回庇う！',
-    GUARD_BROKEN: 'ガードパーツ破壊！　ガー！解除！',
+    GUARD_BROKEN: 'ガードパーツ破壊！　ガード解除！',
 
     // --- 行動中断 ---
     CANCEL_PART_BROKEN: '行動予約パーツ破壊！　{actorName}は放熱に移行！',
     CANCEL_TARGET_LOST: 'ターゲットロスト！　{actorName}は放熱に移行！',
+    // 【削除】妨害による行動中断メッセージ
+    // CANCEL_INTERRUPTED: '妨害成功！　{actorName}は放熱に移行！',
 };
 
 /**

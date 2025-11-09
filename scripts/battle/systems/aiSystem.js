@@ -8,33 +8,15 @@ import { GameEvents } from '../common/events.js';
 import { Medal, Parts, PlayerInfo } from '../core/components/index.js';
 import { getAttackableParts, getValidEnemies, getValidAllies, isValidTarget, findMostDamagedAllyPart, getCandidatesByScope } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
-import { determineTarget } from '../utils/targetingUtils.js';
+import { determineTargetByPersonality } from '../ai/aiDecisionUtils.js';
 import { getStrategiesFor } from '../ai/personalityRegistry.js';
 import { partSelectionStrategies } from '../ai/partSelectionStrategies.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
+import { conditionEvaluators } from '../ai/conditionEvaluators.js';
 import { EffectScope } from '../common/constants.js';
+import { determineTarget } from '../utils/targetingUtils.js';
 
-
-/**
- * AI思考ルーチンの実行条件を評価する関数のコレクション。
- * personalityRegistry`で定義された`condition`データオブジェクトを解釈します。
- * @type {Object.<string, function({world: World, entityId: number, params: object}): boolean>}
- */
-const conditionEvaluators = {
-    /**
-     * 味方（自分を含む/含まない）の誰かがダメージを受けているかを評価します。
-     * @param {object} context - 評価コンテキスト
-     * @returns {boolean} - ダメージを受けている味方がいればtrue
-     */
-    ANY_ALLY_DAMAGED: ({ world, entityId, params }) => {
-        const { includeSelf = false } = params || {};
-        const allies = getValidAllies(world, entityId, includeSelf);
-        // 最もダメージを受けた味方パーツが存在するかどうかで判断
-        return findMostDamagedAllyPart(world, allies) !== null;
-    },
-    // 将来的な条件を追加する例:
-    // IS_LEADER: ({ world, entityId }) => world.getComponent(entityId, PlayerInfo)?.isLeader,
-};
+// AiSystem内に直接定義されていた conditionEvaluators は conditionEvaluators.js に移管
 
 /**
  * AIの「脳」として機能するシステム。
@@ -51,12 +33,7 @@ export class AiSystem extends BaseSystem {
 
     /**
      * TurnSystemからAIの行動選択が要求された際のハンドラ。AIの思考プロセスを開始します。
-     * AIの意思決定を宣言的な「思考ルーチン」ベースに刷新。
-     * 1. 性格レジストリから、その性格に定義された「思考ルーチン」のリストを取得します。
-     * 2. リストを優先順位の高い順（配列の先頭から）にループ処理します。
-     * 3. 各ルーチンで定義された「パーツ戦略」と「ターゲット戦略」を実行します。
-     * 4. 有効なパーツとターゲットの組み合わせが見つかった時点で、その行動を決定し、思考を終了します。
-     * 5. 全てのルーチンを試しても行動が決まらない場合、最終的なフォールバック戦略（通常はランダム攻撃）を実行します。
+     * ターゲット決定ロジックを修正し、パーツ選択との連携を改善します。
      * @param {object} detail - イベントの詳細 ({ entityId })
      */
     onAiActionRequired(detail) {
@@ -64,7 +41,6 @@ export class AiSystem extends BaseSystem {
 
         const availableParts = getAttackableParts(this.world, entityId);
         if (availableParts.length === 0) {
-            // 攻撃可能なパーツがない場合は機能停止と見なす
             this.world.emit(GameEvents.PLAYER_BROKEN, { entityId });
             return;
         }
@@ -76,74 +52,59 @@ export class AiSystem extends BaseSystem {
         let selectedPartKey = null;
         let finalTarget = null;
 
-        // --- Step 1: 思考ルーチンを順番に試行 ---
-        if (strategies.routines && strategies.routines.length > 0) {
-            for (const routine of strategies.routines) {
-                // ルーチンに実行条件(condition)が定義されていれば評価する
-                if (routine.condition) {
-                    const evaluator = conditionEvaluators[routine.condition.type];
-                    if (evaluator) {
-                        // 条件を満たさなければ、このルーチンはスキップして次へ
-                        if (!evaluator({ ...context, params: routine.condition.params })) {
-                            continue;
-                        }
-                    } else {
-                        console.warn(`AiSystem: Unknown condition type '${routine.condition.type}' for ${attackerMedal.personality}.`);
-                        continue;
+        // --- Step 1: ターゲットを決定 ---
+        // ★変更: 汎用targetingUtilsからAI専用のaiDecisionUtilsへインポート元を変更 (提案1-2)
+        const { target, strategyKey: usedStrategyKey } = determineTargetByPersonality(context);
+        finalTarget = target;
+
+        // --- Step 2: ターゲットが決まった場合、それに最適なパーツを選択 ---
+        if (finalTarget) {
+            // 思考ルーチンの中から、使用されたターゲット戦略に一致するものを探す
+            const matchingRoutine = strategies.routines.find(routine => routine.targetStrategy === usedStrategyKey);
+            
+            if (matchingRoutine) {
+                const { partStrategy } = matchingRoutine;
+                let partSelectionFunc;
+                if (typeof partStrategy === 'string') {
+                    partSelectionFunc = partSelectionStrategies[partStrategy];
+                } else if (typeof partStrategy === 'object' && partStrategy.type) {
+                    const baseStrategy = partSelectionStrategies[partStrategy.type];
+                    if (baseStrategy) partSelectionFunc = baseStrategy(partStrategy.params);
+                }
+
+                if (partSelectionFunc) {
+                    const [partKey] = partSelectionFunc(context);
+                    if (partKey) {
+                        selectedPartKey = partKey;
                     }
-                }
-
-                const { partStrategy: partStrategyKey, targetStrategy: targetStrategyKey } = routine;
-                
-                // 1a. パーツ戦略でパーツを決定
-                const partSelectionFunc = partSelectionStrategies[partStrategyKey];
-                if (!partSelectionFunc) {
-                    console.warn(`AiSystem: Unknown partStrategy '${partStrategyKey}' in routines for ${attackerMedal.personality}.`);
-                    continue;
-                }
-                
-                const [partKey, part] = partSelectionFunc(context);
-                if (!partKey) continue; // この戦略に合うパーツがなければ、次のルーチンへ
-
-                // ターゲット候補リストの作成をqueryUtilsの共通関数に委譲
-                const candidates = getCandidatesByScope(this.world, entityId, part.targetScope);
-
-                // 1b. ターゲット戦略でターゲットを決定
-                const targetSelectionFunc = targetingStrategies[targetStrategyKey];
-                if (!targetSelectionFunc) {
-                    console.warn(`AiSystem: Unknown targetStrategy '${targetStrategyKey}' in routines for ${attackerMedal.personality}.`);
-                    continue;
-                }
-                    
-                const target = determineTarget(this.world, entityId, targetSelectionFunc, candidates, targetStrategyKey);
-
-                // 1c. 有効な行動が見つかったらループを抜け、行動を確定
-                if (target) {
-                    selectedPartKey = partKey;
-                    finalTarget = target;
-                    break; // 思考ルーチンの試行を終了
                 }
             }
         }
 
-        // --- Step 2: ルーチンで行動が決まらなかった場合の最終フォールバック ---
-        if (!finalTarget) {
-            console.warn(`AI ${entityId} (${attackerMedal.personality}) could not decide action via routines. Using fallback targeting.`);
+        // --- Step 3: フォールバック処理 ---
+        // ターゲットが見つからない、または最適なパーツが見つからない場合
+        if (!finalTarget || !selectedPartKey) {
+            console.warn(`AI ${entityId} (${attackerMedal.personality}) could not decide action. Using full fallback.`);
             
-            // 攻撃可能なパーツからランダムに1つ選択
+            // ランダムなパーツを選択
             const [partKey] = partSelectionStrategies.RANDOM(context);
+            selectedPartKey = partKey;
             
-            if (partKey) {
-                selectedPartKey = partKey;
-                // 敵の中からフォールバック戦略でターゲットを決定
-                const fallbackCandidates = getValidEnemies(this.world, entityId);
-                // フォールバック戦略のキーを動的に検索してイベントを発行
-                const fallbackKey = Object.keys(targetingStrategies).find(key => targetingStrategies[key] === strategies.fallbackTargeting);
-                finalTarget = determineTarget(this.world, entityId, strategies.fallbackTargeting, fallbackCandidates, fallbackKey);
+            // フォールバック用のターゲットを再決定（ターゲットがまだ決まっていない場合のみ）
+            if (!finalTarget) {
+                // レジストリから戦略キーを取得し、動的に戦略関数を解決する
+                const fallbackKey = strategies.fallbackTargeting;
+                const fallbackStrategy = targetingStrategies[fallbackKey];
+                if (fallbackStrategy) {
+                    finalTarget = determineTarget(this.world, entityId, fallbackStrategy, fallbackKey);
+                } else {
+                    console.error(`AI ${entityId}: Fallback strategy key "${fallbackKey}" not found.`);
+                    finalTarget = null; // 安全のためnullに
+                }
             }
         }
         
-        // --- Step 3: 最終決定した行動を発行 ---
+        // --- Step 4: 最終決定した行動を発行 ---
         decideAndEmitAction(this.world, entityId, selectedPartKey, finalTarget);
     }
 }

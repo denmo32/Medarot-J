@@ -1,11 +1,11 @@
 /**
- * @file アクション定義マスターデータ (新規作成)
+ * @file アクション定義マスターデータ
  * このファイルは、ゲームに登場するすべての「行動の種類」の振る舞いを一元管理します。
  * パーツの静的なパラメータと、それが引き起こす行動の振る舞いを完全に分離することで、
  * 新しい行動の追加を容易にし、システムの変更を最小限に抑えます。
  */
 import { TargetTiming, EffectType, EffectScope } from '../common/constants.js';
-import { PostMoveTargetingStrategyKey } from '../ai/postMoveTargetingStrategies.js';
+import { TargetingStrategyKey } from '../ai/strategyKeys.js';
 
 export const ActionDefinitions = {
     /**
@@ -39,7 +39,7 @@ export const ActionDefinitions = {
         actionType: 'MELEE',
         isSupport: false,
         targetTiming: TargetTiming.POST_MOVE,
-        postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY,
+        postMoveTargeting: TargetingStrategyKey.NEAREST_ENEMY,
         targetScope: EffectScope.ENEMY_SINGLE,
         effects: [
             { type: EffectType.DAMAGE, powerSource: 'might' }
@@ -52,7 +52,7 @@ export const ActionDefinitions = {
         isSupport: false,
         penetrates: true, // 貫通属性
         targetTiming: TargetTiming.POST_MOVE,
-        postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY,
+        postMoveTargeting: TargetingStrategyKey.NEAREST_ENEMY,
         targetScope: EffectScope.ENEMY_SINGLE,
         effects: [
             { type: EffectType.DAMAGE, powerSource: 'might' }
@@ -64,7 +64,7 @@ export const ActionDefinitions = {
         actionType: 'HEAL',
         isSupport: true,
         targetTiming: TargetTiming.POST_MOVE,
-        postMoveTargeting: PostMoveTargetingStrategyKey.MOST_DAMAGED_ALLY,
+        postMoveTargeting: TargetingStrategyKey.MOST_DAMAGED_ALLY,
         targetScope: EffectScope.ALLY_SINGLE,
         effects: [
             { type: EffectType.HEAL, powerSource: 'might' }
@@ -87,7 +87,7 @@ export const ActionDefinitions = {
         actionType: 'INTERRUPT',
         isSupport: true,
         targetTiming: TargetTiming.POST_MOVE,
-        postMoveTargeting: PostMoveTargetingStrategyKey.NEAREST_ENEMY,
+        postMoveTargeting: TargetingStrategyKey.NEAREST_ENEMY,
         targetScope: EffectScope.ENEMY_SINGLE,
         effects: [
             { type: EffectType.APPLY_GLITCH }

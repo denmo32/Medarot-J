@@ -5,6 +5,7 @@ import { PARTS_DATA } from '../data/parts.js';
 import { MEDAROT_SETS } from '../data/medarotSets.js'; 
 import { ActionDefinitions } from '../data/actionDefinitions.js';
 import { PartRoles } from '../data/partRoles.js';
+import { MEDALS_DATA } from '../data/medals.js';
 
 /**
  * マスターデータを元に、戦闘インスタンス用のパーツデータを生成します。
@@ -67,8 +68,18 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     const entityId = world.createEntity();
     const isLeader = index === 0;
 
-    const personalityTypes = Object.values(MedalPersonality);
-    const personality = personalityTypes[Math.floor(Math.random() * personalityTypes.length)];
+    // AIの性格決定ロジック
+    let personality;
+    // プレイヤーチーム(team1)で、かつmedarotDataにmedalIdが指定されている場合
+    if (medarotData && teamId === TeamID.TEAM1 && medarotData.medalId) {
+        const medalData = MEDALS_DATA[medarotData.medalId];
+        // マスターデータに存在すればその性格を、なければランダムをフォールバックとして使用
+        personality = medalData ? medalData.personality : MedalPersonality.RANDOM;
+    } else {
+        // 敵チームやデータがない場合は、従来通りランダムに性格を決定
+        const personalityTypes = Object.values(MedalPersonality);
+        personality = personalityTypes[Math.floor(Math.random() * personalityTypes.length)];
+    }
 
     const initialX = teamId === TeamID.TEAM1 ? 0 : 1;
     const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;

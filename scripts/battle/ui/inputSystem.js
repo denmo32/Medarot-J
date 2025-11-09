@@ -4,7 +4,7 @@ import { PlayerInfo, Parts, Medal } from '../core/components/index.js';
 import { ModalType, EffectScope, TargetTiming } from '../common/constants.js';
 import { getAllActionParts } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
-import { determineRecommendedTarget } from '../utils/targetingUtils.js';
+import { determineRecommendedTarget } from '../ai/aiDecisionUtils.js';
 
 /**
  * プレイヤーからの入力を処理し、行動を決定するシステム。

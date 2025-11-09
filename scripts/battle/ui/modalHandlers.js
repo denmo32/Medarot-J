@@ -9,15 +9,13 @@ import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components/index.js';
 import { ModalType, PartInfo, PartKeyToInfoMap, EffectType, EffectScope } from '../common/constants.js';
 
-// 【変更点】_generateResultMessage関数を削除。責務はMessageSystemに移譲されました。
-
 /**
  * ActionPanelSystemのインスタンスをコンテキストとして受け取り、
  * モーダルハンドラのオブジェクトを生成します。
- * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
+ * @param {ActionPanelSystem} systemInstance - ActionPanelSystemのインスタンス
  * @returns {object} モーダルハンドラのコレクション
  */
-export const createModalHandlers = (systemInstance) => ({ // 引数名を変更
+export const createModalHandlers = (systemInstance) => ({
     // --- スタート確認 ---
     [ModalType.START_CONFIRM]: {
         getActorName: () => 'ロボトルを開始しますか？',
@@ -178,23 +176,17 @@ export const createModalHandlers = (systemInstance) => ({ // 引数名を変更
     },
     // --- 攻撃宣言 ---
     [ModalType.ATTACK_DECLARATION]: {
-        // ActionPanelSystemから渡される現在のメッセージをそのまま表示
         getActorName: (data) => data.currentMessage?.text || '',
         isClickable: true,
-        // メッセージ切り替えロジックを削除し、単純にconfirmをsystemに通知するだけ
         handleConfirm: (system, data) => {
-            // シーケンスの次のステップに進むようシステムに通知
             system.proceedToNextSequence();
         }
     },
     // --- 結果表示 ---
     [ModalType.EXECUTION_RESULT]: {
-        // ActionPanelSystemから渡される現在のメッセージをそのまま表示
         getActorName: (data) => data.currentMessage?.text || '',
-        isClickable: true, // クリック可能フラグは維持
-        // setupEventsとonHpBarAnimationCompletedは削除。アニメーション待機はActionPanelSystemがシーケンスオブジェクトを見て判断する
+        isClickable: true,
         handleConfirm: (system, data) => {
-            // シーケンスの次のステップに進むようシステムに通知
             system.proceedToNextSequence();
         }
     },
@@ -203,17 +195,16 @@ export const createModalHandlers = (systemInstance) => ({ // 引数名を変更
         getActorName: () => '合意と見てよろしいですね！？',
         isClickable: true,
         handleConfirm: (system) => {
-            system.world.emit(GameEvents.BATTLE_START_CONFIRMED);
+            system.world.emit(GameEvents.BATTLE_START_CONFIRMED, {});
             system.hideActionPanel();
         },
         handleCancel: (system) => {
-            system.world.emit(GameEvents.BATTLE_START_CANCELLED);
+            system.world.emit(GameEvents.BATTLE_START_CANCELLED, {});
             system.hideActionPanel();
         }
     },
     // ---汎用メッセージ ---
     [ModalType.MESSAGE]: {
-        // data.messageから取得するように修正
         getActorName: (data) => data.message || '',
         isClickable: true,
         handleConfirm: (system) => system.hideActionPanel(),

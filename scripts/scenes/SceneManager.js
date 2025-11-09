@@ -11,6 +11,9 @@ export class SceneManager {
         this.scenes = new Map();
         this.currentScene = null;
 
+        // グローバルコンテキストを保持
+        this.globalContext = {};
+
         // UIコンテナの参照
         this.containers = {
             map: document.getElementById('map-container'),
@@ -19,6 +22,16 @@ export class SceneManager {
             title: document.getElementById('title-container'),
         };
     }
+
+    /**
+     * シーン間で共有するグローバルなインスタンスを登録します。
+     * @param {string} key - コンテキストのキー (例: 'gameDataManager')
+     * @param {any} instance - 登録するインスタンス
+     */
+    registerGlobalContext(key, instance) {
+        this.globalContext[key] = instance;
+    }
+
 
     /**
      * シーンを登録します。
@@ -51,8 +64,11 @@ export class SceneManager {
             this.containers[key]?.classList.toggle('hidden', key !== name);
         });
 
+        // 登録されたグローバルコンテキストを自動的にデータにマージ
+        const sceneInitData = { ...this.globalContext, ...data };
+
         // シーンの初期化（非同期の可能性があるためawait）
-        await this.currentScene.init(data);
+        await this.currentScene.init(sceneInitData);
     }
 
     /**

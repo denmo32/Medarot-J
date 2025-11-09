@@ -7,7 +7,9 @@ import { CustomizeInputSystem } from '../customize/systems/CustomizeInputSystem.
 import { CustomizeUISystem } from '../customize/systems/CustomizeUISystem.js';
 import { CustomizeLogicSystem } from '../customize/systems/CustomizeLogicSystem.js';
 import { CustomizeState } from '../customize/components/CustomizeState.js';
-import { GameModeContext, UIStateContext } from '../battle/core/index.js';
+// [リファクタリング] UIStateContext, GameModeContextはBattleContextに統合されたため、
+// カスタマイズシーンでは直接使用しません。必要に応じて新しいコンテキストを作成します。
+// import { GameModeContext, UIStateContext } from '../battle/core/index.js';
 
 /**
  * @typedef {import('../core/GameDataManager.js').GameDataManager} GameDataManager
@@ -31,18 +33,14 @@ export class CustomizeScene extends BaseScene {
      */
     init(data) {
         console.log("Initializing Customize Scene...");
+        // initで渡されるgameDataManager, inputManagerはローカル変数として使用
         const { gameDataManager, inputManager } = data;
 
         // --- Contexts and State ---
+        // カスタマイズシーンはバトルと状態を共有しないため、独自のコンポーネントのみを使用します。
         const contextEntity = this.world.createEntity();
-        this.world.addComponent(contextEntity, new GameModeContext());
-        this.world.addComponent(contextEntity, new UIStateContext());
-        // カスタマイズ画面専用のUI状態コンポーネントを追加
         this.world.addComponent(contextEntity, new CustomizeState());
         
-        const gameModeContext = this.world.getSingletonComponent(GameModeContext);
-        gameModeContext.gameMode = 'customize';
-
         // --- Systems ---
         const customizeUISystem = new CustomizeUISystem(this.world);
         const customizeInputSystem = new CustomizeInputSystem(this.world);
@@ -55,8 +53,8 @@ export class CustomizeScene extends BaseScene {
         // --- Event Listeners for Scene Transition ---
         this.world.on('CUSTOMIZE_EXIT_REQUESTED', () => {
             // 前のシーン（マップ）に戻る
-            // 次のシーンに必要なデータをすべて渡す
-            this.sceneManager.switchTo('map', { gameDataManager, inputManager, restoreMenu: true });
+            // switchToの呼び出しを簡潔化
+            this.sceneManager.switchTo('map', { restoreMenu: true });
         });
     }
 

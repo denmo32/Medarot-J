@@ -1,7 +1,8 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import * as MapComponents from '../components.js';
 import { CONFIG, PLAYER_STATES } from '../constants.js';
-import { UIStateContext } from '../../battle/core/UIStateContext.js';
+// [リファクタリング] MapSceneで定義した専用コンポーネントをインポート
+import { MapUIState } from '../../scenes/MapScene.js';
 
 /**
  * プレイヤーの入力に基づいて目標タイルを設定し、状態を遷移させるシステム。
@@ -15,9 +16,10 @@ export class PlayerInputSystem extends BaseSystem {
     }
 
     update() {
-        const uiStateContext = this.world.getSingletonComponent(UIStateContext);
+        // [リファクタリング] MapUIStateコンポーネントを参照する
+        const mapUIState = this.world.getSingletonComponent(MapUIState);
         // メニューやモーダル表示中はプレイヤーのマップ操作をブロック
-        if (uiStateContext && uiStateContext.isPausedByModal) {
+        if (mapUIState && mapUIState.isPausedByModal) {
             return;
         }
 
@@ -40,9 +42,9 @@ export class PlayerInputSystem extends BaseSystem {
                 this.handleMovementInput(entityId);
             }
 
-            // インタラクション入力
+            // インタラクション入力はイベントを発行するだけに変更
             if (this.input.wasKeyJustPressed('z')) {
-                this.handleInteractionInput(entityId);
+                this.world.emit('INTERACTION_KEY_PRESSED', { entityId });
             }
         }
     }
@@ -79,22 +81,4 @@ export class PlayerInputSystem extends BaseSystem {
         }
     }
 
-    handleInteractionInput(entityId) {
-        const position = this.world.getComponent(entityId, MapComponents.Position);
-        const facingDirection = this.world.getComponent(entityId, MapComponents.FacingDirection);
-        const playerTileX = Math.floor((position.x + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
-        const playerTileY = Math.floor((position.y + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
-
-        for (const npc of this.map.npcs) {
-            if (
-                (playerTileX === npc.x && playerTileY === npc.y - 1 && facingDirection.direction === 'down') ||
-                (playerTileX === npc.x && playerTileY === npc.y + 1 && facingDirection.direction === 'up') ||
-                (playerTileX === npc.x - 1 && playerTileY === npc.y && facingDirection.direction === 'right') ||
-                (playerTileX === npc.x + 1 && playerTileY === npc.y && facingDirection.direction === 'left')
-            ) {
-                this.world.emit('NPC_INTERACTION_REQUESTED', npc);
-                break;
-            }
-        }
-    }
 }

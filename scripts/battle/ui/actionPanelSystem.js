@@ -158,6 +158,13 @@ export class ActionPanelSystem extends BaseSystem {
         if (this.currentSequenceIndex < this.currentMessageSequence.length) {
             this._displayCurrentSequenceStep();
         } else {
+            // EXECUTION_RESULT モーダル完了時に、UIに依存しない抽象的なイベントを発行する
+            if (this.currentModalType === ModalType.EXECUTION_RESULT) {
+                this.world.emit(GameEvents.COMBAT_RESOLUTION_DISPLAYED, {
+                    attackerId: this.currentModalData?.attackerId
+                });
+            }
+
             // シーケンス完了時の処理を汎用化
             // どのモーダルが完了したかを、新しいUIイベントで通知する
             this.world.emit(GameEvents.MODAL_SEQUENCE_COMPLETED, {

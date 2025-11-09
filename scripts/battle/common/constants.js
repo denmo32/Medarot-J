@@ -1,13 +1,16 @@
 /**
  * ゲーム全体の状態を定義する定数
+ * @description 旧GamePhaseTypeをBattlePhaseに改名し、新しい処理フローに合わせた状態を追加しました。
  */
-export const GamePhaseType = {
-    IDLE: 'IDLE',
-    INITIAL_SELECTION: 'INITIAL_SELECTION',
-    BATTLE_START_CONFIRM: 'BATTLE_START_CONFIRM',
-    PRE_BATTLE_ANIMATION: 'PRE_BATTLE_ANIMATION',
-    BATTLE: 'BATTLE',
-    GAME_OVER: 'GAME_OVER'
+export const BattlePhase = {
+    IDLE: 'IDLE',                       // 待機中
+    BATTLE_START: 'BATTLE_START',         // 戦闘開始アニメーションなど
+    INITIAL_SELECTION: 'INITIAL_SELECTION', // 初回行動選択
+    TURN_START: 'TURN_START',           // ターン開始
+    ACTION_SELECTION: 'ACTION_SELECTION', // 行動選択
+    ACTION_EXECUTION: 'ACTION_EXECUTION', // 行動実行
+    TURN_END: 'TURN_END',               // ターン終了
+    GAME_OVER: 'GAME_OVER'              // ゲーム終了
 };
 
 /**
@@ -48,6 +51,16 @@ export const PartType = Object.values(PartInfo).reduce((acc, { key }) => {
     }
     return acc;
 }, {});
+
+/**
+ * カスタマイズ画面の装備スロットタイプを定義する定数
+ * パーツのスロットキーとメダルスロットを統合して管理することで、
+ * マジックストリング 'medal' を排除し、コードの堅牢性を向上させます。
+ */
+export const EquipSlotType = {
+    ...PartType,
+    MEDAL: 'medal'
+};
 
 /**
  * パーツキー(例: 'head')から対応するPartInfoオブジェクトを逆引きするためのマップ
@@ -163,4 +176,14 @@ export const ModalType = {
     BATTLE_START_CONFIRM: 'battle_start_confirm',
     GAME_OVER: 'game_over',
     MESSAGE: 'message'
+};
+
+/**
+ * アクションキャンセルの理由を定義する定数
+ * 文字列リテラルへの依存をなくし、タイプミスによるバグを防ぎます。
+ */
+export const ActionCancelReason = {
+    PART_BROKEN: 'PART_BROKEN',
+    TARGET_LOST: 'TARGET_LOST',
+    INTERRUPTED: 'INTERRUPTED',
 };

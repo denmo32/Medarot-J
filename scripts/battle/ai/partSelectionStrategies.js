@@ -73,6 +73,15 @@ export const partSelectionStrategies = {
         const randomIndex = Math.floor(Math.random() * availableParts.length);
         return availableParts[randomIndex];
     },
+
+    /**
+     * [改善案] [汎用戦略]: 任意のフィルター関数とソート関数をパラメータとして受け取って実行します。
+     * personalityRegistryから動的に呼び出されることを想定しています。
+     * これにより、personalityRegistryだけで新しいAIの思考パターンを宣言的に定義できます。
+     * @param {object} params - { filterFn, sortFn }
+     * @returns {function} AIパーツ選択戦略関数
+     */
+    FLEXIBLE_STRATEGY: (params) => createFilteredSortStrategy(params.filterFn, params.sortFn),
 };
 
 /**

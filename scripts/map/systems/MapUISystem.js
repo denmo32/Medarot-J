@@ -1,5 +1,6 @@
 import { BaseSystem } from '../../core/baseSystem.js';
-import { UIStateContext } from '../../battle/core/UIStateContext.js';
+// [リファクタリング] MapSceneで定義した専用コンポーネントをインポート
+import { MapUIState } from '../../scenes/MapScene.js';
 import * as MapComponents from '../components.js';
 
 /**
@@ -10,7 +11,8 @@ export class MapUISystem extends BaseSystem {
     constructor(world, inputManager) {
         super(world);
         this.input = inputManager;
-        this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
+        // [リファクタリング] MapUIStateコンポーネントを参照する
+        this.mapUIState = this.world.getSingletonComponent(MapUIState);
 
         // DOM要素の参照
         this.dom = {
@@ -36,17 +38,17 @@ export class MapUISystem extends BaseSystem {
 
     update(deltaTime) {
         // メニューが開いていない場合、かつNPCインタラクションウィンドウが表示されていない場合にのみxキーでメニューを開く
-        if (this.input.wasKeyJustPressed('x') && !this.uiStateContext.isPausedByModal) {
+        if (this.input.wasKeyJustPressed('x') && !this.mapUIState.isPausedByModal) {
             this.toggleMenu(); // イベントを介さず直接呼ぶ
             return; // メニュー操作をしたら他のUI入力は無視
         }
 
         // メニューが開いている場合の入力処理
-        if (this.uiStateContext && this.uiStateContext.isMapMenuVisible) {
+        if (this.mapUIState && this.mapUIState.isMapMenuVisible) {
             this.handleMenuInput();
         }
         // NPCインタラクションウィンドウが開いている場合の入力処理
-        else if (this.uiStateContext && this.uiStateContext.isPausedByModal && !this.uiStateContext.isMapMenuVisible) {
+        else if (this.mapUIState && this.mapUIState.isPausedByModal && !this.mapUIState.isMapMenuVisible) {
             this.handleInteractionWindowInput();
         }
     }
@@ -54,26 +56,22 @@ export class MapUISystem extends BaseSystem {
     // --- Menu Logic --- //
 
     toggleMenu() {
-        // console.log('MapUISystem: toggleMenu called. Current isMenuOpen:', this.isMenuOpen);
         if (!this.dom.menu) {
             console.error('MapUISystem: map-menu element not found!');
             return;
         }
 
-        this.uiStateContext.isMapMenuVisible = !this.uiStateContext.isMapMenuVisible;
-        this.dom.menu.classList.toggle('hidden', !this.uiStateContext.isMapMenuVisible);
-        // console.log('MapUISystem: Menu visibility toggled. New isMenuOpen:', this.isMenuOpen, 'hidden class:', this.dom.menu.classList.contains('hidden')); // ★デバッグログ
+        this.mapUIState.isMapMenuVisible = !this.mapUIState.isMapMenuVisible;
+        this.dom.menu.classList.toggle('hidden', !this.mapUIState.isMapMenuVisible);
 
-        const uiStateContext = this.world.getSingletonComponent(UIStateContext);
-
-        if (this.uiStateContext) {
-            this.uiStateContext.isPausedByModal = this.uiStateContext.isMapMenuVisible;
+        if (this.mapUIState) {
+            this.mapUIState.isPausedByModal = this.mapUIState.isMapMenuVisible;
         }
 
         // UIStateContextの変更を通知
-        this.world.emit('UI_STATE_CHANGED', { context: 'mapUI', property: 'isMapMenuVisible', value: this.uiStateContext.isMapMenuVisible });
+        this.world.emit('UI_STATE_CHANGED', { context: 'mapUI', property: 'isMapMenuVisible', value: this.mapUIState.isMapMenuVisible });
 
-        if (this.uiStateContext.isMapMenuVisible) {
+        if (this.mapUIState.isMapMenuVisible) {
             const saveButton = this.dom.menu.querySelector('.map-menu-button[data-action="save"]');
             const medarotchiButton = this.dom.menu.querySelector('.map-menu-button[data-action="medarotchi"]');
             this.menuButtons = [medarotchiButton, saveButton].filter(btn => btn);
@@ -160,17 +158,17 @@ export class MapUISystem extends BaseSystem {
     // --- NPC Interaction Logic --- //
 
     showNpcInteraction(npc) {
-        if (!this.dom.interactionWindow || !this.uiStateContext) return;
+        if (!this.dom.interactionWindow || !this.mapUIState) return;
 
-        this.uiStateContext.isPausedByModal = true;
-        this.uiStateContext.modalJustOpened = true; // main.jsのループで一度だけ無視されるように
+        this.mapUIState.isPausedByModal = true;
+        this.mapUIState.modalJustOpened = true; // main.jsのループで一度だけ無視されるように
 
         const cleanup = () => {
             this.dom.confirmBattleButton.removeEventListener('click', handleConfirm);
             this.dom.cancelBattleButton.removeEventListener('click', handleCancel);
             this.dom.interactionWindow.classList.add('hidden');
-            if (this.uiStateContext) {
-                this.uiStateContext.isPausedByModal = false;
+            if (this.mapUIState) {
+                this.mapUIState.isPausedByModal = false;
             }
         };
 
@@ -193,8 +191,8 @@ export class MapUISystem extends BaseSystem {
     }
 
     handleInteractionWindowInput() {
-        if (this.uiStateContext.modalJustOpened) {
-            this.uiStateContext.modalJustOpened = false;
+        if (this.mapUIState.modalJustOpened) {
+            this.mapUIState.modalJustOpened = false;
             return;
         }
 

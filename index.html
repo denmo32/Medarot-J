@@ -71,11 +71,14 @@
             <div class="customize-center-column">
                 <div id="customize-parts-equip-panel" class="customize-panel">
                     <h2 id="equipped-medarot-name"></h2>
+                    <!-- 装備メダル表示用のリスト (パーツリストの上) -->
+                    <ul id="equipped-medal-list"></ul>
                     <ul id="equipped-parts-list"></ul>
                 </div>
                 <div id="customize-parts-list-panel" class="customize-panel">
                     <div class="parts-list-header">
-                        <h2 id="parts-list-title">パーツ一覧</h2>
+                        <!-- タイトルを汎用的に -->
+                        <h2 id="parts-list-title">選択リスト</h2>
                     </div>
                     <ul id="parts-list"></ul>
                 </div>
@@ -126,6 +129,13 @@
     <template id="equipped-part-item-template">
         <li class="equipped-part-item">
             <span class="part-slot-name"></span>
+            <span class="part-name"></span>
+        </li>
+    </template>
+    <!-- 装備メダル用テンプレート -->
+    <template id="equipped-medal-item-template">
+        <li class="equipped-part-item">
+            <span class="part-slot-name">メダル</span>
             <span class="part-name"></span>
         </li>
     </template>

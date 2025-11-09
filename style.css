@@ -599,8 +599,8 @@ body {
 }
 
 .customize-center-column {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto 1fr; /* 上パネルは自動高さ、下パネルが残り全部 */
     gap: 20px;
     overflow: hidden;
 }
@@ -611,6 +611,12 @@ body {
     padding: 15px;
     display: flex;
     flex-direction: column;
+}
+
+/* スクロールする中身を持つパネルにだけ overflow:hidden を設定 */
+#customize-medarot-select-panel,
+#customize-parts-list-panel,
+#customize-part-details-panel {
     overflow: hidden;
 }
 
@@ -636,12 +642,22 @@ body {
 
 
 /* リストのスタイル */
-#medarot-select-list, #equipped-parts-list, #parts-list {
+#medarot-select-list, #equipped-parts-list, #equipped-medal-list, #parts-list {
     list-style: none;
     padding: 0;
     margin: 0;
+}
+
+/* スクロールが必要なリストにのみ overflow を設定 */
+#medarot-select-list, #parts-list {
     overflow-y: auto;
-    flex-grow: 1;
+}
+
+/* 装備メダルリストのスタイル */
+#equipped-medal-list {
+    margin-bottom: 10px; /* パーツリストとの間にスペース */
+    flex-grow: 0;
+    flex-shrink: 0;
 }
 
 .medarot-list-item, .equipped-part-item, .part-list-item {

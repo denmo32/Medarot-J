@@ -7,6 +7,8 @@
 
 import { MEDAROT_SETS } from '../battle/data/medarotSets.js';
 import { PARTS_DATA } from '../battle/data/parts.js';
+// メダルマスターデータをインポート
+import { MEDALS_DATA } from '../battle/data/medals.js';
 import { PartInfo } from '../battle/common/constants.js';
 import { CONFIG as MAP_CONFIG } from '../map/constants.js';
 
@@ -17,21 +19,24 @@ const initialPlayerPosition = {
     mapName: 'map.json'
 };
 
-// デフォルトのプレイヤー所持メダロットデータ (3機)
+// デフォルトのプレイヤー所持メダロットデータに `medalId` を追加
 const defaultPlayerMedarots = [
     {
         id: 'player_medarot_1',
         name: 'サイカチス',
+        medalId: 'kabuto', // 装備メダルID
         set: MEDAROT_SETS[0]
     },
     {
         id: 'player_medarot_2',
         name: 'ロクショウ',
+        medalId: 'kuwagata', // 装備メダルID
         set: MEDAROT_SETS[1]
     },
     {
         id: 'player_medarot_3',
         name: 'ドークス',
+        medalId: 'bear', // 装備メダルID
         set: MEDAROT_SETS[3]
     }
 ];
@@ -59,22 +64,27 @@ export class GameDataManager {
     resetToDefault() {
         const medarots = JSON.parse(JSON.stringify(defaultPlayerMedarots));
 
-        // 初期インベントリを生成
+        // インベントリには変動データ（個数）のみを保存する
+        // これにより、マスターデータ（PARTS_DATA）の変更がセーブデータに自動的に反映されるようになります。
         const inventory = {};
-        // 1. 全てのパーツデータをインベントリに追加
         for (const partType in PARTS_DATA) {
             inventory[partType] = {};
             for (const partId in PARTS_DATA[partType]) {
-                // とりあえず各パーツを1つずつ所持させる
-                inventory[partType][partId] = { ...PARTS_DATA[partType][partId], count: 1 };
+                inventory[partType][partId] = { count: 1 };
             }
+        }
+
+        // メダルインベントリも同様に、変動データのみを保存する
+        const medalsInventory = {};
+        for (const medalId in MEDALS_DATA) {
+            medalsInventory[medalId] = { count: 1 };
         }
 
         this.gameData = {
             playerPosition: { ...initialPlayerPosition },
             playerMedarots: medarots,
             playerPartsInventory: inventory,
-            // 今後アイテムなどのデータを追加
+            playerMedalsInventory: medalsInventory, // ★更新: 新しいインベントリ構造
         };
         console.log('Game data has been reset to default.');
     }
@@ -89,18 +99,44 @@ export class GameDataManager {
                 this.gameData = JSON.parse(savedData);
                 console.log('Game data loaded from localStorage.', this.gameData);
 
-                // 古いセーブデータとの互換性維持
-                if (!this.gameData.playerPartsInventory) {
-                    console.log('Old save data detected. Upgrading with parts inventory.');
-                    const inventory = {};
+                // --- 古いセーブデータとの互換性維持 ---
+                let needsSave = false;
+                
+                // パーツインベントリの互換性チェック
+                if (this.gameData.playerPartsInventory?.head?.head_001?.name) { // 古い形式（性能データを含む）かチェック
+                    console.log('Old save data detected. Upgrading parts inventory.');
+                    const newInventory = {};
                     for (const partType in PARTS_DATA) {
-                        inventory[partType] = {};
+                        newInventory[partType] = {};
                         for (const partId in PARTS_DATA[partType]) {
-                            inventory[partType][partId] = { ...PARTS_DATA[partType][partId], count: 1 };
+                            // 所持しているという事実だけを引き継ぐ
+                            if (this.gameData.playerPartsInventory[partType]?.[partId]) {
+                                newInventory[partType][partId] = { count: 1 };
+                            }
                         }
                     }
-                    this.gameData.playerPartsInventory = inventory;
+                    this.gameData.playerPartsInventory = newInventory;
+                    needsSave = true;
                 }
+                
+                // メダルインベントリの互換性チェック
+                if (!this.gameData.playerMedalsInventory || !this.gameData.playerMedalsInventory.kabuto?.count) { // 新しい形式でない場合
+                    console.log('Old save data detected. Upgrading medals inventory.');
+                    const newMedalsInventory = {};
+                    for (const medalId in MEDALS_DATA) {
+                        newMedalsInventory[medalId] = { count: 1 };
+                    }
+                    this.gameData.playerMedalsInventory = newMedalsInventory;
+                    needsSave = true;
+                }
+
+                // 装備メダルの互換性
+                this.gameData.playerMedarots.forEach((medarot, index) => {
+                    if (!medarot.medalId) {
+                        medarot.medalId = defaultPlayerMedarots[index]?.medalId || Object.keys(MEDALS_DATA)[0];
+                        needsSave = true;
+                    }
+                });
 
                 // セーブデータのメダロットが3機未満の場合、デフォルトデータで補う
                 if (!this.gameData.playerMedarots || this.gameData.playerMedarots.length < 3) {
@@ -108,9 +144,10 @@ export class GameDataManager {
                     const existingIds = new Set(this.gameData.playerMedarots.map(m => m.id));
                     const medarotsToAppend = defaultPlayerMedarots.filter(m => !existingIds.has(m.id));
                     this.gameData.playerMedarots.push(...medarotsToAppend.slice(0, 3 - this.gameData.playerMedarots.length));
+                    needsSave = true;
                 }
 
-                this.saveGame(); // データを更新・補完した可能性があるので保存
+                if (needsSave) this.saveGame(); // データを更新・補完した場合は保存
 
             } else {
                 console.log('No save data found. Initializing with default data.');
@@ -149,15 +186,13 @@ export class GameDataManager {
      * @returns {Array<Object>} プレイヤーチームのメダロット構成の配列
      */
     getPlayerDataForBattle() {
-        // プレイヤーが所持する全メダロットのデータを返す
+        // プレイヤーが所持するメダロットのデータに `medalId` を含める
         return this.gameData.playerMedarots.map(medarot => {
-            const set = {};
-            for (const partKey in medarot.set.parts) {
-                const partId = medarot.set.parts[partKey];
-                set[partKey] = this.gameData.playerPartsInventory[partKey]?.[partId] || null;
-            }
+            // この関数はパーツIDのセットを返す役割のため、ロジックは変更しない。
+            // パーツの性能データは戦闘シーンの`entityFactory`でマスターデータから読み込まれる。
             return {
                 name: medarot.name,
+                medalId: medarot.medalId, // 装備中のメダルID
                 set: {
                     name: medarot.set.name,
                     parts: medarot.set.parts
@@ -168,6 +203,7 @@ export class GameDataManager {
 
     /**
      * 指定したインデックスのメダロットの現在のパーツ構成（IDと詳細データ）を取得します。
+     * マスターデータとプレイヤーデータを実行時にマージして返す形式に変更。
      * @param {number} index - メダロットのインデックス (0-2)
      * @returns {object | null} メダロットのデータ、またはnull
      */
@@ -179,28 +215,62 @@ export class GameDataManager {
 
         for (const partSlot in medarotData.set.parts) {
             const partId = medarotData.set.parts[partSlot];
-            const partData = this.gameData.playerPartsInventory[partSlot]?.[partId];
+            // マスターデータから静的な性能データを取得
+            const masterPartData = PARTS_DATA[partSlot]?.[partId] || null;
+
             assembledParts[partSlot] = {
                 id: partId,
-                data: partData || null
+                // マスターデータそのものを返す（インベントリに個数以外のデータが増えたらここでマージする）
+                data: masterPartData
             };
         }
 
+        // 装備中のメダル情報をマスターデータから取得
+        const equippedMedalId = medarotData.medalId;
+        const equippedMedalData = MEDALS_DATA[equippedMedalId] || null;
+
         return {
             name: medarotData.name,
-            parts: assembledParts
+            parts: assembledParts,
+            medal: {
+                id: equippedMedalId,
+                data: equippedMedalData
+            }
         };
     }
 
     /**
      * 指定されたパーツスロットで利用可能な（所持している）パーツのリストを取得します。
+     * インベントリ内のIDを元に、マスターデータから完全なパーツデータを構築して返す。
      * @param {string} partSlot - パーツのスロット (e.g., 'head', 'rightArm')
      * @returns {Array<object>} 利用可能なパーツの配列
      */
     getAvailableParts(partSlot) {
-        if (!this.gameData.playerPartsInventory[partSlot]) return [];
-        // オブジェクトを配列に変換して返す
-        return Object.entries(this.gameData.playerPartsInventory[partSlot]).map(([id, data]) => ({ id, ...data }));
+        const inventorySlot = this.gameData.playerPartsInventory[partSlot];
+        if (!inventorySlot) return [];
+        
+        return Object.keys(inventorySlot)
+            .map(partId => {
+                const masterPartData = PARTS_DATA[partSlot]?.[partId];
+                if (!masterPartData) return null;
+                // IDを付与して返す
+                return { id: partId, ...masterPartData };
+            })
+            .filter(part => part !== null);
+    }
+
+    /**
+     * 利用可能な（所持している）メダルのリストを取得します。
+     * インベントリ内のIDを元に、マスターデータから完全なメダルデータを構築して返す。
+     * @returns {Array<object>} 利用可能なメダルの配列
+     */
+    getAvailableMedals() {
+        const inventory = this.gameData.playerMedalsInventory;
+        if (!inventory) return [];
+
+        return Object.keys(inventory)
+            .map(medalId => MEDALS_DATA[medalId] || null)
+            .filter(medal => medal !== null);
     }
 
     /**
@@ -213,6 +283,18 @@ export class GameDataManager {
         if (this.gameData.playerMedarots[medarotIndex]) {
             this.gameData.playerMedarots[medarotIndex].set.parts[partSlot] = newPartId;
             console.log(`Updated Medarot #${medarotIndex} ${partSlot} to ${newPartId}`);
+        }
+    }
+
+    /**
+     * 指定されたメダロットのメダルを更新します。
+     * @param {number} medarotIndex - 更新するメダロットのインデックス
+     * @param {string} newMedalId - 新しいメダルのID
+     */
+    updateMedarotMedal(medarotIndex, newMedalId) {
+        if (this.gameData.playerMedarots[medarotIndex]) {
+            this.gameData.playerMedarots[medarotIndex].medalId = newMedalId;
+            console.log(`Updated Medarot #${medarotIndex} medal to ${newMedalId}`);
         }
     }
 

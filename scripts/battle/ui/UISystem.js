@@ -2,8 +2,9 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { PlayerInfo, Position, Gauge, GameState, Parts, Action, ActiveEffects } from '../core/components/index.js';
 import { PlayerStateType, EffectType, PartInfo } from '../common/constants.js';
 import { UIManager } from './UIManager.js';
-import { GameEvents } from '../common/events.js'; // イベント定義をインポート
-import { UIStateContext } from '../core/index.js';
+import { GameEvents } from '../common/events.js';
+// [リファクタリング] UIStateContext の代わりに BattleContext を使用します。
+import { BattleContext } from '../core/index.js';
 
 /**
  * @file DOM更新システム
@@ -14,9 +15,8 @@ export class UISystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
-        // UIStateContextへの参照を取得
-        this.uiStateContext = this.world.getSingletonComponent(UIStateContext);
-        // HP更新をイベント駆動にする
+        // [リファクタリング] BattleContextへの参照を保持します。
+        this.battleContext = this.world.getSingletonComponent(BattleContext);
         this.world.on(GameEvents.HP_UPDATED, this.onHpUpdated.bind(this));
     }
 
@@ -26,7 +26,7 @@ export class UISystem extends BaseSystem {
      */
     onHpUpdated(detail) {
         // モーダル表示中はアニメーションをActionPanelSystemに任せるため、何もしない
-        if (this.uiStateContext?.isPausedByModal) {
+        if (this.battleContext?.isPaused) {
             return;
         }
 
@@ -38,12 +38,10 @@ export class UISystem extends BaseSystem {
         const hpPercentage = (newHp / maxHp) * 100;
         partDom.bar.style.width = `${hpPercentage}%`;
 
-        // HP数値のテキストを更新
         if (partDom.value) {
             partDom.value.textContent = `${newHp}/${maxHp}`;
         }
 
-        // 色の更新
         if (newHp === 0) {
             partDom.container.classList.add('broken');
             partDom.bar.style.backgroundColor = '#4a5568';
@@ -76,15 +74,13 @@ export class UISystem extends BaseSystem {
 
         const position = this.getCachedComponent(entityId, Position);
         const gameState = this.getCachedComponent(entityId, GameState);
-        const parts = this.getCachedComponent(entityId, Parts); // Partsをここで取得
+        const parts = this.getCachedComponent(entityId, Parts);
         if (!position || !gameState || !parts) return;
 
-        // 位置の更新
         domElements.iconElement.style.left = `${position.x * 100}%`;
         domElements.iconElement.style.top = `${position.y}%`;
         domElements.iconElement.style.transform = 'translate(-50%, -50%)';
 
-        // 状態に応じたスタイル変更
         switch (gameState.state) {
             case PlayerStateType.SELECTED_CHARGING:
                 domElements.iconElement.style.borderColor = '#f6ad55';
@@ -98,11 +94,8 @@ export class UISystem extends BaseSystem {
         }
 
         domElements.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
-        
-        // 機能停止の判定を gameState.state から parts.head.isBroken に変更
         domElements.iconElement.classList.toggle('broken', parts.head?.isBroken);
 
-        // ガードインジケーターの更新
         const activeEffects = this.getCachedComponent(entityId, ActiveEffects);
         const guardIndicator = domElements.guardIndicatorElement;
 

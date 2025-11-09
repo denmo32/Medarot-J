@@ -28,10 +28,10 @@ export class CustomizeInputSystem extends BaseSystem {
             this.world.emit('CUST_NAVIGATE_INPUT', { direction: verticalMove > 0 ? 'down' : 'up' });
         }
         
-        // 将来的な水平移動のために残しておく
-        // const horizontalMove = this.input.wasKeyJustPressed('ArrowRight') ? 1 : this.input.wasKeyJustPressed('ArrowLeft') ? -1 : 0;
-        // if (horizontalMove !== 0) {
-        //     this.world.emit('CUST_NAVIGATE_INPUT', { direction: horizontalMove > 0 ? 'right' : 'left' });
-        // }
+        // 水平移動のイベント発行を有効化
+        const horizontalMove = this.input.wasKeyJustPressed('ArrowRight') ? 1 : this.input.wasKeyJustPressed('ArrowLeft') ? -1 : 0;
+        if (horizontalMove !== 0) {
+            this.world.emit('CUST_NAVIGATE_INPUT', { direction: horizontalMove > 0 ? 'right' : 'left' });
+        }
     }
 }

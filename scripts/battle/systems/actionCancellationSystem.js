@@ -7,7 +7,7 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 import { GameState, Action, Parts } from '../core/components/index.js';
-import { PlayerStateType, PartInfo } from '../common/constants.js';
+import { PlayerStateType, PartInfo, ActionCancelReason } from '../common/constants.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 
 /**
@@ -43,8 +43,8 @@ export class ActionCancellationSystem extends BaseSystem {
 
                 // 判定1: 自身の予約パーツが破壊された場合
                 if (actorId === brokenEntityId && action.partKey === brokenPartKey) {
-                    // キャンセルイベントを発行し、後続処理(メッセージ生成、状態遷移)を他のシステムに委譲します。
-                    this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: 'PART_BROKEN' });
+                    // 文字列リテラルを定数に置き換え
+                    this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.PART_BROKEN });
                     continue; // このアクターに対する処理は完了
                 }
                 
@@ -54,7 +54,8 @@ export class ActionCancellationSystem extends BaseSystem {
                     action.targetId === brokenEntityId && 
                     brokenPartKey === PartInfo.HEAD.key) 
                 {
-                    this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: 'TARGET_LOST' });
+                    // 文字列リテラルを定数に置き換え
+                    this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.TARGET_LOST });
                 }
             }
         } catch (error) {

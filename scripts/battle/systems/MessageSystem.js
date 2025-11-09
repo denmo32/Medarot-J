@@ -6,15 +6,21 @@
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { ModalType, PartKeyToInfoMap, EffectType } from '../common/constants.js';
+import { ModalType, PartKeyToInfoMap, EffectType, ActionCancelReason } from '../common/constants.js';
 import { MessageTemplates, MessageKey } from '../data/messageRepository.js';
 import { PlayerInfo, Parts } from '../core/components/index.js';
+
+// キャンセル理由とメッセージキーのマッピングを定義
+const cancelReasonToMessageKey = {
+    [ActionCancelReason.PART_BROKEN]: MessageKey.CANCEL_PART_BROKEN,
+    [ActionCancelReason.TARGET_LOST]: MessageKey.CANCEL_TARGET_LOST,
+    [ActionCancelReason.INTERRUPTED]: MessageKey.CANCEL_INTERRUPTED,
+};
 
 export class MessageSystem extends BaseSystem {
     constructor(world) {
         super(world);
         // メッセージ生成ロジックを効果タイプごとのマップに集約
-        // これにより、新しい効果タイプを追加する際にこのマップにエントリを追加するだけで済む
         this.supportMessageFormatters = {
             [EffectType.HEAL]: this._formatHealMessage.bind(this),
             [EffectType.APPLY_SCAN]: this._formatScanMessage.bind(this),
@@ -22,27 +28,25 @@ export class MessageSystem extends BaseSystem {
             [EffectType.APPLY_GUARD]: this._formatGuardMessage.bind(this),
         };
         
-        // メッセージ生成のトリガーとなるイベントを購読
-        this.world.on(GameEvents.ACTION_DECLARED, this.onActionDeclared.bind(this));
-        this.world.on(GameEvents.ACTION_EXECUTED, this.onActionExecuted.bind(this));
+        // 複数のイベントの代わりに、統合されたCOMBAT_SEQUENCE_RESOLVEDイベントを購読する
+        this.world.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
         this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
-        // ガード破壊イベントを購読
         this.world.on(GameEvents.GUARD_BROKEN, this.onGuardBroken.bind(this));
     }
 
     /**
-     * 行動が宣言された時に、攻撃宣言モーダルのメッセージシーケンスを生成します。
-     * @param {object} detail - ACTION_DECLAREDイベントのペイロード
+     * 戦闘シーケンス全体のメッセージを一度に生成し、モーダル表示を要求する
+     * @param {object} detail - COMBAT_SEQUENCE_RESOLVEDイベントのペイロード
      */
-    onActionDeclared(detail) {
-        const { attackerId, targetId, attackingPart, isSupport, guardianInfo } = detail;
+    onCombatSequenceResolved(detail) {
+        const { attackerId, targetId, attackingPart, isSupport, guardianInfo, outcome, appliedEffects } = detail;
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         if (!attackerInfo) return;
 
-        // メッセージを順番に表示するためのシーケンス配列
-        const messageSequence = [];
+        let messageSequence = [];
+        let modalType;
 
-        // --- 1. メインの宣言メッセージを生成 ---
+        // --- Step 1: 宣言メッセージを生成 ---
         let mainMessageText;
         if (isSupport) {
             mainMessageText = this.format(MessageKey.SUPPORT_DECLARATION, {
@@ -61,62 +65,52 @@ export class MessageSystem extends BaseSystem {
                 trait: attackingPart.trait,
             });
         }
-        // シーケンスの最初のステップとして追加
         messageSequence.push({ text: mainMessageText });
 
-        // --- 2. ガードメッセージをシーケンスに追加 ---
+        // ガードメッセージをシーケンスに追加
         if (guardianInfo) {
             const guardMessageText = this.format(MessageKey.GUARDIAN_TRIGGERED, {
                 guardianName: guardianInfo.name,
             });
-            // シーケンスの2番目のステップとして追加
             messageSequence.push({ text: guardMessageText });
         }
-
-        // --- 3. ActionPanelSystemにモーダル表示を要求 ---
+        
+        // 宣言モーダル用のデータを準備し、表示要求
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.ATTACK_DECLARATION,
-            data: { ...detail }, // 元のイベントデータを引き継ぐ
-            messageSequence: messageSequence, // 生成したシーケンスを渡す
+            data: { ...detail },
+            messageSequence: messageSequence,
             immediate: true,
         });
-    }
 
-    /**
-     * 行動が実行された後に、結果表示モーダルのメッセージシーケンスを生成します。
-     * @param {object} detail - ACTION_EXECUTEDイベントのペイロード
-     */
-    onActionExecuted(detail) {
-        const { appliedEffects, isEvaded, isSupport, attackerId, targetId, guardianInfo } = detail;
-        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
-        if (!attackerInfo) return;
 
-        let messageSequence = [];
+        // --- Step 2: 結果メッセージを生成 ---
+        let resultSequence = [];
         const isHealAction = appliedEffects && appliedEffects.some(e => e.type === EffectType.HEAL);
 
         if (isSupport && !isHealAction) {
-            // 回復以外の支援行動
             const supportMessage = this.generateSupportResultMessage(appliedEffects[0]);
-            messageSequence.push({ text: supportMessage });
-        } else if (isEvaded) {
-            const targetName = targetId ? this.world.getComponent(targetId, PlayerInfo)?.name : '相手';
+            resultSequence.push({ text: supportMessage });
+        } else if (!outcome.isHit && targetId) { // ターゲットがいる攻撃の回避
+            const targetName = this.world.getComponent(targetId, PlayerInfo)?.name || '相手';
             const evadedMessage = this.format(MessageKey.ATTACK_EVADED, { targetName });
-            messageSequence.push({ text: evadedMessage });
+            resultSequence.push({ text: evadedMessage });
         } else if (appliedEffects && appliedEffects.length > 0) {
-            // ダメージ/回復結果をシーケンスに変換
-            messageSequence = this.generateDamageResultSequence(appliedEffects, guardianInfo);
+            resultSequence = this.generateDamageResultSequence(appliedEffects, guardianInfo);
         } else {
-            const missedMessage = this.format(MessageKey.ATTACK_MISSED, { attackerName: attackerInfo.name });
-            messageSequence.push({ text: missedMessage });
+            // ここに来るのは、ターゲットが元々いない攻撃(空振り)か、効果が何もなかった場合
+            // 宣言メッセージで「空を切った」と表示済みなので、結果は不要
         }
-        
-        // ActionPanelSystemにモーダル表示を要求
-        this.world.emit(GameEvents.SHOW_MODAL, {
-            type: ModalType.EXECUTION_RESULT,
-            data: { ...detail }, // 元のイベントデータを引き継ぐ
-            messageSequence: messageSequence, // 生成したシーケンスを渡す
-            immediate: true
-        });
+
+        // 結果メッセージが存在する場合のみ、結果表示モーダルを要求
+        if(resultSequence.length > 0) {
+            this.world.emit(GameEvents.SHOW_MODAL, {
+                type: ModalType.EXECUTION_RESULT,
+                data: { ...detail },
+                messageSequence: resultSequence,
+                immediate: true
+            });
+        }
     }
 
     /**
@@ -128,12 +122,9 @@ export class MessageSystem extends BaseSystem {
         const actorInfo = this.world.getComponent(entityId, PlayerInfo);
         if (!actorInfo) return;
 
-        let messageKey;
-        if (reason === 'PART_BROKEN') {
-            messageKey = MessageKey.CANCEL_PART_BROKEN;
-        } else if (reason === 'TARGET_LOST') {
-            messageKey = MessageKey.CANCEL_TARGET_LOST;
-        } else {
+        // switch文をマップオブジェクトによる参照に置き換え
+        const messageKey = cancelReasonToMessageKey[reason];
+        if (!messageKey) {
             return; // 不明な理由の場合は何もしない
         }
         
@@ -222,22 +213,17 @@ export class MessageSystem extends BaseSystem {
         const sequence = [];
         if (!effects || effects.length === 0) return [];
         
-        // generateDamageResultMessageは<br>で連結された単一の文字列を返す
         const messageLines = this.generateDamageResultMessage(effects, guardianInfo).split('<br>');
 
-        // HP変動があったかどうかのフラグ
         const hasHpChange = effects.some(e => (e.type === EffectType.DAMAGE || e.type === EffectType.HEAL) && e.value > 0);
 
         if (messageLines.length > 0) {
-            // 最初のメッセージを表示
             sequence.push({ text: messageLines[0] });
 
-            // HP変動があった場合、アニメーション待機ステップを挿入
             if (hasHpChange) {
                 sequence.push({ waitForAnimation: GameEvents.HP_BAR_ANIMATION_COMPLETED });
             }
 
-            // 貫通など、2つ目以降のメッセージがあれば追加
             for (let i = 1; i < messageLines.length; i++) {
                 sequence.push({ text: messageLines[i] });
             }
@@ -246,7 +232,6 @@ export class MessageSystem extends BaseSystem {
         return sequence;
     }
 
-    // 巨大なswitch文を廃止し、マップベースのディスパッチに変更
     /**
      * 支援行動の結果メッセージを生成します。
      * @private
@@ -254,10 +239,8 @@ export class MessageSystem extends BaseSystem {
     generateSupportResultMessage(effect) {
         if (!effect) return '支援行動成功！';
         
-        // マップから対応するフォーマッター関数を取得
         const formatter = this.supportMessageFormatters[effect.type];
         
-        // フォーマッターが存在すれば実行し、なければデフォルトメッセージを返す
         return formatter ? formatter(effect) : '支援行動成功！';
     }
 

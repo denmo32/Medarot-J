@@ -1,13 +1,12 @@
-﻿﻿﻿﻿﻿﻿﻿/**
+﻿/**
  * @file ゲームイベント定義
  * システム間の通信に使用されるイベントを定義します。
- * すべてのイベントは、ペイロード構造と使用方法が明確にドキュメント化されています。
+ * ペイロード構造と使用方法を明確にドキュメント化します。
  */
 
 /**
  * @enum {Object} GameEvents
  * @description ゲーム内で発生する全イベントを定義します。
- * 各イベントの詳細な仕様は、以下にコメントで記載されています。
  */
 export const GameEvents = {
     // --- ゲームフローイベント ---
@@ -34,15 +33,15 @@ export const GameEvents = {
      * @payload {}
      */
     GAME_WILL_RESET: 'GAME_WILL_RESET',
-    
+
     /**
-     * 「ロボトルファイト！」がクリックされた
-     * @event BATTLE_START_CONFIRMED
+     * バトルシーンの初期化が完了したことを通知
+     * @event BATTLE_INITIALIZED
      * @type {string}
      * @payload {}
      */
-    BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED',
-    
+    BATTLE_INITIALIZED: 'BATTLE_INITIALIZED',
+
     /**
      * 戦闘開始がキャンセルされた
      * @event BATTLE_START_CANCELLED
@@ -52,20 +51,20 @@ export const GameEvents = {
     BATTLE_START_CANCELLED: 'BATTLE_START_CANCELLED',
 
     /**
+     * 戦闘開始モーダルで「はい」が押されたイベント。文字列リテラルを定数化。
+     * @event BATTLE_START_CONFIRMED
+     * @type {string}
+     * @payload {}
+     */
+    BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED',
+
+    /**
      * 戦闘開始アニメーションの表示を要求
      * @event SHOW_BATTLE_START_ANIMATION
      * @type {string}
      * @payload {}
      */
     SHOW_BATTLE_START_ANIMATION: 'SHOW_BATTLE_START_ANIMATION',
-
-    /**
-     * 戦闘開始アニメーションの完了を通知
-     * @event BATTLE_ANIMATION_COMPLETED
-     * @type {string}
-     * @payload {}
-     */
-    BATTLE_ANIMATION_COMPLETED: 'BATTLE_ANIMATION_COMPLETED',
     
     /**
      * UIによるゲームの一時停止イベント
@@ -126,57 +125,49 @@ export const GameEvents = {
 
     // --- 行動実行イベント ---
     /**
-     * 行動が宣言され、メッセージ生成が必要になったことを通知する
-     * MessageSystemが購読し、攻撃宣言モーダルのメッセージを生成する。
-     * @event ACTION_DECLARED
+     * 戦闘シーケンス（宣言から結果まで）が解決されたことを通知する統合イベント。
+     * MessageSystemが購読し、宣言と結果のメッセージシーケンスを一度に生成する。
+     * @event COMBAT_SEQUENCE_RESOLVED
      * @type {string}
-     * @payload {{ attackerId: number, targetId: number, attackingPart: object, isSupport: boolean, guardianInfo: object | null }}
+     * @payload {{
+     *   attackerId: number,
+     *   targetId: number,
+     *   attackingPart: object,
+     *   isSupport: boolean,
+     *   guardianInfo: object | null,
+     *   outcome: { isHit: boolean, isCritical: boolean, isDefended: boolean },
+     *   appliedEffects: Array<object>
+     * }}
      */
-    ACTION_DECLARED: 'ACTION_DECLARED',
+    COMBAT_SEQUENCE_RESOLVED: 'COMBAT_SEQUENCE_RESOLVED',
 
     /**
-     * 行動実行アニメーションの開始を要求
-     * @event EXECUTION_ANIMATION_REQUESTED
+     * 戦闘結果の表示が完了したことを通知するイベント。
+     * ActionPanelSystemが発行し、ActionExecutionSystemが購読する。
+     * これにより、ロジックシステムがUIの詳細（モーダルなど）に依存するのを防ぐ。
+     * @event COMBAT_RESOLUTION_DISPLAYED
      * @type {string}
-     * @payload {{ attackerId: number, targetId: number }}
+     * @payload {{ attackerId: number }} - 行動を実行したアクターのID
      */
-    EXECUTION_ANIMATION_REQUESTED: 'EXECUTION_ANIMATION_REQUESTED',
-    
+    COMBAT_RESOLUTION_DISPLAYED: 'COMBAT_RESOLUTION_DISPLAYED',
+
+    /**
+     * 行動が完了し、クールダウンへ移行すべきことを通知するイベント。
+     * システム間の直接参照をなくし、疎結合を促進します。
+     * @event ACTION_COMPLETED
+     * @type {string}
+     * @payload {{ entityId: number }}
+     */
+    ACTION_COMPLETED: 'ACTION_COMPLETED',
+
     /**
      * 行動実行アニメーションの完了を通知
-     * CombatResolutionSystemが購読し、戦闘結果の判定を開始するトリガー。
+     * ActionResolutionSystemが購読し、戦闘結果の判定を開始するトリガー。
      * @event EXECUTION_ANIMATION_COMPLETED
      * @type {string}
      * @payload {{ entityId: number }} - アニメーションが完了したエンティティID
      */
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED',
-    
-    /**
-     * 戦闘結果（命中/回避/ガードなど）が解決された
-     * CombatResolutionSystemが発行し、ActionSystemが効果計算のために購読する。
-     * @event COMBAT_OUTCOME_RESOLVED
-     * @type {string}
-     * @payload {{
-     *   attackerId: number,
-     *   originalTargetId: number,
-     *   finalTargetId: number,
-     *   finalTargetPartKey: string,
-     *   attackingPart: object,
-     *   attackerInfo: object,
-     *   attackerParts: object,
-     *   outcome: { isHit: boolean, isCritical: boolean, isDefended: boolean },
-     *   guardianInfo: object | null
-     * }}
-     */
-    COMBAT_OUTCOME_RESOLVED: 'COMBAT_OUTCOME_RESOLVED',
-
-    /**
-     * 実際のアニメーション実行を要求
-     * @event EXECUTE_ATTACK_ANIMATION
-     * @type {string}
-     * @payload {{ attackerId: number, targetId: number }}
-     */
-    EXECUTE_ATTACK_ANIMATION: 'EXECUTE_ATTACK_ANIMATION',
     
     /**
      * 攻撃宣言モーダルのOKが押された
@@ -188,24 +179,54 @@ export const GameEvents = {
     ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
 
     /**
-     * 行動の効果適用が完了したことを通知する統合イベント。
-     * EffectApplicatorSystemが発行し、MessageSystem, HistorySystem, StateSystemがこれを購読して、
-     * 結果表示、履歴記録、状態遷移といった後続処理をそれぞれ実行します。
-     * @event ACTION_EXECUTED
+     * 実際のアニメーション実行を要求
+     * @event EXECUTE_ATTACK_ANIMATION
      * @type {string}
-     * @payload {{ attackerId: number, targetId: number, appliedEffects: Array<object>, isEvaded: boolean, isSupport: boolean, guardianInfo: object | null }}
+     * @payload {{ attackerId: number, targetId: number }}
      */
-    ACTION_EXECUTED: 'ACTION_EXECUTED',
+    EXECUTE_ATTACK_ANIMATION: 'EXECUTE_ATTACK_ANIMATION',
+    
+    // --- 状態 & ターン管理イベント ---
+    /**
+     * 行動選択フェーズの完了を通知
+     * @event ACTION_SELECTION_COMPLETED
+     * @type {string}
+     * @payload {}
+     */
+    ACTION_SELECTION_COMPLETED: 'ACTION_SELECTION_COMPLETED',
     
     /**
-     * 攻撃シーケンス全体が完了した
-     * @event ATTACK_SEQUENCE_COMPLETED
+     * 行動実行フェーズの完了を通知
+     * @event ACTION_EXECUTION_COMPLETED
      * @type {string}
-     * @payload {{ entityId: number }} - 攻撃シーケンスが完了したエンティティID
+     * @payload {}
      */
-    ATTACK_SEQUENCE_COMPLETED: 'ATTACK_SEQUENCE_COMPLETED',
+    ACTION_EXECUTION_COMPLETED: 'ACTION_EXECUTION_COMPLETED',
+    
+    /**
+     * 行動解決フェーズの完了を通知
+     * @event ACTION_RESOLUTION_COMPLETED
+     * @type {string}
+     * @payload {}
+     */
+    ACTION_RESOLUTION_COMPLETED: 'ACTION_RESOLUTION_COMPLETED',
+    
+    /**
+     * 新しいターンが開始したことを通知
+     * @event TURN_START
+     * @type {string}
+     * @payload {{ turnNumber: number }}
+     */
+    TURN_START: 'TURN_START',
 
-    // --- 状態 & ターン管理イベント ---
+    /**
+     * ターンが終了したことを通知
+     * @event TURN_END
+     * @type {string}
+     * @payload {{ turnNumber: number }}
+     */
+    TURN_END: 'TURN_END',
+    
     /**
      * ゲージが満タンになった
      * @event GAUGE_FULL
@@ -231,11 +252,19 @@ export const GameEvents = {
     ACTION_REQUEUE_REQUEST: 'ACTION_REQUEUE_REQUEST',
 
     /**
+     * 次に行動すべきアクターが決定したことを通知する
+     * @event NEXT_ACTOR_DETERMINED
+     * @type {string}
+     * @payload {{ entityId: number }}
+     */
+    NEXT_ACTOR_DETERMINED: 'NEXT_ACTOR_DETERMINED',
+
+    /**
      * 予約されていた行動がキャンセルされたことを通知する
      * MessageSystemが購読し、キャンセル理由に応じたメッセージを生成する。
      * @event ACTION_CANCELLED
      * @type {string}
-     * @payload {{ entityId: number, reason: 'PART_BROKEN' | 'TARGET_LOST' }}
+     * @payload {{ entityId: number, reason: string }} - reasonはActionCancelReason定数
      */
     ACTION_CANCELLED: 'ACTION_CANCELLED',
     
@@ -290,7 +319,16 @@ export const GameEvents = {
      */
     GUARD_BROKEN: 'GUARD_BROKEN',
 
-    // --- UIイベント ---
+    // --- UI & Sceneイベント ---
+    /**
+     * シーン遷移を要求する汎用イベント。
+     * setTimeoutによる不安定な遷移を排除し、シーン間の疎結合を促進します。
+     * @event SCENE_CHANGE_REQUESTED
+     * @type {string}
+     * @payload {{ sceneName: string, data: object }}
+     */
+    SCENE_CHANGE_REQUESTED: 'SCENE_CHANGE_REQUESTED',
+
     /**
      * モーダル表示を要求
      * @event SHOW_MODAL

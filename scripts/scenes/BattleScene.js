@@ -6,7 +6,7 @@ import { BaseScene } from './BaseScene.js';
 import { GameEvents } from '../battle/common/events.js';
 import { initializeSystems } from '../battle/core/systemInitializer.js';
 import { createPlayers } from '../battle/core/entityFactory.js';
-import { GameModeContext } from '../battle/core/index.js';
+import { BattleContext } from '../battle/core/index.js';
 
 /**
  * @typedef {import('../core/GameDataManager.js').GameDataManager} GameDataManager
@@ -23,6 +23,9 @@ import { GameModeContext } from '../battle/core/index.js';
 export class BattleScene extends BaseScene {
     constructor(world, sceneManager) {
         super(world, sceneManager);
+        // シーン間で受け渡すデータはinitで受け取るため、プロパティを削除
+        // this.gameDataManager = null;
+        // this.inputManager = null;
     }
 
     /**
@@ -30,7 +33,8 @@ export class BattleScene extends BaseScene {
      */
     init(data) {
         console.log("Initializing Battle Scene...");
-        const { gameDataManager, inputManager } = data; // ★ inputManagerも受け取る
+        const { gameDataManager, inputManager } = data;
+        // gameDataManagerとinputManagerはローカル変数または必要なシステムに直接渡す
 
         // --- Battle Systems & Entities Setup ---
         initializeSystems(this.world);
@@ -38,27 +42,44 @@ export class BattleScene extends BaseScene {
         const playerTeamData = gameDataManager.getPlayerDataForBattle();
         createPlayers(this.world, playerTeamData);
 
-        const gameModeContext = this.world.getSingletonComponent(GameModeContext);
-        if (gameModeContext) {
-            gameModeContext.gameMode = 'battle';
+        // 新しいBattleContextが初期化時にgameModeを'battle'に設定するため、
+        // ここでの明示的な設定は不要になりますが、念のため残しておきます。
+        const battleContext = this.world.getSingletonComponent(BattleContext);
+        if (battleContext) {
+            battleContext.gameMode = 'battle';
         }
 
-        // --- Event Listeners for Scene Transition ---
-        this.world.on(GameEvents.GAME_OVER, (result) => {
-            gameDataManager.applyBattleResult(result);
-            // 3秒後にマップシーンへ移行
-            // ★次のシーンに必要なデータをすべて渡す
-            setTimeout(() => this.sceneManager.switchTo('map', { gameDataManager, inputManager }), 3000);
-        });
-
-        this.world.on(GameEvents.RESET_BUTTON_CLICKED, () => {
-            // ★次のシーンに必要なデータをすべて渡す
-            this.sceneManager.switchTo('map', { gameDataManager, inputManager });
-        });
+        // シーン遷移の責務をイベントハンドラに集約
+        this.bindSceneTransitionEvents(gameDataManager);
 
         // --- Start Battle Flow ---
         this.world.emit(GameEvents.SETUP_UI_REQUESTED);
         this.world.emit(GameEvents.GAME_START_CONFIRMED);
+    }
+
+    /**
+     * シーン遷移に関連するイベントリスナーをここに集約します。
+     * @param {GameDataManager} gameDataManager
+     */
+    bindSceneTransitionEvents(gameDataManager) {
+        // ゲーム終了後の処理とシーン遷移要求を分離
+        this.world.on(GameEvents.SCENE_CHANGE_REQUESTED, (detail) => {
+            // このシーンで発生した戦闘結果をゲームデータに反映
+            if (detail.data && detail.data.result) {
+                gameDataManager.applyBattleResult(detail.data.result);
+            }
+            // switchToの呼び出しを簡潔化。グローバルコンテキストは自動で渡される。
+            this.sceneManager.switchTo(detail.sceneName, detail.data);
+        });
+
+        // UIからのリセットボタンクリックを処理
+        this.world.on(GameEvents.RESET_BUTTON_CLICKED, () => {
+            // タイマーなしで即座にマップシーンへの遷移を要求
+            this.world.emit(GameEvents.SCENE_CHANGE_REQUESTED, {
+                sceneName: 'map',
+                data: {} // この場合は特に渡すデータなし
+            });
+        });
     }
 
     update(deltaTime) {
