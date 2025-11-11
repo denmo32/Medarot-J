@@ -79,7 +79,6 @@ export class AiSystem extends BaseSystem {
         let partStrategyKey;
 
         // 1. どのパーツ選択戦略を使うか決定する
-        // まず、ターゲットが事前に決まっているプラン(pre-move)を探す
         const preMovePlan = actionPlans.find(plan => plan.target !== null);
 
         if (preMovePlan) {
@@ -91,9 +90,17 @@ export class AiSystem extends BaseSystem {
                 partStrategyKey = strategies.partStrategyMap.enemy;
             }
         } else {
-            // pre-moveプランがない場合（全てpost-move）、敵を狙う戦略をデフォルトで選択
-            // (現状のpost-moveアクションは全て敵対象であるため)
-            partStrategyKey = strategies.partStrategyMap.enemy;
+            // pre-moveプランがない場合（全てpost-move）、アクションの性質から戦略を決定
+            if (actionPlans.length > 0) {
+                const representativePart = actionPlans[0].part;
+                // targetScopeが'ALLY'で始まるかどうかで、味方対象か敵対象かを判断
+                if (representativePart.targetScope?.startsWith('ALLY')) {
+                    partStrategyKey = strategies.partStrategyMap.ally;
+                } else {
+                    // 敵対象、または自分自身を対象とするもの（SELF_GUARDなど）はenemy戦略を使用
+                    partStrategyKey = strategies.partStrategyMap.enemy;
+                }
+            }
         }
 
         if (!partStrategyKey) {

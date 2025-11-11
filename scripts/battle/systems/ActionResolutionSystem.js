@@ -57,7 +57,8 @@ export class ActionResolutionSystem extends BaseSystem {
         
         // フェイルセーフ: ターゲットを必要とするアクションで、かつターゲットが無効になっている場合は、アクションを解決せずに終了する
         const isTargetRequired = attackingPart.targetScope && (attackingPart.targetScope.endsWith('_SINGLE') || attackingPart.targetScope.endsWith('_TEAM'));
-        if (isTargetRequired && !isValidTarget(this.world, action.targetId, action.targetPartKey)) {
+        // 支援行動（isSupport: true）の場合、ターゲットがいなくてもターゲットロストとして扱わない
+        if (isTargetRequired && !attackingPart.isSupport && !isValidTarget(this.world, action.targetId, action.targetPartKey)) {
             console.warn(`ActionResolutionSystem: Target for entity ${attackerId} is no longer valid at resolution time. Cancelling action.`);
             // アクションをキャンセル済みとしてクールダウンへ移行させる
             this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: attackerId, reason: ActionCancelReason.TARGET_LOST });
