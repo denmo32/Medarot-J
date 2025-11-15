@@ -9,17 +9,18 @@ import { targetingStrategies } from './targetingStrategies.js';
 import { conditionEvaluators } from './conditionEvaluators.js';
 
 /**
- * AIの性格と思考ルーチンに基づいて最適なターゲット候補リストを決定します。
+ * AIの性格と思考ルーチンに基づいて最適なターゲット候補リストと使用された戦略を決定します。
  * @param {object} context - { world: World, entityId: number }
- * @returns {Array<{ target: { targetId: number, targetPartKey: string }, weight: number }> | null} 決定されたターゲット候補リスト
+ * @returns {{candidates: Array<{ target: { targetId: number, targetPartKey: string }, weight: number }> | null, strategy: string | null}} 決定されたターゲット候補リストと戦略キー
  */
 export function determineTargetCandidatesByPersonality({ world, entityId }) {
     const attackerMedal = world.getComponent(entityId, Medal);
-    if (!attackerMedal) return null;
+    if (!attackerMedal) return { candidates: null, strategy: null };
 
     const strategies = getStrategiesFor(attackerMedal.personality);
     const context = { world, attackerId: entityId };
     let finalCandidates = null;
+    let successfulStrategy = null;
 
     // --- Step 1: 思考ルーチンに定義されたターゲット戦略を順番に試行 ---
     if (strategies.targetRoutines && strategies.targetRoutines.length > 0) {
@@ -47,6 +48,7 @@ export function determineTargetCandidatesByPersonality({ world, entityId }) {
 
             if (candidates && candidates.length > 0) {
                 finalCandidates = candidates;
+                successfulStrategy = routine.strategy;
                 break; // 有効なターゲット候補が見つかったらループを抜ける
             }
         }
@@ -54,13 +56,17 @@ export function determineTargetCandidatesByPersonality({ world, entityId }) {
 
     // --- Step 2: ルーチンでターゲット候補が決まらなかった場合のフォールバック ---
     if (!finalCandidates && strategies.fallbackTargeting) {
-        const fallbackStrategy = targetingStrategies[strategies.fallbackTargeting];
+        const fallbackStrategyKey = strategies.fallbackTargeting;
+        const fallbackStrategy = targetingStrategies[fallbackStrategyKey];
         if (fallbackStrategy) {
             finalCandidates = fallbackStrategy(context);
+            if (finalCandidates && finalCandidates.length > 0) {
+                successfulStrategy = fallbackStrategyKey;
+            }
         } else {
-            console.error(`AI ${entityId}: Fallback strategy key "${strategies.fallbackTargeting}" not found.`);
+            console.error(`AI ${entityId}: Fallback strategy key "${fallbackStrategyKey}" not found.`);
         }
     }
 
-    return finalCandidates;
+    return { candidates: finalCandidates, strategy: successfulStrategy };
 }

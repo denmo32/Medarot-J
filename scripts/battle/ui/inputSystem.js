@@ -32,7 +32,7 @@ export class InputSystem extends BaseSystem {
         const context = { world: this.world, entityId };
 
         // --- Step 1: 性格に基づきターゲット候補リストを取得 ---
-        const targetCandidates = determineTargetCandidatesByPersonality(context);
+        const { candidates: targetCandidates } = determineTargetCandidatesByPersonality(context);
         if (!targetCandidates || targetCandidates.length === 0) {
             console.warn(`Player ${entityId}: No valid target candidates found. Re-queueing.`);
             this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });

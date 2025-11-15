@@ -33,7 +33,7 @@ export class AiSystem extends BaseSystem {
         const context = { world: this.world, entityId };
 
         // --- Step 1: 性格に基づきターゲット候補リストを取得 ---
-        const targetCandidates = determineTargetCandidatesByPersonality(context);
+        const { candidates: targetCandidates, strategy: usedStrategy } = determineTargetCandidatesByPersonality(context);
 
         if (!targetCandidates || targetCandidates.length === 0) {
             console.warn(`AI ${entityId}: No target candidates found by personality. Action will be cancelled.`);
@@ -62,7 +62,14 @@ export class AiSystem extends BaseSystem {
             return;
         }
         
-        // --- Step 4: 最終決定した行動を発行 ---
+        // --- Step 4: デバッグイベントを発行し、最終決定した行動を発行 ---
+        if (usedStrategy && finalPlan.target) {
+            this.world.emit(GameEvents.STRATEGY_EXECUTED, {
+                strategy: usedStrategy,
+                attackerId: entityId,
+                target: finalPlan.target,
+            });
+        }
         decideAndEmitAction(this.world, entityId, finalPlan.partKey, finalPlan.target);
     }
 

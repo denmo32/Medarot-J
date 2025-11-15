@@ -8,6 +8,17 @@ import { PartSelectionStrategyKey } from './partSelectionStrategies.js';
 import { ConditionEvaluatorKey } from './conditionEvaluators.js';
 
 /**
+ * 多くの性格で共通する基本的な戦略設定。
+ */
+const basePersonality = {
+    partStrategyMap: {
+        enemy: PartSelectionStrategyKey.POWER_FOCUS,
+        ally: null,
+    },
+    fallbackTargeting: TargetingStrategyKey.RANDOM,
+};
+
+/**
  * AIの性格と戦略のマッピング。
  *
  * @property {object} [personality] - AIの性格ごとの戦略定義。
@@ -21,86 +32,55 @@ import { ConditionEvaluatorKey } from './conditionEvaluators.js';
  */
 export const personalityRegistry = {
     [MedalPersonality.HUNTER]: {
+        ...basePersonality,
         targetRoutines: [{ strategy: TargetingStrategyKey.HUNTER }],
-        partStrategyMap: {
-            enemy: PartSelectionStrategyKey.POWER_FOCUS,
-            ally: null,
-        },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.CRUSHER]: {
+        ...basePersonality,
         targetRoutines: [{ strategy: TargetingStrategyKey.CRUSHER }],
-        partStrategyMap: {
-            enemy: PartSelectionStrategyKey.POWER_FOCUS,
-            ally: null,
-        },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.SPEED]: {
+        ...basePersonality,
         targetRoutines: [{ strategy: TargetingStrategyKey.SPEED }],
-        partStrategyMap: {
-            enemy: PartSelectionStrategyKey.POWER_FOCUS,
-            ally: null,
-        },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.JOKER]: {
+        ...basePersonality,
         targetRoutines: [{ strategy: TargetingStrategyKey.JOKER }],
         partStrategyMap: {
+            ...basePersonality.partStrategyMap,
             enemy: PartSelectionStrategyKey.RANDOM,
-            ally: null,
         },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.COUNTER]: {
+        ...basePersonality,
         targetRoutines: [{ strategy: TargetingStrategyKey.COUNTER }],
-        partStrategyMap: {
-            enemy: PartSelectionStrategyKey.POWER_FOCUS,
-            ally: null,
-        },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.GUARD]: {
+        ...basePersonality,
         targetRoutines: [{ strategy: TargetingStrategyKey.GUARD }],
-        partStrategyMap: {
-            enemy: PartSelectionStrategyKey.POWER_FOCUS,
-            ally: null,
-        },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.FOCUS]: {
+        ...basePersonality,
         targetRoutines: [{ strategy: TargetingStrategyKey.FOCUS }],
-        partStrategyMap: {
-            enemy: PartSelectionStrategyKey.POWER_FOCUS,
-            ally: null,
-        },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.ASSIST]: {
+        ...basePersonality,
         targetRoutines: [{ strategy: TargetingStrategyKey.ASSIST }],
-        partStrategyMap: {
-            enemy: PartSelectionStrategyKey.POWER_FOCUS,
-            ally: null,
-        },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.LEADER_FOCUS]: {
+        ...basePersonality,
         targetRoutines: [{ strategy: TargetingStrategyKey.LEADER_FOCUS }],
-        partStrategyMap: {
-            enemy: PartSelectionStrategyKey.POWER_FOCUS,
-            ally: null,
-        },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.RANDOM]: {
+        ...basePersonality,
         targetRoutines: [{ strategy: TargetingStrategyKey.RANDOM }],
         partStrategyMap: {
+            ...basePersonality.partStrategyMap,
             enemy: PartSelectionStrategyKey.RANDOM,
-            ally: null,
         },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
     [MedalPersonality.HEALER]: {
+        ...basePersonality,
         targetRoutines: [
             // 優先度1: 味方がダメージを受けていれば、最も損害の大きい味方をターゲット候補にする
             {
@@ -119,7 +99,6 @@ export const personalityRegistry = {
             enemy: PartSelectionStrategyKey.POWER_FOCUS, // 敵がターゲットなら攻撃パーツ
             ally: PartSelectionStrategyKey.HEAL_FOCUS,    // 味方がターゲットなら回復パーツ
         },
-        fallbackTargeting: TargetingStrategyKey.RANDOM,
     },
 };
 
