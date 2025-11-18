@@ -10,5 +10,7 @@ export class Gauge {
         // speedプロパティは廃止され、GaugeSystemが直接脚部の推進力を参照する
         /** @type {number} */
         this.max = CONFIG.MAX_GAUGE;
+        /** @type {number} */
+        this.currentSpeed = 0; // 現在のゲージ増加速度 (1updateあたり)
     }
 }

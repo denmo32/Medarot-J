@@ -119,7 +119,10 @@ export class CooldownSystem extends BaseSystem {
         }
 
         if (gameState) gameState.state = PlayerStateType.CHARGING;
-        if (gauge) gauge.value = 0;
+        if (gauge) {
+            gauge.value = 0;
+            gauge.currentSpeed = 0;
+        }
         
         this.world.addComponent(entityId, new Action());
     }
@@ -159,6 +162,7 @@ export class CooldownSystem extends BaseSystem {
             } else {
                 gauge.value = 0;
             }
+            gauge.currentSpeed = 0;
             gauge.speedMultiplier = 1.0;
         }
         if (action) {

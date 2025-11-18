@@ -7,7 +7,7 @@
  */
 
 import { CONFIG } from '../common/config.js';
-import { Parts, PlayerInfo, ActiveEffects } from '../core/components/index.js';
+import { Parts, PlayerInfo, ActiveEffects, Gauge } from '../core/components/index.js';
 import { findBestDefensePart } from './queryUtils.js';
 import { ErrorHandler, GameError, ErrorType } from './errorHandler.js';
 import { EffectType, AttackType } from '../common/constants.js';
@@ -60,6 +60,15 @@ export class CombatStrategy {
      */
     calculateSpeedMultiplier(context) {
         throw new GameError('calculateSpeedMultiplier method must be implemented', ErrorType.CALCULATION_ERROR);
+    }
+
+    /**
+     * ゲージの増加量を計算する
+     * @param {object} context - 計算に必要なコンテキスト
+     * @returns {number} 計算されたゲージ増加量
+     */
+    calculateGaugeIncrement(context) {
+        throw new GameError('calculateGaugeIncrement method must be implemented', ErrorType.CALCULATION_ERROR);
     }
 
     /**
@@ -215,6 +224,38 @@ class DefaultCombatStrategy extends CombatStrategy {
     }
 
     /**
+     * @param {{world: World, entityId: number, deltaTime: number}} context
+     */
+    calculateGaugeIncrement({ world, entityId, deltaTime }) {
+        try {
+            const gauge = world.getComponent(entityId, Gauge);
+            const parts = world.getComponent(entityId, Parts);
+            const activeEffects = world.getComponent(entityId, ActiveEffects);
+            if (!gauge || !parts) return 0;
+
+            // --- 将来の拡張ポイント ---
+            // ここで activeEffects をチェックし、ゲージ進行を停止させるデバフなどがあれば 0 を返す。
+            // 例: if (activeEffects.effects.some(e => e.type === 'GAUGE_FREEZE')) return 0;
+            
+            const propulsion = parts.legs?.propulsion || 1;
+            const speedMultiplier = gauge.speedMultiplier || 1.0;
+            
+            let increment = (propulsion / CONFIG.FORMULAS.GAUGE.GAUGE_INCREMENT_DIVISOR) * (deltaTime / CONFIG.UPDATE_INTERVAL) / speedMultiplier;
+
+            // --- 将来の拡張ポイント ---
+            // ここで activeEffects をチェックし、ゲージ進行を加速/減速させるバフ/デバフを適用する。
+            // 例:
+            // const accelerationEffect = activeEffects.effects.find(e => e.type === 'GAUGE_ACCELERATE');
+            // if (accelerationEffect) increment *= accelerationEffect.value;
+
+            return increment;
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'calculateGaugeIncrement', context });
+            return 0;
+        }
+    }
+
+    /**
      * 攻撃の命中結果（回避、クリティカル、防御）を総合的に判定します。
      * ActionSystemからロジックを移譲されました。
      * @param {{world: World, attackerId: number, targetId: number, attackingPart: object, targetLegs: object, initialTargetPartKey: string}} context
@@ -282,6 +323,7 @@ export const CombatCalculator = {
     calculateCriticalChance(context) { return this.strategy.calculateCriticalChance(context); },
     calculateDamage(context) { return this.strategy.calculateDamage(context); },
     calculateSpeedMultiplier(context) { return this.strategy.calculateSpeedMultiplier(context); },
+    calculateGaugeIncrement(context) { return this.strategy.calculateGaugeIncrement(context); },
     // 移譲されたメソッドをシングルトンに追加
     resolveHitOutcome(context) { return this.strategy.resolveHitOutcome(context); }
 };

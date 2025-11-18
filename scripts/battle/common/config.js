@@ -57,7 +57,11 @@ export const CONFIG = {
         
         // ゲージ増加計算式のパラメータ
         GAUGE: {
-            GAUGE_INCREMENT_DIVISOR: 20.0 // ゲージ計算式: propulsion / この値
+            GAUGE_INCREMENT_DIVISOR: 20.0, // 旧パラメータ。互換性のため残すが、新しいロジックでは使わない
+            BASE_ACCELERATION: 0.1,        // 機動0でも保証される基本加速度 (1updateあたり)
+            BASE_MAX_SPEED: 0.5,           // 推進0でも保証される基本最高速度 (1updateあたり)
+            MOBILITY_TO_ACCELERATION: 0.000001, // 機動値を加速度に変換する係数
+            PROPULSION_TO_MAX_SPEED: 0.1,  // 推進値を最高速度に変換する係数
         }
     },
     
