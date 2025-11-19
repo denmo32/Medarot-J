@@ -8,6 +8,7 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { GameDataManager } from '../../core/GameDataManager.js';
 import { PartInfo, PartKeyToInfoMap, EquipSlotType } from '../../battle/common/constants.js';
 import { CustomizeState } from '../components/CustomizeState.js';
+import { GameEvents } from '../../battle/common/events.js';
 
 /**
  * UIのフォーカス状態遷移を宣言的に管理するマップ。
@@ -72,11 +73,11 @@ export class CustomizeUISystem extends BaseSystem {
      * システムが購読するイベントを登録する
      */
     bindWorldEvents() {
-        this.world.on('CUST_NAVIGATE_INPUT', this.handleNavigation.bind(this));
-        this.world.on('CUST_CONFIRM_INPUT', this.handleConfirm.bind(this));
-        this.world.on('CUST_CANCEL_INPUT', this.handleCancel.bind(this));
-        this.world.on('PART_EQUIPPED', this.onPartEquipped.bind(this));
-        this.world.on('MEDAL_EQUIPPED', this.onMedalEquipped.bind(this));
+        this.world.on(GameEvents.CUST_NAVIGATE_INPUT, this.handleNavigation.bind(this));
+        this.world.on(GameEvents.CUST_CONFIRM_INPUT, this.handleConfirm.bind(this));
+        this.world.on(GameEvents.CUST_CANCEL_INPUT, this.handleCancel.bind(this));
+        this.world.on(GameEvents.PART_EQUIPPED, this.onPartEquipped.bind(this));
+        this.world.on(GameEvents.MEDAL_EQUIPPED, this.onMedalEquipped.bind(this));
     }
 
     // --- イベントハンドラ ---
@@ -171,7 +172,7 @@ export class CustomizeUISystem extends BaseSystem {
 
         if (nextFocus === 'EXIT') {
             // マップシーンへ戻る
-            this.world.emit('CUSTOMIZE_EXIT_REQUESTED');
+            this.world.emit(GameEvents.CUSTOMIZE_EXIT_REQUESTED);
         } else if (nextFocus) {
             // 前のフォーカス状態へ遷移
             this.uiState.focus = nextFocus;
@@ -189,13 +190,13 @@ export class CustomizeUISystem extends BaseSystem {
 
         if (isMedalList) {
             const selectedMedal = this.currentMedalListData[this.uiState.selectedMedalListIndex];
-            this.world.emit('EQUIP_MEDAL_REQUESTED', {
+            this.world.emit(GameEvents.EQUIP_MEDAL_REQUESTED, {
                 medarotIndex: this.uiState.selectedMedarotIndex,
                 newMedalId: selectedMedal?.id,
             });
         } else {
             const selectedPart = this.currentPartListData[this.uiState.selectedPartListIndex];
-            this.world.emit('EQUIP_PART_REQUESTED', {
+            this.world.emit(GameEvents.EQUIP_PART_REQUESTED, {
                 medarotIndex: this.uiState.selectedMedarotIndex,
                 partSlot: selectedSlotType,
                 newPartId: selectedPart?.id,
@@ -247,7 +248,7 @@ export class CustomizeUISystem extends BaseSystem {
 
             const newItem = availableItems[nextIndex];
             if (newItem) {
-                this.world.emit('EQUIP_MEDAL_REQUESTED', { medarotIndex, newMedalId: newItem.id });
+                this.world.emit(GameEvents.EQUIP_MEDAL_REQUESTED, { medarotIndex, newMedalId: newItem.id });
             }
 
         } else { // Parts
@@ -263,7 +264,7 @@ export class CustomizeUISystem extends BaseSystem {
 
             const newItem = availableItems[nextIndex];
             if (newItem) {
-                this.world.emit('EQUIP_PART_REQUESTED', { medarotIndex, partSlot: slotKey, newPartId: newItem.id });
+                this.world.emit(GameEvents.EQUIP_PART_REQUESTED, { medarotIndex, partSlot: slotKey, newPartId: newItem.id });
             }
         }
     }

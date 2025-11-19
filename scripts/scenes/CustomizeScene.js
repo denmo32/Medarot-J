@@ -7,9 +7,7 @@ import { CustomizeInputSystem } from '../customize/systems/CustomizeInputSystem.
 import { CustomizeUISystem } from '../customize/systems/CustomizeUISystem.js';
 import { CustomizeLogicSystem } from '../customize/systems/CustomizeLogicSystem.js';
 import { CustomizeState } from '../customize/components/CustomizeState.js';
-// [リファクタリング] UIStateContext, GameModeContextはBattleContextに統合されたため、
-// カスタマイズシーンでは直接使用しません。必要に応じて新しいコンテキストを作成します。
-// import { GameModeContext, UIStateContext } from '../battle/core/index.js';
+import { GameEvents } from '../battle/common/events.js';
 
 /**
  * @typedef {import('../core/GameDataManager.js').GameDataManager} GameDataManager
@@ -51,7 +49,7 @@ export class CustomizeScene extends BaseScene {
         this.world.registerSystem(customizeLogicSystem);
 
         // --- Event Listeners for Scene Transition ---
-        this.world.on('CUSTOMIZE_EXIT_REQUESTED', () => {
+        this.world.on(GameEvents.CUSTOMIZE_EXIT_REQUESTED, () => {
             // 前のシーン（マップ）に戻る
             // switchToの呼び出しを簡潔化
             this.sceneManager.switchTo('map', { restoreMenu: true });

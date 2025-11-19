@@ -1,6 +1,7 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import * as MapComponents from '../components.js';
+import { GameEvents } from '../../battle/common/events.js';
 
 /**
  * マップモードにおけるUIの表示/非表示、およびUI操作中の入力を一元管理するシステム。
@@ -30,9 +31,9 @@ export class MapUISystem extends BaseSystem {
 
     bindWorldEvents() {
         // PlayerInputSystemからのメニュー表示/非表示要求をリッスン
-        this.world.on('MENU_TOGGLE_REQUESTED', this.toggleMenu.bind(this));
+        this.world.on(GameEvents.MENU_TOGGLE_REQUESTED, this.toggleMenu.bind(this));
         // PlayerInputSystemからのNPCインタラクション要求をリッスン
-        this.world.on('NPC_INTERACTION_REQUESTED', this.showNpcInteraction.bind(this));
+        this.world.on(GameEvents.NPC_INTERACTION_REQUESTED, this.showNpcInteraction.bind(this));
     }
 
     update(deltaTime) {
@@ -67,7 +68,7 @@ export class MapUISystem extends BaseSystem {
         }
 
         // UIStateContextの変更を通知
-        this.world.emit('UI_STATE_CHANGED', { context: 'mapUI', property: 'isMapMenuVisible', value: this.mapUIState.isMapMenuVisible });
+        this.world.emit(GameEvents.UI_STATE_CHANGED, { context: 'mapUI', property: 'isMapMenuVisible', value: this.mapUIState.isMapMenuVisible });
 
         if (this.mapUIState.isMapMenuVisible) {
             const saveButton = this.dom.menu.querySelector('.map-menu-button[data-action="save"]');
@@ -143,12 +144,12 @@ export class MapUISystem extends BaseSystem {
 
     saveGame() {
         // イベント発行時にペイロードを渡さない
-        this.world.emit('GAME_SAVE_REQUESTED');
+        this.world.emit(GameEvents.GAME_SAVE_REQUESTED);
         console.log('Game save requested.');
     }
 
     openCustomizeScene() {
-        this.world.emit('CUSTOMIZE_SCENE_REQUESTED');
+        this.world.emit(GameEvents.CUSTOMIZE_SCENE_REQUESTED);
     }
 
     // --- NPC Interaction Logic --- //
@@ -170,7 +171,7 @@ export class MapUISystem extends BaseSystem {
 
         const handleConfirm = () => {
             cleanup();
-            this.world.emit('NPC_INTERACTED', npc);
+            this.world.emit(GameEvents.NPC_INTERACTED, npc);
         };
 
         const handleCancel = () => {

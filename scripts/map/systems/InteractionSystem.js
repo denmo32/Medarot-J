@@ -6,14 +6,14 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import * as MapComponents from '../components.js';
 import { CONFIG } from '../constants.js';
-// MapUIStateを参照してUIの状態を考慮する
 import { MapUIState } from '../../scenes/MapScene.js';
+import { GameEvents } from '../../battle/common/events.js';
 
 export class InteractionSystem extends BaseSystem {
     constructor(world, map) {
         super(world);
         this.map = map;
-        this.world.on('INTERACTION_KEY_PRESSED', this.onInteractionKeyPressed.bind(this));
+        this.world.on(GameEvents.INTERACTION_KEY_PRESSED, this.onInteractionKeyPressed.bind(this));
     }
 
     onInteractionKeyPressed(detail) {
@@ -40,7 +40,7 @@ export class InteractionSystem extends BaseSystem {
 
             if (isFacingNpc) {
                 // MapUISystemにNPCとのインタラクションUI表示を要求
-                this.world.emit('NPC_INTERACTION_REQUESTED', npc);
+                this.world.emit(GameEvents.NPC_INTERACTION_REQUESTED, npc);
                 break; // 最初に見つかったNPCとのみインタラクト
             }
         }

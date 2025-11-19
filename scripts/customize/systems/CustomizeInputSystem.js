@@ -6,6 +6,7 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { InputManager } from '../../core/InputManager.js';
 import { CustomizeState } from '../components/CustomizeState.js';
+import { GameEvents } from '../../battle/common/events.js';
 
 export class CustomizeInputSystem extends BaseSystem {
     constructor(world) {
@@ -17,21 +18,21 @@ export class CustomizeInputSystem extends BaseSystem {
     update(deltaTime) {
         // --- 決定/キャンセル入力 ---
         if (this.input.wasKeyJustPressed('z')) {
-            this.world.emit('CUST_CONFIRM_INPUT');
+            this.world.emit(GameEvents.CUST_CONFIRM_INPUT);
         } else if (this.input.wasKeyJustPressed('x')) {
-            this.world.emit('CUST_CANCEL_INPUT');
+            this.world.emit(GameEvents.CUST_CANCEL_INPUT);
         }
 
         // --- ナビゲーション入力 ---
         const verticalMove = this.input.wasKeyJustPressed('ArrowDown') ? 1 : this.input.wasKeyJustPressed('ArrowUp') ? -1 : 0;
         if (verticalMove !== 0) {
-            this.world.emit('CUST_NAVIGATE_INPUT', { direction: verticalMove > 0 ? 'down' : 'up' });
+            this.world.emit(GameEvents.CUST_NAVIGATE_INPUT, { direction: verticalMove > 0 ? 'down' : 'up' });
         }
         
         // 水平移動のイベント発行を有効化
         const horizontalMove = this.input.wasKeyJustPressed('ArrowRight') ? 1 : this.input.wasKeyJustPressed('ArrowLeft') ? -1 : 0;
         if (horizontalMove !== 0) {
-            this.world.emit('CUST_NAVIGATE_INPUT', { direction: horizontalMove > 0 ? 'right' : 'left' });
+            this.world.emit(GameEvents.CUST_NAVIGATE_INPUT, { direction: horizontalMove > 0 ? 'right' : 'left' });
         }
     }
 }
