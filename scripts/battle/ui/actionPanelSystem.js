@@ -218,9 +218,22 @@ export class ActionPanelSystem extends BaseSystem {
         this.dom.actionPanelOwner.textContent = handler.getOwnerName?.(displayData) || '';
         this.dom.actionPanelTitle.textContent = handler.getTitle?.(displayData) || '';
         this.dom.actionPanelActor.innerHTML = handler.getActorName?.(displayData) || handler.getActorName?.(this.currentModalData) || ''; // 従来のdataもフォールバック
-        this.dom.actionPanelButtons.innerHTML = handler.getContentHTML?.(displayData, this) || '';
+        
+        // [変更] innerHTML代入ではなく DOM要素を追加する形に変更
+        // handler.getContentHTML の代わりに handler.createContent を使用
+        this.dom.actionPanelButtons.innerHTML = '';
+        if (handler.createContent) {
+            const contentElement = handler.createContent(this, displayData);
+            if (contentElement) {
+                this.dom.actionPanelButtons.appendChild(contentElement);
+            }
+        } else if (handler.getContentHTML) {
+            // 後方互換性のため残すが、基本的には createContent を使用すべき
+            this.dom.actionPanelButtons.innerHTML = handler.getContentHTML(displayData, this);
+        }
 
-        handler.setupEvents?.(this, this.dom.actionPanelButtons, displayData);
+        // handler.setupEvents は DOM API化に伴い不要になったため削除
+        // handler.setupEvents?.(this, this.dom.actionPanelButtons, displayData);
 
         if (handler.isClickable) {
             this.dom.actionPanelIndicator.classList.remove('hidden');

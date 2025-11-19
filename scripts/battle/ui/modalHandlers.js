@@ -3,6 +3,8 @@
  * ActionPanelSystemが使用する、各モーダルタイプの具体的な振る舞いを定義します。
  * これにより、ActionPanelSystemの責務を「管理」に集中させ、
  * 各モーダルの「内容」をこのファイルで一元管理します。
+ * 
+ * リファクタリング: HTML文字列ではなくDOM APIを使用して要素を生成するように変更しました。
  */
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
@@ -19,83 +21,108 @@ export const createModalHandlers = (systemInstance) => ({
     // --- スタート確認 ---
     [ModalType.START_CONFIRM]: {
         getActorName: () => 'ロボトルを開始しますか？',
-        getContentHTML: () => `
-            <div class="buttons-center">
-                <button id="panelBtnYes" class="action-panel-button">OK</button>
-                <button id="panelBtnNo" class="action-panel-button bg-red-500 hover:bg-red-600">キャンセル</button>
-            </div>`,
-        setupEvents: (system, container) => {
-            container.querySelector('#panelBtnYes').onclick = () => {
+        /**
+         * コンテンツDOMを生成します。
+         * @param {ActionPanelSystem} system
+         * @returns {HTMLElement}
+         */
+        createContent: (system) => {
+            const container = document.createElement('div');
+            container.className = 'buttons-center';
+
+            const btnYes = document.createElement('button');
+            btnYes.textContent = 'OK';
+            btnYes.className = 'action-panel-button';
+            btnYes.onclick = () => {
                 system.world.emit(GameEvents.GAME_START_CONFIRMED);
                 system.hideActionPanel();
             };
-            container.querySelector('#panelBtnNo').onclick = () => system.hideActionPanel();
+
+            const btnNo = document.createElement('button');
+            btnNo.textContent = 'キャンセル';
+            btnNo.className = 'action-panel-button bg-red-500 hover:bg-red-600';
+            btnNo.onclick = () => system.hideActionPanel();
+
+            container.appendChild(btnYes);
+            container.appendChild(btnNo);
+            return container;
         }
     },
     // --- 行動選択 ---
     [ModalType.SELECTION]: {
         getOwnerName: (data) => data.ownerName,
         /**
-         * 行動選択ボタンのHTMLを三角レイアウトで生成します。
-         * @param {object} data - モーダルデータ
-         * @returns {string} HTML文字列
+         * 行動選択ボタンのDOMを三角レイアウトで生成します。
+         * @param {ActionPanelSystem} system
+         * @param {object} data
+         * @returns {HTMLElement}
          */
-        getContentHTML: (data) => {
-            const buttons = data.buttons;
-            const headBtn = buttons.find(b => b.partKey === 'head');
-            const rArmBtn = buttons.find(b => b.partKey === 'rightArm');
-            const lArmBtn = buttons.find(b => b.partKey === 'leftArm');
-            const renderButton = (btn) => {
-                if (!btn) return '<div style="width: 100px; height: 35px;"></div>'; // プレースホルダー
-                return `<button id="panelBtn-${btn.partKey}" class="part-action-button" ${btn.isBroken ? 'disabled' : ''}>${btn.text}</button>`;
-            };
-            return `
-                <div class="triangle-layout">
-                    <div class="top-row">${renderButton(headBtn)}</div>
-                    <div class="bottom-row">${renderButton(rArmBtn)}${renderButton(lArmBtn)}</div>
-                </div>`;
-        },
-        /**
-         * 各ボタンにクリックイベントとマウスオーバーイベントを設定します。
-         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
-         * @param {HTMLElement} container - ボタンが配置されているコンテナ
-         * @param {object} data - モーダルデータ
-         */
-        setupEvents: (system, container, data) => {
-            const _updateTargetHighlight = (partKey, show) => {
-                const buttonData = data.buttons.find(b => b.partKey === partKey);
-                // ターゲット情報がボタンデータに含まれているかチェック
-                if (!buttonData || !buttonData.target) return;
+        createContent: (system, data) => {
+            const buttonsData = data.buttons;
+            const headBtnData = buttonsData.find(b => b.partKey === PartInfo.HEAD.key);
+            const rArmBtnData = buttonsData.find(b => b.partKey === PartInfo.RIGHT_ARM.key);
+            const lArmBtnData = buttonsData.find(b => b.partKey === PartInfo.LEFT_ARM.key);
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'triangle-layout';
+
+            const topRow = document.createElement('div');
+            topRow.className = 'top-row';
+            const bottomRow = document.createElement('div');
+            bottomRow.className = 'bottom-row';
+
+            // ヘルパー関数: ターゲットハイライト更新
+            const updateTargetHighlight = (partKey, show) => {
+                const buttonData = buttonsData.find(b => b.partKey === partKey);
+                if (!buttonData || !buttonData.target || buttonData.target.targetId === null) return;
                 
-                const target = buttonData.target;
-                if (target?.targetId !== null) {
-                    const targetDom = system.uiManager.getDOMElements(target.targetId);
-                    if (targetDom?.targetIndicatorElement) {
-                        targetDom.targetIndicatorElement.classList.toggle('active', show);
-                    }
+                const targetDom = system.uiManager.getDOMElements(buttonData.target.targetId);
+                if (targetDom?.targetIndicatorElement) {
+                    targetDom.targetIndicatorElement.classList.toggle('active', show);
                 }
             };
 
-            data.buttons.forEach(btnData => {
-                if (btnData.isBroken) return;
-                const buttonEl = container.querySelector(`#panelBtn-${btnData.partKey}`);
-                if (!buttonEl) return;
-        
-                buttonEl.onclick = () => {
-                    system.world.emit(GameEvents.PART_SELECTED, {
-                        entityId: data.entityId,
-                        partKey: btnData.partKey,
-                        target: btnData.target, // ボタンに紐づくターゲット情報を渡す
-                    });
-                    system.hideActionPanel();
-                };
-        
-                // ターゲットを持つボタンにのみマウスオーバーイベントを設定
-                if (btnData.target) {
-                    buttonEl.onmouseover = () => _updateTargetHighlight(btnData.partKey, true);
-                    buttonEl.onmouseout = () => _updateTargetHighlight(btnData.partKey, false);
+            // ヘルパー関数: ボタン生成
+            const createButton = (btnData) => {
+                if (!btnData) {
+                    const placeholder = document.createElement('div');
+                    placeholder.style.width = '100px';
+                    placeholder.style.height = '35px';
+                    return placeholder;
                 }
-            });
+
+                const button = document.createElement('button');
+                button.id = `panelBtn-${btnData.partKey}`; // フォーカス制御用にIDは残す
+                button.className = 'part-action-button';
+                button.textContent = btnData.text;
+                
+                if (btnData.isBroken) {
+                    button.disabled = true;
+                } else {
+                    button.onclick = () => {
+                        system.world.emit(GameEvents.PART_SELECTED, {
+                            entityId: data.entityId,
+                            partKey: btnData.partKey,
+                            target: btnData.target,
+                        });
+                        system.hideActionPanel();
+                    };
+
+                    if (btnData.target) {
+                        button.onmouseover = () => updateTargetHighlight(btnData.partKey, true);
+                        button.onmouseout = () => updateTargetHighlight(btnData.partKey, false);
+                    }
+                }
+                return button;
+            };
+
+            topRow.appendChild(createButton(headBtnData));
+            bottomRow.appendChild(createButton(rArmBtnData));
+            bottomRow.appendChild(createButton(lArmBtnData));
+
+            wrapper.appendChild(topRow);
+            wrapper.appendChild(bottomRow);
+            return wrapper;
         },
         /**
          * 方向キーによるフォーカス移動を処理します。
@@ -105,14 +132,11 @@ export const createModalHandlers = (systemInstance) => ({
         handleNavigation: (system, key) => {
             const _updateTargetHighlight = (partKey, show) => {
                 const buttonData = system.currentModalData?.buttons.find(b => b.partKey === partKey);
-                if (!buttonData || !buttonData.target) return;
+                if (!buttonData || !buttonData.target || buttonData.target.targetId === null) return;
 
-                const target = buttonData.target;
-                if (target?.targetId !== null) {
-                    const targetDom = system.uiManager.getDOMElements(target.targetId);
-                    if (targetDom?.targetIndicatorElement) {
-                         targetDom.targetIndicatorElement.classList.toggle('active', show);
-                    }
+                const targetDom = system.uiManager.getDOMElements(buttonData.target.targetId);
+                if (targetDom?.targetIndicatorElement) {
+                     targetDom.targetIndicatorElement.classList.toggle('active', show);
                 }
             };
 
@@ -176,8 +200,7 @@ export const createModalHandlers = (systemInstance) => ({
                                     available.find(b => b.partKey === PartInfo.RIGHT_ARM.key)?.partKey ||
                                     available.find(b => b.partKey === PartInfo.LEFT_ARM.key)?.partKey;
             if (initialFocusKey) setTimeout(() => system.currentHandler.handleNavigation(system, initialFocusKey), 0);
-        },
-        // hideActionPanel 時にハイライトを消す処理が必要
+        }
     },
     // --- 攻撃宣言 ---
     [ModalType.ATTACK_DECLARATION]: {
@@ -210,11 +233,9 @@ export const createModalHandlers = (systemInstance) => ({
     },
     // ---汎用メッセージ ---
     [ModalType.MESSAGE]: {
-        // messageSequence形式と従来のdata.message形式の両方に対応
         getActorName: (data) => data?.currentMessage?.text || data?.message || '',
         isClickable: true,
         handleConfirm: (system) => {
-            // messageSequenceに対応
             if (system.currentMessageSequence && system.currentMessageSequence.length > 1) {
                 system.proceedToNextSequence();
             } else {
