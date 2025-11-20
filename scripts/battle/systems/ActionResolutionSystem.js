@@ -3,7 +3,6 @@
  * @description 行動解決フェーズの管理を担当するシステム。
  * CombatResolution, EffectApplicator の責務を統合し、
  * 戦闘結果の判定、効果適用を同期的に実行する。
- * 履歴更新の責務は BattleHistorySystem に移譲された。
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { BattleContext } from '../core/index.js';
@@ -53,19 +52,40 @@ export class ActionResolutionSystem extends BaseSystem {
             this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: attackerId });
             return;
         }
-        const { action, attackerInfo, attackerParts } = components;
-        const attackingPart = attackerParts[action.partKey];
         
-        // フェイルセーフ: ターゲットを必要とするアクションで、かつターゲットが無効になっている場合は、アクションを解決せずに終了する
-        const isTargetRequired = attackingPart.targetScope && (attackingPart.targetScope.endsWith('_SINGLE') || attackingPart.targetScope.endsWith('_TEAM'));
-        // 支援行動（isSupport: true）の場合、ターゲットがいなくてもターゲットロストとして扱わない
-        if (isTargetRequired && !attackingPart.isSupport && !isValidTarget(this.world, action.targetId, action.targetPartKey)) {
-            console.warn(`ActionResolutionSystem: Target for entity ${attackerId} is no longer valid at resolution time. Cancelling action.`);
-            // アクションをキャンセル済みとしてクールダウンへ移行させる
+        // 1. ターゲットとガード情報の決定
+        const targetContext = this._determineFinalTarget(components, attackerId);
+        if (targetContext.shouldCancel) {
             this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: attackerId, reason: ActionCancelReason.TARGET_LOST });
             return;
         }
+
+        // 2. 戦闘結果（命中・防御など）の計算
+        const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
+
+        // 3. 効果の生成
+        const resolvedEffects = this._processEffects(attackerId, components, targetContext, outcome);
         
+        // 4. 効果の適用とイベント通知
+        this._applyEffectsAndNotify(attackerId, components, targetContext, outcome, resolvedEffects);
+    }
+
+    /**
+     * ターゲット、ガード情報を決定する
+     * @param {object} components 
+     * @param {number} attackerId 
+     * @returns {object} { finalTargetId, finalTargetPartKey, targetLegs, guardianInfo, shouldCancel }
+     */
+    _determineFinalTarget(components, attackerId) {
+        const { action, attackingPart } = components;
+        
+        // フェイルセーフ: ターゲットを必要とするアクションで、かつターゲットが無効になっている場合
+        const isTargetRequired = attackingPart.targetScope && (attackingPart.targetScope.endsWith('_SINGLE') || attackingPart.targetScope.endsWith('_TEAM'));
+        if (isTargetRequired && !attackingPart.isSupport && !isValidTarget(this.world, action.targetId, action.targetPartKey)) {
+            console.warn(`ActionResolutionSystem: Target for entity ${attackerId} is no longer valid at resolution time. Cancelling action.`);
+            return { shouldCancel: true };
+        }
+
         let finalTargetId = action.targetId;
         let finalTargetPartKey = action.targetPartKey;
         let targetLegs = this.world.getComponent(finalTargetId, Parts)?.legs;
@@ -80,6 +100,20 @@ export class ActionResolutionSystem extends BaseSystem {
             }
         }
 
+        return { finalTargetId, finalTargetPartKey, targetLegs, guardianInfo, shouldCancel: false };
+    }
+
+    /**
+     * 戦闘結果（命中、クリティカル、防御）を計算する
+     * @param {number} attackerId 
+     * @param {object} components 
+     * @param {object} targetContext 
+     * @returns {object} outcome
+     */
+    _calculateCombatOutcome(attackerId, components, targetContext) {
+        const { attackingPart } = components;
+        const { finalTargetId, finalTargetPartKey, targetLegs } = targetContext;
+
         const outcome = CombatCalculator.resolveHitOutcome({
             world: this.world,
             attackerId,
@@ -88,7 +122,24 @@ export class ActionResolutionSystem extends BaseSystem {
             targetLegs,
             initialTargetPartKey: finalTargetPartKey
         });
-        finalTargetPartKey = outcome.finalTargetPartKey;
+
+        return outcome;
+    }
+
+    /**
+     * 戦闘結果に基づき、効果を生成する
+     * @param {number} attackerId 
+     * @param {object} components 
+     * @param {object} targetContext 
+     * @param {object} outcome 
+     * @returns {Array} resolvedEffects
+     */
+    _processEffects(attackerId, components, targetContext, outcome) {
+        const { action, attackingPart, attackerInfo, attackerParts } = components;
+        const { finalTargetId } = targetContext;
+        
+        // Outcomeにより防御パーツに変化している可能性がある
+        const effectiveTargetPartKey = outcome.finalTargetPartKey;
 
         const resolvedEffects = [];
         if (outcome.isHit || !finalTargetId) {
@@ -103,7 +154,7 @@ export class ActionResolutionSystem extends BaseSystem {
                         part: attackingPart,
                         partKey: action.partKey,
                         partOwner: { info: attackerInfo, parts: attackerParts },
-                        outcome: { ...outcome, finalTargetPartKey },
+                        outcome: { ...outcome, finalTargetPartKey: effectiveTargetPartKey },
                     });
                     if (result) {
                         result.penetrates = attackingPart.penetrates || false;
@@ -112,11 +163,22 @@ export class ActionResolutionSystem extends BaseSystem {
                 }
             }
         }
-        
+        return resolvedEffects;
+    }
+
+    /**
+     * 効果を適用し、イベントを発行する
+     * @param {number} attackerId 
+     * @param {object} components 
+     * @param {object} targetContext 
+     * @param {object} outcome 
+     * @param {Array} resolvedEffects 
+     */
+    _applyEffectsAndNotify(attackerId, components, targetContext, outcome, resolvedEffects) {
+        const { attackingPart } = components;
+        const { finalTargetId, guardianInfo } = targetContext;
+
         const appliedEffects = this.applyAllEffects({ attackerId, resolvedEffects, guardianInfo });
-        
-        // 履歴更新ロジックは BattleHistorySystem に移譲されたため、ここでは呼び出さない
-        // this.updateHistory({ attackerId, appliedEffects, attackingPart });
         
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, {
             attackerId,
@@ -181,6 +243,7 @@ export class ActionResolutionSystem extends BaseSystem {
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         const attackerParts = this.world.getComponent(attackerId, Parts);
         if (!action || !attackerInfo || !attackerParts || !action.partKey) return null;
-        return { action, attackerInfo, attackerParts };
+        const attackingPart = attackerParts[action.partKey];
+        return { action, attackerInfo, attackerParts, attackingPart };
     }
 }

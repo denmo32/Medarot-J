@@ -13,6 +13,7 @@ export class ViewSystem extends BaseSystem {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
+        // スタイル注入ロジックを削除（style.cssに一元化）
         this.animationStyleElement = null;
 
         this.dom = {
@@ -23,12 +24,14 @@ export class ViewSystem extends BaseSystem {
 
         this.bindWorldEvents();
         this.bindDOMEvents();
-        this.injectAnimationStyles();
     }
 
     destroy() {
         if (this.animationStyleElement) {
-            document.head.removeChild(this.animationStyleElement);
+            // 念のため残すが、基本的にはnullのまま
+            if (this.animationStyleElement.parentNode) {
+                this.animationStyleElement.parentNode.removeChild(this.animationStyleElement);
+            }
             this.animationStyleElement = null;
         }
     }
@@ -98,6 +101,7 @@ export class ViewSystem extends BaseSystem {
         this.world.emit(GameEvents.GAME_PAUSED);
         
         const indicator = document.createElement('div');
+        // style.cssで定義されたクラスを使用
         indicator.className = 'target-indicator';
         for (let i = 0; i < 4; i++) {
             const corner = document.createElement('div');
@@ -226,51 +230,5 @@ export class ViewSystem extends BaseSystem {
                 });
             });
         });
-    }
-
-    injectAnimationStyles() {
-        const styleId = 'gemini-animation-styles';
-        if (document.getElementById(styleId)) return;
-        const style = document.createElement('style');
-        style.id = styleId;
-        style.textContent = `
-            .target-indicator {
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                width: 70px;
-                height: 70px;
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 0;
-                pointer-events: none;
-                transition: opacity 0.2s ease-in-out;
-            }
-            .target-indicator.active {
-                opacity: 1;
-            }
-            .corner {
-                position: absolute;
-                width: 15px;
-                height: 15px;
-                border-color: cyan;
-                border-style: solid;
-            }
-            .corner-1 { top: 0; left: 0; border-width: 4px 0 0 4px; }
-            .corner-2 { top: 0; right: 0; border-width: 4px 4px 0 0; }
-            .corner-3 { bottom: 0; left: 0; border-width: 0 0 4px 4px; }
-            .corner-4 { bottom: 0; right: 0; border-width: 0 4px 4px 0; }
-            @keyframes radar-zoom-in {
-                0% {
-                    transform: translate(-50%, -50%) scale(1);
-                    opacity: 1;
-                }
-                80%, 100% {
-                    transform: translate(-50%, -50%) scale(0.6);
-                    opacity: 0;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-        this.animationStyleElement = style;
     }
 }
