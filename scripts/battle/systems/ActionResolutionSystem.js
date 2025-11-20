@@ -15,30 +15,15 @@ import { effectStrategies } from '../effects/effectStrategies.js';
 import { effectApplicators } from '../effects/applicators/applicatorIndex.js';
 
 export class ActionResolutionSystem extends BaseSystem {
-    /**
-     * @param {World} world 
-     */
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
-        
-        // 効果適用ロジックのマップを外部からインポート
         this.effectApplicators = effectApplicators;
-
         this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
     }
 
-    /**
-     * このシステムはイベント駆動に変更されたため、updateループは不要
-     * @param {number} deltaTime 
-     */
-    update(deltaTime) {
-    }
+    update(deltaTime) {}
     
-    /**
-     * アニメーション完了をトリガーに、アクション解決処理を開始する
-     * @param {object} detail 
-     */
     onExecutionAnimationCompleted(detail) {
         if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
             return;
@@ -70,19 +55,13 @@ export class ActionResolutionSystem extends BaseSystem {
         this._applyEffectsAndNotify(attackerId, components, targetContext, outcome, resolvedEffects);
     }
 
-    /**
-     * ターゲット、ガード情報を決定する
-     * @param {object} components 
-     * @param {number} attackerId 
-     * @returns {object} { finalTargetId, finalTargetPartKey, targetLegs, guardianInfo, shouldCancel }
-     */
     _determineFinalTarget(components, attackerId) {
         const { action, attackingPart } = components;
         
-        // フェイルセーフ: ターゲットを必要とするアクションで、かつターゲットが無効になっている場合
+        // ターゲット必須アクションの検証
         const isTargetRequired = attackingPart.targetScope && (attackingPart.targetScope.endsWith('_SINGLE') || attackingPart.targetScope.endsWith('_TEAM'));
         if (isTargetRequired && !attackingPart.isSupport && !isValidTarget(this.world, action.targetId, action.targetPartKey)) {
-            console.warn(`ActionResolutionSystem: Target for entity ${attackerId} is no longer valid at resolution time. Cancelling action.`);
+            console.warn(`ActionResolutionSystem: Target for entity ${attackerId} is no longer valid. Cancelling.`);
             return { shouldCancel: true };
         }
 
@@ -90,6 +69,7 @@ export class ActionResolutionSystem extends BaseSystem {
         let finalTargetPartKey = action.targetPartKey;
         let targetLegs = this.world.getComponent(finalTargetId, Parts)?.legs;
         
+        // ガード判定
         let guardianInfo = null;
         if (!attackingPart.isSupport && finalTargetId !== null) {
             guardianInfo = findGuardian(this.world, finalTargetId);
@@ -103,18 +83,11 @@ export class ActionResolutionSystem extends BaseSystem {
         return { finalTargetId, finalTargetPartKey, targetLegs, guardianInfo, shouldCancel: false };
     }
 
-    /**
-     * 戦闘結果（命中、クリティカル、防御）を計算する
-     * @param {number} attackerId 
-     * @param {object} components 
-     * @param {object} targetContext 
-     * @returns {object} outcome
-     */
     _calculateCombatOutcome(attackerId, components, targetContext) {
         const { attackingPart } = components;
         const { finalTargetId, finalTargetPartKey, targetLegs } = targetContext;
 
-        const outcome = CombatCalculator.resolveHitOutcome({
+        return CombatCalculator.resolveHitOutcome({
             world: this.world,
             attackerId,
             targetId: finalTargetId,
@@ -122,26 +95,16 @@ export class ActionResolutionSystem extends BaseSystem {
             targetLegs,
             initialTargetPartKey: finalTargetPartKey
         });
-
-        return outcome;
     }
 
-    /**
-     * 戦闘結果に基づき、効果を生成する
-     * @param {number} attackerId 
-     * @param {object} components 
-     * @param {object} targetContext 
-     * @param {object} outcome 
-     * @returns {Array} resolvedEffects
-     */
     _processEffects(attackerId, components, targetContext, outcome) {
         const { action, attackingPart, attackerInfo, attackerParts } = components;
         const { finalTargetId } = targetContext;
         
-        // Outcomeにより防御パーツに変化している可能性がある
         const effectiveTargetPartKey = outcome.finalTargetPartKey;
-
         const resolvedEffects = [];
+
+        // 命中した場合、またはターゲットが不要な場合（全体効果など）
         if (outcome.isHit || !finalTargetId) {
             for (const effectDef of attackingPart.effects || []) {
                 const strategy = effectStrategies[effectDef.type];
@@ -166,19 +129,11 @@ export class ActionResolutionSystem extends BaseSystem {
         return resolvedEffects;
     }
 
-    /**
-     * 効果を適用し、イベントを発行する
-     * @param {number} attackerId 
-     * @param {object} components 
-     * @param {object} targetContext 
-     * @param {object} outcome 
-     * @param {Array} resolvedEffects 
-     */
     _applyEffectsAndNotify(attackerId, components, targetContext, outcome, resolvedEffects) {
         const { attackingPart } = components;
         const { finalTargetId, guardianInfo } = targetContext;
 
-        const appliedEffects = this.applyAllEffects({ attackerId, resolvedEffects, guardianInfo });
+        const appliedEffects = this._applyAllEffects({ attackerId, resolvedEffects, guardianInfo });
         
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, {
             attackerId,
@@ -192,52 +147,46 @@ export class ActionResolutionSystem extends BaseSystem {
     }
 
     /**
-     * 全ての効果を適用するプロセス。ロジックを外部のApplicatorに移譲し、自身はフロー制御に専念する。
-     * @param {object} context - { attackerId, resolvedEffects, guardianInfo }
-     * @returns {Array<object>} 実際に適用された効果の結果リスト
+     * 全ての効果を適用するプロセス。
      */
-    applyAllEffects({ attackerId, resolvedEffects, guardianInfo }) {
+    _applyAllEffects({ attackerId, resolvedEffects, guardianInfo }) {
         const appliedEffects = [];
         const effectQueue = [...resolvedEffects];
 
-        // ガードが発動した場合、ガード回数を消費させる
+        // ガードが発動した場合の消費処理
         if (guardianInfo) {
-            const guardEffectComp = this.world.getComponent(guardianInfo.id, ActiveEffects);
-            const guardEffect = guardEffectComp?.effects.find(e => e.type === EffectType.APPLY_GUARD);
-            if (guardEffect) {
-                guardEffect.count--;
-                if (guardEffect.count <= 0) {
-                    this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId: guardianInfo.id, effect: guardEffect });
-                }
-            }
+            this._consumeGuardCount(guardianInfo.id);
         }
 
         while (effectQueue.length > 0) {
             const effect = effectQueue.shift();
-            // Applicatorマップから対応する適用関数を取得
             const applicator = this.effectApplicators[effect.type];
-            let result = null;
-
-            if (applicator) {
-                // Applicatorに関数を委譲
-                result = applicator({ world: this.world, effect });
-            } else {
-                // Applicatorが定義されていない場合の警告
-                console.warn(`ActionResolutionSystem: No applicator found for effect type "${effect.type}". The effect will not modify game state.`);
-                // Applicatorが定義されていない効果は、そのまま結果として扱う
-                result = effect;
-            }
+            
+            // Applicatorがあれば適用、なければそのまま結果として扱う
+            let result = applicator ? applicator({ world: this.world, effect }) : effect;
 
             if (result) {
                 appliedEffects.push(result);
-                // 貫通ダメージの処理を、Applicatorから返された nextEffect に基づく汎用的なロジックに変更
+                // 貫通などの連鎖効果があればキューに追加
                 if (result.nextEffect) {
-                    // 次の効果をキューの先頭に追加して連鎖させる
                     effectQueue.unshift(result.nextEffect);
                 }
+            } else if (!applicator) {
+                console.warn(`ActionResolutionSystem: No applicator for "${effect.type}".`);
             }
         }
         return appliedEffects;
+    }
+
+    _consumeGuardCount(guardianId) {
+        const activeEffects = this.world.getComponent(guardianId, ActiveEffects);
+        const guardEffect = activeEffects?.effects.find(e => e.type === EffectType.APPLY_GUARD);
+        if (guardEffect) {
+            guardEffect.count--;
+            if (guardEffect.count <= 0) {
+                this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId: guardianId, effect: guardEffect });
+            }
+        }
     }
     
     _getCombatComponents(attackerId) {

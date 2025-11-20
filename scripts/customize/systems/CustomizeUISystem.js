@@ -2,31 +2,19 @@
  * @file カスタマイズ画面：UIシステム
  * UIの状態管理、DOMの描画、フォーカス制御を担当します。
  * InputSystemからのUIイベントを購読してUIの状態を更新し、画面を再描画します。
- * また、ロジックを実行する必要がある場合は、LogicSystemにイベントを発行します。
+ * HTML文字列連結を廃止し、domUtilsのel関数を使用したセキュアなDOM構築に移行しました。
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameDataManager } from '../../core/GameDataManager.js';
-import { PartInfo, PartKeyToInfoMap, EquipSlotType } from '../../battle/common/constants.js';
+import { PartKeyToInfoMap, EquipSlotType } from '../../battle/common/constants.js';
 import { CustomizeState } from '../components/CustomizeState.js';
 import { GameEvents } from '../../battle/common/events.js';
+import { el } from '../../core/utils/domUtils.js';
 
-/**
- * UIのフォーカス状態遷移を宣言的に管理するマップ。
- * これにより、confirm/cancel時のロジックが簡潔になり、状態遷移の全体像を把握しやすくなります。
- */
 const focusTransitionMap = {
-    MEDAROT_SELECT: {
-        confirm: 'EQUIP_PANEL',
-        cancel: 'EXIT', // シーン終了を示す特別な状態
-    },
-    EQUIP_PANEL: {
-        confirm: 'ITEM_LIST',
-        cancel: 'MEDAROT_SELECT',
-    },
-    ITEM_LIST: {
-        // confirmはアイテム装備アクションを実行するため、状態遷移はなし
-        cancel: 'EQUIP_PANEL',
-    },
+    MEDAROT_SELECT: { confirm: 'EQUIP_PANEL', cancel: 'EXIT' },
+    EQUIP_PANEL: { confirm: 'ITEM_LIST', cancel: 'MEDAROT_SELECT' },
+    ITEM_LIST: { cancel: 'EQUIP_PANEL' },
 };
 
 export class CustomizeUISystem extends BaseSystem {
@@ -36,11 +24,9 @@ export class CustomizeUISystem extends BaseSystem {
         this.uiState = this.world.getSingletonComponent(CustomizeState);
 
         this.dom = {};
-        this.templates = {};
+        this.templates = {}; // [リファクタリング] テンプレートの参照は残すが、動的生成部分はelに移行
 
-        // マジックストリングを排除し、定数を使用して装備スロットを定義
         this.partSlots = [EquipSlotType.HEAD, EquipSlotType.RIGHT_ARM, EquipSlotType.LEFT_ARM, EquipSlotType.LEGS];
-        // 装備スロットの順序をメダルが先頭になるように変更
         this.equipSlots = [EquipSlotType.MEDAL, ...this.partSlots];
         
         this.currentPartListData = [];
@@ -51,9 +37,6 @@ export class CustomizeUISystem extends BaseSystem {
         this.renderAll();
     }
 
-    /**
-     * DOM要素の参照とテンプレートをキャッシュする
-     */
     initDOM() {
         this.dom.container = document.getElementById('customize-container');
         this.dom.medarotList = document.getElementById('medarot-select-list');
@@ -63,15 +46,8 @@ export class CustomizeUISystem extends BaseSystem {
         this.dom.partsListTitle = document.getElementById('parts-list-title');
         this.dom.partsList = document.getElementById('parts-list');
         this.dom.partDetailsContent = document.getElementById('part-details-content');
-        this.templates.medarotItem = document.getElementById('medarot-list-item-template');
-        this.templates.equippedPartItem = document.getElementById('equipped-part-item-template');
-        this.templates.equippedMedalItem = document.getElementById('equipped-medal-item-template');
-        this.templates.partListItem = document.getElementById('part-list-item-template');
     }
 
-    /**
-     * システムが購読するイベントを登録する
-     */
     bindWorldEvents() {
         this.world.on(GameEvents.CUST_NAVIGATE_INPUT, this.handleNavigation.bind(this));
         this.world.on(GameEvents.CUST_CONFIRM_INPUT, this.handleConfirm.bind(this));
@@ -80,12 +56,6 @@ export class CustomizeUISystem extends BaseSystem {
         this.world.on(GameEvents.MEDAL_EQUIPPED, this.onMedalEquipped.bind(this));
     }
 
-    // --- イベントハンドラ ---
-    
-    /**
-     * ナビゲーションロジックを改修。
-     * 上下キーでフォーカス移動、左右キーは装備中のアイテムを直接切り替えるショートカットに。
-     */
     handleNavigation(detail) {
         const { direction } = detail;
         let stateChanged = false;
@@ -93,45 +63,40 @@ export class CustomizeUISystem extends BaseSystem {
         switch (this.uiState.focus) {
             case 'MEDAROT_SELECT': {
                 const verticalMove = direction === 'down' ? 1 : direction === 'up' ? -1 : 0;
-                if (verticalMove === 0) break; // 水平移動は無視
-
-                const medarotCount = this.dataManager.gameData.playerMedarots.length;
-                this.uiState.selectedMedarotIndex = (this.uiState.selectedMedarotIndex + verticalMove + medarotCount) % medarotCount;
-                this.uiState.selectedEquipIndex = 0; // 機体を変えたら装備選択はリセット
-                stateChanged = true;
+                if (verticalMove !== 0) {
+                    const medarotCount = this.dataManager.gameData.playerMedarots.length;
+                    this.uiState.selectedMedarotIndex = (this.uiState.selectedMedarotIndex + verticalMove + medarotCount) % medarotCount;
+                    this.uiState.selectedEquipIndex = 0;
+                    stateChanged = true;
+                }
                 break;
             }
             case 'EQUIP_PANEL': {
                 if (direction === 'up' || direction === 'down') {
-                    // 上下キーで装備スロットを移動
                     const move = direction === 'down' ? 1 : -1;
                     const slotCount = this.equipSlots.length;
                     this.uiState.selectedEquipIndex = (this.uiState.selectedEquipIndex + move + slotCount) % slotCount;
                     stateChanged = true;
                 } else if (direction === 'left' || direction === 'right') {
-                    // 左右キーで装備中のアイテムを直接変更（ショートカット）
                     this.changeEquippedItem(direction);
-                    // changeEquippedItemがイベントを発行し、on...Equippedが再描画するのでここでは stateChanged にしない
                 }
                 break;
             }
             case 'ITEM_LIST': {
                 const verticalMove = direction === 'down' ? 1 : direction === 'up' ? -1 : 0;
-                if (verticalMove === 0) break; // 水平移動は無視
-                
-                const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
-                const isMedalList = selectedSlotType === EquipSlotType.MEDAL;
-
-                if (isMedalList) {
-                    if (this.currentMedalListData.length > 0) {
-                        this.uiState.selectedMedalListIndex = (this.uiState.selectedMedalListIndex + verticalMove + this.currentMedalListData.length) % this.currentMedalListData.length;
+                if (verticalMove !== 0) {
+                    const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
+                    if (selectedSlotType === EquipSlotType.MEDAL) {
+                        if (this.currentMedalListData.length > 0) {
+                            this.uiState.selectedMedalListIndex = (this.uiState.selectedMedalListIndex + verticalMove + this.currentMedalListData.length) % this.currentMedalListData.length;
+                        }
+                    } else {
+                        if (this.currentPartListData.length > 0) {
+                            this.uiState.selectedPartListIndex = (this.uiState.selectedPartListIndex + verticalMove + this.currentPartListData.length) % this.currentPartListData.length;
+                        }
                     }
-                } else {
-                    if (this.currentPartListData.length > 0) {
-                        this.uiState.selectedPartListIndex = (this.uiState.selectedPartListIndex + verticalMove + this.currentPartListData.length) % this.currentPartListData.length;
-                    }
+                    stateChanged = true;
                 }
-                stateChanged = true;
                 break;
             }
         }
@@ -141,49 +106,34 @@ export class CustomizeUISystem extends BaseSystem {
         }
     }
 
-    /**
-     * 決定ボタンの処理を状態遷移マップに基づいてリファクタリング
-     */
     handleConfirm() {
         const currentFocus = this.uiState.focus;
         const nextFocus = focusTransitionMap[currentFocus]?.confirm;
 
         if (nextFocus) {
-            // 次のフォーカス状態が定義されていれば遷移
             this.uiState.focus = nextFocus;
             if (nextFocus === 'ITEM_LIST') {
-                // アイテムリストに遷移する際はインデックスをリセット
                 this.uiState.selectedPartListIndex = 0;
                 this.uiState.selectedMedalListIndex = 0;
             }
             this.renderAll();
         } else if (currentFocus === 'ITEM_LIST') {
-            // ITEM_LISTで決定が押された場合は、装備アクションを実行
             this.triggerEquipAction();
         }
     }
     
-    /**
-     * キャンセルボタンの処理を状態遷移マップに基づいてリファクタリング
-     */
     handleCancel() {
         const currentFocus = this.uiState.focus;
         const nextFocus = focusTransitionMap[currentFocus]?.cancel;
 
         if (nextFocus === 'EXIT') {
-            // マップシーンへ戻る
             this.world.emit(GameEvents.CUSTOMIZE_EXIT_REQUESTED);
         } else if (nextFocus) {
-            // 前のフォーカス状態へ遷移
             this.uiState.focus = nextFocus;
             this.renderAll();
         }
     }
     
-    /**
-     * 装備アクションを発行するロジックを分離
-     * @private
-     */
     triggerEquipAction() {
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
         const isMedalList = selectedSlotType === EquipSlotType.MEDAL;
@@ -205,8 +155,6 @@ export class CustomizeUISystem extends BaseSystem {
     }
 
     onPartEquipped() {
-        // アイテムリストから装備した場合はフォーカスを EQUIP_PANEL に戻す
-        // ショートカットの場合はフォーカスは EQUIP_PANEL のまま
         if (this.uiState.focus !== 'EQUIP_PANEL') {
             this.uiState.focus = 'EQUIP_PANEL';
         }
@@ -220,11 +168,6 @@ export class CustomizeUISystem extends BaseSystem {
         this.renderAll();
     }
     
-    /**
-     * 装備パネルフォーカス時に左右キーでアイテムを切り替えるショートカット機能。
-     * @param {'left' | 'right'} direction - 入力方向
-     * @private
-     */
     changeEquippedItem(direction) {
         const medarotIndex = this.uiState.selectedMedarotIndex;
         const slotIndex = this.uiState.selectedEquipIndex;
@@ -236,12 +179,11 @@ export class CustomizeUISystem extends BaseSystem {
 
         if (slotKey === EquipSlotType.MEDAL) {
             const availableItems = this.dataManager.getAvailableMedals();
-            if (availableItems.length <= 1) return; // 変更先がなければ何もしない
+            if (availableItems.length <= 1) return;
 
             const currentId = medarot.medal?.id;
             const currentIndex = currentId ? availableItems.findIndex(item => item.id === currentId) : -1;
             
-            // 現在装備中のアイテムが見つからない場合、リストの先頭/末尾から始める
             const nextIndex = (currentIndex === -1) 
                 ? (move > 0 ? 0 : availableItems.length - 1)
                 : (currentIndex + move + availableItems.length) % availableItems.length;
@@ -250,8 +192,7 @@ export class CustomizeUISystem extends BaseSystem {
             if (newItem) {
                 this.world.emit(GameEvents.EQUIP_MEDAL_REQUESTED, { medarotIndex, newMedalId: newItem.id });
             }
-
-        } else { // Parts
+        } else {
             const availableItems = this.dataManager.getAvailableParts(slotKey);
             if (availableItems.length <= 1) return;
 
@@ -282,12 +223,16 @@ export class CustomizeUISystem extends BaseSystem {
     renderMedarotList() {
         this.dom.medarotList.innerHTML = '';
         const medarots = this.dataManager.gameData.playerMedarots;
+        
         medarots.forEach((medarot, index) => {
-            const clone = this.templates.medarotItem.content.cloneNode(true);
-            const item = clone.querySelector('li');
-            item.dataset.index = index;
-            item.querySelector('.medarot-name').textContent = medarot.name;
-            this.dom.medarotList.appendChild(clone);
+            // elを使用してDOM生成
+            const li = el('li', { 
+                className: 'medarot-list-item',
+                dataset: { index: index }
+            }, [
+                el('span', { className: 'medarot-name' }, medarot.name)
+            ]);
+            this.dom.medarotList.appendChild(li);
         });
     }
 
@@ -299,65 +244,67 @@ export class CustomizeUISystem extends BaseSystem {
 
         this.dom.equippedMedarotName.textContent = medarot.name;
 
-        // 新しい equipSlots の順序に基づいて描画
         this.equipSlots.forEach((slotKey, index) => {
             if (slotKey === EquipSlotType.MEDAL) {
-                // メダルを描画
                 const medal = medarot.medal;
-                const clone = this.templates.equippedMedalItem.content.cloneNode(true);
-                const item = clone.querySelector('li');
-                item.dataset.index = index;
-                item.dataset.slot = slotKey;
-                item.querySelector('.part-name').textContent = medal.data ? medal.data.name : 'なし';
-                this.dom.equippedMedalList.appendChild(clone);
+                const li = el('li', {
+                    className: 'equipped-part-item',
+                    dataset: { index: index, slot: slotKey }
+                }, [
+                    el('span', { className: 'part-slot-name' }, 'メダル'),
+                    el('span', { className: 'part-name' }, medal.data ? medal.data.name : 'なし')
+                ]);
+                this.dom.equippedMedalList.appendChild(li);
             } else {
-                // パーツを描画
                 const part = medarot.parts[slotKey];
-                const clone = this.templates.equippedPartItem.content.cloneNode(true);
-                const item = clone.querySelector('li');
-                item.dataset.index = index;
-                item.dataset.slot = slotKey;
-
                 const slotInfo = PartKeyToInfoMap[slotKey];
-                item.querySelector('.part-slot-name').textContent = slotInfo ? slotInfo.name : '不明';
-                item.querySelector('.part-name').textContent = part.data ? part.data.name : 'なし';
-                this.dom.equippedPartsList.appendChild(clone);
+                const li = el('li', {
+                    className: 'equipped-part-item',
+                    dataset: { index: index, slot: slotKey }
+                }, [
+                    el('span', { className: 'part-slot-name' }, slotInfo ? slotInfo.name : '不明'),
+                    el('span', { className: 'part-name' }, part.data ? part.data.name : 'なし')
+                ]);
+                this.dom.equippedPartsList.appendChild(li);
             }
         });
     }
-
 
     renderSelectionList() {
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
         const isMedalSelected = selectedSlotType === EquipSlotType.MEDAL;
         
+        this.dom.partsList.innerHTML = '';
+
         if (isMedalSelected) {
             this.dom.partsListTitle.textContent = `メダル一覧`;
             this.currentMedalListData = this.dataManager.getAvailableMedals();
-            this.dom.partsList.innerHTML = '';
             this.currentMedalListData.forEach((medal, index) => {
-                const clone = this.templates.partListItem.content.cloneNode(true);
-                const item = clone.querySelector('li');
-                item.dataset.index = index;
-                item.querySelector('.part-name').textContent = medal.name;
-                this.dom.partsList.appendChild(clone);
+                const li = el('li', {
+                    className: 'part-list-item',
+                    dataset: { index: index }
+                }, [
+                    el('span', { className: 'part-name' }, medal.name)
+                ]);
+                this.dom.partsList.appendChild(li);
             });
         } else {
             this.dom.partsListTitle.textContent = `${PartKeyToInfoMap[selectedSlotType]?.name}一覧`;
             this.currentPartListData = this.dataManager.getAvailableParts(selectedSlotType);
-            this.dom.partsList.innerHTML = '';
             this.currentPartListData.forEach((part, index) => {
-                const clone = this.templates.partListItem.content.cloneNode(true);
-                const item = clone.querySelector('li');
-                item.dataset.index = index;
-                item.querySelector('.part-name').textContent = part.name;
-                this.dom.partsList.appendChild(clone);
+                const li = el('li', {
+                    className: 'part-list-item',
+                    dataset: { index: index }
+                }, [
+                    el('span', { className: 'part-name' }, part.name)
+                ]);
+                this.dom.partsList.appendChild(li);
             });
         }
     }
 
     renderDetails() {
-        this.dom.partDetailsContent.innerHTML = '項目を選択してください';
+        this.dom.partDetailsContent.innerHTML = ''; // 初期化
         let itemToShow = null;
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
         const isMedalListFocused = this.uiState.focus === 'ITEM_LIST' && selectedSlotType === EquipSlotType.MEDAL;
@@ -378,36 +325,55 @@ export class CustomizeUISystem extends BaseSystem {
         }
 
         if (itemToShow) {
-            this.dom.partDetailsContent.innerHTML = this.createDetailHTML(itemToShow);
+            this.dom.partDetailsContent.appendChild(this.createDetailContent(itemToShow));
+        } else {
+            this.dom.partDetailsContent.textContent = '項目を選択してください';
         }
     }
 
-    createDetailHTML(item) {
-        let html = `<div class="detail-item"><span class="label">名前</span><span class="value">${item.name}</span></div>`;
-        if (item.personality) html += `<div class="detail-item"><span class="label">性格</span><span class="value">${item.personality}</span></div>`;
-        if (item.action) html += `<div class="detail-item"><span class="label">アクション</span><span class="value">${item.action}</span></div>`;
-        if (item.type) html += `<div class="detail-item"><span class="label">タイプ</span><span class="value">${item.type}</span></div>`;
-        if (item.trait) html += `<div class="detail-item"><span class="label">特性</span><span class="value">${item.trait}</span></div>`;
-        if (item.might) html += `<div class="detail-item"><span class="label">威力</span><span class="value">${item.might}</span></div>`;
-        if (item.success) html += `<div class="detail-item"><span class="label">成功</span><span class="value">${item.success}</span></div>`;
-        if (item.maxHp) html += `<div class="detail-item"><span class="label">装甲</span><span class="value">${item.maxHp}</span></div>`;
-        if (item.propulsion) html += `<div class="detail-item"><span class="label">推進</span><span class="value">${item.propulsion}</span></div>`;
-        if (item.mobility) html += `<div class="detail-item"><span class="label">機動</span><span class="value">${item.mobility}</span></div>`;
-        if (item.armor) html += `<div class="detail-item"><span class="label">防御</span><span class="value">${item.armor}</span></div>`;
-        if (item.stability) html += `<div class="detail-item"><span class="label">安定</span><span class="value">${item.stability}</span></div>`;
-        return html;
+    /**
+     * 詳細表示用のDOM要素を作成します (innerHTML廃止)
+     * @param {object} item - 表示するアイテムデータ
+     * @returns {HTMLElement} DOM要素
+     */
+    createDetailContent(item) {
+        const container = el('div');
+        
+        const createItem = (label, value) => {
+            return el('div', { className: 'detail-item' }, [
+                el('span', { className: 'label' }, label),
+                el('span', { className: 'value' }, String(value))
+            ]);
+        };
+
+        // 共通項目
+        container.appendChild(createItem('名前', item.name));
+        if (item.personality) container.appendChild(createItem('性格', item.personality));
+
+        // パーツ固有項目
+        if (item.action) container.appendChild(createItem('アクション', item.action));
+        if (item.type) container.appendChild(createItem('タイプ', item.type));
+        if (item.trait) container.appendChild(createItem('特性', item.trait));
+        if (item.might !== undefined) container.appendChild(createItem('威力', item.might));
+        if (item.success !== undefined) container.appendChild(createItem('成功', item.success));
+        if (item.maxHp !== undefined) container.appendChild(createItem('装甲', item.maxHp));
+        if (item.propulsion !== undefined) container.appendChild(createItem('推進', item.propulsion));
+        if (item.mobility !== undefined) container.appendChild(createItem('機動', item.mobility));
+        if (item.armor !== undefined) container.appendChild(createItem('防御', item.armor));
+        if (item.stability !== undefined) container.appendChild(createItem('安定', item.stability));
+
+        return container;
     }
 
     updateAllFocus() {
-        // 機体選択リストのフォーカス
+        // 機体選択リスト
         this.dom.medarotList.querySelectorAll('li').forEach(li => {
             const isFocused = this.uiState.focus === 'MEDAROT_SELECT' && parseInt(li.dataset.index) === this.uiState.selectedMedarotIndex;
             li.classList.toggle('focused', isFocused);
             if (isFocused) li.scrollIntoView({ block: 'nearest' });
         });
 
-        // 装備パネルのフォーカス
-        // DOMの構造変更に合わせて取得順序を変更
+        // 装備パネル
         const allEquipItems = [
             ...this.dom.equippedMedalList.querySelectorAll('li'),
             ...this.dom.equippedPartsList.querySelectorAll('li')
@@ -418,7 +384,7 @@ export class CustomizeUISystem extends BaseSystem {
             if (isFocused) li.scrollIntoView({ block: 'nearest' });
         });
         
-        // アイテムリストのフォーカス
+        // アイテムリスト
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
         const isMedalList = this.uiState.focus === 'ITEM_LIST' && selectedSlotType === EquipSlotType.MEDAL;
         this.dom.partsList.querySelectorAll('li').forEach(li => {
@@ -435,9 +401,7 @@ export class CustomizeUISystem extends BaseSystem {
         });
     }
 
-    update(deltaTime) {
-        // UIシステムはイベント駆動のため、update処理は不要
-    }
+    update(deltaTime) {}
 
     destroy() {
         this.dom.container.classList.add('hidden');
