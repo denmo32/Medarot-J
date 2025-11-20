@@ -1,15 +1,12 @@
 /**
  * @file アクションパネルのモーダルハンドラ定義
  * ActionPanelSystemが使用する、各モーダルタイプの具体的な振る舞いを定義します。
- * これにより、ActionPanelSystemの責務を「管理」に集中させ、
- * 各モーダルの「内容」をこのファイルで一元管理します。
- * 
- * リファクタリング: HTML文字列ではなくDOM APIを使用して要素を生成するように変更しました。
+ * DOM構築ユーティリティ 'el' を使用して、UI生成コードを簡潔に保ちます。
  */
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
-import * as Components from '../core/components/index.js';
-import { ModalType, PartInfo, PartKeyToInfoMap, EffectScope } from '../common/constants.js';
+import { ModalType, PartInfo } from '../common/constants.js';
+import { el } from '../../core/utils/domUtils.js';
 
 /**
  * ActionPanelSystemのインスタンスをコンテキストとして受け取り、
@@ -27,25 +24,21 @@ export const createModalHandlers = (systemInstance) => ({
          * @returns {HTMLElement}
          */
         createContent: (system) => {
-            const container = document.createElement('div');
-            container.className = 'buttons-center';
-
-            const btnYes = document.createElement('button');
-            btnYes.textContent = 'OK';
-            btnYes.className = 'action-panel-button';
-            btnYes.onclick = () => {
-                system.world.emit(GameEvents.GAME_START_CONFIRMED);
-                system.hideActionPanel();
-            };
-
-            const btnNo = document.createElement('button');
-            btnNo.textContent = 'キャンセル';
-            btnNo.className = 'action-panel-button bg-red-500 hover:bg-red-600';
-            btnNo.onclick = () => system.hideActionPanel();
-
-            container.appendChild(btnYes);
-            container.appendChild(btnNo);
-            return container;
+            return el('div', { className: 'buttons-center' }, [
+                el('button', {
+                    textContent: 'OK',
+                    className: 'action-panel-button',
+                    onclick: () => {
+                        system.world.emit(GameEvents.GAME_START_CONFIRMED);
+                        system.hideActionPanel();
+                    }
+                }),
+                el('button', {
+                    textContent: 'キャンセル',
+                    className: 'action-panel-button bg-red-500 hover:bg-red-600',
+                    onclick: () => system.hideActionPanel()
+                })
+            ]);
         }
     },
     // --- 行動選択 ---
@@ -63,14 +56,6 @@ export const createModalHandlers = (systemInstance) => ({
             const rArmBtnData = buttonsData.find(b => b.partKey === PartInfo.RIGHT_ARM.key);
             const lArmBtnData = buttonsData.find(b => b.partKey === PartInfo.LEFT_ARM.key);
 
-            const wrapper = document.createElement('div');
-            wrapper.className = 'triangle-layout';
-
-            const topRow = document.createElement('div');
-            topRow.className = 'top-row';
-            const bottomRow = document.createElement('div');
-            bottomRow.className = 'bottom-row';
-
             // ヘルパー関数: ターゲットハイライト更新
             const updateTargetHighlight = (partKey, show) => {
                 const buttonData = buttonsData.find(b => b.partKey === partKey);
@@ -85,21 +70,19 @@ export const createModalHandlers = (systemInstance) => ({
             // ヘルパー関数: ボタン生成
             const createButton = (btnData) => {
                 if (!btnData) {
-                    const placeholder = document.createElement('div');
-                    placeholder.style.width = '100px';
-                    placeholder.style.height = '35px';
-                    return placeholder;
+                    return el('div', { style: { width: '100px', height: '35px' } });
                 }
 
-                const button = document.createElement('button');
-                button.id = `panelBtn-${btnData.partKey}`; // フォーカス制御用にIDは残す
-                button.className = 'part-action-button';
-                button.textContent = btnData.text;
-                
+                const btnProps = {
+                    id: `panelBtn-${btnData.partKey}`,
+                    className: 'part-action-button',
+                    textContent: btnData.text
+                };
+
                 if (btnData.isBroken) {
-                    button.disabled = true;
+                    btnProps.disabled = true;
                 } else {
-                    button.onclick = () => {
+                    btnProps.onclick = () => {
                         system.world.emit(GameEvents.PART_SELECTED, {
                             entityId: data.entityId,
                             partKey: btnData.partKey,
@@ -109,20 +92,20 @@ export const createModalHandlers = (systemInstance) => ({
                     };
 
                     if (btnData.target) {
-                        button.onmouseover = () => updateTargetHighlight(btnData.partKey, true);
-                        button.onmouseout = () => updateTargetHighlight(btnData.partKey, false);
+                        btnProps.onmouseover = () => updateTargetHighlight(btnData.partKey, true);
+                        btnProps.onmouseout = () => updateTargetHighlight(btnData.partKey, false);
                     }
                 }
-                return button;
+                return el('button', btnProps);
             };
 
-            topRow.appendChild(createButton(headBtnData));
-            bottomRow.appendChild(createButton(rArmBtnData));
-            bottomRow.appendChild(createButton(lArmBtnData));
-
-            wrapper.appendChild(topRow);
-            wrapper.appendChild(bottomRow);
-            return wrapper;
+            return el('div', { className: 'triangle-layout' }, [
+                el('div', { className: 'top-row' }, createButton(headBtnData)),
+                el('div', { className: 'bottom-row' }, [
+                    createButton(rArmBtnData),
+                    createButton(lArmBtnData)
+                ])
+            ]);
         },
         /**
          * 方向キーによるフォーカス移動を処理します。
@@ -180,20 +163,11 @@ export const createModalHandlers = (systemInstance) => ({
             }
             if (nextFocusKey) updateFocus(nextFocusKey);
         },
-        /**
-         * 決定キー（Zキー）が押されたときに、フォーカス中のボタンをクリックします。
-         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
-         */
         handleConfirm: (system) => {
             if (!system.focusedButtonKey) return;
             const focusedButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${system.focusedButtonKey}`);
             if (focusedButton && !focusedButton.disabled) focusedButton.click();
         },
-        /**
-         * モーダル表示時に初期フォーカスを設定します。
-         * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
-         * @param {object} data - モーダルデータ
-         */
         init: (system, data) => {
             const available = data.buttons.filter(b => !b.isBroken);
             const initialFocusKey = available.find(b => b.partKey === PartInfo.HEAD.key)?.partKey ||

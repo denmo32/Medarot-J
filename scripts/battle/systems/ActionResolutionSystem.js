@@ -1,16 +1,17 @@
 /**
  * @file ActionResolutionSystem.js
  * @description 行動解決フェーズの管理を担当するシステム。
- * CombatResolution, EffectApplicator, HistorySystemの責務を統合し、
- * 戦闘結果の判定、効果適用、履歴更新を同期的に実行する。
+ * CombatResolution, EffectApplicator の責務を統合し、
+ * 戦闘結果の判定、効果適用を同期的に実行する。
+ * 履歴更新の責務は BattleHistorySystem に移譲された。
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { BattleContext } from '../core/index.js';
-import { Action, ActiveEffects, BattleLog, GameState, Gauge, Parts, PlayerInfo } from '../core/components/index.js';
-import { BattlePhase, PlayerStateType, EffectType, ActionType, PartInfo, ModalType, ActionCancelReason } from '../common/constants.js';
+import { Action, ActiveEffects, Parts, PlayerInfo } from '../core/components/index.js';
+import { BattlePhase, EffectType, ActionCancelReason } from '../common/constants.js';
 import { GameEvents } from '../common/events.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
-import { findGuardian, findRandomPenetrationTarget, getValidAllies, isValidTarget } from '../utils/queryUtils.js';
+import { findGuardian, isValidTarget } from '../utils/queryUtils.js';
 import { effectStrategies } from '../effects/effectStrategies.js';
 import { effectApplicators } from '../effects/applicators/applicatorIndex.js';
 
@@ -114,7 +115,8 @@ export class ActionResolutionSystem extends BaseSystem {
         
         const appliedEffects = this.applyAllEffects({ attackerId, resolvedEffects, guardianInfo });
         
-        this.updateHistory({ attackerId, appliedEffects, attackingPart });
+        // 履歴更新ロジックは BattleHistorySystem に移譲されたため、ここでは呼び出さない
+        // this.updateHistory({ attackerId, appliedEffects, attackingPart });
         
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, {
             attackerId,
@@ -172,54 +174,6 @@ export class ActionResolutionSystem extends BaseSystem {
             }
         }
         return appliedEffects;
-    }
-    
-    // _applyDamage, _applyHeal, _applyTeamEffect, _applySingleEffect は外部Applicatorに移譲したため削除
-    
-    /**
-     * 履歴更新ロジックを厳格化
-     * @param {object} context
-     * @param {number} context.attackerId
-     * @param {Array<object>} context.appliedEffects
-     * @param {object} context.attackingPart
-     */
-    updateHistory({ attackerId, appliedEffects, attackingPart }) {
-        // 履歴更新の対象となる主要な効果を探す (ダメージまたは回復)
-        const mainEffect = appliedEffects.find(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL);
-        if (!mainEffect) return;
-
-        const { targetId, partKey } = mainEffect;
-        if (targetId === null || targetId === undefined) return;
-        
-        // --- 1. 個人履歴 (BattleLog) の更新 ---
-        const attackerLog = this.world.getComponent(attackerId, BattleLog);
-        if (attackerLog) {
-            // FOCUS性格などのために、行動対象は常に記録する
-            attackerLog.lastAttack = { targetId, partKey };
-        }
-        
-        // ダメージを与えた場合のみ、被攻撃履歴を更新
-        if (mainEffect.type === EffectType.DAMAGE) {
-            const targetLog = this.world.getComponent(targetId, BattleLog);
-            if (targetLog) {
-                targetLog.lastAttackedBy = attackerId;
-            }
-        }
-
-        // --- 2. チーム履歴 (BattleContext) の更新 ---
-        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
-        const targetInfo = this.world.getComponent(targetId, PlayerInfo);
-
-        // 攻撃アクションの場合のみ teamLastAttack を更新する
-        // これにより、回復行動がASSIST性格のターゲット選択に影響を与えるのを防ぐ
-        if (!attackingPart.isSupport && mainEffect.type === EffectType.DAMAGE) {
-            this.battleContext.history.teamLastAttack[attackerInfo.teamId] = { targetId, partKey };
-        }
-
-        // 敵リーダーにダメージを与えた場合のみ leaderLastAttackedBy を更新する
-        if (targetInfo.isLeader && !attackingPart.isSupport && mainEffect.type === EffectType.DAMAGE) {
-            this.battleContext.history.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
-        }
     }
     
     _getCombatComponents(attackerId) {

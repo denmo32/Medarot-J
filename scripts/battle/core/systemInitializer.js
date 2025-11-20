@@ -25,6 +25,7 @@ import { ActionResolutionSystem } from '../systems/ActionResolutionSystem.js';
 import { TimerSystem } from '../../core/systems/TimerSystem.js';
 import { CooldownSystem } from '../systems/cooldownSystem.js';
 import { WinConditionSystem } from '../systems/WinConditionSystem.js';
+import { BattleHistorySystem } from '../systems/BattleHistorySystem.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -43,7 +44,6 @@ export function initializeSystems(world) {
     const actionPanelSystem = new ActionPanelSystem(world);
 
     const gameFlowSystem = new GameFlowSystem(world);
-    // WinConditionSystemをインスタンス化
     const winConditionSystem = new WinConditionSystem(world);
     const phaseSystem = new PhaseSystem(world);
     const viewSystem = new ViewSystem(world);
@@ -60,6 +60,7 @@ export function initializeSystems(world) {
     const actionExecutionSystem = new ActionExecutionSystem(world);
     const timerSystem = new TimerSystem(world);
     const cooldownSystem = new CooldownSystem(world);
+    const battleHistorySystem = new BattleHistorySystem(world);
 
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
@@ -67,7 +68,6 @@ export function initializeSystems(world) {
     
     // --- システムの登録順序を整理 ---
     world.registerSystem(gameFlowSystem);
-    // WinConditionSystemを登録。勝利判定はゲームフローの直後が自然
     world.registerSystem(winConditionSystem);
     world.registerSystem(phaseSystem);
     world.registerSystem(turnSystem);
@@ -79,6 +79,7 @@ export function initializeSystems(world) {
     world.registerSystem(actionSetupSystem);
     world.registerSystem(actionExecutionSystem);
     world.registerSystem(actionResolutionSystem);
+    world.registerSystem(battleHistorySystem);
     world.registerSystem(actionCancellationSystem);
     world.registerSystem(movementSystem);
     world.registerSystem(effectSystem);
