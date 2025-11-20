@@ -222,6 +222,8 @@ export class ActionResolutionSystem extends BaseSystem {
                 // Applicatorに関数を委譲
                 result = applicator({ world: this.world, effect });
             } else {
+                // Applicatorが定義されていない場合の警告
+                console.warn(`ActionResolutionSystem: No applicator found for effect type "${effect.type}". The effect will not modify game state.`);
                 // Applicatorが定義されていない効果は、そのまま結果として扱う
                 result = effect;
             }

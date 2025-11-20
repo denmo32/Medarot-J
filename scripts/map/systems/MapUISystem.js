@@ -26,14 +26,50 @@ export class MapUISystem extends BaseSystem {
         this.focusedMenuIndex = 0;
         this.isMenuOpen = false;
 
+        // イベントリスナーの参照を保持（削除用）
+        this.boundToggleMenu = this.toggleMenu.bind(this);
+        this.boundShowNpcInteraction = this.showNpcInteraction.bind(this);
+        
+        // メニューのクリックハンドラを保持するMap
+        this.menuClickHandlers = new Map();
+        
+        // インタラクションウィンドウのハンドラを保持
+        this.interactionConfirmHandler = null;
+        this.interactionCancelHandler = null;
+
         this.bindWorldEvents();
     }
 
     bindWorldEvents() {
         // PlayerInputSystemからのメニュー表示/非表示要求をリッスン
-        this.world.on(GameEvents.MENU_TOGGLE_REQUESTED, this.toggleMenu.bind(this));
+        this.world.on(GameEvents.MENU_TOGGLE_REQUESTED, this.boundToggleMenu);
         // PlayerInputSystemからのNPCインタラクション要求をリッスン
-        this.world.on(GameEvents.NPC_INTERACTION_REQUESTED, this.showNpcInteraction.bind(this));
+        this.world.on(GameEvents.NPC_INTERACTION_REQUESTED, this.boundShowNpcInteraction);
+    }
+    
+    /**
+     * システム破棄時のクリーンアップ
+     * World.reset() や Scene.destroy() から呼び出されることを想定
+     */
+    destroy() {
+        // メニューのクリックハンドラを削除
+        this.removeMenuClickHandlers();
+        
+        // インタラクションウィンドウのハンドラを削除
+        if (this.interactionConfirmHandler && this.dom.confirmBattleButton) {
+            this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
+        }
+        if (this.interactionCancelHandler && this.dom.cancelBattleButton) {
+            this.dom.cancelBattleButton.removeEventListener('click', this.interactionCancelHandler);
+        }
+        
+        // DOMの状態をリセット（非表示にするなど）
+        if (this.dom.menu) {
+            this.dom.menu.classList.add('hidden');
+        }
+        if (this.dom.interactionWindow) {
+            this.dom.interactionWindow.classList.add('hidden');
+        }
     }
 
     update(deltaTime) {
@@ -117,7 +153,9 @@ export class MapUISystem extends BaseSystem {
     }
 
     setupMenuClickHandlers() {
-        this.menuClickHandlers = new Map();
+        // 既存のハンドラがあれば削除
+        this.removeMenuClickHandlers();
+
         this.menuButtons.forEach(button => {
             const action = button.dataset.action;
             let handler;
@@ -160,28 +198,43 @@ export class MapUISystem extends BaseSystem {
         this.mapUIState.isPausedByModal = true;
         this.mapUIState.modalJustOpened = true; // main.jsのループで一度だけ無視されるように
 
+        // 以前のリスナーが残っていたら削除
+        if (this.interactionConfirmHandler) {
+            this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
+        }
+        if (this.interactionCancelHandler) {
+            this.dom.cancelBattleButton.removeEventListener('click', this.interactionCancelHandler);
+        }
+
         const cleanup = () => {
-            this.dom.confirmBattleButton.removeEventListener('click', handleConfirm);
-            this.dom.cancelBattleButton.removeEventListener('click', handleCancel);
+            if (this.interactionConfirmHandler) {
+                this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
+                this.interactionConfirmHandler = null;
+            }
+            if (this.interactionCancelHandler) {
+                this.dom.cancelBattleButton.removeEventListener('click', this.interactionCancelHandler);
+                this.interactionCancelHandler = null;
+            }
             this.dom.interactionWindow.classList.add('hidden');
             if (this.mapUIState) {
                 this.mapUIState.isPausedByModal = false;
             }
         };
 
-        const handleConfirm = () => {
+        // ハンドラをインスタンスプロパティとして保持
+        this.interactionConfirmHandler = () => {
             cleanup();
             this.world.emit(GameEvents.NPC_INTERACTED, npc);
         };
 
-        const handleCancel = () => {
+        this.interactionCancelHandler = () => {
             cleanup();
             const canvas = document.getElementById('game-canvas');
             if (canvas) canvas.focus();
         };
 
-        this.dom.confirmBattleButton.addEventListener('click', handleConfirm);
-        this.dom.cancelBattleButton.addEventListener('click', handleCancel);
+        this.dom.confirmBattleButton.addEventListener('click', this.interactionConfirmHandler);
+        this.dom.cancelBattleButton.addEventListener('click', this.interactionCancelHandler);
 
         this.dom.interactionWindow.classList.remove('hidden');
         this.dom.confirmBattleButton.focus();

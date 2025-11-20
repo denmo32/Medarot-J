@@ -52,13 +52,15 @@ export const createModalHandlers = (systemInstance) => ({
          */
         createContent: (system, data) => {
             const buttonsData = data.buttons;
-            const headBtnData = buttonsData.find(b => b.partKey === PartInfo.HEAD.key);
-            const rArmBtnData = buttonsData.find(b => b.partKey === PartInfo.RIGHT_ARM.key);
-            const lArmBtnData = buttonsData.find(b => b.partKey === PartInfo.LEFT_ARM.key);
+            // ボタンデータの検索を簡略化
+            const getBtnData = (key) => buttonsData.find(b => b.partKey === key);
+            const headBtnData = getBtnData(PartInfo.HEAD.key);
+            const rArmBtnData = getBtnData(PartInfo.RIGHT_ARM.key);
+            const lArmBtnData = getBtnData(PartInfo.LEFT_ARM.key);
 
             // ヘルパー関数: ターゲットハイライト更新
             const updateTargetHighlight = (partKey, show) => {
-                const buttonData = buttonsData.find(b => b.partKey === partKey);
+                const buttonData = getBtnData(partKey);
                 if (!buttonData || !buttonData.target || buttonData.target.targetId === null) return;
                 
                 const targetDom = system.uiManager.getDOMElements(buttonData.target.targetId);
@@ -70,19 +72,21 @@ export const createModalHandlers = (systemInstance) => ({
             // ヘルパー関数: ボタン生成
             const createButton = (btnData) => {
                 if (!btnData) {
+                    // データがない場合はスペース用の空divを返す
                     return el('div', { style: { width: '100px', height: '35px' } });
                 }
 
-                const btnProps = {
+                // 属性オブジェクトの構築
+                const attributes = {
                     id: `panelBtn-${btnData.partKey}`,
                     className: 'part-action-button',
                     textContent: btnData.text
                 };
 
                 if (btnData.isBroken) {
-                    btnProps.disabled = true;
+                    attributes.disabled = true;
                 } else {
-                    btnProps.onclick = () => {
+                    attributes.onclick = () => {
                         system.world.emit(GameEvents.PART_SELECTED, {
                             entityId: data.entityId,
                             partKey: btnData.partKey,
@@ -92,11 +96,11 @@ export const createModalHandlers = (systemInstance) => ({
                     };
 
                     if (btnData.target) {
-                        btnProps.onmouseover = () => updateTargetHighlight(btnData.partKey, true);
-                        btnProps.onmouseout = () => updateTargetHighlight(btnData.partKey, false);
+                        attributes.onmouseover = () => updateTargetHighlight(btnData.partKey, true);
+                        attributes.onmouseout = () => updateTargetHighlight(btnData.partKey, false);
                     }
                 }
-                return el('button', btnProps);
+                return el('button', attributes);
             };
 
             return el('div', { className: 'triangle-layout' }, [

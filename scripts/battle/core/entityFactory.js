@@ -35,19 +35,6 @@ const initializePart = (partData) => {
     // 3. 戦闘中の状態を初期化
     mergedData.hp = partData.maxHp;
     mergedData.isBroken = false;
-    
-    // 4. effectの 'strategy' プロパティを 'type' に統一 (後方互換性)
-    if (mergedData.effects && Array.isArray(mergedData.effects)) {
-        mergedData.effects = mergedData.effects.map(effect => {
-            if (effect.strategy) {
-                const newEffect = { ...effect, type: effect.strategy };
-                delete newEffect.strategy;
-                return newEffect;
-            }
-            return effect;
-        });
-    }
-
     return mergedData;
 };
 
