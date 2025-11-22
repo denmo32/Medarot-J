@@ -96,6 +96,7 @@ export class UISystem extends BaseSystem {
 
     /**
      * 指定されたエンティティIDに対応するDOM要素を、現在のコンポーネント状態に基づいて更新します。
+     * パフォーマンス向上のため、値に変更があった場合のみDOM操作を行います。
      * @param {number} entityId
      */
     updatePlayerUI(entityId) {
@@ -104,39 +105,70 @@ export class UISystem extends BaseSystem {
 
         const position = this.getCachedComponent(entityId, Position);
         const gameState = this.getCachedComponent(entityId, GameState);
-        const parts = this.getCachedComponent(entityId, Parts);
-        if (!position || !gameState || !parts) return;
+        // partsはここでは使用していない
+        if (!position || !gameState) return;
 
-        domElements.iconElement.style.left = `${position.x * 100}%`;
-        domElements.iconElement.style.top = `${position.y}%`;
-        domElements.iconElement.style.transform = 'translate(-50%, -50%)';
+        // --- 位置の更新 (変更がある場合のみ) ---
+        const newLeft = `${position.x * 100}%`;
+        const newTop = `${position.y}%`;
 
-        switch (gameState.state) {
-            case PlayerStateType.SELECTED_CHARGING:
-                domElements.iconElement.style.borderColor = '#f6ad55';
-                break;
-            case PlayerStateType.CHARGING:
-                domElements.iconElement.style.borderColor = '#4fd1c5';
-                break;
-            default:
-                domElements.iconElement.style.borderColor = '#718096';
-                break;
+        if (domElements.iconElement.style.left !== newLeft) {
+            domElements.iconElement.style.left = newLeft;
+        }
+        if (domElements.iconElement.style.top !== newTop) {
+            domElements.iconElement.style.top = newTop;
+        }
+        
+        // transformは固定値だが、初期化されていない場合に備えてチェック
+        const transformValue = 'translate(-50%, -50%)';
+        if (domElements.iconElement.style.transform !== transformValue) {
+            domElements.iconElement.style.transform = transformValue;
         }
 
-        domElements.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
-        // 毎フレームの機能停止チェックを削除し、イベント駆動に変更
+        // --- 状態による見た目の更新 (状態変更があった場合のみ) ---
+        // dataset.lastState を使用して前回の状態と比較
+        const lastState = domElements.iconElement.dataset.lastState;
+        
+        if (lastState !== gameState.state) {
+            switch (gameState.state) {
+                case PlayerStateType.SELECTED_CHARGING:
+                    domElements.iconElement.style.borderColor = '#f6ad55';
+                    break;
+                case PlayerStateType.CHARGING:
+                    domElements.iconElement.style.borderColor = '#4fd1c5';
+                    break;
+                default:
+                    domElements.iconElement.style.borderColor = '#718096';
+                    break;
+            }
 
+            domElements.iconElement.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
+            
+            // 現在の状態を保存
+            domElements.iconElement.dataset.lastState = gameState.state;
+        }
+
+        // --- ガードインジケーターの更新 ---
         const activeEffects = this.getCachedComponent(entityId, ActiveEffects);
         const guardIndicator = domElements.guardIndicatorElement;
 
         if (activeEffects && guardIndicator) {
             const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
+            const count = guardEffect && guardEffect.count > 0 ? guardEffect.count : 0;
+            const shouldShow = count > 0;
 
-            if (guardEffect && guardEffect.count > 0) {
-                guardIndicator.textContent = `🛡${guardEffect.count}`;
-                guardIndicator.style.display = 'block';
-            } else {
-                guardIndicator.style.display = 'none';
+            // 表示・非表示の更新
+            const newDisplay = shouldShow ? 'block' : 'none';
+            if (guardIndicator.style.display !== newDisplay) {
+                guardIndicator.style.display = newDisplay;
+            }
+
+            // テキストの更新
+            if (shouldShow) {
+                const newText = `🛡${count}`;
+                if (guardIndicator.textContent !== newText) {
+                    guardIndicator.textContent = newText;
+                }
             }
         }
     }

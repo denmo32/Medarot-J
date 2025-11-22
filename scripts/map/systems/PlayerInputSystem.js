@@ -71,14 +71,27 @@ export class PlayerInputSystem extends BaseSystem {
 
         const bounds = { x: targetX, y: targetY, width: collision.width, height: collision.height };
 
+        // FacingDirectionコンポーネントの更新を最適化
         const facingDirection = this.world.getComponent(entityId, MapComponents.FacingDirection);
-        if (facingDirection) facingDirection.direction = this.input.direction;
-        else this.world.addComponent(entityId, new MapComponents.FacingDirection(this.input.direction));
+        if (facingDirection) {
+            facingDirection.direction = this.input.direction;
+        } else {
+            this.world.addComponent(entityId, new MapComponents.FacingDirection(this.input.direction));
+        }
 
         if (!this.map.isColliding(bounds)) {
             state.value = PLAYER_STATES.WALKING;
-            this.world.addComponent(entityId, new MapComponents.TargetPosition(targetX, targetY));
+            
+            // TargetPositionコンポーネントの更新を最適化
+            // 既存のコンポーネントがあれば値を更新し、なければ新規作成する
+            // これにより、不要なオブジェクト生成とキャッシュクリアを防ぐ
+            const targetPosition = this.world.getComponent(entityId, MapComponents.TargetPosition);
+            if (targetPosition) {
+                targetPosition.x = targetX;
+                targetPosition.y = targetY;
+            } else {
+                this.world.addComponent(entityId, new MapComponents.TargetPosition(targetX, targetY));
+            }
         }
     }
-
 }
