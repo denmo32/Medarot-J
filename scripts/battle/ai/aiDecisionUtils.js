@@ -1,36 +1,31 @@
 /**
  * @file AI意思決定ユーティリティ
  * このファイルは、AIの思考ルーチンから共通して利用される、
- * ターゲットを決定するためのユーティリティ関数を提供します。
- * 元々は汎用的な `targetingUtils.js` にありましたが、AIの内部仕様に強く依存するため、
- * AIモジュール内に移動しました。
+ * ターゲット候補を決定し、最適な行動プランを選択するためのユーティリティ関数を提供します。
  */
-import { Medal } from '../core/components/index.js';
+import { Medal, PlayerInfo } from '../core/components/index.js';
 import { getStrategiesFor } from './personalityRegistry.js';
 import { targetingStrategies } from './targetingStrategies.js';
-import { GameEvents } from '../common/events.js';
 import { conditionEvaluators } from './conditionEvaluators.js';
-import { isValidTarget } from '../utils/queryUtils.js';
-import { determineTarget } from '../utils/targetingUtils.js';
-
+import { partSelectionStrategies } from './partSelectionStrategies.js';
 
 /**
- * AIの性格と思考ルーチンに基づいて最適なターゲットを決定します。
+ * AIの性格と思考ルーチンに基づいて最適なターゲット候補リストと使用された戦略を決定します。
  * @param {object} context - { world: World, entityId: number }
- * @returns {{target: {targetId: number, targetPartKey: string} | null, strategyKey: string | null}} 決定されたターゲット情報と使用された戦略キー
+ * @returns {{candidates: Array<{ target: { targetId: number, targetPartKey: string }, weight: number }> | null, strategy: string | null}} 決定されたターゲット候補リストと戦略キー
  */
-export function determineTargetByPersonality({ world, entityId }) {
+export function determineTargetCandidatesByPersonality({ world, entityId }) {
     const attackerMedal = world.getComponent(entityId, Medal);
-    if (!attackerMedal) return { target: null, strategyKey: null };
+    if (!attackerMedal) return { candidates: null, strategy: null };
 
     const strategies = getStrategiesFor(attackerMedal.personality);
-    const context = { world, entityId };
-    let finalTarget = null;
-    let usedStrategyKey = null;
+    const context = { world, attackerId: entityId };
+    let finalCandidates = null;
+    let successfulStrategy = null;
 
     // --- Step 1: 思考ルーチンに定義されたターゲット戦略を順番に試行 ---
-    if (strategies.routines && strategies.routines.length > 0) {
-        for (const routine of strategies.routines) {
+    if (strategies.targetRoutines && strategies.targetRoutines.length > 0) {
+        for (const routine of strategies.targetRoutines) {
             // ルーチンに実行条件(condition)が定義されていれば評価する
             if (routine.condition) {
                 const evaluator = conditionEvaluators[routine.condition.type];
@@ -39,54 +34,96 @@ export function determineTargetByPersonality({ world, entityId }) {
                         continue; // 条件を満たさなければこのルーチンはスキップ
                     }
                 } else {
-                    console.warn(`determineTargetByPersonality: Unknown condition type '${routine.condition.type}' for ${attackerMedal.personality}.`);
+                    console.warn(`determineTargetCandidatesByPersonality: Unknown condition type '${routine.condition.type}' for ${attackerMedal.personality}.`);
                     continue;
                 }
             }
             
-            const targetSelectionFunc = targetingStrategies[routine.targetStrategy];
+            const targetSelectionFunc = targetingStrategies[routine.strategy];
             if (!targetSelectionFunc) {
-                console.warn(`determineTargetByPersonality: Unknown targetStrategy '${routine.targetStrategy}' in routines for ${attackerMedal.personality}.`);
+                console.warn(`determineTargetCandidatesByPersonality: Unknown targetStrategy '${routine.strategy}' in routines for ${attackerMedal.personality}.`);
                 continue;
             }
             
-            const target = determineTarget(world, entityId, targetSelectionFunc, routine.targetStrategy);
+            const candidates = targetSelectionFunc(context);
 
-            if (target) {
-                finalTarget = target;
-                usedStrategyKey = routine.targetStrategy;
-                break; // 有効なターゲットが見つかったらループを抜ける
+            if (candidates && candidates.length > 0) {
+                finalCandidates = candidates;
+                successfulStrategy = routine.strategy;
+                break; // 有効なターゲット候補が見つかったらループを抜ける
             }
         }
     }
 
-    // --- Step 2: ルーチンでターゲットが決まらなかった場合のフォールバック ---
-    if (!finalTarget && strategies.fallbackTargeting) {
-        // ★修正: fallbackTargetingは関数参照ではなくキー文字列であるため、キーから関数を解決します。
-        const fallbackStrategy = targetingStrategies[strategies.fallbackTargeting];
+    // --- Step 2: ルーチンでターゲット候補が決まらなかった場合のフォールバック ---
+    if (!finalCandidates && strategies.fallbackTargeting) {
+        const fallbackStrategyKey = strategies.fallbackTargeting;
+        const fallbackStrategy = targetingStrategies[fallbackStrategyKey];
         if (fallbackStrategy) {
-            finalTarget = determineTarget(world, entityId, fallbackStrategy, strategies.fallbackTargeting);
-            usedStrategyKey = strategies.fallbackTargeting;
+            finalCandidates = fallbackStrategy(context);
+            if (finalCandidates && finalCandidates.length > 0) {
+                successfulStrategy = fallbackStrategyKey;
+            }
         } else {
-            console.error(`AI ${entityId}: Fallback strategy key "${strategies.fallbackTargeting}" not found.`);
+            console.error(`AI ${entityId}: Fallback strategy key "${fallbackStrategyKey}" not found.`);
         }
     }
 
-    return { target: finalTarget, strategyKey: usedStrategyKey };
+    return { candidates: finalCandidates, strategy: successfulStrategy };
 }
 
-
 /**
- * @function determineRecommendedTarget
- * @description プレイヤーの行動選択時に、狙っているターゲットを表示するための共通関数。
- * 内部ロジックを`determineTargetByPersonality`に委譲します。
- * @param {World} world - ワールドオブジェクト
- * @param {number} entityId - 行動主体のエンティティID
- * @param {object} part - 選択が検討されているパーツオブジェクト (現在は未使用ですが、将来的な拡張のため残置)
- * @returns {{targetId: number, targetPartKey: string} | null} 予定ターゲット情報、またはnull
+ * 与えられた行動プランのリストから、AIの性格に基づいて最適なプランを1つ選択します。
+ * @param {object} context - { world: World, entityId: number, actionPlans: Array<object> }
+ * @returns {object | null} 最適と判断された行動プラン
  */
-export function determineRecommendedTarget(world, entityId, part) {
-    // ターゲット決定ロジックを共通関数に委譲し、ターゲット情報のみを返す
-    const { target } = determineTargetByPersonality({ world, entityId });
-    return target;
+export function selectBestActionPlan({ world, entityId, actionPlans }) {
+    const attackerMedal = world.getComponent(entityId, Medal);
+    const strategies = getStrategiesFor(attackerMedal.personality);
+    const attackerInfo = world.getComponent(entityId, PlayerInfo);
+    let partStrategyKey;
+
+    // 1. どのパーツ選択戦略を使うか決定する
+    const preMovePlan = actionPlans.find(plan => plan.target !== null);
+
+    if (preMovePlan) {
+        // pre-moveプランがあれば、そのターゲット情報を基に戦略を決定
+        const targetInfo = world.getComponent(preMovePlan.target.targetId, PlayerInfo);
+        if (targetInfo && attackerInfo.teamId === targetInfo.teamId) {
+            partStrategyKey = strategies.partStrategyMap.ally;
+        } else {
+            partStrategyKey = strategies.partStrategyMap.enemy;
+        }
+    } else {
+        // pre-moveプランがない場合（全てpost-move）、アクションの性質から戦略を決定
+        if (actionPlans.length > 0) {
+            const representativePart = actionPlans[0].part;
+            // targetScopeが'ALLY'で始まるかどうかで、味方対象か敵対象かを判断
+            if (representativePart.targetScope?.startsWith('ALLY')) {
+                partStrategyKey = strategies.partStrategyMap.ally;
+            } else {
+                // 敵対象、または自分自身を対象とするもの（SELF_GUARDなど）はenemy戦略を使用
+                partStrategyKey = strategies.partStrategyMap.enemy;
+            }
+        }
+    }
+
+    if (!partStrategyKey) {
+        console.warn(`AI ${entityId} (${attackerMedal.personality}): No part strategy found for the target type. Falling back.`);
+        return actionPlans[Math.floor(Math.random() * actionPlans.length)];
+    }
+
+    // 2. パーツ選択戦略を実行して最適なパーツを決定する
+    const partSelectionFunc = partSelectionStrategies[partStrategyKey];
+    if (!partSelectionFunc) {
+        console.error(`AI ${entityId}: Part strategy '${partStrategyKey}' not found. Falling back.`);
+        return actionPlans[Math.floor(Math.random() * actionPlans.length)];
+    }
+    
+    // パーツ選択戦略は `[partKey, part]` の形式の配列を期待するため、プランから変換する
+    const availablePartsForStrategy = actionPlans.map(plan => [plan.partKey, plan.part]);
+    const [bestPartKey] = partSelectionFunc({ world, entityId, availableParts: availablePartsForStrategy });
+
+    // 3. 最適なパーツキーに対応する行動プランを返す
+    return actionPlans.find(plan => plan.partKey === bestPartKey) || null;
 }

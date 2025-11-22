@@ -716,3 +716,41 @@ body {
 #customize-parts-list-panel {
     flex-grow: 1;
 }
+
+/* ターゲットインジケーター */
+.target-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 70px;
+    height: 70px;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease-in-out;
+}
+.target-indicator.active {
+    opacity: 1;
+    animation: radar-zoom-in 1.2s infinite;
+}
+.corner {
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    border-color: cyan;
+    border-style: solid;
+}
+.corner-1 { top: 0; left: 0; border-width: 4px 0 0 4px; }
+.corner-2 { top: 0; right: 0; border-width: 4px 4px 0 0; }
+.corner-3 { bottom: 0; left: 0; border-width: 0 0 4px 4px; }
+.corner-4 { bottom: 0; right: 0; border-width: 0 4px 4px 0; }
+@keyframes radar-zoom-in {
+    0% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 1;
+    }
+    80%, 100% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0.5;
+    }
+}

@@ -5,15 +5,16 @@
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameDataManager } from '../../core/GameDataManager.js';
+import { GameEvents } from '../../battle/common/events.js';
 
 export class CustomizeLogicSystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.dataManager = new GameDataManager();
 
-        this.world.on('EQUIP_PART_REQUESTED', this.onEquipPartRequested.bind(this));
+        this.world.on(GameEvents.EQUIP_PART_REQUESTED, this.onEquipPartRequested.bind(this));
         // メダル装備要求イベントを購読
-        this.world.on('EQUIP_MEDAL_REQUESTED', this.onEquipMedalRequested.bind(this));
+        this.world.on(GameEvents.EQUIP_MEDAL_REQUESTED, this.onEquipMedalRequested.bind(this));
     }
 
     /**
@@ -46,7 +47,7 @@ export class CustomizeLogicSystem extends BaseSystem {
         this.dataManager.updateMedarotPart(medarotIndex, partSlot, newPartId);
 
         // 装備完了をUIシステムに通知し、再描画をトリガーさせる
-        this.world.emit('PART_EQUIPPED');
+        this.world.emit(GameEvents.PART_EQUIPPED);
     }
 
     /**
@@ -60,7 +61,7 @@ export class CustomizeLogicSystem extends BaseSystem {
         this.dataManager.updateMedarotMedal(medarotIndex, newMedalId);
 
         // 装備完了をUIシステムに通知し、再描画をトリガーさせる
-        this.world.emit('MEDAL_EQUIPPED');
+        this.world.emit(GameEvents.MEDAL_EQUIPPED);
     }
 
     update(deltaTime) {

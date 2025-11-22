@@ -100,61 +100,10 @@ export class GameDataManager {
                 this.gameData = JSON.parse(savedData);
                 console.log('Game data loaded from localStorage.', this.gameData);
 
-                // --- 古いセーブデータとの互換性維持 ---
-                let needsSave = false;
-                
-                // パーツインベントリの互換性チェック
-                if (this.gameData.playerPartsInventory?.head?.head_001?.name) { // 古い形式（性能データを含む）かチェック
-                    console.log('Old save data detected. Upgrading parts inventory.');
-                    const newInventory = {};
-                    for (const partType in PARTS_DATA) {
-                        newInventory[partType] = {};
-                        for (const partId in PARTS_DATA[partType]) {
-                            // 所持しているという事実だけを引き継ぐ
-                            if (this.gameData.playerPartsInventory[partType]?.[partId]) {
-                                newInventory[partType][partId] = { count: 1 };
-                            }
-                        }
-                    }
-                    this.gameData.playerPartsInventory = newInventory;
-                    needsSave = true;
+                // マイグレーション処理を実行
+                if (this._migrateSaveData()) {
+                    this.saveGame(); // データを更新・補完した場合は保存
                 }
-                
-                // メダルインベントリの互換性チェック
-                if (!this.gameData.playerMedalsInventory || !this.gameData.playerMedalsInventory.kabuto?.count) { // 新しい形式でない場合
-                    console.log('Old save data detected. Upgrading medals inventory.');
-                    const newMedalsInventory = {};
-                    for (const medalId in MEDALS_DATA) {
-                        newMedalsInventory[medalId] = { count: 1 };
-                    }
-                    this.gameData.playerMedalsInventory = newMedalsInventory;
-                    needsSave = true;
-                }
-
-                // 装備メダルの互換性
-                this.gameData.playerMedarots.forEach((medarot, index) => {
-                    if (!medarot.medalId) {
-                        medarot.medalId = defaultPlayerMedarots[index]?.medalId || Object.keys(MEDALS_DATA)[0];
-                        needsSave = true;
-                    }
-                });
-
-                // セーブデータのメダロットが3機未満の場合、デフォルトデータで補う
-                if (!this.gameData.playerMedarots || this.gameData.playerMedarots.length < 3) {
-                    console.log('Incomplete medarot data. Completing with default medarots.');
-                    const existingIds = new Set(this.gameData.playerMedarots.map(m => m.id));
-                    const medarotsToAppend = defaultPlayerMedarots.filter(m => !existingIds.has(m.id));
-                    this.gameData.playerMedarots.push(...medarotsToAppend.slice(0, 3 - this.gameData.playerMedarots.length));
-                    needsSave = true;
-                }
-                
-                // 向き情報の互換性チェック
-                if (this.gameData.playerPosition && !this.gameData.playerPosition.direction) {
-                    this.gameData.playerPosition.direction = 'down';
-                    needsSave = true;
-                }
-
-                if (needsSave) this.saveGame(); // データを更新・補完した場合は保存
 
             } else {
                 console.log('No save data found. Initializing with default data.');
@@ -164,6 +113,69 @@ export class GameDataManager {
             console.error('Failed to load game data. Resetting to default.', error);
             this.resetToDefault();
         }
+    }
+
+    /**
+     * セーブデータの互換性チェックとマイグレーションを行います。
+     * 必要に応じてデータを更新します。
+     * @returns {boolean} データが更新され、保存が必要な場合はtrue
+     * @private
+     */
+    _migrateSaveData() {
+        let needsSave = false;
+
+        // パーツインベントリの互換性チェック
+        if (this.gameData.playerPartsInventory?.head?.head_001?.name) { // 古い形式（性能データを含む）かチェック
+            console.log('Old save data detected. Upgrading parts inventory.');
+            const newInventory = {};
+            for (const partType in PARTS_DATA) {
+                newInventory[partType] = {};
+                for (const partId in PARTS_DATA[partType]) {
+                    // 所持しているという事実だけを引き継ぐ
+                    if (this.gameData.playerPartsInventory[partType]?.[partId]) {
+                        newInventory[partType][partId] = { count: 1 };
+                    }
+                }
+            }
+            this.gameData.playerPartsInventory = newInventory;
+            needsSave = true;
+        }
+        
+        // メダルインベントリの互換性チェック
+        if (!this.gameData.playerMedalsInventory || !this.gameData.playerMedalsInventory.kabuto?.count) { // 新しい形式でない場合
+            console.log('Old save data detected. Upgrading medals inventory.');
+            const newMedalsInventory = {};
+            for (const medalId in MEDALS_DATA) {
+                newMedalsInventory[medalId] = { count: 1 };
+            }
+            this.gameData.playerMedalsInventory = newMedalsInventory;
+            needsSave = true;
+        }
+
+        // 装備メダルの互換性
+        this.gameData.playerMedarots.forEach((medarot, index) => {
+            if (!medarot.medalId) {
+                medarot.medalId = defaultPlayerMedarots[index]?.medalId || Object.keys(MEDALS_DATA)[0];
+                needsSave = true;
+            }
+        });
+
+        // セーブデータのメダロットが3機未満の場合、デフォルトデータで補う
+        if (!this.gameData.playerMedarots || this.gameData.playerMedarots.length < 3) {
+            console.log('Incomplete medarot data. Completing with default medarots.');
+            const existingIds = new Set(this.gameData.playerMedarots.map(m => m.id));
+            const medarotsToAppend = defaultPlayerMedarots.filter(m => !existingIds.has(m.id));
+            this.gameData.playerMedarots.push(...medarotsToAppend.slice(0, 3 - this.gameData.playerMedarots.length));
+            needsSave = true;
+        }
+        
+        // 向き情報の互換性チェック
+        if (this.gameData.playerPosition && !this.gameData.playerPosition.direction) {
+            this.gameData.playerPosition.direction = 'down';
+            needsSave = true;
+        }
+
+        return needsSave;
     }
 
     /**

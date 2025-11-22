@@ -1,6 +1,7 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import * as MapComponents from '../components.js';
+import { GameEvents } from '../../battle/common/events.js';
 
 /**
  * マップモードにおけるUIの表示/非表示、およびUI操作中の入力を一元管理するシステム。
@@ -25,14 +26,50 @@ export class MapUISystem extends BaseSystem {
         this.focusedMenuIndex = 0;
         this.isMenuOpen = false;
 
+        // イベントリスナーの参照を保持（削除用）
+        this.boundToggleMenu = this.toggleMenu.bind(this);
+        this.boundShowNpcInteraction = this.showNpcInteraction.bind(this);
+        
+        // メニューのクリックハンドラを保持するMap
+        this.menuClickHandlers = new Map();
+        
+        // インタラクションウィンドウのハンドラを保持
+        this.interactionConfirmHandler = null;
+        this.interactionCancelHandler = null;
+
         this.bindWorldEvents();
     }
 
     bindWorldEvents() {
         // PlayerInputSystemからのメニュー表示/非表示要求をリッスン
-        this.world.on('MENU_TOGGLE_REQUESTED', this.toggleMenu.bind(this));
+        this.world.on(GameEvents.MENU_TOGGLE_REQUESTED, this.boundToggleMenu);
         // PlayerInputSystemからのNPCインタラクション要求をリッスン
-        this.world.on('NPC_INTERACTION_REQUESTED', this.showNpcInteraction.bind(this));
+        this.world.on(GameEvents.NPC_INTERACTION_REQUESTED, this.boundShowNpcInteraction);
+    }
+    
+    /**
+     * システム破棄時のクリーンアップ
+     * World.reset() や Scene.destroy() から呼び出されることを想定
+     */
+    destroy() {
+        // メニューのクリックハンドラを削除
+        this.removeMenuClickHandlers();
+        
+        // インタラクションウィンドウのハンドラを削除
+        if (this.interactionConfirmHandler && this.dom.confirmBattleButton) {
+            this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
+        }
+        if (this.interactionCancelHandler && this.dom.cancelBattleButton) {
+            this.dom.cancelBattleButton.removeEventListener('click', this.interactionCancelHandler);
+        }
+        
+        // DOMの状態をリセット（非表示にするなど）
+        if (this.dom.menu) {
+            this.dom.menu.classList.add('hidden');
+        }
+        if (this.dom.interactionWindow) {
+            this.dom.interactionWindow.classList.add('hidden');
+        }
     }
 
     update(deltaTime) {
@@ -67,7 +104,7 @@ export class MapUISystem extends BaseSystem {
         }
 
         // UIStateContextの変更を通知
-        this.world.emit('UI_STATE_CHANGED', { context: 'mapUI', property: 'isMapMenuVisible', value: this.mapUIState.isMapMenuVisible });
+        this.world.emit(GameEvents.UI_STATE_CHANGED, { context: 'mapUI', property: 'isMapMenuVisible', value: this.mapUIState.isMapMenuVisible });
 
         if (this.mapUIState.isMapMenuVisible) {
             const saveButton = this.dom.menu.querySelector('.map-menu-button[data-action="save"]');
@@ -116,7 +153,9 @@ export class MapUISystem extends BaseSystem {
     }
 
     setupMenuClickHandlers() {
-        this.menuClickHandlers = new Map();
+        // 既存のハンドラがあれば削除
+        this.removeMenuClickHandlers();
+
         this.menuButtons.forEach(button => {
             const action = button.dataset.action;
             let handler;
@@ -143,12 +182,12 @@ export class MapUISystem extends BaseSystem {
 
     saveGame() {
         // イベント発行時にペイロードを渡さない
-        this.world.emit('GAME_SAVE_REQUESTED');
+        this.world.emit(GameEvents.GAME_SAVE_REQUESTED);
         console.log('Game save requested.');
     }
 
     openCustomizeScene() {
-        this.world.emit('CUSTOMIZE_SCENE_REQUESTED');
+        this.world.emit(GameEvents.CUSTOMIZE_SCENE_REQUESTED);
     }
 
     // --- NPC Interaction Logic --- //
@@ -159,28 +198,43 @@ export class MapUISystem extends BaseSystem {
         this.mapUIState.isPausedByModal = true;
         this.mapUIState.modalJustOpened = true; // main.jsのループで一度だけ無視されるように
 
+        // 以前のリスナーが残っていたら削除
+        if (this.interactionConfirmHandler) {
+            this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
+        }
+        if (this.interactionCancelHandler) {
+            this.dom.cancelBattleButton.removeEventListener('click', this.interactionCancelHandler);
+        }
+
         const cleanup = () => {
-            this.dom.confirmBattleButton.removeEventListener('click', handleConfirm);
-            this.dom.cancelBattleButton.removeEventListener('click', handleCancel);
+            if (this.interactionConfirmHandler) {
+                this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
+                this.interactionConfirmHandler = null;
+            }
+            if (this.interactionCancelHandler) {
+                this.dom.cancelBattleButton.removeEventListener('click', this.interactionCancelHandler);
+                this.interactionCancelHandler = null;
+            }
             this.dom.interactionWindow.classList.add('hidden');
             if (this.mapUIState) {
                 this.mapUIState.isPausedByModal = false;
             }
         };
 
-        const handleConfirm = () => {
+        // ハンドラをインスタンスプロパティとして保持
+        this.interactionConfirmHandler = () => {
             cleanup();
-            this.world.emit('NPC_INTERACTED', npc);
+            this.world.emit(GameEvents.NPC_INTERACTED, npc);
         };
 
-        const handleCancel = () => {
+        this.interactionCancelHandler = () => {
             cleanup();
             const canvas = document.getElementById('game-canvas');
             if (canvas) canvas.focus();
         };
 
-        this.dom.confirmBattleButton.addEventListener('click', handleConfirm);
-        this.dom.cancelBattleButton.addEventListener('click', handleCancel);
+        this.dom.confirmBattleButton.addEventListener('click', this.interactionConfirmHandler);
+        this.dom.cancelBattleButton.addEventListener('click', this.interactionCancelHandler);
 
         this.dom.interactionWindow.classList.remove('hidden');
         this.dom.confirmBattleButton.focus();

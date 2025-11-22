@@ -10,13 +10,10 @@ import { TargetTiming } from '../common/constants.js';
 
 /**
  * 選択されたパーツに基づき、適切な行動決定イベントを発行します。
- * この関数は、aiSystemとinputSystemの重複ロジックを共通化するために作成されました。
- * パーツのアクションタイプ（格闘/射撃/回復など）を判別し、必要な検証を行った上で、
- * 適切なパラメータと共に `ACTION_SELECTED` イベントを発行します。
  * @param {World} world - ワールドオブジェクト
  * @param {number} entityId - 行動主体のエンティティID
  * @param {string} partKey - 選択されたパーツのキー
- * @param {{targetId: number, targetPartKey: string} | null} target - 事前に決定されたターゲット情報
+ * @param {{targetId: number, targetPartKey: string} | null} target - 決定されたターゲット情報
  */
 export function decideAndEmitAction(world, entityId, partKey, target = null) {
     const parts = world.getComponent(entityId, Parts);
@@ -30,7 +27,6 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
     const selectedPart = parts[partKey];
 
     // 'post-move'アクションは移動後にターゲットを決めるため、ターゲット情報を無視して予約する
-    // マージされた `targetTiming` プロパティを参照
     if (selectedPart.targetTiming === TargetTiming.POST_MOVE) {
         world.emit(GameEvents.ACTION_SELECTED, {
             entityId,
@@ -41,12 +37,12 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
         return;
     }
 
-    // ターゲットが必要なアクションかどうかの判定を `targetScope` で行う
+    // ターゲットが必要なアクションで、ターゲットが無効な場合は警告
     if (selectedPart.targetScope?.endsWith('_SINGLE') && !isValidTarget(world, target?.targetId, target?.targetPartKey)) {
-        console.error(`decideAndEmitAction: A valid target was expected for a single-target action but not found. Action may fail.`, {entityId, partKey, target});
+        console.error(`decideAndEmitAction: A valid target was expected but not found. Action may fail.`, {entityId, partKey, target});
+        // それでも行動は予約する（実行時に再度チェックされる）
     }
 
-    // それ以外のアクションは、決定されたターゲット情報と共にイベントを発行
     world.emit(GameEvents.ACTION_SELECTED, {
         entityId,
         partKey,

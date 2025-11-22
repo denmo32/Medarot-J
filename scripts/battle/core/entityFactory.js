@@ -35,19 +35,6 @@ const initializePart = (partData) => {
     // 3. 戦闘中の状態を初期化
     mergedData.hp = partData.maxHp;
     mergedData.isBroken = false;
-    
-    // 4. effectの 'strategy' プロパティを 'type' に統一 (後方互換性)
-    if (mergedData.effects && Array.isArray(mergedData.effects)) {
-        mergedData.effects = mergedData.effects.map(effect => {
-            if (effect.strategy) {
-                const newEffect = { ...effect, type: effect.strategy };
-                delete newEffect.strategy;
-                return newEffect;
-            }
-            return effect;
-        });
-    }
-
     return mergedData;
 };
 
@@ -61,37 +48,73 @@ const initializePart = (partData) => {
  * @returns {number} 生成されたエンティティID
  */
 function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
-    // 機体セットの選択ロジック
-    const medarotSet = medarotData ? medarotData.set : MEDAROT_SETS[Math.floor(Math.random() * MEDAROT_SETS.length)];
-    const name = medarotData ? medarotData.name : `${medarotSet.name} #${totalId}`;
-
     const entityId = world.createEntity();
     const isLeader = index === 0;
 
-    // AIの性格決定ロジック
-    let personality;
-    // プレイヤーチーム(team1)で、かつmedarotDataにmedalIdが指定されている場合
-    if (medarotData && teamId === TeamID.TEAM1 && medarotData.medalId) {
-        const medalData = MEDALS_DATA[medarotData.medalId];
-        // マスターデータに存在すればその性格を、なければランダムをフォールバックとして使用
-        personality = medalData ? medalData.personality : MedalPersonality.RANDOM;
+    // --- パーツ構成の決定 ---
+    const rawPartsData = {};
+    let medarotSet; // プレイヤーチームの場合の名前フォールバック用に保持
+
+    if (teamId === TeamID.TEAM2) {
+        // 敵チーム: 各部位を完全にランダムで構成
+        for (const partInfo of Object.values(PartInfo)) {
+            const partKey = partInfo.key;
+            const partIdList = Object.keys(PARTS_DATA[partKey]);
+            if (partIdList.length > 0) {
+                const randomPartId = partIdList[Math.floor(Math.random() * partIdList.length)];
+                rawPartsData[partKey] = PARTS_DATA[partKey][randomPartId];
+            }
+        }
     } else {
-        // 敵チームやデータがない場合は、従来通りランダムに性格を決定
+        // プレイヤーチーム: 従来通り medarotData またはランダムなセットを使用
+        medarotSet = medarotData ? medarotData.set : MEDAROT_SETS[Math.floor(Math.random() * MEDAROT_SETS.length)];
+        for (const partKey in medarotSet.parts) {
+            const partId = medarotSet.parts[partKey];
+            if (PARTS_DATA[partKey] && PARTS_DATA[partKey][partId]) {
+                rawPartsData[partKey] = PARTS_DATA[partKey][partId];
+            }
+        }
+    }
+
+    // --- メダルに基づいて名前と性格を決定 ---
+    let name;
+    let personality;
+    const medalKeys = Object.keys(MEDALS_DATA);
+
+    if (teamId === TeamID.TEAM1 && medarotData?.medalId) {
+        // プレイヤーチーム: 指定されたメダルIDを使用
+        const medalData = MEDALS_DATA[medarotData.medalId];
+        if (medalData) {
+            name = medalData.name;
+            personality = medalData.personality;
+        }
+    } else if (teamId === TeamID.TEAM2 && medalKeys.length > 0) {
+        // 敵チーム: ランダムなメダルを使用
+        const randomMedalId = medalKeys[Math.floor(Math.random() * medalKeys.length)];
+        const medalData = MEDALS_DATA[randomMedalId];
+        if (medalData) {
+            name = medalData.name;
+            personality = medalData.personality;
+        }
+    }
+    
+    // フォールバック: メダル情報が取得できなかった場合
+    if (!name || !personality) {
+        console.warn(`Could not determine name/personality from medal for entity ${totalId}. Falling back.`);
+        // チームに応じてフォールバック名を変更
+        if (teamId === TeamID.TEAM2) {
+            name = `エネミー #${totalId}`;
+        } else {
+            // medarotSetはプレイヤーチームの場合のみ定義されている
+            name = medarotData ? medarotData.name : `${medarotSet.name} #${totalId}`;
+        }
+        // ランダムな性格を設定
         const personalityTypes = Object.values(MedalPersonality);
         personality = personalityTypes[Math.floor(Math.random() * personalityTypes.length)];
     }
 
     const initialX = teamId === TeamID.TEAM1 ? 0 : 1;
     const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;
-
-    const rawPartsData = {};
-    for (const partKey in medarotSet.parts) {
-        const partId = medarotSet.parts[partKey];
-        // partKey は 'head', 'rightArm' など
-        if (PARTS_DATA[partKey] && PARTS_DATA[partKey][partId]) {
-            rawPartsData[partKey] = PARTS_DATA[partKey][partId];
-        }
-    }
 
     // このファクトリ関数内でパーツデータを構築する
     const initializedParts = {

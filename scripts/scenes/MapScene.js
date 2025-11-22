@@ -14,6 +14,7 @@ import { CameraSystem } from '../map/systems/CameraSystem.js';
 import { RenderSystem as MapRenderSystem } from '../map/systems/RenderSystem.js';
 import { MapUISystem } from '../map/systems/MapUISystem.js';
 import { InteractionSystem } from '../map/systems/InteractionSystem.js';
+import { GameEvents } from '../battle/common/events.js';
 
 // マップシーン専用のUI状態コンポーネントを定義
 export class MapUIState {
@@ -109,18 +110,18 @@ export class MapScene extends BaseScene {
             savePlayerState();
             this.sceneManager.switchTo('battle', { gameDataManager, inputManager });
         });
-        this.world.on('NPC_INTERACTED', () => {
+        this.world.on(GameEvents.NPC_INTERACTED, () => {
             savePlayerState();
             this.sceneManager.switchTo('battle', { gameDataManager, inputManager });
         });
-        this.world.on('CUSTOMIZE_SCENE_REQUESTED', () => {
+        this.world.on(GameEvents.CUSTOMIZE_SCENE_REQUESTED, () => {
             savePlayerState();
             this.sceneManager.switchTo('customize', { gameDataManager, inputManager });
         });
 
         // --- Other Event Listeners ---
         // セーブ要求イベントのハンドラを更新
-        this.world.on('GAME_SAVE_REQUESTED', () => {
+        this.world.on(GameEvents.GAME_SAVE_REQUESTED, () => {
             // 現在の位置と向きでセーブデータを更新
             savePlayerState();
             // セーブを実行

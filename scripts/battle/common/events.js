@@ -385,4 +385,126 @@ export const GameEvents = {
      * @payload {{ appliedEffects: Array<object> }} - アニメーションの元となった適用済み効果のリスト
      */
     HP_BAR_ANIMATION_COMPLETED: 'HP_BAR_ANIMATION_COMPLETED',
+
+    // --- カスタマイズ画面イベント ---
+    /**
+     * カスタマイズ画面で決定入力があった
+     * @event CUST_CONFIRM_INPUT
+     * @type {string}
+     * @payload {}
+     */
+    CUST_CONFIRM_INPUT: 'CUST_CONFIRM_INPUT',
+
+    /**
+     * カスタマイズ画面でキャンセル入力があった
+     * @event CUST_CANCEL_INPUT
+     * @type {string}
+     * @payload {}
+     */
+    CUST_CANCEL_INPUT: 'CUST_CANCEL_INPUT',
+
+    /**
+     * カスタマイズ画面でナビゲーション入力があった
+     * @event CUST_NAVIGATE_INPUT
+     * @type {string}
+     * @payload {{ direction: string }} - 'up', 'down', 'left', 'right'
+     */
+    CUST_NAVIGATE_INPUT: 'CUST_NAVIGATE_INPUT',
+
+    /**
+     * パーツ装備が要求された
+     * @event EQUIP_PART_REQUESTED
+     * @type {string}
+     * @payload {{ medarotIndex: number, partSlot: string, newPartId: string }}
+     */
+    EQUIP_PART_REQUESTED: 'EQUIP_PART_REQUESTED',
+
+    /**
+     * メダル装備が要求された
+     * @event EQUIP_MEDAL_REQUESTED
+     * @type {string}
+     * @payload {{ medarotIndex: number, newMedalId: string }}
+     */
+    EQUIP_MEDAL_REQUESTED: 'EQUIP_MEDAL_REQUESTED',
+
+    /**
+     * パーツの装備が完了した
+     * @event PART_EQUIPPED
+     * @type {string}
+     * @payload {}
+     */
+    PART_EQUIPPED: 'PART_EQUIPPED',
+
+    /**
+     * メダルの装備が完了した
+     * @event MEDAL_EQUIPPED
+     * @type {string}
+     * @payload {}
+     */
+    MEDAL_EQUIPPED: 'MEDAL_EQUIPPED',
+
+    /**
+     * カスタマイズ画面の終了が要求された
+     * @event CUSTOMIZE_EXIT_REQUESTED
+     * @type {string}
+     * @payload {}
+     */
+    CUSTOMIZE_EXIT_REQUESTED: 'CUSTOMIZE_EXIT_REQUESTED',
+    
+    /**
+     * カスタマイズシーンへの遷移が要求された
+     * @event CUSTOMIZE_SCENE_REQUESTED
+     * @type {string}
+     * @payload {}
+     */
+    CUSTOMIZE_SCENE_REQUESTED: 'CUSTOMIZE_SCENE_REQUESTED',
+
+    // --- マップ画面イベント ---
+    /**
+     * インタラクションキーが押された
+     * @event INTERACTION_KEY_PRESSED
+     * @type {string}
+     * @payload {{ entityId: number }}
+     */
+    INTERACTION_KEY_PRESSED: 'INTERACTION_KEY_PRESSED',
+
+    /**
+     * NPCとのインタラクションが要求された (UI表示など)
+     * @event NPC_INTERACTION_REQUESTED
+     * @type {string}
+     * @payload {object} - NPCデータ
+     */
+    NPC_INTERACTION_REQUESTED: 'NPC_INTERACTION_REQUESTED',
+
+    /**
+     * NPCとのインタラクションが確定した (バトル開始など)
+     * @event NPC_INTERACTED
+     * @type {string}
+     * @payload {object} - NPCデータ
+     */
+    NPC_INTERACTED: 'NPC_INTERACTED',
+
+    /**
+     * メニューの表示切り替えが要求された
+     * @event MENU_TOGGLE_REQUESTED
+     * @type {string}
+     * @payload {}
+     */
+    MENU_TOGGLE_REQUESTED: 'MENU_TOGGLE_REQUESTED',
+
+    /**
+     * ゲームのセーブが要求された
+     * @event GAME_SAVE_REQUESTED
+     * @type {string}
+     * @payload {}
+     */
+    GAME_SAVE_REQUESTED: 'GAME_SAVE_REQUESTED',
+
+    /**
+     * UIの状態が変更された (デバッグや状態管理用)
+     * @event UI_STATE_CHANGED
+     * @type {string}
+     * @payload {{ context: string, property: string, value: any }}
+     */
+    UI_STATE_CHANGED: 'UI_STATE_CHANGED',
 };

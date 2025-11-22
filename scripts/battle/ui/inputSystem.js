@@ -4,7 +4,8 @@ import { PlayerInfo, Parts, Medal } from '../core/components/index.js';
 import { ModalType, EffectScope, TargetTiming } from '../common/constants.js';
 import { getAllActionParts } from '../utils/queryUtils.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
-import { determineRecommendedTarget } from '../ai/aiDecisionUtils.js';
+import { determineTargetCandidatesByPersonality } from '../ai/aiDecisionUtils.js';
+import { determineActionPlans } from '../utils/targetingUtils.js';
 
 /**
  * プレイヤーからの入力を処理し、行動を決定するシステム。
@@ -22,40 +23,53 @@ export class InputSystem extends BaseSystem {
 
     /**
      * TurnSystemからプレイヤーの行動選択が要求された際のハンドラ。
-     * プレイヤーの行動選択UI（パネル）の表示をViewSystemに要求します。
+     * AIと同じロジックで行動プランを生成し、UI表示を要求します。
      * @param {object} detail - イベントの詳細 ({ entityId })
      */
     onPlayerInputRequired(detail) {
         const { entityId } = detail;
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        
-        const allActionParts = getAllActionParts(this.world, entityId);
-        
-        // ターゲットの事前計算ロジックを `targetingUtils` の共通関数に委譲
-        const buttonsWithTargets = allActionParts.map(([partKey, part]) => {
-            let target = null;
-            // ターゲットを事前に決定する必要があるアクション（射撃など）の場合のみ計算
-            if (part.targetTiming === TargetTiming.PRE_MOVE) {
-                target = determineRecommendedTarget(this.world, entityId, part);
-            }
+        const context = { world: this.world, entityId };
 
+        // --- Step 1: 性格に基づきターゲット候補リストを取得 ---
+        const { candidates: targetCandidates } = determineTargetCandidatesByPersonality(context);
+        if (!targetCandidates || targetCandidates.length === 0) {
+            console.warn(`Player ${entityId}: No valid target candidates found. Re-queueing.`);
+            this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
+            return;
+        }
+
+        // --- Step 2: ターゲット候補と使用可能パーツから、行動プランのリストを生成 ---
+        const actionPlans = determineActionPlans({ ...context, targetCandidates });
+        if (actionPlans.length === 0) {
+            console.warn(`Player ${entityId}: No attackable parts available.`);
+            // この場合、本来は選択肢がないので自動でパスすべきだが、一旦再キュー
+            this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
+            return;
+        }
+
+        // --- Step 3: UIシステムにパネル表示を要求 ---
+        const allPossibleParts = getAllActionParts(this.world, entityId);
+
+        // UIボタンのデータを行動プランに基づいて生成
+        // actionPlans には使用可能パーツしか含まれないため、破壊済みパーツも表示するために allPossibleParts をベースにする
+        const buttonsData = allPossibleParts.map(([partKey, part]) => {
+            const plan = actionPlans.find(p => p.partKey === partKey);
             return {
                 text: `${part.name} (${part.type})`,
                 partKey: partKey,
                 isBroken: part.isBroken,
                 action: part.action,
-                targetScope: part.targetScope,
-                targetTiming: part.targetTiming || TargetTiming.PRE_MOVE,
-                target: target 
+                // planが存在すれば、そのターゲット情報をボタンに含める
+                target: plan ? plan.target : null
             };
         });
 
-        // UIシステムにパネル表示を要求
         const panelData = {
             entityId: entityId,
             title: '',
             ownerName: playerInfo.name,
-            buttons: buttonsWithTargets,
+            buttons: buttonsData,
         };
         
         this.world.emit(GameEvents.SHOW_MODAL, { 
@@ -68,11 +82,10 @@ export class InputSystem extends BaseSystem {
     /**
      * プレイヤーがUIでパーツを選択した際のハンドラ。
      * 選択されたパーツに基づき、ターゲットを決定して完全な行動内容をStateSystemに通知します。
-     * @param {object} detail - イベントの詳細 ({ entityId, partKey, targetId, targetPartKey })
+     * @param {object} detail - イベントの詳細 ({ entityId, partKey, target })
      */
     onPartSelected(detail) {
-        const { entityId, partKey, targetId, targetPartKey } = detail;
-        const target = { targetId, targetPartKey };
+        const { entityId, partKey, target } = detail;
         decideAndEmitAction(this.world, entityId, partKey, target);
     }
 

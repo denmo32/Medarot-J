@@ -33,6 +33,11 @@ export class World {
         // key: eventName, value: コールバック関数のSet
         // システム間の疎結合を実現するためのイベントリスナーです。
         this.listeners = new Map();
+
+        // --- Query Cache ---
+        // getEntitiesWithの結果をキャッシュするためのマップ
+        // 構造変更（エンティティの生成・削除、コンポーネントの追加・削除）があった場合にクリアされます。
+        this.queryCache = new Map();
     }
 
     // === Event Dispatcher Methods ===
@@ -77,6 +82,8 @@ export class World {
     createEntity() {
         const entityId = this.nextEntityId++;
         this.entities.set(entityId, new Set());
+        // エンティティ生成自体はクエリ結果に影響しないため、キャッシュクリアは不要
+        // (コンポーネントを持たないエンティティはクエリに引っかからないため)
         return entityId;
     }
 
@@ -95,6 +102,9 @@ export class World {
             this.components.set(componentClass, new Map());
         }
         this.components.get(componentClass).set(entityId, component);
+
+        // 構造が変化したため、クエリキャッシュを無効化
+        this.queryCache.clear();
     }
 
     /**
@@ -119,6 +129,8 @@ export class World {
         if (this.components.has(componentClass)) {
             this.components.get(componentClass).delete(entityId);
         }
+        // 構造が変化したため、クエリキャッシュを無効化
+        this.queryCache.clear();
     }
 
     /**
@@ -140,25 +152,58 @@ export class World {
     /**
      * 指定されたコンポーネント群をすべて持つエンティティのリストを取得します。
      * このメソッドはECSパターンの強力さを示す中核的な機能です。
-     * 「PositionとVelocityを持つすべてのエンティティ」のように、データの組み合わせに基づいて
-     * 処理対象を動的に絞り込めるため、データ駆動のロジックを容易に記述できます。
+     * 
+     * キャッシュ機構により、エンティティ構成に変更がない限り、
+     * 2回目以降の同じクエリ呼び出しは O(1) で結果を返します。
+     * 
      * @param  {...Function} componentClasses - 検索条件となるコンポーネントクラス（可変長引数）
      * @returns {number[]} 条件に一致したエンティティIDの配列
      */
     getEntitiesWith(...componentClasses) {
-        const entities = [];
         if (componentClasses.length === 0) return [];
 
-        // 最もエンティティ数の少ないコンポーネントを基準に検索を始めることで、効率化を図ります。
-        let baseComponentMap = this.components.get(componentClasses[0]);
-        if (!baseComponentMap) return [];
+        // キャッシュキーの生成
+        // クラス名のリストをソートして結合し、一意のキーとする
+        // (注: クラス名が一意であることを前提としていますが、通常の開発では問題ありません)
+        const cacheKey = componentClasses
+            .map(c => c.name)
+            .sort()
+            .join('|');
 
-        for (const entityId of baseComponentMap.keys()) {
-            const entityComponents = this.entities.get(entityId);
-            if (componentClasses.every(cls => entityComponents.has(cls))) {
-                entities.push(entityId);
+        if (this.queryCache.has(cacheKey)) {
+            return this.queryCache.get(cacheKey);
+        }
+
+        // --- 検索ロジック ---
+        const entities = [];
+
+        // 最もエンティティ数の少ないコンポーネントを基準に検索を始めることで、効率化を図ります。
+        // コンポーネントマップが存在しない場合は結果は空
+        const baseComponentClass = componentClasses.reduce((min, current) => {
+            const minSize = this.components.get(min)?.size || 0;
+            const currentSize = this.components.get(current)?.size || 0;
+            return currentSize < minSize ? current : min;
+        }, componentClasses[0]);
+
+        const baseComponentMap = this.components.get(baseComponentClass);
+        
+        if (baseComponentMap) {
+            for (const entityId of baseComponentMap.keys()) {
+                const entityComponents = this.entities.get(entityId);
+                // baseComponentClass以外の全てのコンポーネントを持っているかチェック
+                const hasAll = componentClasses.every(cls => 
+                    cls === baseComponentClass || entityComponents.has(cls)
+                );
+                
+                if (hasAll) {
+                    entities.push(entityId);
+                }
             }
         }
+
+        // 結果をキャッシュに保存
+        this.queryCache.set(cacheKey, entities);
+        
         return entities;
     }
 
@@ -174,6 +219,9 @@ export class World {
             }
         }
         this.entities.delete(entityId);
+        
+        // 構造が変化したため、クエリキャッシュを無効化
+        this.queryCache.clear();
     }
 
     // === System Methods ===
@@ -222,5 +270,6 @@ export class World {
         this.entities.clear();
         this.components.clear();
         this.nextEntityId = 0;
+        this.queryCache.clear();
     }
 }

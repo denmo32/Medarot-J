@@ -8,7 +8,7 @@ import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
 import { ModalType, PartKeyToInfoMap, EffectType, ActionCancelReason } from '../common/constants.js';
 import { MessageTemplates, MessageKey } from '../data/messageRepository.js';
-import { PlayerInfo, Parts } from '../core/components/index.js';
+import { PlayerInfo } from '../core/components/index.js';
 
 // キャンセル理由とメッセージキーのマッピングを定義
 const cancelReasonToMessageKey = {
@@ -28,7 +28,6 @@ export class MessageSystem extends BaseSystem {
             [EffectType.APPLY_GUARD]: this._formatGuardMessage.bind(this),
         };
         
-        // 複数のイベントの代わりに、統合されたCOMBAT_SEQUENCE_RESOLVEDイベントを購読する
         this.world.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
         this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
         this.world.on(GameEvents.GUARD_BROKEN, this.onGuardBroken.bind(this));
@@ -39,78 +38,103 @@ export class MessageSystem extends BaseSystem {
      * @param {object} detail - COMBAT_SEQUENCE_RESOLVEDイベントのペイロード
      */
     onCombatSequenceResolved(detail) {
-        const { attackerId, targetId, attackingPart, isSupport, guardianInfo, outcome, appliedEffects } = detail;
+        const { attackerId, outcome, appliedEffects, targetId } = detail;
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         if (!attackerInfo) return;
 
-        let messageSequence = [];
-        let modalType;
-
         // --- Step 1: 宣言メッセージを生成 ---
-        let mainMessageText;
-        if (isSupport) {
-            mainMessageText = this.format(MessageKey.SUPPORT_DECLARATION, {
-                attackerName: attackerInfo.name,
-                actionType: attackingPart.action,
-                trait: attackingPart.trait,
-            });
-        } else if (!targetId) {
-            mainMessageText = this.format(MessageKey.ATTACK_MISSED, {
-                attackerName: attackerInfo.name,
-            });
-        } else {
-            mainMessageText = this.format(MessageKey.ATTACK_DECLARATION, {
-                attackerName: attackerInfo.name,
-                attackType: attackingPart.type,
-                trait: attackingPart.trait,
-            });
-        }
-        messageSequence.push({ text: mainMessageText });
-
-        // ガードメッセージをシーケンスに追加
-        if (guardianInfo) {
-            const guardMessageText = this.format(MessageKey.GUARDIAN_TRIGGERED, {
-                guardianName: guardianInfo.name,
-            });
-            messageSequence.push({ text: guardMessageText });
-        }
+        const declarationSequence = this._createDeclarationSequence(attackerInfo, detail);
         
-        // 宣言モーダル用のデータを準備し、表示要求
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.ATTACK_DECLARATION,
             data: { ...detail },
-            messageSequence: messageSequence,
+            messageSequence: declarationSequence,
             immediate: true,
         });
 
-
         // --- Step 2: 結果メッセージを生成 ---
-        let resultSequence = [];
+        // 空振りや効果なしの場合は結果メッセージを表示しない
+        const shouldShowResult = (targetId && outcome.isHit) || (appliedEffects && appliedEffects.length > 0);
+
+        if (shouldShowResult) {
+            const resultSequence = this._createResultSequence(detail);
+            
+            if (resultSequence.length > 0) {
+                this.world.emit(GameEvents.SHOW_MODAL, {
+                    type: ModalType.EXECUTION_RESULT,
+                    data: { ...detail },
+                    messageSequence: resultSequence,
+                    immediate: true
+                });
+            }
+        }
+    }
+
+    /**
+     * 行動宣言フェーズのメッセージシーケンスを作成します。
+     * @private
+     */
+    _createDeclarationSequence(attackerInfo, detail) {
+        const { targetId, attackingPart, isSupport, guardianInfo } = detail;
+        const sequence = [];
+
+        // メインの宣言メッセージ
+        let mainMessageKey;
+        let params = {
+            attackerName: attackerInfo.name,
+            actionType: attackingPart.action,
+            attackType: attackingPart.type,
+            trait: attackingPart.trait,
+        };
+
+        if (isSupport) {
+            mainMessageKey = MessageKey.SUPPORT_DECLARATION;
+        } else if (!targetId) {
+            mainMessageKey = MessageKey.ATTACK_MISSED;
+        } else {
+            mainMessageKey = MessageKey.ATTACK_DECLARATION;
+        }
+
+        sequence.push({ text: this.format(mainMessageKey, params) });
+
+        // ガード発動メッセージ
+        if (guardianInfo) {
+            sequence.push({
+                text: this.format(MessageKey.GUARDIAN_TRIGGERED, { guardianName: guardianInfo.name })
+            });
+        }
+
+        return sequence;
+    }
+
+    /**
+     * 行動結果フェーズのメッセージシーケンスを作成します。
+     * @private
+     */
+    _createResultSequence(detail) {
+        const { targetId, isSupport, outcome, appliedEffects, guardianInfo } = detail;
+        let sequence = [];
+
         const isHealAction = appliedEffects && appliedEffects.some(e => e.type === EffectType.HEAL);
 
         if (isSupport && !isHealAction) {
+            // 支援行動（バフ・デバフ）の結果
             const supportMessage = this.generateSupportResultMessage(appliedEffects[0]);
-            resultSequence.push({ text: supportMessage });
-        } else if (!outcome.isHit && targetId) { // ターゲットがいる攻撃の回避
+            sequence.push({ text: supportMessage });
+
+        } else if (!outcome.isHit && targetId) {
+            // 回避された場合
             const targetName = this.world.getComponent(targetId, PlayerInfo)?.name || '相手';
-            const evadedMessage = this.format(MessageKey.ATTACK_EVADED, { targetName });
-            resultSequence.push({ text: evadedMessage });
+            sequence.push({ 
+                text: this.format(MessageKey.ATTACK_EVADED, { targetName }) 
+            });
+
         } else if (appliedEffects && appliedEffects.length > 0) {
-            resultSequence = this.generateDamageResultSequence(appliedEffects, guardianInfo);
-        } else {
-            // ここに来るのは、ターゲットが元々いない攻撃(空振り)か、効果が何もなかった場合
-            // 宣言メッセージで「空を切った」と表示済みなので、結果は不要
+            // ダメージまたは回復の結果
+            sequence = this.generateDamageResultSequence(appliedEffects, guardianInfo);
         }
 
-        // 結果メッセージが存在する場合のみ、結果表示モーダルを要求
-        if(resultSequence.length > 0) {
-            this.world.emit(GameEvents.SHOW_MODAL, {
-                type: ModalType.EXECUTION_RESULT,
-                data: { ...detail },
-                messageSequence: resultSequence,
-                immediate: true
-            });
-        }
+        return sequence;
     }
 
     /**
@@ -122,15 +146,11 @@ export class MessageSystem extends BaseSystem {
         const actorInfo = this.world.getComponent(entityId, PlayerInfo);
         if (!actorInfo) return;
 
-        // switch文をマップオブジェクトによる参照に置き換え
         const messageKey = cancelReasonToMessageKey[reason];
-        if (!messageKey) {
-            return; // 不明な理由の場合は何もしない
-        }
+        if (!messageKey) return;
         
         const message = this.format(messageKey, { actorName: actorInfo.name });
         
-        // 汎用メッセージモーダルで表示（これは単一メッセージなのでシーケンスは不要）
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.MESSAGE,
             data: { message: message }
@@ -142,7 +162,6 @@ export class MessageSystem extends BaseSystem {
      * @param {object} detail - GUARD_BROKENイベントのペイロード
      */
     onGuardBroken(detail) {
-        const { entityId } = detail;
         const message = this.format(MessageKey.GUARD_BROKEN);
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.MESSAGE,
@@ -168,25 +187,19 @@ export class MessageSystem extends BaseSystem {
             let prefix = firstEffect.isCritical ? this.format(MessageKey.CRITICAL_HIT) : '';
             const targetInfo = this.world.getComponent(firstEffect.targetId, PlayerInfo);
             const partName = PartKeyToInfoMap[firstEffect.partKey]?.name || '不明部位';
+            const params = {
+                targetName: targetInfo?.name || '不明',
+                guardianName: guardianInfo?.name || '不明',
+                partName: partName,
+                damage: firstEffect.value,
+            };
     
             if (guardianInfo) {
-                messages.push(prefix + this.format(MessageKey.GUARDIAN_DAMAGE, {
-                    guardianName: guardianInfo.name,
-                    partName: partName,
-                    damage: firstEffect.value,
-                }));
+                messages.push(prefix + this.format(MessageKey.GUARDIAN_DAMAGE, params));
             } else if (firstEffect.isDefended) {
-                messages.push(prefix + this.format(MessageKey.DEFENSE_SUCCESS, {
-                    targetName: targetInfo.name,
-                    partName: partName,
-                    damage: firstEffect.value,
-                }));
+                messages.push(prefix + this.format(MessageKey.DEFENSE_SUCCESS, params));
             } else {
-                messages.push(prefix + this.format(MessageKey.DAMAGE_APPLIED, {
-                    targetName: targetInfo.name,
-                    partName: partName,
-                    damage: firstEffect.value,
-                }));
+                messages.push(prefix + this.format(MessageKey.DAMAGE_APPLIED, params));
             }
         }
     
@@ -214,7 +227,6 @@ export class MessageSystem extends BaseSystem {
         if (!effects || effects.length === 0) return [];
         
         const messageLines = this.generateDamageResultMessage(effects, guardianInfo).split('<br>');
-
         const hasHpChange = effects.some(e => (e.type === EffectType.DAMAGE || e.type === EffectType.HEAL) && e.value > 0);
 
         if (messageLines.length > 0 && messageLines[0] !== '') {
@@ -239,18 +251,10 @@ export class MessageSystem extends BaseSystem {
      */
     generateSupportResultMessage(effect) {
         if (!effect) return '支援行動成功！';
-        
         const formatter = this.supportMessageFormatters[effect.type];
-        
         return formatter ? formatter(effect) : '支援行動成功！';
     }
 
-    /**
-     * 回復行動の結果メッセージを生成します。
-     * @param {object} effect - 回復効果オブジェクト
-     * @returns {string} フォーマット済みメッセージ
-     * @private
-     */
     _formatHealMessage(effect) {
         if (effect.value > 0) {
             const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
@@ -264,12 +268,6 @@ export class MessageSystem extends BaseSystem {
         return this.format(MessageKey.HEAL_FAILED);
     }
 
-    /**
-     * スキャン行動の結果メッセージを生成します。
-     * @param {object} effect - スキャン効果オブジェクト
-     * @returns {string} フォーマット済みメッセージ
-     * @private
-     */
     _formatScanMessage(effect) {
         return this.format(MessageKey.SUPPORT_SCAN_SUCCESS, { 
             scanBonus: effect.value, 
@@ -277,12 +275,6 @@ export class MessageSystem extends BaseSystem {
         });
     }
 
-    /**
-     * 妨害行動の結果メッセージを生成します。
-     * @param {object} effect - 妨害効果オブジェクト
-     * @returns {string} フォーマット済みメッセージ
-     * @private
-     */
     _formatGlitchMessage(effect) {
         const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
         return effect.wasSuccessful
@@ -290,21 +282,12 @@ export class MessageSystem extends BaseSystem {
             : this.format(MessageKey.INTERRUPT_GLITCH_FAILED);
     }
 
-    /**
-     * 防御行動の結果メッセージを生成します。
-     * @param {object} effect - 防御効果オブジェクト
-     * @returns {string} フォーマット済みメッセージ
-     * @private
-     */
     _formatGuardMessage(effect) {
         return this.format(MessageKey.DEFEND_GUARD_SUCCESS, { guardCount: effect.value });
     }
 
     /**
      * メッセージテンプレートをデータでフォーマットします。
-     * @param {string} key - MessageTemplatesのキー
-     * @param {object} data - プレースホルダーを置き換えるデータ
-     * @returns {string} フォーマット済みのメッセージ
      */
     format(key, data = {}) {
         let template = MessageTemplates[key] || '';

@@ -10,6 +10,7 @@ import { BattlePhase, PlayerStateType, TargetTiming, ModalType } from '../common
 import { GameEvents } from '../common/events.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
 import { compareByPropulsion } from '../utils/queryUtils.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 
 export class ActionExecutionSystem extends BaseSystem {
     constructor(world) {
@@ -25,31 +26,39 @@ export class ActionExecutionSystem extends BaseSystem {
     }
 
     update(deltaTime) {
-        if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
-            // フェーズが切り替わったら内部状態をリセット
-            if (this.executionQueue.length > 0 || this.isExecuting) {
-                this.executionQueue = [];
-                this.isExecuting = false;
-                this.currentExecutingActorId = null;
-            }
-            return;
-        }
-
-        // 実行キューが空で、かつまだアクションを実行中でなければ、実行準備完了のエンティティからキューを生成
-        if (this.executionQueue.length === 0 && !this.isExecuting) {
-            this.populateExecutionQueueFromReady();
-            // キューを生成しても実行対象がいない場合
-            if (this.executionQueue.length === 0) {
-                // 実行対象がいない場合、このフェーズは完了したとみなし、完了イベントを発行
-                // PhaseSystemが次のフェーズへ遷移させる
-                this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
+        try {
+            if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
+                // フェーズが切り替わったら内部状態をリセット
+                if (this.executionQueue.length > 0 || this.isExecuting) {
+                    this.executionQueue = [];
+                    this.isExecuting = false;
+                    this.currentExecutingActorId = null;
+                }
                 return;
             }
-        }
 
-        // 実行中でなく、キューにアクションがあれば次のアクションを実行
-        if (!this.isExecuting && this.executionQueue.length > 0) {
-            this.executeNextAction();
+            // 実行キューが空で、かつまだアクションを実行中でなければ、実行準備完了のエンティティからキューを生成
+            if (this.executionQueue.length === 0 && !this.isExecuting) {
+                this.populateExecutionQueueFromReady();
+                // キューを生成しても実行対象がいない場合
+                if (this.executionQueue.length === 0) {
+                    // 実行対象がいない場合、このフェーズは完了したとみなし、完了イベントを発行
+                    // PhaseSystemが次のフェーズへ遷移させる
+                    this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
+                    return;
+                }
+            }
+
+            // 実行中でなく、キューにアクションがあれば次のアクションを実行
+            if (!this.isExecuting && this.executionQueue.length > 0) {
+                this.executeNextAction();
+            }
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'ActionExecutionSystem.update' });
+            // エラー回復：強制的にフェーズ完了とみなす
+            this.isExecuting = false;
+            this.executionQueue = [];
+            this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
         }
     }
     
@@ -91,7 +100,12 @@ export class ActionExecutionSystem extends BaseSystem {
         const actionComp = this.world.getComponent(entityId, Action);
         Object.assign(actionComp, actionDetail);
 
-        this.determinePostMoveTarget(entityId);
+        try {
+            this.determinePostMoveTarget(entityId);
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'ActionExecutionSystem.determinePostMoveTarget', entityId });
+            // ターゲット決定失敗時はターゲットなしとして進行（空振りになる可能性が高い）
+        }
 
         const gameState = this.world.getComponent(entityId, GameState);
         if (gameState) gameState.state = PlayerStateType.AWAITING_ANIMATION;

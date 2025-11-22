@@ -1,5 +1,5 @@
 /**
- * @file ActionSetupSystem.js (新規作成)
+ * @file ActionSetupSystem.js
  * @description [改善案] 行動選択後のセットアップ処理を専門に担当するシステム。
  * StateSystemから責務を分割し、単一責任の原則を強化します。
  */
@@ -51,6 +51,7 @@ export class ActionSetupSystem extends BaseSystem {
         
         // ゲージをリセットし、チャージ時間用の速度補正を適用
         gauge.value = 0;
+        gauge.currentSpeed = 0;
         gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: selectedPart, factorType: 'charge' });
     }
 
