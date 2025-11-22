@@ -7,10 +7,9 @@
 
 import { MEDAROT_SETS } from '../battle/data/medarotSets.js';
 import { PARTS_DATA } from '../battle/data/parts.js';
-// メダルマスターデータをインポート
 import { MEDALS_DATA } from '../battle/data/medals.js';
-import { PartInfo } from '../battle/common/constants.js';
 import { CONFIG as MAP_CONFIG } from '../map/constants.js';
+import { buildPartData } from '../battle/data/partDataUtils.js';
 
 // デフォルトのプレイヤー初期位置に `direction` を追加
 const initialPlayerPosition = {
@@ -85,7 +84,7 @@ export class GameDataManager {
             playerPosition: { ...initialPlayerPosition },
             playerMedarots: medarots,
             playerPartsInventory: inventory,
-            playerMedalsInventory: medalsInventory, // ★更新: 新しいインベントリ構造
+            playerMedalsInventory: medalsInventory,
         };
         console.log('Game data has been reset to default.');
     }
@@ -222,7 +221,7 @@ export class GameDataManager {
 
     /**
      * 指定したインデックスのメダロットの現在のパーツ構成（IDと詳細データ）を取得します。
-     * マスターデータとプレイヤーデータを実行時にマージして返す形式に変更。
+     * マスターデータとプレイヤーデータを実行時にマージして返す。
      * @param {number} index - メダロットのインデックス (0-2)
      * @returns {object | null} メダロットのデータ、またはnull
      */
@@ -234,12 +233,13 @@ export class GameDataManager {
 
         for (const partSlot in medarotData.set.parts) {
             const partId = medarotData.set.parts[partSlot];
-            // マスターデータから静的な性能データを取得
-            const masterPartData = PARTS_DATA[partSlot]?.[partId] || null;
+            
+            // 共通ユーティリティを使用して完全なパーツデータを構築
+            // これにより、カスタマイズ画面でもActionDefinition由来のプロパティを参照可能になる
+            const masterPartData = buildPartData(partId, partSlot);
 
             assembledParts[partSlot] = {
                 id: partId,
-                // マスターデータそのものを返す（インベントリに個数以外のデータが増えたらここでマージする）
                 data: masterPartData
             };
         }
@@ -270,8 +270,10 @@ export class GameDataManager {
         
         return Object.keys(inventorySlot)
             .map(partId => {
-                const masterPartData = PARTS_DATA[partSlot]?.[partId];
+                // 共通ユーティリティを使用して完全なパーツデータを構築
+                const masterPartData = buildPartData(partId, partSlot);
                 if (!masterPartData) return null;
+                
                 // IDを付与して返す
                 return { id: partId, ...masterPartData };
             })

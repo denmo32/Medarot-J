@@ -3,40 +3,8 @@ import * as Components from './components/index.js';
 import { TeamID, MedalPersonality, PartInfo } from '../common/constants.js'; 
 import { PARTS_DATA } from '../data/parts.js'; 
 import { MEDAROT_SETS } from '../data/medarotSets.js'; 
-import { ActionDefinitions } from '../data/actionDefinitions.js';
-import { PartRoles } from '../data/partRoles.js';
 import { MEDALS_DATA } from '../data/medals.js';
-
-/**
- * マスターデータを元に、戦闘インスタンス用のパーツデータを生成します。
- * この関数は、パーツデータ、役割、行動定義をマージして、
- * 戦闘システムが直接利用できる単一のオブジェクトを構築します。
- * @param {object} partData - パーツのマスターデータ (`PARTS_DATA`の単一エントリ)
- * @returns {object | null} 戦闘インスタンス用のパーツオブジェクト、またはnull
- */
-const initializePart = (partData) => {
-    if (!partData) return null;
-
-    // 1. 役割(role)と行動定義(action)のデータを取得
-    // partData.roleはオブジェクトの場合(上書き)と文字列の場合(参照)がある
-    const roleKey = (typeof partData.role === 'object') ? partData.role.key : partData.role;
-    const roleData = Object.values(PartRoles).find(r => r.key === roleKey) || {};
-
-    const actionData = ActionDefinitions[partData.actionKey] || {};
-
-    // 2. データをマージする (優先度: partData > roleData > actionData)
-    // これにより、パーツ固有の設定が役割や行動のデフォルト設定を上書きできます。
-    const mergedData = { ...actionData, ...roleData, ...partData };
-    // roleがオブジェクトで上書きされている場合、その内容をさらにマージ
-    if (typeof partData.role === 'object') {
-        Object.assign(mergedData, partData.role);
-    }
-    
-    // 3. 戦闘中の状態を初期化
-    mergedData.hp = partData.maxHp;
-    mergedData.isBroken = false;
-    return mergedData;
-};
+import { buildPartData } from '../data/partDataUtils.js';
 
 /**
  * 単一のプレイヤーエンティティを生成し、その特性を定義するコンポーネント群を追加します。
@@ -51,8 +19,8 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     const entityId = world.createEntity();
     const isLeader = index === 0;
 
-    // --- パーツ構成の決定 ---
-    const rawPartsData = {};
+    // --- パーツID構成の決定 ---
+    const partIds = {};
     let medarotSet; // プレイヤーチームの場合の名前フォールバック用に保持
 
     if (teamId === TeamID.TEAM2) {
@@ -62,7 +30,7 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
             const partIdList = Object.keys(PARTS_DATA[partKey]);
             if (partIdList.length > 0) {
                 const randomPartId = partIdList[Math.floor(Math.random() * partIdList.length)];
-                rawPartsData[partKey] = PARTS_DATA[partKey][randomPartId];
+                partIds[partKey] = randomPartId;
             }
         }
     } else {
@@ -70,8 +38,9 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
         medarotSet = medarotData ? medarotData.set : MEDAROT_SETS[Math.floor(Math.random() * MEDAROT_SETS.length)];
         for (const partKey in medarotSet.parts) {
             const partId = medarotSet.parts[partKey];
+            // 実際に存在するIDか確認してからセット
             if (PARTS_DATA[partKey] && PARTS_DATA[partKey][partId]) {
-                rawPartsData[partKey] = PARTS_DATA[partKey][partId];
+                partIds[partKey] = partId;
             }
         }
     }
@@ -116,18 +85,17 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     const initialX = teamId === TeamID.TEAM1 ? 0 : 1;
     const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;
 
-    // このファクトリ関数内でパーツデータを構築する
+    // 共通のデータ構築ユーティリティを使用してパーツデータを生成
     const initializedParts = {
-        head: initializePart(rawPartsData.head),
-        rightArm: initializePart(rawPartsData.rightArm),
-        leftArm: initializePart(rawPartsData.leftArm),
-        legs: initializePart(rawPartsData.legs)
+        head: buildPartData(partIds.head, 'head'),
+        rightArm: buildPartData(partIds.rightArm, 'rightArm'),
+        leftArm: buildPartData(partIds.leftArm, 'leftArm'),
+        legs: buildPartData(partIds.legs, 'legs')
     };
 
     world.addComponent(entityId, new Components.PlayerInfo(name, teamId, isLeader));
     world.addComponent(entityId, new Components.Gauge());
     world.addComponent(entityId, new Components.GameState());
-    // 構築済みのパーツデータをPartsコンポーネントに渡す
     world.addComponent(entityId, new Components.Parts(initializedParts.head, initializedParts.rightArm, initializedParts.leftArm, initializedParts.legs));
     world.addComponent(entityId, new Components.Action());
     world.addComponent(entityId, new Components.Medal(personality));
@@ -152,7 +120,7 @@ export function createPlayers(world, playerTeamData = null) {
             if (teamId === TeamID.TEAM1 && playerTeamData && playerTeamData[i]) {
                 medarotData = playerTeamData[i];
             }
-            createPlayerEntity(world, teamId, i, ++idCounter, medarotData); // medarotDataを渡す
+            createPlayerEntity(world, teamId, i, ++idCounter, medarotData);
         }
     }
 }
