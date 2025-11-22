@@ -56,44 +56,48 @@ export class TurnSystem extends BaseSystem {
      * このシステムのupdateロジックはActionSelectionSystemから移管されました。
      */
     update(deltaTime) {
-        // 保留キューの処理
-        if (this.pendingQueue.length > 0) {
-            // 現在のフェーズに応じてソート戦略を決定
-            if (this.battleContext.phase === BattlePhase.INITIAL_SELECTION) {
-                // 初回行動選択時はエンティティIDの昇順でソート
-                this.pendingQueue.sort((a, b) => a - b);
-            } else {
-                // 通常時は脚部パーツの「推進」が高い順にソート
-                this.pendingQueue.sort(compareByPropulsion(this.world));
+        try {
+            // 保留キューの処理
+            if (this.pendingQueue.length > 0) {
+                // 現在のフェーズに応じてソート戦略を決定
+                if (this.battleContext.phase === BattlePhase.INITIAL_SELECTION) {
+                    // 初回行動選択時はエンティティIDの昇順でソート
+                    this.pendingQueue.sort((a, b) => a - b);
+                } else {
+                    // 通常時は脚部パーツの「推進」が高い順にソート
+                    this.pendingQueue.sort(compareByPropulsion(this.world));
+                }
+                
+                // ソート済みのエンティティを正式な行動キューに追加
+                this.battleContext.turn.actionQueue.push(...this.pendingQueue);
+                // 保留キューをクリア
+                this.pendingQueue = [];
             }
-            
-            // ソート済みのエンティティを正式な行動キューに追加
-            this.battleContext.turn.actionQueue.push(...this.pendingQueue);
-            // 保留キューをクリア
-            this.pendingQueue = [];
-        }
 
 
-        // 行動選択フェーズでのみ動作
-        const activePhases = [
-            BattlePhase.ACTION_SELECTION,
-            BattlePhase.INITIAL_SELECTION 
-        ];
-        if (!activePhases.includes(this.battleContext.phase)) {
-            return;
-        }
-
-        // 現在行動すべきアクターがおらず、キューに待機者がいる場合
-        // BattleContextのキューを参照
-        if (this.battleContext.turn.currentActorId === null && this.battleContext.turn.actionQueue.length > 0) {
-            const nextActorId = this.battleContext.turn.actionQueue.shift();
-            
-            // 行動可能か最終チェック
-            const gameState = this.world.getComponent(nextActorId, GameState);
-            if (gameState && gameState.state === PlayerStateType.READY_SELECT) {
-                // ActionSelectionSystemに次のアクターを通知
-                this.world.emit(GameEvents.NEXT_ACTOR_DETERMINED, { entityId: nextActorId });
+            // 行動選択フェーズでのみ動作
+            const activePhases = [
+                BattlePhase.ACTION_SELECTION,
+                BattlePhase.INITIAL_SELECTION 
+            ];
+            if (!activePhases.includes(this.battleContext.phase)) {
+                return;
             }
+
+            // 現在行動すべきアクターがおらず、キューに待機者がいる場合
+            // BattleContextのキューを参照
+            if (this.battleContext.turn.currentActorId === null && this.battleContext.turn.actionQueue.length > 0) {
+                const nextActorId = this.battleContext.turn.actionQueue.shift();
+                
+                // 行動可能か最終チェック
+                const gameState = this.world.getComponent(nextActorId, GameState);
+                if (gameState && gameState.state === PlayerStateType.READY_SELECT) {
+                    // ActionSelectionSystemに次のアクターを通知
+                    this.world.emit(GameEvents.NEXT_ACTOR_DETERMINED, { entityId: nextActorId });
+                }
+            }
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'TurnSystem.update' });
         }
     }
 }

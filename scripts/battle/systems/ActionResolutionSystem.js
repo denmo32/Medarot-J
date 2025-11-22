@@ -13,6 +13,7 @@ import { CombatCalculator } from '../utils/combatFormulas.js';
 import { findGuardian, isValidTarget } from '../utils/queryUtils.js';
 import { effectStrategies } from '../effects/effectStrategies.js';
 import { effectApplicators } from '../effects/applicators/applicatorIndex.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 
 export class ActionResolutionSystem extends BaseSystem {
     constructor(world) {
@@ -32,27 +33,33 @@ export class ActionResolutionSystem extends BaseSystem {
     }
 
     resolveAction(attackerId) {
-        const components = this._getCombatComponents(attackerId);
-        if (!components) {
+        try {
+            const components = this._getCombatComponents(attackerId);
+            if (!components) {
+                this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: attackerId });
+                return;
+            }
+            
+            // 1. ターゲットとガード情報の決定
+            const targetContext = this._determineFinalTarget(components, attackerId);
+            if (targetContext.shouldCancel) {
+                this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: attackerId, reason: ActionCancelReason.TARGET_LOST });
+                return;
+            }
+
+            // 2. 戦闘結果（命中・防御など）の計算
+            const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
+
+            // 3. 効果の生成
+            const resolvedEffects = this._processEffects(attackerId, components, targetContext, outcome);
+            
+            // 4. 効果の適用とイベント通知
+            this._applyEffectsAndNotify(attackerId, components, targetContext, outcome, resolvedEffects);
+        } catch (error) {
+            ErrorHandler.handle(error, { method: 'ActionResolutionSystem.resolveAction', attackerId });
+            // エラー時は強制的に行動完了扱いにしてゲーム進行のスタックを防ぐ
             this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: attackerId });
-            return;
         }
-        
-        // 1. ターゲットとガード情報の決定
-        const targetContext = this._determineFinalTarget(components, attackerId);
-        if (targetContext.shouldCancel) {
-            this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: attackerId, reason: ActionCancelReason.TARGET_LOST });
-            return;
-        }
-
-        // 2. 戦闘結果（命中・防御など）の計算
-        const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
-
-        // 3. 効果の生成
-        const resolvedEffects = this._processEffects(attackerId, components, targetContext, outcome);
-        
-        // 4. 効果の適用とイベント通知
-        this._applyEffectsAndNotify(attackerId, components, targetContext, outcome, resolvedEffects);
     }
 
     _determineFinalTarget(components, attackerId) {
