@@ -35,17 +35,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     const startFromSaveButton = document.getElementById('start-from-save');
 
     // --- Main Game Loop ---
+    // 固定タイムステップ設定 (60 FPS)
+    const FIXED_TIME_STEP = 1000 / 60;
     let lastTime = 0;
+    let accumulator = 0;
+
     function gameLoop(timestamp) {
         if (!lastTime) lastTime = timestamp;
         const deltaTime = timestamp - lastTime;
         lastTime = timestamp;
 
-        // SceneManagerに更新を委譲
-        sceneManager.update(deltaTime);
+        // 経過時間を蓄積
+        accumulator += deltaTime;
 
-        // 入力マネージャーの状態を更新
-        inputManager.update();
+        // 蓄積された時間が固定ステップ以上ある間、論理更新を繰り返す
+        // これにより、描画フレームレートが落ちてもゲームロジックの進行速度は一定に保たれる
+        // また、1フレームでの移動量などが一定になり、すり抜け等のバグを防ぐ
+        while (accumulator >= FIXED_TIME_STEP) {
+            // SceneManagerに更新を委譲 (常に固定時間を渡す)
+            sceneManager.update(FIXED_TIME_STEP);
+
+            // 論理フレームの終わりに、そのフレームで処理された単発入力フラグ(justPressed等)をクリアする
+            // これにより、1回のキー押しが複数の論理フレームで重複して処理されるのを防ぐ
+            inputManager.update();
+
+            accumulator -= FIXED_TIME_STEP;
+        }
 
         requestAnimationFrame(gameLoop);
     }
