@@ -25,19 +25,6 @@ export class MapUIState {
     }
 }
 
-/**
- * @typedef {import('../core/GameDataManager.js').GameDataManager} GameDataManager
- * @typedef {import('../core/InputManager.js').InputManager} InputManager
- */
-
-/**
- * @typedef {object} MapSceneData
- * @description MapSceneの初期化に必要なデータ。
- * @property {GameDataManager} gameDataManager - グローバルなゲームデータマネージャー。
- * @property {InputManager} inputManager - グローバルな入力マネージャー。
- * @property {boolean} [restoreMenu=false] - シーン開始時にメニューを開いた状態にするか。
- */
-
 export class MapScene extends BaseScene {
     constructor(world, sceneManager) {
         super(world, sceneManager);
@@ -51,87 +38,133 @@ export class MapScene extends BaseScene {
         console.log("Initializing Map Scene...");
         const { gameDataManager, inputManager, restoreMenu = false } = data;
 
-        // --- Canvas Setup ---
+        // --- Resources & Canvas ---
+        const { canvas, map } = await this._setupResources();
+
+        // --- Contexts ---
+        this._setupContexts();
+
+        // --- Systems ---
+        const mapUISystem = this._setupSystems(canvas, map, inputManager);
+
+        // --- Entities ---
+        const playerEntityId = this._setupEntities(gameDataManager);
+
+        // --- Events ---
+        this._bindEvents(gameDataManager, inputManager, playerEntityId);
+
+        // --- Initial State ---
+        if (restoreMenu) {
+            mapUISystem.toggleMenu();
+        }
+    }
+
+    /**
+     * リソースのロードとキャンバスのセットアップを行います。
+     * @returns {Promise<{canvas: HTMLElement, map: Map}>}
+     * @private
+     */
+    async _setupResources() {
         const canvas = document.getElementById('game-canvas');
         if (!canvas) throw new Error('Canvas element not found!');
         canvas.width = MAP_CONFIG.VIEWPORT_WIDTH;
         canvas.height = MAP_CONFIG.VIEWPORT_HEIGHT;
         
-        // --- Map Mode Objects ---
-        const camera = new Camera();
-        const renderer = new Renderer(canvas);
         if (!this.mapData) {
             const response = await fetch('scripts/map/map.json');
             this.mapData = await response.json();
         }
         const map = new Map(this.mapData);
 
-        // --- Contexts ---
-        // マップシーン専用のUI状態コンポーネントをシングルトンとして登録
+        return { canvas, map };
+    }
+
+    /**
+     * シーン固有のコンテキスト（UI状態など）をセットアップします。
+     * @private
+     */
+    _setupContexts() {
         const contextEntity = this.world.createEntity();
         const mapUIState = new MapUIState();
         this.world.addComponent(contextEntity, mapUIState);
+    }
 
-        // --- Systems ---
+    /**
+     * システム群を初期化・登録します。
+     * @param {HTMLElement} canvas 
+     * @param {Map} map 
+     * @param {InputManager} inputManager 
+     * @returns {MapUISystem} 初期化したUIシステムを返す（初期状態設定のため）
+     * @private
+     */
+    _setupSystems(canvas, map, inputManager) {
+        const camera = new Camera();
+        const renderer = new Renderer(canvas);
+
         const mapUISystem = new MapUISystem(this.world, inputManager);
         this.world.registerSystem(new PlayerInputSystem(this.world, inputManager, map));
         this.world.registerSystem(new MovementSystem(this.world, map));
         this.world.registerSystem(new CameraSystem(this.world, camera, map));
         this.world.registerSystem(new MapRenderSystem(this.world, renderer, map, camera));
         this.world.registerSystem(mapUISystem);
-        // InteractionSystemを登録
         this.world.registerSystem(new InteractionSystem(this.world, map));
 
+        return mapUISystem;
+    }
 
-        // --- Entities ---
+    /**
+     * プレイヤーエンティティを初期化します。
+     * @param {GameDataManager} gameDataManager 
+     * @returns {number} プレイヤーエンティティID
+     * @private
+     */
+    _setupEntities(gameDataManager) {
         const playerEntityId = this.world.createEntity();
         const mapPlayerData = gameDataManager.getPlayerDataForMap();
+        
         this.world.addComponent(playerEntityId, new MapComponents.Position(mapPlayerData.position.x, mapPlayerData.position.y));
         this.world.addComponent(playerEntityId, new MapComponents.Velocity(0, 0));
         this.world.addComponent(playerEntityId, new MapComponents.Renderable('circle', 'gold', MAP_CONFIG.PLAYER_SIZE));
         this.world.addComponent(playerEntityId, new MapComponents.PlayerControllable());
         this.world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
         this.world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
-        // 保存された向き情報でFacingDirectionコンポーネントを初期化
         this.world.addComponent(playerEntityId, new MapComponents.FacingDirection(mapPlayerData.position.direction));
 
-        // --- Event Listeners for Scene Transition ---
+        return playerEntityId;
+    }
+
+    /**
+     * イベントリスナーを設定します。
+     * @param {GameDataManager} gameDataManager 
+     * @param {InputManager} inputManager 
+     * @param {number} playerEntityId 
+     * @private
+     */
+    _bindEvents(gameDataManager, inputManager, playerEntityId) {
+        // プレイヤーの状態保存用ヘルパー
         const savePlayerState = () => {
             const pos = this.world.getComponent(playerEntityId, MapComponents.Position);
-            // 向き情報も取得
             const dir = this.world.getComponent(playerEntityId, MapComponents.FacingDirection);
             if (pos && dir) {
-                // 位置と向きをまとめて更新
                 gameDataManager.updatePlayerMapState({ x: pos.x, y: pos.y, direction: dir.direction });
             }
         };
         
-        this.world.on(MAP_EVENTS.BATTLE_TRIGGERED, () => {
+        // シーン遷移イベント
+        const switchTo = (sceneName, additionalData = {}) => {
             savePlayerState();
-            this.sceneManager.switchTo('battle', { gameDataManager, inputManager });
-        });
-        this.world.on(GameEvents.NPC_INTERACTED, () => {
-            savePlayerState();
-            this.sceneManager.switchTo('battle', { gameDataManager, inputManager });
-        });
-        this.world.on(GameEvents.CUSTOMIZE_SCENE_REQUESTED, () => {
-            savePlayerState();
-            this.sceneManager.switchTo('customize', { gameDataManager, inputManager });
-        });
+            this.sceneManager.switchTo(sceneName, { gameDataManager, inputManager, ...additionalData });
+        };
 
-        // --- Other Event Listeners ---
-        // セーブ要求イベントのハンドラを更新
+        this.world.on(MAP_EVENTS.BATTLE_TRIGGERED, () => switchTo('battle'));
+        this.world.on(GameEvents.NPC_INTERACTED, () => switchTo('battle'));
+        this.world.on(GameEvents.CUSTOMIZE_SCENE_REQUESTED, () => switchTo('customize'));
+
+        // セーブ要求
         this.world.on(GameEvents.GAME_SAVE_REQUESTED, () => {
-            // 現在の位置と向きでセーブデータを更新
             savePlayerState();
-            // セーブを実行
             gameDataManager.saveGame();
         });
-
-        // --- Initial State ---
-        if (restoreMenu) {
-            mapUISystem.toggleMenu();
-        }
     }
 
     update(deltaTime) {

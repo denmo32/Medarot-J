@@ -9,18 +9,6 @@ import { CustomizeLogicSystem } from '../customize/systems/CustomizeLogicSystem.
 import { CustomizeState } from '../customize/components/CustomizeState.js';
 import { GameEvents } from '../battle/common/events.js';
 
-/**
- * @typedef {import('../core/GameDataManager.js').GameDataManager} GameDataManager
- * @typedef {import('../core/InputManager.js').InputManager} InputManager
- */
-
-/**
- * @typedef {object} CustomizeSceneData
- * @description CustomizeSceneの初期化に必要なデータ。
- * @property {GameDataManager} gameDataManager - グローバルなゲームデータマネージャー。
- * @property {InputManager} inputManager - グローバルな入力マネージャー。
- */
-
 export class CustomizeScene extends BaseScene {
     constructor(world, sceneManager) {
         super(world, sceneManager);
@@ -31,27 +19,39 @@ export class CustomizeScene extends BaseScene {
      */
     init(data) {
         console.log("Initializing Customize Scene...");
-        // initで渡されるgameDataManager, inputManagerはローカル変数として使用
-        const { gameDataManager, inputManager } = data;
+        
+        this._setupContexts();
+        this._setupSystems();
+        this._bindEvents();
+    }
 
-        // --- Contexts and State ---
-        // カスタマイズシーンはバトルと状態を共有しないため、独自のコンポーネントのみを使用します。
+    /**
+     * シーン固有のコンテキスト（状態）をセットアップします。
+     * @private
+     */
+    _setupContexts() {
+        // カスタマイズシーンはバトルと状態を共有しないため、独自のコンポーネントを使用
         const contextEntity = this.world.createEntity();
         this.world.addComponent(contextEntity, new CustomizeState());
-        
-        // --- Systems ---
-        const customizeUISystem = new CustomizeUISystem(this.world);
-        const customizeInputSystem = new CustomizeInputSystem(this.world);
-        const customizeLogicSystem = new CustomizeLogicSystem(this.world);
-        
-        this.world.registerSystem(customizeUISystem);
-        this.world.registerSystem(customizeInputSystem);
-        this.world.registerSystem(customizeLogicSystem);
+    }
 
-        // --- Event Listeners for Scene Transition ---
+    /**
+     * システム群を初期化・登録します。
+     * @private
+     */
+    _setupSystems() {
+        this.world.registerSystem(new CustomizeUISystem(this.world));
+        this.world.registerSystem(new CustomizeInputSystem(this.world));
+        this.world.registerSystem(new CustomizeLogicSystem(this.world));
+    }
+
+    /**
+     * イベントリスナーを設定します。
+     * @private
+     */
+    _bindEvents() {
         this.world.on(GameEvents.CUSTOMIZE_EXIT_REQUESTED, () => {
-            // 前のシーン（マップ）に戻る
-            // switchToの呼び出しを簡潔化
+            // 前のシーン（マップ）に戻る。メニューを開いた状態を復元するフラグを渡す。
             this.sceneManager.switchTo('map', { restoreMenu: true });
         });
     }
@@ -62,7 +62,7 @@ export class CustomizeScene extends BaseScene {
 
     destroy() {
         console.log("Destroying Customize Scene...");
-        // CustomizeUISystemがDOMを非表示にする処理を持つ
+        // CustomizeUISystemがDOMを非表示にする処理を持つため、明示的に呼び出す
         const customizeUISystem = this.world.systems.find(s => s instanceof CustomizeUISystem);
         if (customizeUISystem && customizeUISystem.destroy) {
             customizeUISystem.destroy();

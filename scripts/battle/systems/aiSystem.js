@@ -5,7 +5,6 @@
 
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { Medal, PlayerInfo } from '../core/components/index.js';
 import { decideAndEmitAction } from '../utils/actionUtils.js';
 import { determineTargetCandidatesByPersonality, selectBestActionPlan } from '../ai/aiDecisionUtils.js';
 import { determineActionPlans } from '../utils/targetingUtils.js';
@@ -13,8 +12,6 @@ import { ErrorHandler } from '../utils/errorHandler.js';
 
 /**
  * AIの「脳」として機能するシステム。
- * TurnSystemからAIの行動ターンであることが通知されると、このシステムが起動します。
- * プレイヤーの入力を待つInputSystemと対になる存在であり、AIの意思決定プロセスを担います。
  */
 export class AiSystem extends BaseSystem {
     constructor(world) {
@@ -24,7 +21,6 @@ export class AiSystem extends BaseSystem {
 
     /**
      * AIの行動選択が要求された際のハンドラ。AIの思考プロセスを開始します。
-     * 人間と同じ「ターゲット候補リスト→行動プラン→パーツ選択」のフローで意思決定を行います。
      * @param {object} detail - イベントの詳細 ({ entityId })
      */
     onAiActionRequired(detail) {
@@ -36,8 +32,8 @@ export class AiSystem extends BaseSystem {
             const { candidates: targetCandidates, strategy: usedStrategy } = determineTargetCandidatesByPersonality(context);
 
             if (!targetCandidates || targetCandidates.length === 0) {
-                console.warn(`AI ${entityId}: No target candidates found by personality. Action will be cancelled.`);
-                // 行動を決定せず、選択キューに再登録を要求して他のAIの選択を待つ
+                console.warn(`AI ${entityId}: No target candidates found by personality.`);
+                // ターゲットが見つからない場合、再キューイングを要求して処理を終了
                 this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
                 return;
             }
@@ -46,38 +42,54 @@ export class AiSystem extends BaseSystem {
             const actionPlans = determineActionPlans({ ...context, targetCandidates });
             
             if (actionPlans.length === 0) {
-                // 使用可能なパーツがない場合は機能停止
+                // 使用可能なパーツがない場合（事実上の機能停止）
                 this.world.emit(GameEvents.PLAYER_BROKEN, { entityId });
                 return;
             }
 
             // --- Step 3: 行動プランの中から最適なものを一つ選択 ---
-            // ロジックをユーティリティに委譲
             const finalPlan = selectBestActionPlan({ ...context, actionPlans });
 
             if (!finalPlan) {
-                console.error(`AI ${entityId}: Could not select a final action plan. This should not happen.`);
-                // フェイルセーフとしてランダムなプランを選択
-                const randomPlan = actionPlans[Math.floor(Math.random() * actionPlans.length)];
-                decideAndEmitAction(this.world, entityId, randomPlan.partKey, randomPlan.target);
+                console.error(`AI ${entityId}: Could not select a final action plan. Falling back to random.`);
+                // 安全策としてランダム選択
+                this._executeRandomFallback(entityId, actionPlans);
                 return;
             }
             
-            // --- Step 4: デバッグイベントを発行し、最終決定した行動を発行 ---
-            if (usedStrategy && finalPlan.target) {
-                this.world.emit(GameEvents.STRATEGY_EXECUTED, {
-                    strategy: usedStrategy,
-                    attackerId: entityId,
-                    target: finalPlan.target,
-                });
-            }
-            decideAndEmitAction(this.world, entityId, finalPlan.partKey, finalPlan.target);
+            // --- Step 4: 決定した行動を実行 ---
+            this._executePlan(entityId, finalPlan, usedStrategy);
 
         } catch (error) {
             ErrorHandler.handle(error, { method: 'AiSystem.onAiActionRequired', detail });
-            // エラー時は強制的に再キューイングを試みるか、パスする
-            // ここではゲーム進行を止めないために再キューイングを要求
+            // エラー時は進行を妨げないよう再キューイング
             this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
         }
+    }
+
+    /**
+     * 決定された行動プランを実行（発行）します。
+     * @private
+     */
+    _executePlan(entityId, plan, strategyKey) {
+        if (strategyKey && plan.target) {
+            // デバッグ用のイベント発行
+            this.world.emit(GameEvents.STRATEGY_EXECUTED, {
+                strategy: strategyKey,
+                attackerId: entityId,
+                target: plan.target,
+            });
+        }
+        decideAndEmitAction(this.world, entityId, plan.partKey, plan.target);
+    }
+
+    /**
+     * フォールバックとしてランダムな行動を実行します。
+     * @private
+     */
+    _executeRandomFallback(entityId, actionPlans) {
+        if (actionPlans.length === 0) return;
+        const randomPlan = actionPlans[Math.floor(Math.random() * actionPlans.length)];
+        decideAndEmitAction(this.world, entityId, randomPlan.partKey, randomPlan.target);
     }
 }

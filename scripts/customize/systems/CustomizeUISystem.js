@@ -1,6 +1,7 @@
 /**
  * @file カスタマイズ画面：UIシステム
  * UIの状態管理、DOMの描画、フォーカス制御を担当します。
+ * DOM生成には `el` ユーティリティを使用し、宣言的に記述します。
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameDataManager } from '../../core/GameDataManager.js';
@@ -28,12 +29,12 @@ export class CustomizeUISystem extends BaseSystem {
         this.currentPartListData = [];
         this.currentMedalListData = [];
 
-        this.initDOM();
-        this.bindWorldEvents();
+        this._initDOM();
+        this._bindEvents();
         this.renderAll();
     }
 
-    initDOM() {
+    _initDOM() {
         this.dom.container = document.getElementById('customize-container');
         this.dom.medarotList = document.getElementById('medarot-select-list');
         this.dom.equippedMedarotName = document.getElementById('equipped-medarot-name');
@@ -44,16 +45,15 @@ export class CustomizeUISystem extends BaseSystem {
         this.dom.partDetailsContent = document.getElementById('part-details-content');
     }
 
-    bindWorldEvents() {
+    _bindEvents() {
         this.world.on(GameEvents.CUST_NAVIGATE_INPUT, this.handleNavigation.bind(this));
         this.world.on(GameEvents.CUST_CONFIRM_INPUT, this.handleConfirm.bind(this));
         this.world.on(GameEvents.CUST_CANCEL_INPUT, this.handleCancel.bind(this));
-        this.world.on(GameEvents.PART_EQUIPPED, this.onPartEquipped.bind(this));
-        this.world.on(GameEvents.MEDAL_EQUIPPED, this.onMedalEquipped.bind(this));
+        this.world.on(GameEvents.PART_EQUIPPED, this.onItemEquipped.bind(this));
+        this.world.on(GameEvents.MEDAL_EQUIPPED, this.onItemEquipped.bind(this));
     }
 
-    handleNavigation(detail) {
-        const { direction } = detail;
+    handleNavigation({ direction }) {
         let stateChanged = false;
 
         switch (this.uiState.focus) {
@@ -91,8 +91,7 @@ export class CustomizeUISystem extends BaseSystem {
             return true;
         } else if (direction === 'left' || direction === 'right') {
             this.changeEquippedItem(direction);
-            // changeEquippedItem内でイベント発行による再描画が行われるため、ここではfalseを返す
-            return false; 
+            return false; // イベント発行により再描画されるため
         }
         return false;
     }
@@ -102,16 +101,15 @@ export class CustomizeUISystem extends BaseSystem {
         if (verticalMove === 0) return false;
 
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
-        if (selectedSlotType === EquipSlotType.MEDAL) {
-            if (this.currentMedalListData.length > 0) {
-                this.uiState.selectedMedalListIndex = (this.uiState.selectedMedalListIndex + verticalMove + this.currentMedalListData.length) % this.currentMedalListData.length;
-                return true;
+        const listData = selectedSlotType === EquipSlotType.MEDAL ? this.currentMedalListData : this.currentPartListData;
+        
+        if (listData.length > 0) {
+            if (selectedSlotType === EquipSlotType.MEDAL) {
+                this.uiState.selectedMedalListIndex = (this.uiState.selectedMedalListIndex + verticalMove + listData.length) % listData.length;
+            } else {
+                this.uiState.selectedPartListIndex = (this.uiState.selectedPartListIndex + verticalMove + listData.length) % listData.length;
             }
-        } else {
-            if (this.currentPartListData.length > 0) {
-                this.uiState.selectedPartListIndex = (this.uiState.selectedPartListIndex + verticalMove + this.currentPartListData.length) % this.currentPartListData.length;
-                return true;
-            }
+            return true;
         }
         return false;
     }
@@ -146,33 +144,25 @@ export class CustomizeUISystem extends BaseSystem {
     
     triggerEquipAction() {
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
-        const isMedalList = selectedSlotType === EquipSlotType.MEDAL;
+        const medarotIndex = this.uiState.selectedMedarotIndex;
 
-        if (isMedalList) {
+        if (selectedSlotType === EquipSlotType.MEDAL) {
             const selectedMedal = this.currentMedalListData[this.uiState.selectedMedalListIndex];
             this.world.emit(GameEvents.EQUIP_MEDAL_REQUESTED, {
-                medarotIndex: this.uiState.selectedMedarotIndex,
+                medarotIndex,
                 newMedalId: selectedMedal?.id,
             });
         } else {
             const selectedPart = this.currentPartListData[this.uiState.selectedPartListIndex];
             this.world.emit(GameEvents.EQUIP_PART_REQUESTED, {
-                medarotIndex: this.uiState.selectedMedarotIndex,
+                medarotIndex,
                 partSlot: selectedSlotType,
                 newPartId: selectedPart?.id,
             });
         }
     }
 
-    onPartEquipped() {
-        this._returnFocusToPanel();
-    }
-
-    onMedalEquipped() {
-        this._returnFocusToPanel();
-    }
-
-    _returnFocusToPanel() {
+    onItemEquipped() {
         if (this.uiState.focus !== 'EQUIP_PANEL') {
             this.uiState.focus = 'EQUIP_PANEL';
         }
@@ -181,53 +171,33 @@ export class CustomizeUISystem extends BaseSystem {
     
     changeEquippedItem(direction) {
         const medarotIndex = this.uiState.selectedMedarotIndex;
-        const slotIndex = this.uiState.selectedEquipIndex;
-        const slotKey = this.equipSlots[slotIndex];
+        const slotKey = this.equipSlots[this.uiState.selectedEquipIndex];
         const move = direction === 'right' ? 1 : -1;
 
         const medarot = this.dataManager.getMedarot(medarotIndex);
         if (!medarot) return;
 
         if (slotKey === EquipSlotType.MEDAL) {
-            this._changeMedal(medarotIndex, medarot, move);
+            this._changeItem(medarotIndex, medarot.medal?.id, this.dataManager.getAvailableMedals(), move, (newId) => 
+                this.world.emit(GameEvents.EQUIP_MEDAL_REQUESTED, { medarotIndex, newMedalId: newId })
+            );
         } else {
-            this._changePart(medarotIndex, medarot, slotKey, move);
+            this._changeItem(medarotIndex, medarot.parts[slotKey]?.id, this.dataManager.getAvailableParts(slotKey), move, (newId) =>
+                this.world.emit(GameEvents.EQUIP_PART_REQUESTED, { medarotIndex, partSlot: slotKey, newPartId: newId })
+            );
         }
     }
 
-    _changeMedal(medarotIndex, medarot, move) {
-        const availableItems = this.dataManager.getAvailableMedals();
+    _changeItem(medarotIndex, currentId, availableItems, move, emitAction) {
         if (availableItems.length <= 1) return;
 
-        const currentId = medarot.medal?.id;
         const currentIndex = currentId ? availableItems.findIndex(item => item.id === currentId) : -1;
-        const nextIndex = this._calculateNextIndex(currentIndex, move, availableItems.length);
-
+        const nextIndex = (currentIndex + move + availableItems.length) % availableItems.length;
         const newItem = availableItems[nextIndex];
+        
         if (newItem) {
-            this.world.emit(GameEvents.EQUIP_MEDAL_REQUESTED, { medarotIndex, newMedalId: newItem.id });
+            emitAction(newItem.id);
         }
-    }
-
-    _changePart(medarotIndex, medarot, slotKey, move) {
-        const availableItems = this.dataManager.getAvailableParts(slotKey);
-        if (availableItems.length <= 1) return;
-
-        const currentId = medarot.parts[slotKey]?.id;
-        const currentIndex = currentId ? availableItems.findIndex(item => item.id === currentId) : -1;
-        const nextIndex = this._calculateNextIndex(currentIndex, move, availableItems.length);
-
-        const newItem = availableItems[nextIndex];
-        if (newItem) {
-            this.world.emit(GameEvents.EQUIP_PART_REQUESTED, { medarotIndex, partSlot: slotKey, newPartId: newItem.id });
-        }
-    }
-
-    _calculateNextIndex(currentIndex, move, length) {
-        if (currentIndex === -1) {
-            return move > 0 ? 0 : length - 1;
-        }
-        return (currentIndex + move + length) % length;
     }
 
     // --- 描画メソッド ---
@@ -264,37 +234,24 @@ export class CustomizeUISystem extends BaseSystem {
         this.dom.equippedMedarotName.textContent = medarot.name;
 
         this.equipSlots.forEach((slotKey, index) => {
-            const itemElement = (slotKey === EquipSlotType.MEDAL)
-                ? this._createMedalListItem(medarot.medal, index, slotKey)
-                : this._createPartListItem(medarot.parts[slotKey], index, slotKey);
+            const isMedal = slotKey === EquipSlotType.MEDAL;
+            const itemData = isMedal ? medarot.medal : medarot.parts[slotKey];
+            const slotName = isMedal ? 'メダル' : (PartKeyToInfoMap[slotKey]?.name || '不明');
             
-            if (slotKey === EquipSlotType.MEDAL) {
-                this.dom.equippedMedalList.appendChild(itemElement);
+            const li = el('li', {
+                className: 'equipped-part-item',
+                dataset: { index: index, slot: slotKey }
+            }, [
+                el('span', { className: 'part-slot-name' }, slotName),
+                el('span', { className: 'part-name' }, itemData.data ? itemData.data.name : 'なし')
+            ]);
+            
+            if (isMedal) {
+                this.dom.equippedMedalList.appendChild(li);
             } else {
-                this.dom.equippedPartsList.appendChild(itemElement);
+                this.dom.equippedPartsList.appendChild(li);
             }
         });
-    }
-
-    _createMedalListItem(medal, index, slotKey) {
-        return el('li', {
-            className: 'equipped-part-item',
-            dataset: { index: index, slot: slotKey }
-        }, [
-            el('span', { className: 'part-slot-name' }, 'メダル'),
-            el('span', { className: 'part-name' }, medal.data ? medal.data.name : 'なし')
-        ]);
-    }
-
-    _createPartListItem(part, index, slotKey) {
-        const slotInfo = PartKeyToInfoMap[slotKey];
-        return el('li', {
-            className: 'equipped-part-item',
-            dataset: { index: index, slot: slotKey }
-        }, [
-            el('span', { className: 'part-slot-name' }, slotInfo ? slotInfo.name : '不明'),
-            el('span', { className: 'part-name' }, part.data ? part.data.name : 'なし')
-        ]);
     }
 
     renderSelectionList() {
@@ -308,7 +265,7 @@ export class CustomizeUISystem extends BaseSystem {
             this.currentMedalListData = this.dataManager.getAvailableMedals();
             this._renderListItems(this.currentMedalListData);
         } else {
-            this.dom.partsListTitle.textContent = `${PartKeyToInfoMap[selectedSlotType]?.name}一覧`;
+            this.dom.partsListTitle.textContent = `${PartKeyToInfoMap[selectedSlotType]?.name || 'パーツ'}一覧`;
             this.currentPartListData = this.dataManager.getAvailableParts(selectedSlotType);
             this._renderListItems(this.currentPartListData);
         }
@@ -330,7 +287,6 @@ export class CustomizeUISystem extends BaseSystem {
         this.dom.partDetailsContent.innerHTML = '';
         let itemToShow = null;
         
-        // 詳細表示対象の決定ロジック
         if (this.uiState.focus === 'EQUIP_PANEL') {
             itemToShow = this._getSelectedItemFromEquipPanel();
         } else if (this.uiState.focus === 'ITEM_LIST') {
@@ -338,7 +294,7 @@ export class CustomizeUISystem extends BaseSystem {
         }
 
         if (itemToShow) {
-            this.dom.partDetailsContent.appendChild(this.createDetailContent(itemToShow));
+            this.dom.partDetailsContent.appendChild(this._createDetailContent(itemToShow));
         } else {
             this.dom.partDetailsContent.textContent = '項目を選択してください';
         }
@@ -347,67 +303,55 @@ export class CustomizeUISystem extends BaseSystem {
     _getSelectedItemFromEquipPanel() {
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
         const medarot = this.dataManager.getMedarot(this.uiState.selectedMedarotIndex);
-        if (selectedSlotType === EquipSlotType.MEDAL) {
-            return medarot?.medal?.data;
-        } else {
-            return medarot?.parts[selectedSlotType]?.data;
-        }
+        return selectedSlotType === EquipSlotType.MEDAL ? medarot?.medal?.data : medarot?.parts[selectedSlotType]?.data;
     }
 
     _getSelectedItemFromList() {
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
-        const isMedalListFocused = selectedSlotType === EquipSlotType.MEDAL;
-        if (isMedalListFocused) {
-            return this.currentMedalListData[this.uiState.selectedMedalListIndex];
-        } else {
-            return this.currentPartListData[this.uiState.selectedPartListIndex];
-        }
+        return selectedSlotType === EquipSlotType.MEDAL
+            ? this.currentMedalListData[this.uiState.selectedMedalListIndex]
+            : this.currentPartListData[this.uiState.selectedPartListIndex];
     }
 
-    createDetailContent(item) {
-        const container = el('div');
-        const createItem = (label, value) => {
-            return el('div', { className: 'detail-item' }, [
-                el('span', { className: 'label' }, label),
-                el('span', { className: 'value' }, String(value))
-            ]);
+    _createDetailContent(item) {
+        const createItem = (label, value) => el('div', { className: 'detail-item' }, [
+            el('span', { className: 'label' }, label),
+            el('span', { className: 'value' }, String(value))
+        ]);
+
+        const children = [createItem('名前', item.name)];
+        
+        const props = {
+            personality: '性格', action: 'アクション', type: 'タイプ', trait: '特性',
+            might: '威力', success: '成功', maxHp: '装甲',
+            propulsion: '推進', mobility: '機動', armor: '防御', stability: '安定'
         };
 
-        container.appendChild(createItem('名前', item.name));
-        if (item.personality) container.appendChild(createItem('性格', item.personality));
+        for (const [key, label] of Object.entries(props)) {
+            if (item[key] !== undefined) children.push(createItem(label, item[key]));
+        }
 
-        if (item.action) container.appendChild(createItem('アクション', item.action));
-        if (item.type) container.appendChild(createItem('タイプ', item.type));
-        if (item.trait) container.appendChild(createItem('特性', item.trait));
-        if (item.might !== undefined) container.appendChild(createItem('威力', item.might));
-        if (item.success !== undefined) container.appendChild(createItem('成功', item.success));
-        if (item.maxHp !== undefined) container.appendChild(createItem('装甲', item.maxHp));
-        if (item.propulsion !== undefined) container.appendChild(createItem('推進', item.propulsion));
-        if (item.mobility !== undefined) container.appendChild(createItem('機動', item.mobility));
-        if (item.armor !== undefined) container.appendChild(createItem('防御', item.armor));
-        if (item.stability !== undefined) container.appendChild(createItem('安定', item.stability));
-
-        return container;
+        return el('div', {}, children);
     }
 
     updateAllFocus() {
+        // メダロットリストのフォーカス
         this._updateListFocus(this.dom.medarotList, this.uiState.focus === 'MEDAROT_SELECT', this.uiState.selectedMedarotIndex);
         
+        // 装備パネルのフォーカス
         const allEquipItems = [
             ...this.dom.equippedMedalList.querySelectorAll('li'),
             ...this.dom.equippedPartsList.querySelectorAll('li')
         ];
-        // 装備パネルのフォーカス更新（リスト構造がDOM上で分かれているため個別処理）
         allEquipItems.forEach(li => {
             const isFocused = this.uiState.focus === 'EQUIP_PANEL' && parseInt(li.dataset.index) === this.uiState.selectedEquipIndex;
             li.classList.toggle('focused', isFocused);
             if (isFocused) li.scrollIntoView({ block: 'nearest' });
         });
 
-        const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
-        const isMedalList = selectedSlotType === EquipSlotType.MEDAL;
+        // 選択リストのフォーカス
+        const isMedalList = this.equipSlots[this.uiState.selectedEquipIndex] === EquipSlotType.MEDAL;
         const listIndex = isMedalList ? this.uiState.selectedMedalListIndex : this.uiState.selectedPartListIndex;
-        
         this._updateListFocus(this.dom.partsList, this.uiState.focus === 'ITEM_LIST', listIndex);
     }
 

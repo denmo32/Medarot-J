@@ -36,6 +36,7 @@ export class ActionResolutionSystem extends BaseSystem {
         try {
             const components = this._getCombatComponents(attackerId);
             if (!components) {
+                // コンポーネント不足で戦闘継続不可の場合は完了イベントを発行して安全に終了
                 this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: attackerId });
                 return;
             }
@@ -50,14 +51,15 @@ export class ActionResolutionSystem extends BaseSystem {
             // 2. 戦闘結果（命中・防御など）の計算
             const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
 
-            // 3. 効果の生成
+            // 3. 効果の生成 (計算上の結果)
             const resolvedEffects = this._processEffects(attackerId, components, targetContext, outcome);
             
-            // 4. 効果の適用とイベント通知
+            // 4. 効果の適用 (状態変更) とイベント通知
             this._applyEffectsAndNotify(attackerId, components, targetContext, outcome, resolvedEffects);
+
         } catch (error) {
             ErrorHandler.handle(error, { method: 'ActionResolutionSystem.resolveAction', attackerId });
-            // エラー時は強制的に行動完了扱いにしてゲーム進行のスタックを防ぐ
+            // エラー回復：強制的に行動完了扱いにしてゲーム進行のスタックを防ぐ
             this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: attackerId });
         }
     }
@@ -71,7 +73,7 @@ export class ActionResolutionSystem extends BaseSystem {
         // ターゲット必須アクションの検証
         const isTargetRequired = attackingPart.targetScope && (attackingPart.targetScope.endsWith('_SINGLE') || attackingPart.targetScope.endsWith('_TEAM'));
         
-        // サポート行動以外で、ターゲットが無効になっている場合はキャンセル
+        // サポート行動以外で、ターゲットが無効になっている場合はキャンセル対象
         if (isTargetRequired && !attackingPart.isSupport && !isValidTarget(this.world, action.targetId, action.targetPartKey)) {
             console.warn(`ActionResolutionSystem: Target for entity ${attackerId} is no longer valid. Cancelling.`);
             return { shouldCancel: true };
@@ -119,16 +121,14 @@ export class ActionResolutionSystem extends BaseSystem {
     _processEffects(attackerId, components, targetContext, outcome) {
         const { action, attackingPart, attackerInfo, attackerParts } = components;
         const { finalTargetId } = targetContext;
-        
-        const effectiveTargetPartKey = outcome.finalTargetPartKey;
         const resolvedEffects = [];
 
-        // 命中した場合、またはターゲットが不要な場合（全体効果など）
-        // 攻撃が外れた場合は効果を生成しない
+        // 命中していない場合（かつターゲットが存在する場合）は効果なし
         if (!outcome.isHit && finalTargetId) {
             return resolvedEffects;
         }
 
+        // 定義された効果ごとに処理
         for (const effectDef of attackingPart.effects || []) {
             const strategy = effectStrategies[effectDef.type];
             if (!strategy) continue;
@@ -141,11 +141,11 @@ export class ActionResolutionSystem extends BaseSystem {
                 part: attackingPart,
                 partKey: action.partKey,
                 partOwner: { info: attackerInfo, parts: attackerParts },
-                outcome: { ...outcome, finalTargetPartKey: effectiveTargetPartKey },
+                outcome,
             });
 
             if (result) {
-                // 貫通属性の付与
+                // 貫通属性を付与
                 result.penetrates = attackingPart.penetrates || false;
                 resolvedEffects.push(result);
             }
@@ -160,6 +160,7 @@ export class ActionResolutionSystem extends BaseSystem {
         // 全効果の適用
         const appliedEffects = this._applyAllEffects({ resolvedEffects, guardianInfo });
         
+        // 完了イベント発行
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, {
             attackerId,
             targetId: finalTargetId,
@@ -173,12 +174,13 @@ export class ActionResolutionSystem extends BaseSystem {
 
     /**
      * 全ての効果を適用するプロセス。
+     * 連鎖効果（貫通など）もここで再帰的/反復的に処理します。
      */
     _applyAllEffects({ resolvedEffects, guardianInfo }) {
         const appliedEffects = [];
         const effectQueue = [...resolvedEffects];
 
-        // ガードが発動した場合の消費処理
+        // ガードが発動した場合、その回数を消費
         if (guardianInfo) {
             this._consumeGuardCount(guardianInfo.id);
         }
@@ -186,22 +188,21 @@ export class ActionResolutionSystem extends BaseSystem {
         while (effectQueue.length > 0) {
             const effect = effectQueue.shift();
             
-            // 効果適用ロジックの取得
             const applicator = this.effectApplicators[effect.type];
-            
-            // Applicatorがあれば適用して結果を取得、なければ効果オブジェクトそのものを結果とする
-            const result = applicator 
-                ? applicator({ world: this.world, effect }) 
-                : effect;
+            if (!applicator) {
+                console.warn(`ActionResolutionSystem: No applicator for "${effect.type}".`);
+                continue;
+            }
+
+            // 適用実行
+            const result = applicator({ world: this.world, effect });
 
             if (result) {
                 appliedEffects.push(result);
-                // 貫通などの連鎖効果があればキューの先頭に追加して即座に処理
+                // 次の効果（例：貫通ダメージ）が生成された場合、キューの先頭に追加して即時処理
                 if (result.nextEffect) {
                     effectQueue.unshift(result.nextEffect);
                 }
-            } else if (!applicator) {
-                console.warn(`ActionResolutionSystem: No applicator for "${effect.type}".`);
             }
         }
         return appliedEffects;
@@ -228,6 +229,8 @@ export class ActionResolutionSystem extends BaseSystem {
         if (!action || !attackerInfo || !attackerParts || !action.partKey) return null;
         
         const attackingPart = attackerParts[action.partKey];
+        if (!attackingPart) return null;
+
         return { action, attackerInfo, attackerParts, attackingPart };
     }
 }

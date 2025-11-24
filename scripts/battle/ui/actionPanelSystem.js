@@ -1,6 +1,6 @@
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { ModalType, PartInfo } from '../common/constants.js';
+import { ModalType } from '../common/constants.js';
 import { InputManager } from '../../core/InputManager.js';
 import { UIManager } from './UIManager.js';
 import { createModalHandlers } from './modalHandlers.js';
@@ -60,16 +60,21 @@ export class ActionPanelSystem extends BaseSystem {
     }
 
     update(deltaTime) {
-        // モーダルが表示されていて、アニメーション待ちでなければ入力を処理
+        // モーダルが表示されていない、またはアニメーション待機中は入力を無視
         if (!this.currentHandler || this.isWaitingForAnimation) return;
 
-        // キー入力を現在のモーダルハンドラに委譲する
+        this._handleInput();
+    }
+
+    _handleInput() {
+        // ナビゲーション処理の委譲
         if (this.currentHandler.handleNavigation) {
             if (this.inputManager.wasKeyJustPressed('ArrowUp')) this.currentHandler.handleNavigation(this, 'arrowup');
             if (this.inputManager.wasKeyJustPressed('ArrowDown')) this.currentHandler.handleNavigation(this, 'arrowdown');
             if (this.inputManager.wasKeyJustPressed('ArrowLeft')) this.currentHandler.handleNavigation(this, 'arrowleft');
             if (this.inputManager.wasKeyJustPressed('ArrowRight')) this.currentHandler.handleNavigation(this, 'arrowright');
         }
+        // 決定・キャンセル処理の委譲
         if (this.inputManager.wasKeyJustPressed('z')) {
             this.currentHandler.handleConfirm?.(this, this.currentModalData);
         }
@@ -108,6 +113,7 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentModalType = type;
         this.currentModalData = data;
         
+        // メッセージシーケンスの初期化
         this.currentMessageSequence = (messageSequence.length > 0) ? messageSequence : [{}];
         this.currentSequenceIndex = 0;
         
@@ -121,71 +127,90 @@ export class ActionPanelSystem extends BaseSystem {
         if (this.currentSequenceIndex < this.currentMessageSequence.length) {
             this._displayCurrentSequenceStep();
         } else {
-            if (this.currentModalType === ModalType.EXECUTION_RESULT) {
-                this.world.emit(GameEvents.COMBAT_RESOLUTION_DISPLAYED, {
-                    attackerId: this.currentModalData?.attackerId
-                });
-            }
+            this._finishCurrentModal();
+        }
+    }
 
-            this.world.emit(GameEvents.MODAL_SEQUENCE_COMPLETED, {
-                modalType: this.currentModalType,
-                originalData: this.currentModalData,
+    _finishCurrentModal() {
+        if (this.currentModalType === ModalType.EXECUTION_RESULT) {
+            this.world.emit(GameEvents.COMBAT_RESOLUTION_DISPLAYED, {
+                attackerId: this.currentModalData?.attackerId
             });
+        }
 
-            if (this.currentModalType === ModalType.ATTACK_DECLARATION) {
-                // 次のモーダルがない場合はパネルを閉じる
-                if (this.modalQueue.length > 0) {
-                    this.isProcessingQueue = false;
-                    this._processModalQueue();
-                } else {
-                    this.hideActionPanel();
-                }
-            } else {
-                this.hideActionPanel();
-            }
+        this.world.emit(GameEvents.MODAL_SEQUENCE_COMPLETED, {
+            modalType: this.currentModalType,
+            originalData: this.currentModalData,
+        });
+
+        // ATTACK_DECLARATIONの場合は次にEXECUTION_RESULTが控えている可能性があるため、
+        // hideActionPanelを呼ばずに次のキュー処理へ移行する
+        if (this.currentModalType === ModalType.ATTACK_DECLARATION && this.modalQueue.length > 0) {
+            this.isProcessingQueue = false;
+            this._processModalQueue();
+        } else {
+            this.hideActionPanel();
         }
     }
 
     _displayCurrentSequenceStep() {
         const currentStep = this.currentMessageSequence[this.currentSequenceIndex] || {};
         
+        // アニメーション待機ステップの場合
         if (currentStep.waitForAnimation) {
-            this.isWaitingForAnimation = true;
-            this.dom.actionPanel.classList.remove('clickable');
-            this.dom.actionPanelIndicator.classList.add('hidden');
-            this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { effects: this.currentModalData.appliedEffects || [] });
+            this._waitForAnimation(currentStep);
             return;
         }
         
         this.isWaitingForAnimation = false;
-        this.resetPanelDOM();
+        this.resetPanelDOM(); // 表示のリセット
         
+        // ハンドラを使用してコンテンツを構築
         const handler = this.currentHandler;
         const displayData = { ...this.currentModalData, currentMessage: currentStep };
 
+        this._updatePanelText(handler, displayData);
+        this._updatePanelButtons(handler, displayData);
+        
+        if (handler.init) {
+            handler.init(this, displayData);
+        }
+    }
+
+    _waitForAnimation(step) {
+        this.isWaitingForAnimation = true;
+        this.dom.actionPanel.classList.remove('clickable');
+        this.dom.actionPanelIndicator.classList.add('hidden');
+        this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { effects: this.currentModalData.appliedEffects || [] });
+    }
+
+    _updatePanelText(handler, displayData) {
         this.dom.actionPanelOwner.textContent = handler.getOwnerName?.(displayData) || '';
         this.dom.actionPanelTitle.textContent = handler.getTitle?.(displayData) || '';
-        this.dom.actionPanelActor.innerHTML = handler.getActorName?.(displayData) || ''; // メッセージ表示用にinnerHTML使用
+        this.dom.actionPanelActor.innerHTML = handler.getActorName?.(displayData) || '';
+    }
 
+    _updatePanelButtons(handler, displayData) {
         this.dom.actionPanelButtons.innerHTML = '';
+        
+        // コンテンツ生成（elユーティリティで作られたDOM要素が返ることを期待）
         if (typeof handler.createContent === 'function') {
             const contentElement = handler.createContent(this, displayData);
             if (contentElement instanceof HTMLElement) {
                 this.dom.actionPanelButtons.appendChild(contentElement);
-            } else if (contentElement) {
-                console.warn('createContent returned non-HTMLElement:', contentElement);
             }
         }
 
+        // クリック制御の設定
         if (handler.isClickable) {
             this.dom.actionPanelIndicator.classList.remove('hidden');
             this.dom.actionPanel.classList.add('clickable');
+            
             if (!this.boundHandlePanelClick) {
                 this.boundHandlePanelClick = () => handler.handleConfirm?.(this, this.currentModalData);
             }
             this.dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
         }
-        handler.init?.(this, displayData);
     }
     
     hideActionPanel() {
@@ -194,6 +219,15 @@ export class ActionPanelSystem extends BaseSystem {
             this.world.emit(GameEvents.GAME_RESUMED);
         }
         
+        this._resetState();
+        this.resetPanelDOM();
+        this.resetHighlightsAndFocus();
+        
+        // 次のキューがあれば処理
+        this._processModalQueue();
+    }
+
+    _resetState() {
         this.currentModalType = null;
         this.currentModalData = null;
         this.currentHandler = null;
@@ -201,11 +235,6 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentSequenceIndex = 0;
         this.isWaitingForAnimation = false;
         this.isProcessingQueue = false;
-
-        this.resetPanelDOM();
-        this.resetHighlightsAndFocus();
-        
-        this._processModalQueue();
     }
 
     onHpBarAnimationCompleted(detail) {
@@ -223,6 +252,7 @@ export class ActionPanelSystem extends BaseSystem {
         dom.actionPanelButtons.innerHTML = '';
         dom.actionPanelIndicator.classList.add('hidden');
         dom.actionPanel.classList.remove('clickable');
+        
         if (this.boundHandlePanelClick) {
             dom.actionPanel.removeEventListener('click', this.boundHandlePanelClick);
             this.boundHandlePanelClick = null;
