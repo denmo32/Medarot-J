@@ -6,7 +6,6 @@ import { GameEvents } from '../../battle/common/events.js';
 
 /**
  * プレイヤーの入力に基づいて目標タイルを設定し、状態を遷移させるシステム。
- * UI関連の処理はイベントを発行し、MapUISystemに委譲する。
  */
 export class PlayerInputSystem extends BaseSystem {
     constructor(world, input, map) {
@@ -16,9 +15,7 @@ export class PlayerInputSystem extends BaseSystem {
     }
 
     update() {
-        // MapUIStateコンポーネントを参照する
         const mapUIState = this.world.getSingletonComponent(MapUIState);
-        // メニューやモーダル表示中はプレイヤーのマップ操作をブロック
         if (mapUIState && mapUIState.isPausedByModal) {
             return;
         }
@@ -42,7 +39,7 @@ export class PlayerInputSystem extends BaseSystem {
                 this.handleMovementInput(entityId);
             }
 
-            // インタラクション入力はイベントを発行するだけに変更
+            // インタラクション入力
             if (this.input.wasKeyJustPressed('z')) {
                 this.world.emit(GameEvents.INTERACTION_KEY_PRESSED, { entityId });
             }
@@ -52,46 +49,78 @@ export class PlayerInputSystem extends BaseSystem {
     handleMovementInput(entityId) {
         const position = this.world.getComponent(entityId, MapComponents.Position);
         const collision = this.world.getComponent(entityId, MapComponents.Collision);
-        const state = this.world.getComponent(entityId, MapComponents.State);
+        
+        // 1. 移動先座標の計算
+        const targetPos = this._calculateTargetPosition(position, this.input.direction);
+        
+        // 2. 衝突判定用の矩形作成
+        const bounds = { 
+            x: targetPos.x, 
+            y: targetPos.y, 
+            width: collision.width, 
+            height: collision.height 
+        };
+
+        // 3. 向きの更新
+        this._updateFacingDirection(entityId, this.input.direction);
+
+        // 4. 衝突がなければ移動適用
+        if (!this.map.isColliding(bounds)) {
+            this._applyMovement(entityId, targetPos);
+        }
+    }
+
+    /**
+     * 現在位置と入力方向から目標座標を計算します。
+     * @param {object} position - 現在の位置コンポーネント
+     * @param {string} direction - 入力方向 ('up', 'down', 'left', 'right')
+     * @returns {{x: number, y: number}} 目標座標
+     */
+    _calculateTargetPosition(position, direction) {
+        const currentTileX = Math.floor((position.x + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
+        const currentTileY = Math.floor((position.y + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
+        
+        const baseTargetX = currentTileX * CONFIG.TILE_SIZE + (CONFIG.TILE_SIZE - CONFIG.PLAYER_SIZE) / 2;
+        const baseTargetY = currentTileY * CONFIG.TILE_SIZE + (CONFIG.TILE_SIZE - CONFIG.PLAYER_SIZE) / 2;
 
         let targetX = position.x;
         let targetY = position.y;
 
-        const currentTileX = Math.floor((position.x + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
-        const currentTileY = Math.floor((position.y + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
-        const baseTargetX = currentTileX * CONFIG.TILE_SIZE + (CONFIG.TILE_SIZE - CONFIG.PLAYER_SIZE) / 2;
-        const baseTargetY = currentTileY * CONFIG.TILE_SIZE + (CONFIG.TILE_SIZE - CONFIG.PLAYER_SIZE) / 2;
-
-        switch (this.input.direction) {
+        switch (direction) {
             case 'up':    targetY = baseTargetY - CONFIG.TILE_SIZE; break;
             case 'down':  targetY = baseTargetY + CONFIG.TILE_SIZE; break;
             case 'left':  targetX = baseTargetX - CONFIG.TILE_SIZE; break;
             case 'right': targetX = baseTargetX + CONFIG.TILE_SIZE; break;
         }
+        
+        return { x: targetX, y: targetY };
+    }
 
-        const bounds = { x: targetX, y: targetY, width: collision.width, height: collision.height };
-
-        // FacingDirectionコンポーネントの更新を最適化
+    /**
+     * エンティティの向きを更新します。
+     */
+    _updateFacingDirection(entityId, direction) {
         const facingDirection = this.world.getComponent(entityId, MapComponents.FacingDirection);
         if (facingDirection) {
-            facingDirection.direction = this.input.direction;
+            facingDirection.direction = direction;
         } else {
-            this.world.addComponent(entityId, new MapComponents.FacingDirection(this.input.direction));
+            this.world.addComponent(entityId, new MapComponents.FacingDirection(direction));
         }
+    }
 
-        if (!this.map.isColliding(bounds)) {
-            state.value = PLAYER_STATES.WALKING;
-            
-            // TargetPositionコンポーネントの更新を最適化
-            // 既存のコンポーネントがあれば値を更新し、なければ新規作成する
-            // これにより、不要なオブジェクト生成とキャッシュクリアを防ぐ
-            const targetPosition = this.world.getComponent(entityId, MapComponents.TargetPosition);
-            if (targetPosition) {
-                targetPosition.x = targetX;
-                targetPosition.y = targetY;
-            } else {
-                this.world.addComponent(entityId, new MapComponents.TargetPosition(targetX, targetY));
-            }
+    /**
+     * 移動を適用し、状態をWALKINGに変更します。
+     */
+    _applyMovement(entityId, targetPos) {
+        const state = this.world.getComponent(entityId, MapComponents.State);
+        state.value = PLAYER_STATES.WALKING;
+        
+        const targetPosition = this.world.getComponent(entityId, MapComponents.TargetPosition);
+        if (targetPosition) {
+            targetPosition.x = targetPos.x;
+            targetPosition.y = targetPos.y;
+        } else {
+            this.world.addComponent(entityId, new MapComponents.TargetPosition(targetPos.x, targetPos.y));
         }
     }
 }

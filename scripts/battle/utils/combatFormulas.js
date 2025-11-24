@@ -1,9 +1,6 @@
 /**
  * @file 戦闘計算式ユーティリティ
  * ダメージ、回避、防御、クリティカル率など、戦闘におけるあらゆる計算式を定義します。
- * ゲームバランスの調整は、主にこのファイルと`config.js`で行います。
- * すべての計算は `CombatCalculator` シングルトンを介して行われ、
- * 必要に応じて内部の戦略(`strategy`)を差し替えることで、計算アルゴリズム全体を変更できます。
  */
 
 import { CONFIG } from '../common/config.js';
@@ -17,69 +14,13 @@ import { EffectType, AttackType } from '../common/constants.js';
  * @interface CombatStrategy
  */
 export class CombatStrategy {
-    /**
-     * 回避確率を計算する
-     * @param {object} context - 計算に必要なコンテキスト
-     * @returns {number} 0-1の範囲の確率
-     */
-    calculateEvasionChance(context) {
-        throw new GameError('calculateEvasionChance method must be implemented', ErrorType.CALCULATION_ERROR);
-    }
-
-    /**
-     * 防御確率を計算する
-     * @param {object} context - 計算に必要なコンテキスト
-     * @returns {number} 0-1の範囲の確率
-     */
-    calculateDefenseChance(context) {
-        throw new GameError('calculateDefenseChance method must be implemented', ErrorType.CALCULATION_ERROR);
-    }
-
-    /**
-     * クリティカルヒットの発生確率を計算する
-     * @param {object} context - 計算に必要なコンテキスト
-     * @returns {number} 0-1の範囲の確率
-     */
-    calculateCriticalChance(context) {
-        throw new GameError('calculateCriticalChance method must be implemented', ErrorType.CALCULATION_ERROR);
-    }
-
-    /**
-     * ダメージを計算する
-     * @param {object} context - 計算に必要なコンテキスト
-     * @returns {number} 計算されたダメージ値
-     */
-    calculateDamage(context) {
-        throw new GameError('calculateDamage method must be implemented', ErrorType.CALCULATION_ERROR);
-    }
-
-    /**
-     * パーツ性能に基づき、速度補正率を計算する
-     * @param {object} context - 計算に必要なコンテキスト
-     * @returns {number} 速度補正率 (1.0が基準)
-     */
-    calculateSpeedMultiplier(context) {
-        throw new GameError('calculateSpeedMultiplier method must be implemented', ErrorType.CALCULATION_ERROR);
-    }
-
-    /**
-     * ゲージの増加量を計算する
-     * @param {object} context - 計算に必要なコンテキスト
-     * @returns {number} 計算されたゲージ増加量
-     */
-    calculateGaugeIncrement(context) {
-        throw new GameError('calculateGaugeIncrement method must be implemented', ErrorType.CALCULATION_ERROR);
-    }
-
-    /**
-     * 攻撃の命中結果（回避、クリティカル、防御）を総合的に判定します。
-     * ActionSystemからロジックを移譲されました。
-     * @param {object} context - 計算に必要なコンテキスト
-     * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果
-     */
-    resolveHitOutcome(context) {
-        throw new GameError('resolveHitOutcome method must be implemented', ErrorType.CALCULATION_ERROR);
-    }
+    calculateEvasionChance(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
+    calculateDefenseChance(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
+    calculateCriticalChance(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
+    calculateDamage(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
+    calculateSpeedMultiplier(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
+    calculateGaugeIncrement(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
+    resolveHitOutcome(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
 }
 
 /**
@@ -88,37 +29,26 @@ export class CombatStrategy {
  * @implements {CombatStrategy}
  */
 class DefaultCombatStrategy extends CombatStrategy {
-    /**
-     * @param {{world: World, attackerId: number, targetLegs: object, attackingPart: object}} context
-     */
+    
     calculateEvasionChance({ world, attackerId, targetLegs, attackingPart }) {
         try {
             const mobility = targetLegs?.mobility;
             const success = attackingPart?.success;
             if (mobility === undefined || success === undefined) return 0;
             
-            let scanBonus = 0;
-            if (world && attackerId !== undefined) {
-                const activeEffects = world.getComponent(attackerId, ActiveEffects);
-                if (activeEffects) {
-                    scanBonus = activeEffects.effects
-                        .filter(e => e.type === EffectType.APPLY_SCAN)
-                        .reduce((total, e) => total + e.value, 0);
-                }
-            }
+            // スキャン効果によるボーナス計算
+            const scanBonus = this._calculateScanBonus(world, attackerId);
+            
             const formula = CONFIG.FORMULAS.EVASION;
             const adjustedSuccess = success + scanBonus;
             const base = (mobility - adjustedSuccess) / formula.DIFFERENCE_DIVISOR + formula.BASE_CHANCE;
             return Math.max(0, Math.min(formula.MAX_CHANCE, base));
         } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateEvasionChance', context });
+            ErrorHandler.handle(error, { method: 'calculateEvasionChance' });
             return 0;
         }
     }
 
-    /**
-     * @param {{targetLegs: object}} context
-     */
     calculateDefenseChance({ targetLegs }) {
         try {
             const armor = targetLegs?.armor;
@@ -127,34 +57,31 @@ class DefaultCombatStrategy extends CombatStrategy {
             const base = armor / formula.ARMOR_DIVISOR + formula.BASE_CHANCE;
             return Math.max(0, Math.min(formula.MAX_CHANCE, base));
         } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateDefenseChance', context });
+            ErrorHandler.handle(error, { method: 'calculateDefenseChance' });
             return 0;
         }
     }
 
-    /**
-     * @param {{attackingPart: object, targetLegs: object}} context
-     */
     calculateCriticalChance({ attackingPart, targetLegs }) {
         try {
             if (!attackingPart || !targetLegs) return 0;
             const config = CONFIG.CRITICAL_HIT;
             const success = attackingPart.success || 0;
             const mobility = targetLegs.mobility || 0;
+            
             const difference = Math.max(0, success - mobility);
             let chance = difference / config.DIFFERENCE_FACTOR;
+            
             const typeBonus = config.TYPE_BONUS[attackingPart.type] || 0;
             chance += typeBonus;
+            
             return Math.max(0, Math.min(1, chance));
         } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateCriticalChance', context });
+            ErrorHandler.handle(error, { method: 'calculateCriticalChance' });
             return 0;
         }
     }
 
-    /**
-     * @param {{attackingPart: object, attackerLegs: object, targetLegs: object, isCritical?: boolean, isDefenseBypassed?: boolean}} context
-     */
     calculateDamage({ attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false }) {
         try {
             if (!attackingPart || !attackerLegs || !targetLegs) return 0;
@@ -163,24 +90,13 @@ class DefaultCombatStrategy extends CombatStrategy {
             let might = attackingPart.might || 0;
             const mobility = targetLegs.mobility || 0;
             let armor = targetLegs.armor || 0;
-            let bonusValue = 0;
 
-            // caseをマジックストリングからAttackType定数に変更
-            switch (attackingPart.type) {
-                case AttackType.AIMED_SHOT:
-                    bonusValue = Math.floor((attackerLegs.stability || 0) / 2);
-                    success += bonusValue;
-                    break;
-                case AttackType.STRIKE:
-                    bonusValue = Math.floor((attackerLegs.mobility || 0) / 2);
-                    success += bonusValue;
-                    break;
-                case AttackType.RECKLESS:
-                    bonusValue = Math.floor((attackerLegs.propulsion || 0) / 2);
-                    might += bonusValue;
-                    break;
-            }
+            // 攻撃タイプごとのボーナスを適用
+            const bonuses = this._calculateTypeBonus(attackingPart.type, attackerLegs);
+            success += bonuses.successBonus;
+            might += bonuses.mightBonus;
 
+            // 防御側の脚部安定性によるボーナス
             const defenseBonus = Math.floor((targetLegs.stability || 0) / 2);
             armor += defenseBonus;
             
@@ -193,116 +109,123 @@ class DefaultCombatStrategy extends CombatStrategy {
             }
             return Math.floor(baseDamage / CONFIG.FORMULAS.DAMAGE.BASE_DAMAGE_DIVISOR) + might;
         } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateDamage', context });
+            ErrorHandler.handle(error, { method: 'calculateDamage' });
             return 0;
         }
     }
 
-    /**
-     * @param {{part: object, factorType: 'charge' | 'cooldown'}} context
-     */
     calculateSpeedMultiplier({ part, factorType }) {
         try {
             if (!part) return 1.0;
             const config = CONFIG.TIME_ADJUSTMENT;
             const factor = factorType === 'charge' ? config.CHARGE_IMPACT_FACTOR : config.COOLDOWN_IMPACT_FACTOR;
+            
             const might = part.might || 0;
             const success = part.success || 0;
+            
             const mightScore = config.MAX_MIGHT > 0 ? might / config.MAX_MIGHT : 0;
             const successScore = config.MAX_SUCCESS > 0 ? success / config.MAX_SUCCESS : 0;
+            
             const performanceScore = mightScore + successScore;
             let multiplier = 1.0 + (performanceScore * factor);
+            
             const typeModifier = CONFIG.PART_TYPE_MODIFIERS?.[part.type];
             if (typeModifier?.speedMultiplier) {
                 multiplier *= typeModifier.speedMultiplier;
             }
             return multiplier;
         } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateSpeedMultiplier', context });
+            ErrorHandler.handle(error, { method: 'calculateSpeedMultiplier' });
             return 1.0;
         }
     }
 
-    /**
-     * @param {{world: World, entityId: number, deltaTime: number}} context
-     */
     calculateGaugeIncrement({ world, entityId, deltaTime }) {
         try {
             const gauge = world.getComponent(entityId, Gauge);
             const parts = world.getComponent(entityId, Parts);
-            const activeEffects = world.getComponent(entityId, ActiveEffects);
             if (!gauge || !parts) return 0;
 
-            // --- 将来の拡張ポイント ---
-            // ここで activeEffects をチェックし、ゲージ進行を停止させるデバフなどがあれば 0 を返す。
-            // 例: if (activeEffects.effects.some(e => e.type === 'GAUGE_FREEZE')) return 0;
-            
             const propulsion = parts.legs?.propulsion || 1;
             const speedMultiplier = gauge.speedMultiplier || 1.0;
             
-            let increment = (propulsion / CONFIG.FORMULAS.GAUGE.GAUGE_INCREMENT_DIVISOR) * (deltaTime / CONFIG.UPDATE_INTERVAL) / speedMultiplier;
-
-            // --- 将来の拡張ポイント ---
-            // ここで activeEffects をチェックし、ゲージ進行を加速/減速させるバフ/デバフを適用する。
-            // 例:
-            // const accelerationEffect = activeEffects.effects.find(e => e.type === 'GAUGE_ACCELERATE');
-            // if (accelerationEffect) increment *= accelerationEffect.value;
-
-            return increment;
+            return (propulsion / CONFIG.FORMULAS.GAUGE.GAUGE_INCREMENT_DIVISOR) * (deltaTime / CONFIG.UPDATE_INTERVAL) / speedMultiplier;
         } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateGaugeIncrement', context });
+            ErrorHandler.handle(error, { method: 'calculateGaugeIncrement' });
             return 0;
         }
     }
 
-    /**
-     * 攻撃の命中結果（回避、クリティカル、防御）を総合的に判定します。
-     * ActionSystemからロジックを移譲されました。
-     * @param {{world: World, attackerId: number, targetId: number, attackingPart: object, targetLegs: object, initialTargetPartKey: string}} context
-     * @returns {{isHit: boolean, isCritical: boolean, isDefended: boolean, finalTargetPartKey: string}} 命中結果
-     */
     resolveHitOutcome({ world, attackerId, targetId, attackingPart, targetLegs, initialTargetPartKey }) {
-        // isSupportフラグをパーツオブジェクトから直接参照
+        const defaultOutcome = { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
+
+        // 支援行動は常に成功扱い
         if (attackingPart.isSupport) {
-            return { isHit: true, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
+            return { ...defaultOutcome, isHit: true };
         }
 
-        // ターゲットがいない（空振り）場合は命中しない
+        // ターゲット不在（空振り）
         if (!targetId || !targetLegs) {
-            return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
+            return defaultOutcome;
         }
 
         // 1. 回避判定
-        const evasionChance = this.calculateEvasionChance({
-            world: world,
-            attackerId: attackerId,
-            targetLegs: targetLegs,
-            attackingPart: attackingPart,
-        });
+        const evasionChance = this.calculateEvasionChance({ world, attackerId, targetLegs, attackingPart });
         if (Math.random() < evasionChance) {
-            return { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
+            return defaultOutcome; // 回避成功
         }
 
         // 2. クリティカル判定
         const critChance = this.calculateCriticalChance({ attackingPart, targetLegs });
         const isCritical = Math.random() < critChance;
 
-        // 3. 防御判定 (クリティカルでない場合のみ)
-        let isDefended = false;
-        let finalTargetPartKey = initialTargetPartKey;
-        if (!isCritical) {
-            const defenseChance = this.calculateDefenseChance({ targetLegs });
-            if (Math.random() < defenseChance) {
-                // queryUtilsから最適な防御パーツを探す
-                const defensePartKey = findBestDefensePart(world, targetId);
-                if (defensePartKey) {
-                    isDefended = true;
-                    finalTargetPartKey = defensePartKey;
-                }
+        // クリティカルなら防御判定はスキップ
+        if (isCritical) {
+            return { ...defaultOutcome, isHit: true, isCritical: true };
+        }
+
+        // 3. 防御判定
+        const defenseChance = this.calculateDefenseChance({ targetLegs });
+        if (Math.random() < defenseChance) {
+            const defensePartKey = findBestDefensePart(world, targetId);
+            if (defensePartKey) {
+                return { ...defaultOutcome, isHit: true, isDefended: true, finalTargetPartKey: defensePartKey };
             }
         }
 
-        return { isHit: true, isCritical, isDefended, finalTargetPartKey };
+        // 通常命中
+        return { ...defaultOutcome, isHit: true };
+    }
+
+    // --- Helper Methods ---
+
+    _calculateScanBonus(world, attackerId) {
+        if (!world || attackerId === undefined) return 0;
+        const activeEffects = world.getComponent(attackerId, ActiveEffects);
+        if (!activeEffects) return 0;
+        
+        return activeEffects.effects
+            .filter(e => e.type === EffectType.APPLY_SCAN)
+            .reduce((total, e) => total + e.value, 0);
+    }
+
+    _calculateTypeBonus(attackType, attackerLegs) {
+        let successBonus = 0;
+        let mightBonus = 0;
+
+        switch (attackType) {
+            case AttackType.AIMED_SHOT:
+                successBonus = Math.floor((attackerLegs.stability || 0) / 2);
+                break;
+            case AttackType.STRIKE:
+                successBonus = Math.floor((attackerLegs.mobility || 0) / 2);
+                break;
+            case AttackType.RECKLESS:
+                mightBonus = Math.floor((attackerLegs.propulsion || 0) / 2);
+                break;
+        }
+
+        return { successBonus, mightBonus };
     }
 }
 
@@ -324,6 +247,5 @@ export const CombatCalculator = {
     calculateDamage(context) { return this.strategy.calculateDamage(context); },
     calculateSpeedMultiplier(context) { return this.strategy.calculateSpeedMultiplier(context); },
     calculateGaugeIncrement(context) { return this.strategy.calculateGaugeIncrement(context); },
-    // 移譲されたメソッドをシングルトンに追加
     resolveHitOutcome(context) { return this.strategy.resolveHitOutcome(context); }
 };
