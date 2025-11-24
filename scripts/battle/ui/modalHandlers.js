@@ -6,7 +6,7 @@
 import { CONFIG } from '../common/config.js';
 import { GameEvents } from '../common/events.js';
 import { ModalType, PartInfo } from '../common/constants.js';
-import { el } from '../../core/utils/domUtils.js';
+import { el } from '../../engine/utils/domUtils.js';
 
 // ナビゲーションルール定義
 // 現在のフォーカス位置(key)と入力キー(direction)に対し、

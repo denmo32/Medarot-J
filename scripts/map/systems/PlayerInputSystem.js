@@ -1,4 +1,4 @@
-import { BaseSystem } from '../../core/baseSystem.js';
+import { BaseSystem } from '../../engine/baseSystem.js';
 import * as MapComponents from '../components.js';
 import { CONFIG, PLAYER_STATES } from '../constants.js';
 import { MapUIState } from '../../scenes/MapScene.js';

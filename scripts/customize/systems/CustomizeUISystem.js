@@ -3,12 +3,12 @@
  * UIの状態管理、DOMの描画、フォーカス制御を担当します。
  * DOM生成には `el` ユーティリティを使用し、宣言的に記述します。
  */
-import { BaseSystem } from '../../core/baseSystem.js';
-import { GameDataManager } from '../../core/GameDataManager.js';
+import { BaseSystem } from '../../engine/baseSystem.js';
+import { GameDataManager } from '../../engine/GameDataManager.js';
 import { PartKeyToInfoMap, EquipSlotType } from '../../battle/common/constants.js';
 import { CustomizeState } from '../components/CustomizeState.js';
 import { GameEvents } from '../../battle/common/events.js';
-import { el } from '../../core/utils/domUtils.js';
+import { el } from '../../engine/utils/domUtils.js';
 
 const focusTransitionMap = {
     MEDAROT_SELECT: { confirm: 'EQUIP_PANEL', cancel: 'EXIT' },

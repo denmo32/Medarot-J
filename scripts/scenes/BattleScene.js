@@ -4,9 +4,7 @@
  */
 import { BaseScene } from './BaseScene.js';
 import { GameEvents } from '../battle/common/events.js';
-import { initializeSystems } from '../battle/core/systemInitializer.js';
-import { createPlayers } from '../battle/core/entityFactory.js';
-import { BattleContext } from '../battle/core/index.js';
+import { initializeSystems, createPlayers, BattleContext } from '../battle/context/index.js';
 
 export class BattleScene extends BaseScene {
     constructor(world, sceneManager) {

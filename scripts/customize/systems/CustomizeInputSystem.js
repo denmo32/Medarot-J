@@ -3,8 +3,8 @@
  * プレイヤーのキー入力を検知し、それを抽象的なUI操作イベントに変換して発行する責務を持ちます。
  * このシステムはDOMの状態やゲームデータについて一切関知しません。
  */
-import { BaseSystem } from '../../core/baseSystem.js';
-import { InputManager } from '../../core/InputManager.js';
+import { BaseSystem } from '../../engine/baseSystem.js';
+import { InputManager } from '../../engine/InputManager.js';
 import { CustomizeState } from '../components/CustomizeState.js';
 import { GameEvents } from '../../battle/common/events.js';
 

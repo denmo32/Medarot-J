@@ -3,7 +3,7 @@
  * プレイヤーからのインタラクション要求に基づき、周囲のNPCなどを探索し、
  * 適切なイベントを発行する責務を持ちます。
  */
-import { BaseSystem } from '../../core/baseSystem.js';
+import { BaseSystem } from '../../engine/baseSystem.js';
 import * as MapComponents from '../components.js';
 import { CONFIG } from '../constants.js';
 import { MapUIState } from '../../scenes/MapScene.js';

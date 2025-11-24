@@ -2,7 +2,7 @@
  * @file 回復適用ロジック
  * @description 回復効果の適用に関するビジネスロジックを担当します。
  */
-import { Parts } from '../../core/components/index.js';
+import { Parts } from '../../components/index.js';
 import { GameEvents } from '../../common/events.js';
 
 /**

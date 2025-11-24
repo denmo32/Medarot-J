@@ -3,8 +3,8 @@
  * UIから発行されたイベントに基づき、実際のゲームデータ（パーツの装備など）を
  * 更新するビジネスロジックを実行する責務を持ちます。
  */
-import { BaseSystem } from '../../core/baseSystem.js';
-import { GameDataManager } from '../../core/GameDataManager.js';
+import { BaseSystem } from '../../engine/baseSystem.js';
+import { GameDataManager } from '../../engine/GameDataManager.js';
 import { GameEvents } from '../../battle/common/events.js';
 
 export class CustomizeLogicSystem extends BaseSystem {

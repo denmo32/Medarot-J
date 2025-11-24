@@ -1,4 +1,4 @@
-import { BaseSystem } from '../../core/baseSystem.js';
+import { BaseSystem } from '../../engine/baseSystem.js';
 import * as MapComponents from '../components.js';
 
 export class RenderSystem extends BaseSystem {

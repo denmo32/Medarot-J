@@ -3,8 +3,8 @@
  * @description 攻撃、反撃、汎用的なターゲット選択など、主に敵を対象とする戦略を定義します。
  * 各戦略は、重み付けされたターゲット候補のリスト `Array<{ target: { targetId, targetPartKey }, weight: number }>` を返す責務を持ちます。
  */
-import { PlayerInfo, BattleLog, Parts } from '../../core/components/index.js';
-import { BattleContext } from '../../core/index.js';
+import { PlayerInfo, BattleLog, Parts } from '../../components/index.js';
+import { BattleContext } from '../../context/index.js';
 import { 
     isValidTarget, 
     selectRandomPart, 

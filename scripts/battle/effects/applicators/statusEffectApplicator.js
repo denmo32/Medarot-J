@@ -2,7 +2,7 @@
  * @file ステータス効果適用ロジック
  * @description スキャン、ガードなどのステータス変化効果の適用を担当します。
  */
-import { ActiveEffects, PlayerInfo } from '../../core/components/index.js';
+import { ActiveEffects, PlayerInfo } from '../../components/index.js';
 import { getValidAllies } from '../../utils/queryUtils.js';
 
 /**

@@ -5,7 +5,7 @@
  * 宣言的な記述（filter, map, reduce等）を用いて可読性を高めています。
  */
 
-import { Parts, Position, PlayerInfo, GameState, ActiveEffects } from '../core/components/index.js';
+import { Parts, Position, PlayerInfo, GameState, ActiveEffects } from '../components/index.js';
 import { PartInfo, PlayerStateType, EffectType, EffectScope } from '../common/constants.js';
 
 /**

@@ -6,9 +6,9 @@
 
 import { CONFIG } from '../common/config.js';
 // 循環参照を避けるため、コンポーネントを個別ファイルから直接インポートする
-import { Gauge } from '../core/components/Gauge.js';
-import { Parts } from '../core/components/Parts.js';
-import { ActiveEffects } from '../core/components/ActiveEffects.js';
+import { Gauge } from '../components/Gauge.js';
+import { Parts } from '../components/Parts.js';
+import { ActiveEffects } from '../components/ActiveEffects.js';
 import { findBestDefensePart } from './queryUtils.js';
 import { GameError, ErrorType } from './errorHandler.js';
 import { EffectType, AttackType } from '../common/constants.js';

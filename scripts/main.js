@@ -8,9 +8,9 @@ import { MapScene } from './scenes/MapScene.js';
 import { BattleScene } from './scenes/BattleScene.js';
 import { CustomizeScene } from './scenes/CustomizeScene.js';
 
-import { World } from './core/world.js';
-import { InputManager } from './core/InputManager.js';
-import { GameDataManager } from './core/GameDataManager.js';
+import { World } from './engine/world.js';
+import { InputManager } from './engine/InputManager.js';
+import { GameDataManager } from './engine/GameDataManager.js';
 import { UI_CONFIG } from './battle/common/UIConfig.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
