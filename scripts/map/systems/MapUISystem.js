@@ -5,16 +5,13 @@ import { GameEvents } from '../../battle/common/events.js';
 
 /**
  * マップモードにおけるUIの表示/非表示、およびUI操作中の入力を一元管理するシステム。
- * PlayerInputSystemからUI操作の責務を分離し、関心の分離を徹底します。
  */
 export class MapUISystem extends BaseSystem {
     constructor(world, inputManager) {
         super(world);
         this.input = inputManager;
-        // MapUIStateコンポーネントを参照する
         this.mapUIState = this.world.getSingletonComponent(MapUIState);
 
-        // DOM要素の参照
         this.dom = {
             menu: document.getElementById('map-menu'),
             interactionWindow: document.getElementById('interaction-message-window'),
@@ -24,38 +21,23 @@ export class MapUISystem extends BaseSystem {
 
         this.menuButtons = [];
         this.focusedMenuIndex = 0;
-        this.isMenuOpen = false;
-
-        // イベントリスナーの参照を保持（削除用）
+        
+        // イベントハンドラ
         this.boundToggleMenu = this.toggleMenu.bind(this);
         this.boundShowNpcInteraction = this.showNpcInteraction.bind(this);
-        
-        // メニューのクリックハンドラを保持するMap
         this.menuClickHandlers = new Map();
         
-        // インタラクションウィンドウのハンドラを保持
-        this.interactionConfirmHandler = null;
-        this.interactionCancelHandler = null;
-
         this.bindWorldEvents();
     }
 
     bindWorldEvents() {
-        // PlayerInputSystemからのメニュー表示/非表示要求をリッスン
         this.world.on(GameEvents.MENU_TOGGLE_REQUESTED, this.boundToggleMenu);
-        // PlayerInputSystemからのNPCインタラクション要求をリッスン
         this.world.on(GameEvents.NPC_INTERACTION_REQUESTED, this.boundShowNpcInteraction);
     }
     
-    /**
-     * システム破棄時のクリーンアップ
-     * World.reset() や Scene.destroy() から呼び出されることを想定
-     */
     destroy() {
-        // メニューのクリックハンドラを削除
         this.removeMenuClickHandlers();
         
-        // インタラクションウィンドウのハンドラを削除
         if (this.interactionConfirmHandler && this.dom.confirmBattleButton) {
             this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
         }
@@ -63,7 +45,6 @@ export class MapUISystem extends BaseSystem {
             this.dom.cancelBattleButton.removeEventListener('click', this.interactionCancelHandler);
         }
         
-        // DOMの状態をリセット（非表示にするなど）
         if (this.dom.menu) {
             this.dom.menu.classList.add('hidden');
         }
@@ -73,50 +54,61 @@ export class MapUISystem extends BaseSystem {
     }
 
     update(deltaTime) {
-        // メニューが開いていない場合、かつNPCインタラクションウィンドウが表示されていない場合にのみxキーでメニューを開く
+        // メニュー開閉トグル (UI操作中でない場合のみ)
         if (this.input.wasKeyJustPressed('x') && !this.mapUIState.isPausedByModal) {
-            this.toggleMenu(); // イベントを介さず直接呼ぶ
-            return; // メニュー操作をしたら他のUI入力は無視
+            this.toggleMenu();
+            return;
         }
 
-        // メニューが開いている場合の入力処理
         if (this.mapUIState && this.mapUIState.isMapMenuVisible) {
             this.handleMenuInput();
-        }
-        // NPCインタラクションウィンドウが開いている場合の入力処理
-        else if (this.mapUIState && this.mapUIState.isPausedByModal && !this.mapUIState.isMapMenuVisible) {
+        } else if (this.mapUIState && this.mapUIState.isPausedByModal) {
             this.handleInteractionWindowInput();
         }
     }
 
     // --- Menu Logic --- //
+
     toggleMenu() {
-        if (!this.dom.menu) {
-            console.error('MapUISystem: map-menu element not found!');
-            return;
-        }
-
-        this.mapUIState.isMapMenuVisible = !this.mapUIState.isMapMenuVisible;
-        this.dom.menu.classList.toggle('hidden', !this.mapUIState.isMapMenuVisible);
-
-        if (this.mapUIState) {
-            this.mapUIState.isPausedByModal = this.mapUIState.isMapMenuVisible;
-        }
-
-        // UIStateContextの変更を通知
-        this.world.emit(GameEvents.UI_STATE_CHANGED, { context: 'mapUI', property: 'isMapMenuVisible', value: this.mapUIState.isMapMenuVisible });
+        if (!this.mapUIState) return;
 
         if (this.mapUIState.isMapMenuVisible) {
-            const saveButton = this.dom.menu.querySelector('.map-menu-button[data-action="save"]');
-            const medarotchiButton = this.dom.menu.querySelector('.map-menu-button[data-action="medarotchi"]');
-            this.menuButtons = [medarotchiButton, saveButton].filter(btn => btn);
-            this.focusedMenuIndex = 0;
-            this.setupMenuClickHandlers();
-            this.updateMenuFocus();
+            this.closeMenu();
         } else {
-            this.removeFocusIndicators();
-            this.removeMenuClickHandlers();
+            this.openMenu();
         }
+    }
+
+    openMenu() {
+        if (!this.dom.menu || !this.mapUIState) return;
+        
+        this.mapUIState.isMapMenuVisible = true;
+        this.mapUIState.isPausedByModal = true;
+        this.dom.menu.classList.remove('hidden');
+
+        this.world.emit(GameEvents.UI_STATE_CHANGED, { context: 'mapUI', property: 'isMapMenuVisible', value: true });
+
+        // メニューボタンのセットアップ
+        const saveButton = this.dom.menu.querySelector('.map-menu-button[data-action="save"]');
+        const medarotchiButton = this.dom.menu.querySelector('.map-menu-button[data-action="medarotchi"]');
+        this.menuButtons = [medarotchiButton, saveButton].filter(btn => btn);
+        this.focusedMenuIndex = 0;
+        
+        this.setupMenuClickHandlers();
+        this.updateMenuFocus();
+    }
+
+    closeMenu() {
+        if (!this.dom.menu || !this.mapUIState) return;
+
+        this.mapUIState.isMapMenuVisible = false;
+        this.mapUIState.isPausedByModal = false;
+        this.dom.menu.classList.add('hidden');
+
+        this.world.emit(GameEvents.UI_STATE_CHANGED, { context: 'mapUI', property: 'isMapMenuVisible', value: false });
+
+        this.removeFocusIndicators();
+        this.removeMenuClickHandlers();
     }
 
     handleMenuInput() {
@@ -133,9 +125,8 @@ export class MapUISystem extends BaseSystem {
                 this.menuButtons[this.focusedMenuIndex].click();
             }
         }
-        // メニューが開いているとき、xキーでメニューを閉じる
         if (this.input.wasKeyJustPressed('x')) {
-            this.toggleMenu();
+            this.closeMenu();
         }
     }
 
@@ -153,16 +144,15 @@ export class MapUISystem extends BaseSystem {
     }
 
     setupMenuClickHandlers() {
-        // 既存のハンドラがあれば削除
         this.removeMenuClickHandlers();
 
         this.menuButtons.forEach(button => {
             const action = button.dataset.action;
             let handler;
             if (action === 'save') {
-                handler = () => { this.saveGame(); this.toggleMenu(); };
+                handler = () => { this.saveGame(); this.closeMenu(); };
             } else if (action === 'medarotchi') {
-                handler = () => { this.openCustomizeScene(); this.toggleMenu(); };
+                handler = () => { this.openCustomizeScene(); this.closeMenu(); };
             }
             if (handler) {
                 button.addEventListener('click', handler);
@@ -181,9 +171,7 @@ export class MapUISystem extends BaseSystem {
     }
 
     saveGame() {
-        // イベント発行時にペイロードを渡さない
         this.world.emit(GameEvents.GAME_SAVE_REQUESTED);
-        console.log('Game save requested.');
     }
 
     openCustomizeScene() {
@@ -196,9 +184,9 @@ export class MapUISystem extends BaseSystem {
         if (!this.dom.interactionWindow || !this.mapUIState) return;
 
         this.mapUIState.isPausedByModal = true;
-        this.mapUIState.modalJustOpened = true; // main.jsのループで一度だけ無視されるように
+        this.mapUIState.modalJustOpened = true; 
 
-        // 以前のリスナーが残っていたら削除
+        // 既存リスナーのクリーンアップ
         if (this.interactionConfirmHandler) {
             this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
         }
@@ -221,7 +209,6 @@ export class MapUISystem extends BaseSystem {
             }
         };
 
-        // ハンドラをインスタンスプロパティとして保持
         this.interactionConfirmHandler = () => {
             cleanup();
             this.world.emit(GameEvents.NPC_INTERACTED, npc);

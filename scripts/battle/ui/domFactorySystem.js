@@ -4,19 +4,18 @@ import { GameEvents } from '../common/events.js';
 import * as Components from '../core/components/index.js';
 import { TeamID, PartKeyToInfoMap, PartInfo } from '../common/constants.js';
 import { UIManager } from './UIManager.js';
+import { el } from '../../core/utils/domUtils.js';
 
 /**
  * DOM要素の生成、配置、削除に特化したシステム。
- * HTMLテンプレートを利用して、JavaScriptコードからHTML構造を分離します。
- * このシステムはイベント駆動であり、updateループを持ちません。
+ * HTMLテンプレートを利用せず、elユーティリティを用いて宣言的にDOM構造を定義します。
  */
 export class DomFactorySystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
         
-        // テンプレートとコンテナ要素への参照をキャッシュ
-        this.playerInfoTemplate = document.getElementById('player-info-template');
+        // コンテナ要素への参照をキャッシュ
         this.battlefield = document.getElementById('battlefield');
         this.teamContainers = {
             [TeamID.TEAM1]: document.querySelector('#team1InfoPanel .team-players-container'),
@@ -53,7 +52,6 @@ export class DomFactorySystem extends BaseSystem {
         });
 
         //  UIManagerにキャッシュされているDOM要素への参照もすべてクリアする
-        // これにより、メモリリークを防ぎ、次のバトルでUIが重複生成される問題を完全に解決する
         if (this.uiManager) {
             this.uiManager.clear();
         }
@@ -75,68 +73,87 @@ export class DomFactorySystem extends BaseSystem {
             ? CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM1
             : CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM2;
 
-        const marker = document.createElement('div');
-        marker.className = 'home-marker';
-        marker.style.left = `${homeX * 100}%`;
-        marker.style.top = `${position.y}%`;
-        this.battlefield.appendChild(marker);
-
-        const icon = document.createElement('div');
-        icon.id = `player-${entityId}-icon`;
-        icon.className = 'player-icon';
-        icon.style.backgroundColor = playerInfo.color;
-        icon.textContent = playerInfo.name.substring(playerInfo.name.length - 1);
-        this.battlefield.appendChild(icon);
-
-        // ターゲット表示用インジケーターをアイコンの子要素として生成
-        const indicator = document.createElement('div');
-        indicator.className = 'target-indicator'; // CSSでアニメーションやスタイルを定義
-        for (let i = 0; i < 4; i++) {
-            const corner = document.createElement('div');
-            corner.className = `corner corner-${i + 1}`;
-            indicator.appendChild(corner);
-        }
-        icon.appendChild(indicator);
-
-        // ガード状態表示用のインジケーターを生成
-        const guardIndicator = document.createElement('div');
-        guardIndicator.className = 'guard-indicator';
-        icon.appendChild(guardIndicator);
-
-        // --- 2. プレイヤー情報パネルをテンプレートから生成 ---
-        const templateClone = this.playerInfoTemplate.content.cloneNode(true);
-        const infoPanel = templateClone.querySelector('.player-info');
-        
-        // 名前とリーダー表示を設定
-        const nameEl = infoPanel.querySelector('.player-name');
-        nameEl.textContent = `${playerInfo.name}`;        nameEl.className = `player-name ${teamConfig.textColor}`;
-
-        // 各パーツの情報を設定し、DOM参照をキャッシュ
-        Object.entries(parts).forEach(([key, part]) => {
-            const partEl = infoPanel.querySelector(`[data-part-key="${key}"]`);
-            if (!partEl || !part) return;
-            const partNameEl = partEl.querySelector('.part-name');
-            // PartKeyToInfoMapからアイコン情報を取得
-            partNameEl.textContent = PartKeyToInfoMap[key]?.icon || '?'; 
-
-            // DOM生成時にHPバーの初期状態（幅と色）を直接設定する
-            // これにより、バトル開始直後にHPゲージが正しく表示されることを保証する
-            const barEl = partEl.querySelector('.part-hp-bar');
-            const hpPercentage = (part.hp / part.maxHp) * 100;
-            barEl.style.width = `${hpPercentage}%`;
-
-            if (hpPercentage > 50) barEl.style.backgroundColor = '#68d391';
-            else if (hpPercentage > 20) barEl.style.backgroundColor = '#f6e05e';
-            else barEl.style.backgroundColor = '#f56565';
-
-            // HP数値の初期値を設定
-            const valueEl = partEl.querySelector('.part-hp-value');
-            if (valueEl) {
-                valueEl.textContent = `${part.hp}/${part.maxHp}`;
-            }
+        const marker = el('div', {
+            className: 'home-marker',
+            style: { left: `${homeX * 100}%`, top: `${position.y}%` }
         });
 
-        // 生成した情報パネルを対応するチームのコンテナに追加
+        const targetIndicator = el('div', { className: 'target-indicator' }, [
+            el('div', { className: 'corner corner-1' }),
+            el('div', { className: 'corner corner-2' }),
+            el('div', { className: 'corner corner-3' }),
+            el('div', { className: 'corner corner-4' })
+        ]);
+
+        const guardIndicator = el('div', { className: 'guard-indicator' });
+
+        const icon = el('div', {
+            id: `player-${entityId}-icon`,
+            className: 'player-icon',
+            textContent: playerInfo.name.substring(playerInfo.name.length - 1),
+            style: { backgroundColor: playerInfo.color }
+        }, [
+            targetIndicator,
+            guardIndicator
+        ]);
+
+        this.battlefield.appendChild(marker);
+        this.battlefield.appendChild(icon);
+
+        // --- 2. プレイヤー情報パネルを生成 ---
+        const partDOMElements = {};
+
+        // 各パーツの行を作成するヘルパー
+        const createPartRow = (key, part) => {
+            if (!part) return null;
+
+            const hpPercentage = (part.hp / part.maxHp) * 100;
+            let barColor = '#f56565';
+            if (hpPercentage > 50) barColor = '#68d391';
+            else if (hpPercentage > 20) barColor = '#f6e05e';
+
+            // 要素の参照を保持するための変数
+            let nameEl, barEl, valueEl;
+
+            const row = el('div', { className: 'part-hp', dataset: { partKey: key } }, [
+                nameEl = el('span', { 
+                    className: 'part-name', 
+                    textContent: PartKeyToInfoMap[key]?.icon || '?' 
+                }),
+                el('div', { className: 'part-hp-bar-container' }, [
+                    barEl = el('div', { 
+                        className: 'part-hp-bar',
+                        style: { width: `${hpPercentage}%`, backgroundColor: barColor }
+                    })
+                ]),
+                valueEl = el('span', {
+                    className: 'part-hp-value',
+                    textContent: `${part.hp}/${part.maxHp}`
+                })
+            ]);
+
+            // DOM要素への参照を保存
+            partDOMElements[key] = {
+                container: row,
+                name: nameEl,
+                bar: barEl,
+                value: valueEl
+            };
+
+            return row;
+        };
+
+        const infoPanel = el('div', { className: 'player-info' }, [
+            el('div', { 
+                className: `player-name ${teamConfig.textColor}`, 
+                textContent: playerInfo.name 
+            }),
+            createPartRow(PartInfo.HEAD.key, parts.head),
+            createPartRow(PartInfo.RIGHT_ARM.key, parts.rightArm),
+            createPartRow(PartInfo.LEFT_ARM.key, parts.leftArm),
+            createPartRow(PartInfo.LEGS.key, parts.legs),
+        ]);
+
         this.teamContainers[playerInfo.teamId].appendChild(infoPanel);
 
         // UIManagerにDOM要素を登録
@@ -144,23 +161,10 @@ export class DomFactorySystem extends BaseSystem {
             iconElement: icon,
             homeMarkerElement: marker,
             infoPanel: infoPanel,
-            targetIndicatorElement: indicator,
-            guardIndicatorElement: guardIndicator, // ガードインジケーターを登録
-            partDOMElements: {}
+            targetIndicatorElement: targetIndicator,
+            guardIndicatorElement: guardIndicator,
+            partDOMElements: partDOMElements
         };
-
-        // 各パーツのDOM要素を設定
-        Object.entries(parts).forEach(([key, part]) => {
-            const partEl = infoPanel.querySelector(`[data-part-key="${key}"]`);
-            if (partEl) {
-                domElements.partDOMElements[key] = {
-                    container: partEl,
-                    name: partEl.querySelector('.part-name'),
-                    bar: partEl.querySelector('.part-hp-bar'),
-                    value: partEl.querySelector('.part-hp-value') // HP数値要素への参照を追加
-                };
-            }
-        });
 
         this.uiManager.registerEntity(entityId, domElements);
     }

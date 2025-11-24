@@ -5,9 +5,12 @@
  */
 
 import { CONFIG } from '../common/config.js';
-import { Parts, PlayerInfo, ActiveEffects, Gauge } from '../core/components/index.js';
+// 循環参照を避けるため、コンポーネントを個別ファイルから直接インポートする
+import { Gauge } from '../core/components/Gauge.js';
+import { Parts } from '../core/components/Parts.js';
+import { ActiveEffects } from '../core/components/ActiveEffects.js';
 import { findBestDefensePart } from './queryUtils.js';
-import { ErrorHandler, GameError, ErrorType } from './errorHandler.js';
+import { GameError, ErrorType } from './errorHandler.js';
 import { EffectType, AttackType } from '../common/constants.js';
 
 /**
@@ -32,164 +35,132 @@ export class CombatStrategy {
 class DefaultCombatStrategy extends CombatStrategy {
     
     calculateEvasionChance({ world, attackerId, targetLegs, attackingPart }) {
-        try {
-            const mobility = targetLegs?.mobility;
-            const success = attackingPart?.success;
-            
-            // 必要なパラメータが不足している場合は回避不能とする
-            if (mobility === undefined || success === undefined) return 0;
-            
-            const scanBonus = this._calculateScanBonus(world, attackerId);
-            const adjustedSuccess = success + scanBonus;
-            
-            // 計算式: (機動 - (成功 + スキャン補正)) / 係数 + 基礎確率
-            // 機動力が命中成功値を上回るほど回避率が上がるロジック
-            const formula = CONFIG.FORMULAS.EVASION;
-            const mobilityAdvantage = mobility - adjustedSuccess;
-            const evasionChance = mobilityAdvantage / formula.DIFFERENCE_DIVISOR + formula.BASE_CHANCE;
-            
-            return this._clampProbability(evasionChance, 0, formula.MAX_CHANCE);
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateEvasionChance' });
-            return 0;
-        }
+        if (!targetLegs || !attackingPart) return 0;
+
+        const mobility = targetLegs.mobility ?? 0;
+        const success = attackingPart.success ?? 0;
+        
+        const scanBonus = this._calculateScanBonus(world, attackerId);
+        const adjustedSuccess = success + scanBonus;
+        
+        // 計算式: (機動 - (成功 + スキャン補正)) / 係数 + 基礎確率
+        // 機動力が命中成功値を上回るほど回避率が上がるロジック
+        const formula = CONFIG.FORMULAS.EVASION;
+        const mobilityAdvantage = mobility - adjustedSuccess;
+        const evasionChance = mobilityAdvantage / formula.DIFFERENCE_DIVISOR + formula.BASE_CHANCE;
+        
+        return this._clampProbability(evasionChance, 0, formula.MAX_CHANCE);
     }
 
     calculateDefenseChance({ targetLegs }) {
-        try {
-            const armor = targetLegs?.armor;
-            if (typeof armor !== 'number') return 0;
+        if (!targetLegs) return 0;
+        
+        const armor = targetLegs.armor;
+        if (typeof armor !== 'number') return 0;
 
-            // 計算式: 脚部装甲 / 係数 + 基礎確率
-            // 装甲が厚いほど、ダメージを軽減する「防御行動」が発生しやすくなる
-            const formula = CONFIG.FORMULAS.DEFENSE;
-            const defenseChance = armor / formula.ARMOR_DIVISOR + formula.BASE_CHANCE;
+        // 計算式: 脚部装甲 / 係数 + 基礎確率
+        // 装甲が厚いほど、ダメージを軽減する「防御行動」が発生しやすくなる
+        const formula = CONFIG.FORMULAS.DEFENSE;
+        const defenseChance = armor / formula.ARMOR_DIVISOR + formula.BASE_CHANCE;
 
-            return this._clampProbability(defenseChance, 0, formula.MAX_CHANCE);
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateDefenseChance' });
-            return 0;
-        }
+        return this._clampProbability(defenseChance, 0, formula.MAX_CHANCE);
     }
 
     calculateCriticalChance({ attackingPart, targetLegs }) {
-        try {
-            if (!attackingPart || !targetLegs) return 0;
-            
-            const success = attackingPart.success || 0;
-            const mobility = targetLegs.mobility || 0;
-            
-            // 成功値が相手の機動力を上回るほどクリティカルが出やすい
-            const successAdvantage = Math.max(0, success - mobility);
-            
-            const config = CONFIG.CRITICAL_HIT;
-            const baseChance = successAdvantage / config.DIFFERENCE_FACTOR;
-            const typeBonus = config.TYPE_BONUS[attackingPart.type] || 0;
-            
-            return this._clampProbability(baseChance + typeBonus, 0, 1);
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateCriticalChance' });
-            return 0;
-        }
+        if (!attackingPart || !targetLegs) return 0;
+        
+        const success = attackingPart.success ?? 0;
+        const mobility = targetLegs.mobility ?? 0;
+        
+        // 成功値が相手の機動力を上回るほどクリティカルが出やすい
+        const successAdvantage = Math.max(0, success - mobility);
+        
+        const config = CONFIG.CRITICAL_HIT;
+        const baseChance = successAdvantage / config.DIFFERENCE_FACTOR;
+        const typeBonus = config.TYPE_BONUS[attackingPart.type] || 0;
+        
+        return this._clampProbability(baseChance + typeBonus, 0, 1);
     }
 
     calculateDamage({ attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false }) {
-        try {
-            if (!attackingPart || !attackerLegs || !targetLegs) return 0;
+        if (!attackingPart || !attackerLegs || !targetLegs) return 0;
 
-            let success = attackingPart.success || 0;
-            let might = attackingPart.might || 0;
-            const mobility = targetLegs.mobility || 0;
-            let armor = targetLegs.armor || 0;
+        let success = attackingPart.success ?? 0;
+        let might = attackingPart.might ?? 0;
+        const mobility = targetLegs.mobility ?? 0;
+        let armor = targetLegs.armor ?? 0;
 
-            // 1. 攻撃タイプと脚部性能による補正
-            const { successBonus, mightBonus } = this._calculateTypeBonus(attackingPart.type, attackerLegs);
-            success += successBonus;
-            might += mightBonus;
+        // 1. 攻撃タイプと脚部性能による補正
+        const { successBonus, mightBonus } = this._calculateTypeBonus(attackingPart.type, attackerLegs);
+        success += successBonus;
+        might += mightBonus;
 
-            // 2. 防御側の安定性による装甲ボーナス
-            // 安定性が高いと実質的な装甲値が上がり、被ダメージを抑える
-            const stabilityDefenseBonus = Math.floor((targetLegs.stability || 0) / 2);
-            armor += stabilityDefenseBonus;
-            
-            // 3. 基礎ダメージの計算
-            let baseDamage;
-            if (isCritical) {
-                // クリティカル時: 相手の機動と装甲を無視し、成功値をそのままダメージソースにする
-                baseDamage = Math.max(0, success);
-                // ※CONFIG.FORMULAS.DAMAGE.CRITICAL_MULTIPLIER は最終ダメージに乗算する設計も考えられるが、
-                // 現状の仕様（防御無視）を維持する形で実装
-            } else {
-                // 通常時: (成功 - 機動 - 装甲) がベース
-                // isDefenseBypassed(防御不能状態など)なら装甲値を無視
-                const effectiveArmor = isDefenseBypassed ? 0 : armor;
-                baseDamage = Math.max(0, success - mobility - effectiveArmor);
-            }
-
-            // 4. 最終ダメージ計算
-            // 基礎ダメージを係数で割り、武器の威力(might)を加算する
-            // これにより、威力が最低保証ダメージとして機能する
-            const finalDamage = Math.floor(baseDamage / CONFIG.FORMULAS.DAMAGE.BASE_DAMAGE_DIVISOR) + might;
-            
-            return finalDamage;
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateDamage' });
-            return 0;
+        // 2. 防御側の安定性による装甲ボーナス
+        // 安定性が高いと実質的な装甲値が上がり、被ダメージを抑える
+        const stabilityDefenseBonus = Math.floor((targetLegs.stability || 0) / 2);
+        armor += stabilityDefenseBonus;
+        
+        // 3. 基礎ダメージの計算
+        let baseDamage;
+        if (isCritical) {
+            // クリティカル時: 相手の機動と装甲を無視し、成功値をそのままダメージソースにする
+            baseDamage = Math.max(0, success);
+        } else {
+            // 通常時: (成功 - 機動 - 装甲) がベース
+            // isDefenseBypassed(防御不能状態など)なら装甲値を無視
+            const effectiveArmor = isDefenseBypassed ? 0 : armor;
+            baseDamage = Math.max(0, success - mobility - effectiveArmor);
         }
+
+        // 4. 最終ダメージ計算
+        // 基礎ダメージを係数で割り、武器の威力(might)を加算する
+        // これにより、威力が最低保証ダメージとして機能する
+        const finalDamage = Math.floor(baseDamage / CONFIG.FORMULAS.DAMAGE.BASE_DAMAGE_DIVISOR) + might;
+        
+        return finalDamage;
     }
 
     calculateSpeedMultiplier({ part, factorType }) {
-        try {
-            if (!part) return 1.0;
-            const config = CONFIG.TIME_ADJUSTMENT;
-            const impactFactor = factorType === 'charge' ? config.CHARGE_IMPACT_FACTOR : config.COOLDOWN_IMPACT_FACTOR;
-            
-            const might = part.might || 0;
-            const success = part.success || 0;
-            
-            // パーツの性能が高いほど、充填・冷却時間が長くなる（速度倍率が上がるわけではない点に注意が必要だが、
-            // 既存ロジックでは speedMultiplier が大きいほど遅くなる仕様と思われるため、変数名とロジックの関係を確認）
-            // ※ GaugeSystemの実装: increment = (speed / speedMultiplier) * dt
-            //    つまり speedMultiplier が大きいほどゲージの伸びは遅くなる（＝時間がかかる）。
-            
-            const mightScore = config.MAX_MIGHT > 0 ? might / config.MAX_MIGHT : 0;
-            const successScore = config.MAX_SUCCESS > 0 ? success / config.MAX_SUCCESS : 0;
-            
-            const performanceScore = mightScore + successScore;
-            
-            // 基本倍率1.0 + 性能スコアによる加算
-            let multiplier = 1.0 + (performanceScore * impactFactor);
-            
-            // 攻撃タイプによる補正（例: 射撃は速い、など）
-            const typeModifier = CONFIG.PART_TYPE_MODIFIERS?.[part.type];
-            if (typeModifier?.speedMultiplier) {
-                multiplier *= typeModifier.speedMultiplier;
-            }
-            return multiplier;
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateSpeedMultiplier' });
-            return 1.0;
+        if (!part) return 1.0;
+        
+        const config = CONFIG.TIME_ADJUSTMENT;
+        const impactFactor = factorType === 'charge' ? config.CHARGE_IMPACT_FACTOR : config.COOLDOWN_IMPACT_FACTOR;
+        
+        const might = part.might ?? 0;
+        const success = part.success ?? 0;
+        
+        const mightScore = config.MAX_MIGHT > 0 ? might / config.MAX_MIGHT : 0;
+        const successScore = config.MAX_SUCCESS > 0 ? success / config.MAX_SUCCESS : 0;
+        
+        const performanceScore = mightScore + successScore;
+        
+        // 基本倍率1.0 + 性能スコアによる加算
+        let multiplier = 1.0 + (performanceScore * impactFactor);
+        
+        // 攻撃タイプによる補正（例: 射撃は速い、など）
+        const typeModifier = CONFIG.PART_TYPE_MODIFIERS?.[part.type];
+        if (typeModifier?.speedMultiplier) {
+            multiplier *= typeModifier.speedMultiplier;
         }
+        return multiplier;
     }
 
     calculateGaugeIncrement({ world, entityId, deltaTime }) {
-        try {
-            const gauge = world.getComponent(entityId, Gauge);
-            const parts = world.getComponent(entityId, Parts);
-            if (!gauge || !parts) return 0;
+        if (!world || entityId === undefined) return 0;
 
-            const propulsion = parts.legs?.propulsion || 1;
-            const speedMultiplier = gauge.speedMultiplier || 1.0;
-            
-            // 推進力が高いほど速く、speedMultiplier（重さ）が大きいほど遅くなる
-            const baseIncrement = (propulsion / CONFIG.FORMULAS.GAUGE.GAUGE_INCREMENT_DIVISOR);
-            const timeFactor = (deltaTime / CONFIG.UPDATE_INTERVAL);
-            
-            return (baseIncrement * timeFactor) / speedMultiplier;
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'calculateGaugeIncrement' });
-            return 0;
-        }
+        const gauge = world.getComponent(entityId, Gauge);
+        const parts = world.getComponent(entityId, Parts);
+        
+        if (!gauge || !parts) return 0;
+        
+        const propulsion = parts.legs?.propulsion || 1;
+        const speedMultiplier = gauge.speedMultiplier || 1.0;
+        
+        // 推進力が高いほど速く、speedMultiplier（重さ）が大きいほど遅くなる
+        const baseIncrement = (propulsion / CONFIG.FORMULAS.GAUGE.GAUGE_INCREMENT_DIVISOR);
+        const timeFactor = (deltaTime / CONFIG.UPDATE_INTERVAL);
+        
+        return (baseIncrement * timeFactor) / speedMultiplier;
     }
 
     resolveHitOutcome({ world, attackerId, targetId, attackingPart, targetLegs, initialTargetPartKey }) {
@@ -241,6 +212,8 @@ class DefaultCombatStrategy extends CombatStrategy {
 
     _calculateScanBonus(world, attackerId) {
         if (!world || attackerId === undefined) return 0;
+        
+        // 個別インポートした ActiveEffects を使用
         const activeEffects = world.getComponent(attackerId, ActiveEffects);
         if (!activeEffects) return 0;
         
@@ -252,6 +225,8 @@ class DefaultCombatStrategy extends CombatStrategy {
     _calculateTypeBonus(attackType, attackerLegs) {
         let successBonus = 0;
         let mightBonus = 0;
+
+        if (!attackerLegs) return { successBonus, mightBonus };
 
         switch (attackType) {
             case AttackType.AIMED_SHOT:
@@ -284,7 +259,7 @@ export const CombatCalculator = {
         if (newStrategy instanceof CombatStrategy) {
             this.strategy = newStrategy;
         } else {
-            ErrorHandler.handle(new GameError('Invalid combat strategy provided.', ErrorType.VALIDATION_ERROR));
+            console.warn('Invalid combat strategy provided.');
         }
     },
     

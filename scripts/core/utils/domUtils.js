@@ -16,25 +16,50 @@ export const el = (tag, attributes = {}, children = []) => {
     const element = document.createElement(tag);
 
     for (const [key, value] of Object.entries(attributes)) {
+        // 1. className
         if (key === 'className') {
             element.className = value;
-        } else if (key === 'dataset' && typeof value === 'object') {
-            Object.assign(element.dataset, value);
-        } else if (key === 'style' && typeof value === 'object') {
-            Object.assign(element.style, value);
-        } else if (key.startsWith('on') && typeof value === 'function') {
-            // イベントリスナーの設定
-            element[key] = value;
-        } else if (value !== undefined && value !== null && value !== false) {
-            // その他の属性
-            element.setAttribute(key, value);
+            continue;
         }
-        // プロパティとして設定が必要な場合（例: disabled, value）
-        if (key in element) {
-            try {
-                element[key] = value;
-            } catch (e) {
-                // 読み取り専用プロパティなどでエラーが出る場合は無視
+        
+        // 2. dataset (オブジェクトとして渡された場合)
+        if (key === 'dataset' && typeof value === 'object') {
+            Object.assign(element.dataset, value);
+            continue;
+        }
+        
+        // 3. style (オブジェクトとして渡された場合)
+        if (key === 'style' && typeof value === 'object') {
+            for (const [prop, propValue] of Object.entries(value)) {
+                if (prop.startsWith('--')) {
+                    element.style.setProperty(prop, propValue);
+                } else {
+                    // styleプロパティへの直接代入
+                    element.style[prop] = propValue;
+                }
+            }
+            continue;
+        }
+        
+        // 4. イベントリスナー
+        if (key.startsWith('on') && typeof value === 'function') {
+            element[key] = value;
+            continue;
+        }
+        
+        // 5. その他の属性・プロパティ
+        if (value !== undefined && value !== null && value !== false) {
+            // まずHTML属性として設定
+            element.setAttribute(key, value);
+            
+            // DOMプロパティとしても存在する場合は設定を試みる（例: value, checked, disabled, selected）
+            // ただし、style や dataset は上で処理済みのためここには来ない
+            if (key in element) {
+                try {
+                    element[key] = value;
+                } catch (e) {
+                    // 読み取り専用プロパティなどでエラーが出る場合は無視
+                }
             }
         }
     }
