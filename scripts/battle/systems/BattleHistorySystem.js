@@ -64,8 +64,4 @@ export class BattleHistorySystem extends BaseSystem {
             this.battleContext.history.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
         }
     }
-
-    update(deltaTime) {
-        // イベント駆動のためupdate処理は不要
-    }
 }

@@ -54,8 +54,4 @@ export class ActionSetupSystem extends BaseSystem {
         gauge.currentSpeed = 0;
         gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: selectedPart, factorType: 'charge' });
     }
-
-    update(deltaTime) {
-        // このシステムはイベント駆動のため、update処理は不要です。
-    }
 }

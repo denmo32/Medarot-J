@@ -419,8 +419,6 @@ export class CustomizeUISystem extends BaseSystem {
         });
     }
 
-    update(deltaTime) {}
-
     destroy() {
         this.dom.container.classList.add('hidden');
     }

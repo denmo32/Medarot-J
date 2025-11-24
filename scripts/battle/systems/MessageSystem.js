@@ -38,7 +38,7 @@ export class MessageSystem extends BaseSystem {
      * @param {object} detail - COMBAT_SEQUENCE_RESOLVEDイベントのペイロード
      */
     onCombatSequenceResolved(detail) {
-        const { attackerId, outcome, appliedEffects, targetId } = detail;
+        const { attackerId, appliedEffects, targetId } = detail;
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         if (!attackerInfo) return;
 
@@ -53,8 +53,7 @@ export class MessageSystem extends BaseSystem {
         });
 
         // --- Step 2: 結果メッセージを生成 ---
-        // 回避された場合（outcome.isHitがfalse）でも、ターゲットが存在する攻撃アクションであれば
-        // 結果メッセージ（回避メッセージ）を表示するように条件を変更。
+        // ターゲットが存在する、または効果が発生している場合は結果を表示
         const shouldShowResult = targetId || (appliedEffects && appliedEffects.length > 0);
 
         if (shouldShowResult) {
@@ -81,7 +80,7 @@ export class MessageSystem extends BaseSystem {
 
         // メインの宣言メッセージ
         let mainMessageKey;
-        let params = {
+        const params = {
             attackerName: attackerInfo.name,
             actionType: attackingPart.action,
             attackType: attackingPart.type,
@@ -110,33 +109,34 @@ export class MessageSystem extends BaseSystem {
 
     /**
      * 行動結果フェーズのメッセージシーケンスを作成します。
+     * ガード節を使用して条件分岐を整理しています。
      * @private
      */
     _createResultSequence(detail) {
         const { targetId, isSupport, outcome, appliedEffects, guardianInfo } = detail;
-        let sequence = [];
-
+        
+        // 1. 支援行動（非回復）の場合
         const isHealAction = appliedEffects && appliedEffects.some(e => e.type === EffectType.HEAL);
-
         if (isSupport && !isHealAction) {
-            // 支援行動（バフ・デバフ）の結果
             const supportMessage = this.generateSupportResultMessage(appliedEffects[0]);
-            sequence.push({ text: supportMessage });
-
-        } else if (!outcome.isHit && targetId) {
-            // 回避された場合
-            // ここで ATTACK_EVADED メッセージが生成される
-            const targetName = this.world.getComponent(targetId, PlayerInfo)?.name || '相手';
-            sequence.push({ 
-                text: this.format(MessageKey.ATTACK_EVADED, { targetName }) 
-            });
-
-        } else if (appliedEffects && appliedEffects.length > 0) {
-            // ダメージまたは回復の結果
-            sequence = this.generateDamageResultSequence(appliedEffects, guardianInfo);
+            return [{ text: supportMessage }];
         }
 
-        return sequence;
+        // 2. 攻撃が回避された場合
+        if (!outcome.isHit && targetId) {
+            const targetName = this.world.getComponent(targetId, PlayerInfo)?.name || '相手';
+            return [{ 
+                text: this.format(MessageKey.ATTACK_EVADED, { targetName }) 
+            }];
+        }
+
+        // 3. ダメージまたは回復効果が発生した場合
+        if (appliedEffects && appliedEffects.length > 0) {
+            return this.generateDamageResultSequence(appliedEffects, guardianInfo);
+        }
+
+        // 4. それ以外（効果なし等）
+        return [];
     }
 
     /**
@@ -178,34 +178,49 @@ export class MessageSystem extends BaseSystem {
      * @private
      */
     generateDamageResultMessage(effects, guardianInfo) {
-        let messages = [];
         if (!effects || effects.length === 0) return '';
-    
+        
+        const messages = [];
         const firstEffect = effects[0];
     
         if (firstEffect.type === EffectType.HEAL) {
             messages.push(this._formatHealMessage(firstEffect));
-        } else { // HEAL以外はダメージ系として扱う
-            let prefix = firstEffect.isCritical ? this.format(MessageKey.CRITICAL_HIT) : '';
-            const targetInfo = this.world.getComponent(firstEffect.targetId, PlayerInfo);
-            const partName = PartKeyToInfoMap[firstEffect.partKey]?.name || '不明部位';
-            const params = {
-                targetName: targetInfo?.name || '不明',
-                guardianName: guardianInfo?.name || '不明',
-                partName: partName,
-                damage: firstEffect.value,
-            };
-    
-            if (guardianInfo) {
-                messages.push(prefix + this.format(MessageKey.GUARDIAN_DAMAGE, params));
-            } else if (firstEffect.isDefended) {
-                messages.push(prefix + this.format(MessageKey.DEFENSE_SUCCESS, params));
-            } else {
-                messages.push(prefix + this.format(MessageKey.DAMAGE_APPLIED, params));
-            }
+        } else {
+            // 通常ダメージ処理
+            this._appendDamageMessages(messages, effects, guardianInfo);
         }
     
-        // 2つ目以降の貫通ダメージメッセージを生成
+        return messages.join('<br>');
+    }
+
+    /**
+     * ダメージ関連のメッセージをリストに追加します。
+     * @private
+     */
+    _appendDamageMessages(messages, effects, guardianInfo) {
+        const firstEffect = effects[0];
+        
+        // 最初のヒット（メインダメージ）
+        let prefix = firstEffect.isCritical ? this.format(MessageKey.CRITICAL_HIT) : '';
+        const targetInfo = this.world.getComponent(firstEffect.targetId, PlayerInfo);
+        const partName = PartKeyToInfoMap[firstEffect.partKey]?.name || '不明部位';
+        
+        const params = {
+            targetName: targetInfo?.name || '不明',
+            guardianName: guardianInfo?.name || '不明',
+            partName: partName,
+            damage: firstEffect.value,
+        };
+
+        if (guardianInfo) {
+            messages.push(prefix + this.format(MessageKey.GUARDIAN_DAMAGE, params));
+        } else if (firstEffect.isDefended) {
+            messages.push(prefix + this.format(MessageKey.DEFENSE_SUCCESS, params));
+        } else {
+            messages.push(prefix + this.format(MessageKey.DAMAGE_APPLIED, params));
+        }
+
+        // 貫通ダメージ（2つ目以降の効果）
         for (let i = 1; i < effects.length; i++) {
             const effect = effects[i];
             if (effect.isPenetration) {
@@ -216,8 +231,6 @@ export class MessageSystem extends BaseSystem {
                 }));
             }
         }
-    
-        return messages.join('<br>'); // HTMLの改行タグで連結
     }
 
     /**
@@ -298,6 +311,4 @@ export class MessageSystem extends BaseSystem {
         }
         return template;
     }
-
-    update(deltaTime) {}
 }

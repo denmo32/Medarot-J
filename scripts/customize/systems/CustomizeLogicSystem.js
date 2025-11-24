@@ -63,8 +63,4 @@ export class CustomizeLogicSystem extends BaseSystem {
         // 装備完了をUIシステムに通知し、再描画をトリガーさせる
         this.world.emit(GameEvents.MEDAL_EQUIPPED);
     }
-
-    update(deltaTime) {
-        // イベント駆動のためupdate処理は不要
-    }
 }

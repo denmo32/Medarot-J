@@ -45,8 +45,4 @@ export class InteractionSystem extends BaseSystem {
             }
         }
     }
-
-    update(deltaTime) {
-        // イベント駆動のためupdateは不要
-    }
 }

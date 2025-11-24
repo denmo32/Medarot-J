@@ -2,6 +2,7 @@
  * @file クエリユーティリティ
  * ワールド（ECS）から特定の条件に基づいてエンティティやコンポーネントを
  * 問い合わせる（検索・取得する）ためのユーティリティ関数群です。
+ * 宣言的な記述（filter, map, reduce等）を用いて可読性を高めています。
  */
 
 import { Parts, Position, PlayerInfo, GameState, ActiveEffects } from '../core/components/index.js';
@@ -38,12 +39,12 @@ export function getParts(world, entityId, includeBroken = false, attackableOnly 
     
     const attackablePartKeys = [PartInfo.HEAD.key, PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key];
     
-    let partTypes = attackableOnly 
-        ? attackablePartKeys 
-        : Object.keys(parts);
-        
+    // フィルタリング条件の定義
+    const isTargetType = (key) => !attackableOnly || attackablePartKeys.includes(key);
+    const isAlive = (part) => includeBroken || !part.isBroken;
+
     return Object.entries(parts)
-        .filter(([key, part]) => partTypes.includes(key) && (includeBroken || !part.isBroken));
+        .filter(([key, part]) => part && isTargetType(key) && isAlive(part));
 }
 
 /**
@@ -53,7 +54,6 @@ export function getParts(world, entityId, includeBroken = false, attackableOnly 
  * @returns {[string, object][]} - [パーツキー, パーツオブジェクト]の配列
  */
 export function getAttackableParts(world, entityId) {
-    // ★そもそも頭部が壊れていたら攻撃可能パーツは無い
     const parts = world.getComponent(entityId, Parts);
     if (parts?.head?.isBroken) {
         return [];
@@ -80,14 +80,14 @@ export function getAllActionParts(world, entityId) {
 export function findBestDefensePart(world, entityId) {
     const parts = world.getComponent(entityId, Parts);
     if (!parts) return null;
+    
     const defendableParts = Object.entries(parts)
-        .filter(([key, part]) => key !== PartInfo.HEAD.key && !part.isBroken);
-    if (defendableParts.length === 0) return null;
-    defendableParts.sort(([, a], [, b]) => b.hp - a.hp);
-    return defendableParts[0][0];
+        .filter(([key, part]) => key !== PartInfo.HEAD.key && !part.isBroken)
+        .sort(([, a], [, b]) => b.hp - a.hp);
+
+    return defendableParts.length > 0 ? defendableParts[0][0] : null;
 }
 
-// チームベースのエンティティ取得ロジックを共通化
 /**
  * チームIDと条件に基づいて、生存しているエンティティのリストを取得する内部ヘルパー関数。
  * @param {World} world
@@ -101,12 +101,12 @@ const _getValidEntitiesByTeam = (world, sourceTeamId, isAlly) => {
         .filter(id => {
             const pInfo = world.getComponent(id, PlayerInfo);
             const parts = world.getComponent(id, Parts);
-            // チームIDが一致するかどうかと、生存しているか（頭部未破壊）をチェック
-            const teamCondition = isAlly ? (pInfo.teamId === sourceTeamId) : (pInfo.teamId !== sourceTeamId);
-            return teamCondition && !parts.head?.isBroken;
+            const isSameTeam = pInfo.teamId === sourceTeamId;
+            const isAlive = !parts.head?.isBroken;
+            
+            return (isAlly ? isSameTeam : !isSameTeam) && isAlive;
         });
 };
-
 
 /**
  * 生存している敵エンティティのリストを取得します
@@ -117,7 +117,6 @@ const _getValidEntitiesByTeam = (world, sourceTeamId, isAlly) => {
 export function getValidEnemies(world, attackerId) {
     const attackerInfo = world.getComponent(attackerId, PlayerInfo);
     if (!attackerInfo) return [];
-    // 共通ヘルパー関数を利用
     return _getValidEntitiesByTeam(world, attackerInfo.teamId, false);
 }
 
@@ -131,17 +130,12 @@ export function getValidEnemies(world, attackerId) {
 export function getValidAllies(world, sourceId, includeSelf = false) {
     const sourceInfo = world.getComponent(sourceId, PlayerInfo);
     if (!sourceInfo) return [];
-    // 共通ヘルパー関数を利用
     const allies = _getValidEntitiesByTeam(world, sourceInfo.teamId, true);
-    if (includeSelf) {
-        return allies;
-    }
-    return allies.filter(id => id !== sourceId);
+    return includeSelf ? allies : allies.filter(id => id !== sourceId);
 }
 
 /**
  * 指定された`targetScope`に基づいて、適切なターゲット候補のエンティティリストを返します。
- * AiSystemとInputSystemに分散していたロジックをここに集約します。
  * @param {World} world - ワールドオブジェクト
  * @param {number} entityId - 行動主体のエンティティID
  * @param {string} scope - ターゲットの範囲 (EffectScope定数)
@@ -153,9 +147,9 @@ export function getCandidatesByScope(world, entityId, scope) {
         case EffectScope.ENEMY_TEAM:
             return getValidEnemies(world, entityId);
         case EffectScope.ALLY_SINGLE:
-            return getValidAllies(world, entityId, false); // 自分を含まない
+            return getValidAllies(world, entityId, false);
         case EffectScope.ALLY_TEAM:
-            return getValidAllies(world, entityId, true); // 自分を含む
+            return getValidAllies(world, entityId, true);
         case EffectScope.SELF:
             return [entityId];
         default:
@@ -164,10 +158,8 @@ export function getCandidatesByScope(world, entityId, scope) {
     }
 }
 
-
 /**
  * 味方チーム内で最も損害を受けているパーツを検索します。
- * HEALER戦略や回復アクションのターゲット決定に利用されます。
  * @param {World} world - ワールドオブジェクト
  * @param {number[]} candidates - 検索対象となるエンティティIDの配列
  * @returns {{targetId: number, targetPartKey: string} | null} - 最も損害の大きいパーツを持つターゲット情報、またはnull
@@ -175,29 +167,28 @@ export function getCandidatesByScope(world, entityId, scope) {
 export function findMostDamagedAllyPart(world, candidates) {
     if (!candidates || candidates.length === 0) return null;
 
-    let mostDamagedPart = null;
-    let maxDamage = -1;
-
-    candidates.forEach(allyId => {
+    // 全候補の全パーツをフラットに展開し、ダメージ順にソートして先頭を取得するアプローチ
+    // (計算量は増えるが可読性は高い)
+    const damagedParts = candidates.flatMap(allyId => {
         const parts = world.getComponent(allyId, Parts);
-        if (!parts) return;
-        Object.entries(parts).forEach(([partKey, part]) => {
-            if (part && !part.isBroken) {
-                const damageTaken = part.maxHp - part.hp;
-                if (damageTaken > maxDamage) {
-                    maxDamage = damageTaken;
-                    mostDamagedPart = { targetId: allyId, targetPartKey: partKey };
-                }
-            }
-        });
+        if (!parts) return [];
+        
+        return Object.entries(parts)
+            .filter(([_, part]) => part && !part.isBroken && part.maxHp > part.hp)
+            .map(([key, part]) => ({
+                targetId: allyId,
+                targetPartKey: key,
+                damage: part.maxHp - part.hp
+            }));
     });
+
+    if (damagedParts.length === 0) return null;
+
+    // 最もダメージが大きい順にソート
+    damagedParts.sort((a, b) => b.damage - a.damage);
     
-    // 誰もダメージを受けていない場合はターゲットなし
-    if (maxDamage <= 0) return null;
-
-    return mostDamagedPart;
+    return { targetId: damagedParts[0].targetId, targetPartKey: damagedParts[0].targetPartKey };
 }
-
 
 /**
  * 指定されたターゲットIDやパーツキーが現在有効（生存・未破壊）か検証します。
@@ -208,7 +199,6 @@ export function findMostDamagedAllyPart(world, candidates) {
  */
 export function isValidTarget(world, targetId, partKey = null) {
     if (targetId === null || targetId === undefined) return false;
-    // GameStateではなくPartsコンポーネントで生存確認
     const parts = world.getComponent(targetId, Parts);
     if (!parts || parts.head?.isBroken) return false;
 
@@ -229,13 +219,13 @@ export function isValidTarget(world, targetId, partKey = null) {
 export function selectRandomPart(world, entityId) {
     if (!world || entityId === null || entityId === undefined) return null;
     const parts = world.getComponent(entityId, Parts);
-    if (!parts || parts.head?.isBroken) return null; // 機能停止チェック
+    if (!parts || parts.head?.isBroken) return null;
+
     const hittablePartKeys = Object.keys(parts).filter(key => parts[key] && !parts[key].isBroken);
-    if (hittablePartKeys.length > 0) {
-        const partKey = hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
-        return { targetId: entityId, targetPartKey: partKey };
-    }
-    return null;
+    if (hittablePartKeys.length === 0) return null;
+
+    const partKey = hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
+    return { targetId: entityId, targetPartKey: partKey };
 }
 
 /**
@@ -254,10 +244,9 @@ export function findRandomPenetrationTarget(world, entityId, excludedPartKey) {
         key !== excludedPartKey && parts[key] && !parts[key].isBroken
     );
 
-    if (hittablePartKeys.length > 0) {
-        return hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)];
-    }
-    return null;
+    return hittablePartKeys.length > 0 
+        ? hittablePartKeys[Math.floor(Math.random() * hittablePartKeys.length)] 
+        : null;
 }
 
 /**
@@ -269,21 +258,20 @@ export function findRandomPenetrationTarget(world, entityId, excludedPartKey) {
 export function findNearestEnemy(world, attackerId) {
     const attackerPos = world.getComponent(attackerId, Position);
     if (!attackerPos) return null;
+    
     const enemies = getValidEnemies(world, attackerId);
     if (enemies.length === 0) return null;
-    let closestEnemyId = null;
-    let minDistance = Infinity;
-    for (const enemyId of enemies) {
-        const enemyPos = world.getComponent(enemyId, Position);
-        if (enemyPos) {
-            const distance = Math.abs(attackerPos.x - enemyPos.x);
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestEnemyId = enemyId;
-            }
-        }
-    }
-    return closestEnemyId;
+
+    // 距離計算とソート
+    const enemiesWithDistance = enemies
+        .map(id => {
+            const pos = world.getComponent(id, Position);
+            return pos ? { id, distance: Math.abs(attackerPos.x - pos.x) } : null;
+        })
+        .filter(item => item !== null)
+        .sort((a, b) => a.distance - b.distance);
+
+    return enemiesWithDistance.length > 0 ? enemiesWithDistance[0].id : null;
 }
 
 /**
@@ -293,18 +281,16 @@ export function findNearestEnemy(world, attackerId) {
  * @returns {{entityId: number, partKey: string, part: object}[]}
  */
 export function getAllPartsFromCandidates(world, candidateIds) {
-    let allParts = [];
-    if (!candidateIds) return []; // 候補がいない場合は空配列を返す
-    for (const id of candidateIds) {
+    if (!candidateIds) return [];
+    
+    return candidateIds.flatMap(id => {
         const parts = world.getComponent(id, Parts);
-        if (!parts || parts.head?.isBroken) continue; // 機能停止した機体のパーツは含めない
-        Object.entries(parts).forEach(([key, part]) => {
-            if (part && !part.isBroken) {
-                allParts.push({ entityId: id, partKey: key, part: part });
-            }
-        });
-    }
-    return allParts;
+        if (!parts || parts.head?.isBroken) return [];
+        
+        return Object.entries(parts)
+            .filter(([_, part]) => part && !part.isBroken)
+            .map(([key, part]) => ({ entityId: id, partKey: key, part }));
+    });
 }
 
 /**
@@ -317,6 +303,7 @@ export function getAllPartsFromCandidates(world, candidateIds) {
 export function selectPartByCondition(world, candidates, sortFn) {
     const allParts = getAllPartsFromCandidates(world, candidates);
     if (allParts.length === 0) return null;
+    
     allParts.sort(sortFn);
     const selectedPart = allParts[0];
     return { targetId: selectedPart.entityId, targetPartKey: selectedPart.partKey };
@@ -328,36 +315,26 @@ export function selectPartByCondition(world, candidates, sortFn) {
  * @returns {object | null} 選択されたアイテム、またはnull
  */
 export function selectItemByProbability(weightedItems) {
-    if (!weightedItems || weightedItems.length === 0) {
-        return null;
-    }
+    if (!weightedItems || weightedItems.length === 0) return null;
 
     const totalWeight = weightedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
-    
-    if (totalWeight === 0) {
-        // 全ての重みが0の場合、最初のアイテムを返す（安全策）
-        return weightedItems[0];
-    }
+    if (totalWeight === 0) return weightedItems[0];
 
     const randomValue = Math.random() * totalWeight;
     let cumulativeWeight = 0;
 
+    // findメソッドを使うと簡潔だが、累積計算が必要なためfor...ofを使用
     for (const item of weightedItems) {
         cumulativeWeight += (item.weight || 0);
         if (randomValue < cumulativeWeight) {
             return item;
         }
     }
-
-    // フォールバック（通常は到達しないはず）
     return weightedItems[0];
 }
 
 /**
- * @function findGuardian
- * @description 指定されたターゲットのチームから、ガード状態の機体を探します。
- * 複数いる場合は、ガードパーツのHPが最も高い機体を返します。
- * (ActionSystemから移管)
+ * 指定されたターゲットのチームから、ガード状態の機体を探します。
  * @param {World} world - ワールドオブジェクト
  * @param {number} originalTargetId - 本来の攻撃ターゲットのエンティティID
  * @returns {{id: number, partKey: string, name: string} | null} ガード役の情報、またはnull
@@ -372,22 +349,25 @@ export function findGuardian(world, originalTargetId) {
             const info = world.getComponent(id, PlayerInfo);
             const parts = world.getComponent(id, Parts);
             const activeEffects = world.getComponent(id, ActiveEffects);
-            // ガード回数が1回以上残っていることを条件に追加
+            
+            const isSameTeam = info.teamId === targetInfo.teamId;
+            const isAlive = !parts.head?.isBroken;
             const hasGuardEffect = activeEffects?.effects.some(e => e.type === EffectType.APPLY_GUARD && e.count > 0);
             
-            return info.teamId === targetInfo.teamId && !parts.head?.isBroken && hasGuardEffect;
+            return isSameTeam && isAlive && hasGuardEffect;
         })
         .map(id => {
             const activeEffects = world.getComponent(id, ActiveEffects);
             const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
             const parts = world.getComponent(id, Parts);
             const info = world.getComponent(id, PlayerInfo);
+            const guardPart = parts[guardEffect.partKey];
 
-            if (guardEffect && parts[guardEffect.partKey] && !parts[guardEffect.partKey].isBroken) {
+            if (guardPart && !guardPart.isBroken) {
                 return {
                     id: id,
                     partKey: guardEffect.partKey,
-                    partHp: parts[guardEffect.partKey].hp,
+                    partHp: guardPart.hp,
                     name: info.name,
                 };
             }
@@ -396,6 +376,8 @@ export function findGuardian(world, originalTargetId) {
         .filter(g => g !== null);
 
     if (potentialGuardians.length === 0) return null;
+    
+    // ガードパーツのHPが高い順にソートして最強のガード役を返す
     potentialGuardians.sort((a, b) => b.partHp - a.partHp);
     return potentialGuardians[0];
 }

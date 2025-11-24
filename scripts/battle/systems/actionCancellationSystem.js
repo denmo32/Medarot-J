@@ -71,8 +71,4 @@ export class ActionCancellationSystem extends BaseSystem {
             ErrorHandler.handle(error, { method: 'onHpBarAnimationCompleted', detail });
         }
     }
-
-    update(deltaTime) {
-        // このシステムはイベント駆動のため、update処理は不要です。
-    }
 }

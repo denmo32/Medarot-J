@@ -5,7 +5,7 @@
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { PlayerInfo, Parts } from '../core/components/index.js';
+import { PlayerInfo } from '../core/components/index.js';
 import { TeamID, BattlePhase } from '../common/constants.js';
 import { BattleContext } from '../core/index.js';
 import { getValidAllies } from '../utils/queryUtils.js';
@@ -47,9 +47,5 @@ export class WinConditionSystem extends BaseSystem {
             // GameFlowSystemにゲーム終了を通知
             this.world.emit(GameEvents.GAME_OVER, { winningTeam });
         }
-    }
-
-    update(deltaTime) {
-        // このシステムはイベント駆動のため、update処理は不要です。
     }
 }

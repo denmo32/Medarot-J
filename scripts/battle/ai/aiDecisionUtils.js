@@ -20,56 +20,80 @@ export function determineTargetCandidatesByPersonality({ world, entityId }) {
 
     const strategies = getStrategiesFor(attackerMedal.personality);
     const context = { world, attackerId: entityId };
-    let finalCandidates = null;
-    let successfulStrategy = null;
 
-    // --- Step 1: 思考ルーチンに定義されたターゲット戦略を順番に試行 ---
-    if (strategies.targetRoutines && strategies.targetRoutines.length > 0) {
-        for (const routine of strategies.targetRoutines) {
-            // ルーチンに実行条件(condition)が定義されていれば評価する
-            if (routine.condition) {
-                const evaluator = conditionEvaluators[routine.condition.type];
-                if (evaluator) {
-                    if (!evaluator({ ...context, params: routine.condition.params })) {
-                        continue; // 条件を満たさなければこのルーチンはスキップ
-                    }
-                } else {
-                    console.warn(`determineTargetCandidatesByPersonality: Unknown condition type '${routine.condition.type}' for ${attackerMedal.personality}.`);
-                    continue;
-                }
-            }
-            
-            const targetSelectionFunc = targetingStrategies[routine.strategy];
-            if (!targetSelectionFunc) {
-                console.warn(`determineTargetCandidatesByPersonality: Unknown targetStrategy '${routine.strategy}' in routines for ${attackerMedal.personality}.`);
+    // 1. 思考ルーチンに定義されたターゲット戦略を順番に試行
+    const routineResult = tryExecuteRoutines(strategies.targetRoutines, context, attackerMedal.personality);
+    if (routineResult) {
+        return routineResult;
+    }
+
+    // 2. ルーチンでターゲット候補が決まらなかった場合のフォールバック
+    return executeFallbackStrategy(strategies.fallbackTargeting, context, entityId);
+}
+
+/**
+ * 定義された思考ルーチンを順番に評価・実行します。
+ * @param {Array} routines - 思考ルーチンのリスト
+ * @param {object} context - 実行コンテキスト
+ * @param {string} personalityName - デバッグ用の性格名
+ * @returns {{candidates: Array, strategy: string} | null} 成功した場合は結果オブジェクト、失敗した場合はnull
+ */
+function tryExecuteRoutines(routines, context, personalityName) {
+    if (!routines || routines.length === 0) return null;
+
+    for (const routine of routines) {
+        // 実行条件(condition)の評価
+        if (routine.condition) {
+            const evaluator = conditionEvaluators[routine.condition.type];
+            if (!evaluator) {
+                console.warn(`AI Decision: Unknown condition type '${routine.condition.type}' for ${personalityName}.`);
                 continue;
             }
-            
-            const candidates = targetSelectionFunc(context);
-
-            if (candidates && candidates.length > 0) {
-                finalCandidates = candidates;
-                successfulStrategy = routine.strategy;
-                break; // 有効なターゲット候補が見つかったらループを抜ける
+            // 条件を満たさなければスキップ
+            if (!evaluator({ ...context, params: routine.condition.params })) {
+                continue;
             }
         }
-    }
+        
+        // 戦略関数の取得と実行
+        const targetSelectionFunc = targetingStrategies[routine.strategy];
+        if (!targetSelectionFunc) {
+            console.warn(`AI Decision: Unknown targetStrategy '${routine.strategy}' in routines for ${personalityName}.`);
+            continue;
+        }
+        
+        const candidates = targetSelectionFunc(context);
 
-    // --- Step 2: ルーチンでターゲット候補が決まらなかった場合のフォールバック ---
-    if (!finalCandidates && strategies.fallbackTargeting) {
-        const fallbackStrategyKey = strategies.fallbackTargeting;
-        const fallbackStrategy = targetingStrategies[fallbackStrategyKey];
-        if (fallbackStrategy) {
-            finalCandidates = fallbackStrategy(context);
-            if (finalCandidates && finalCandidates.length > 0) {
-                successfulStrategy = fallbackStrategyKey;
-            }
-        } else {
-            console.error(`AI ${entityId}: Fallback strategy key "${fallbackStrategyKey}" not found.`);
+        // 有効な候補が見つかれば結果を返す
+        if (candidates && candidates.length > 0) {
+            return { candidates, strategy: routine.strategy };
         }
     }
+    
+    return null;
+}
 
-    return { candidates: finalCandidates, strategy: successfulStrategy };
+/**
+ * フォールバック戦略を実行します。
+ * @param {string} strategyKey - 戦略キー
+ * @param {object} context - 実行コンテキスト
+ * @param {number} entityId - デバッグ用のエンティティID
+ * @returns {{candidates: Array, strategy: string} | {candidates: null, strategy: null}}
+ */
+function executeFallbackStrategy(strategyKey, context, entityId) {
+    if (!strategyKey) return { candidates: null, strategy: null };
+
+    const fallbackStrategy = targetingStrategies[strategyKey];
+    if (fallbackStrategy) {
+        const candidates = fallbackStrategy(context);
+        if (candidates && candidates.length > 0) {
+            return { candidates, strategy: strategyKey };
+        }
+    } else {
+        console.error(`AI ${entityId}: Fallback strategy key "${strategyKey}" not found.`);
+    }
+
+    return { candidates: null, strategy: null };
 }
 
 /**
@@ -80,50 +104,59 @@ export function determineTargetCandidatesByPersonality({ world, entityId }) {
 export function selectBestActionPlan({ world, entityId, actionPlans }) {
     const attackerMedal = world.getComponent(entityId, Medal);
     const strategies = getStrategiesFor(attackerMedal.personality);
-    const attackerInfo = world.getComponent(entityId, PlayerInfo);
-    let partStrategyKey;
-
-    // 1. どのパーツ選択戦略を使うか決定する
-    const preMovePlan = actionPlans.find(plan => plan.target !== null);
-
-    if (preMovePlan) {
-        // pre-moveプランがあれば、そのターゲット情報を基に戦略を決定
-        const targetInfo = world.getComponent(preMovePlan.target.targetId, PlayerInfo);
-        if (targetInfo && attackerInfo.teamId === targetInfo.teamId) {
-            partStrategyKey = strategies.partStrategyMap.ally;
-        } else {
-            partStrategyKey = strategies.partStrategyMap.enemy;
-        }
-    } else {
-        // pre-moveプランがない場合（全てpost-move）、アクションの性質から戦略を決定
-        if (actionPlans.length > 0) {
-            const representativePart = actionPlans[0].part;
-            // targetScopeが'ALLY'で始まるかどうかで、味方対象か敵対象かを判断
-            if (representativePart.targetScope?.startsWith('ALLY')) {
-                partStrategyKey = strategies.partStrategyMap.ally;
-            } else {
-                // 敵対象、または自分自身を対象とするもの（SELF_GUARDなど）はenemy戦略を使用
-                partStrategyKey = strategies.partStrategyMap.enemy;
-            }
-        }
-    }
+    
+    // 1. ターゲットの種類（敵/味方）に基づいて使用する戦略キーを決定
+    const partStrategyKey = determinePartStrategyKey(world, entityId, actionPlans, strategies);
 
     if (!partStrategyKey) {
-        console.warn(`AI ${entityId} (${attackerMedal.personality}): No part strategy found for the target type. Falling back.`);
-        return actionPlans[Math.floor(Math.random() * actionPlans.length)];
+        console.warn(`AI ${entityId} (${attackerMedal.personality}): No part strategy found. Falling back to random.`);
+        return getRandomPlan(actionPlans);
     }
 
-    // 2. パーツ選択戦略を実行して最適なパーツを決定する
+    // 2. パーツ選択戦略を実行
     const partSelectionFunc = partSelectionStrategies[partStrategyKey];
     if (!partSelectionFunc) {
-        console.error(`AI ${entityId}: Part strategy '${partStrategyKey}' not found. Falling back.`);
-        return actionPlans[Math.floor(Math.random() * actionPlans.length)];
+        console.error(`AI ${entityId}: Part strategy '${partStrategyKey}' not found. Falling back to random.`);
+        return getRandomPlan(actionPlans);
     }
     
-    // パーツ選択戦略は `[partKey, part]` の形式の配列を期待するため、プランから変換する
+    // パーツ選択戦略は `[partKey, part]` の形式の配列を期待するため変換
     const availablePartsForStrategy = actionPlans.map(plan => [plan.partKey, plan.part]);
     const [bestPartKey] = partSelectionFunc({ world, entityId, availableParts: availablePartsForStrategy });
 
     // 3. 最適なパーツキーに対応する行動プランを返す
     return actionPlans.find(plan => plan.partKey === bestPartKey) || null;
+}
+
+/**
+ * アクションプランの内容から、敵用・味方用どちらのパーツ選択戦略を使うかを決定します。
+ */
+function determinePartStrategyKey(world, attackerId, actionPlans, strategies) {
+    const attackerInfo = world.getComponent(attackerId, PlayerInfo);
+    
+    // pre-moveプラン（ターゲットが決まっているもの）がある場合
+    const preMovePlan = actionPlans.find(plan => plan.target !== null);
+    if (preMovePlan) {
+        const targetInfo = world.getComponent(preMovePlan.target.targetId, PlayerInfo);
+        // 同じチームなら味方用、そうでなければ敵用
+        return (targetInfo && attackerInfo.teamId === targetInfo.teamId)
+            ? strategies.partStrategyMap.ally
+            : strategies.partStrategyMap.enemy;
+    } 
+    
+    // post-moveプランのみの場合（ターゲット未定）、アクションのスコープ定義から判断
+    if (actionPlans.length > 0) {
+        const representativePart = actionPlans[0].part;
+        if (representativePart.targetScope?.startsWith('ALLY')) {
+            return strategies.partStrategyMap.ally;
+        }
+        // 敵対象、または自分自身を対象とするものはenemy戦略（攻撃的な選択基準）を使用
+        return strategies.partStrategyMap.enemy;
+    }
+
+    return null;
+}
+
+function getRandomPlan(plans) {
+    return plans.length > 0 ? plans[Math.floor(Math.random() * plans.length)] : null;
 }

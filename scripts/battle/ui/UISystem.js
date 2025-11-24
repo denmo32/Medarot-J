@@ -1,5 +1,5 @@
 import { BaseSystem } from '../../core/baseSystem.js';
-import { PlayerInfo, Position, Gauge, GameState, Parts, Action, ActiveEffects } from '../core/components/index.js';
+import { PlayerInfo, Position, GameState, Parts, ActiveEffects } from '../core/components/index.js';
 import { PlayerStateType, EffectType, PartInfo } from '../common/constants.js';
 import { UIManager } from './UIManager.js';
 import { GameEvents } from '../common/events.js';
@@ -55,7 +55,7 @@ export class UISystem extends BaseSystem {
     }
     
     /**
-     * HPバーのアニメーション完了後に、パーツおよび機体の破壊状態をUIに反映します。
+     * HPバーアニメーション完了後に、パーツおよび機体の破壊状態をUIに反映します。
      * @param {object} detail - HP_BAR_ANIMATION_COMPLETED イベントのペイロード { appliedEffects }
      */
     onHpAnimationCompleted(detail) {

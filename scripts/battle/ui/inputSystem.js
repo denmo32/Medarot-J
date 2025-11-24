@@ -88,6 +88,4 @@ export class InputSystem extends BaseSystem {
         const { entityId, partKey, target } = detail;
         decideAndEmitAction(this.world, entityId, partKey, target);
     }
-
-    update(deltaTime) {}
 }

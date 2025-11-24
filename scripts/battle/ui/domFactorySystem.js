@@ -164,7 +164,4 @@ export class DomFactorySystem extends BaseSystem {
 
         this.uiManager.registerEntity(entityId, domElements);
     }
-
-    // このシステムはイベント駆動なのでupdateは不要
-    update(deltaTime) {}
 }

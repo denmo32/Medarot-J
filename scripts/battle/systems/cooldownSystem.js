@@ -5,10 +5,9 @@
  */
 import { BaseSystem } from '../../core/baseSystem.js';
 import { GameEvents } from '../common/events.js';
-import { Action, GameState, Gauge, Parts, PlayerInfo, Position, ActiveEffects } from '../core/components/index.js';
-import { PlayerStateType, EffectType, TeamID } from '../common/constants.js';
+import { Action, GameState, Gauge, Parts, ActiveEffects } from '../core/components/index.js';
+import { PlayerStateType, EffectType } from '../common/constants.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
-import { CONFIG } from '../common/config.js';
 
 export class CooldownSystem extends BaseSystem {
     constructor(world) {
@@ -168,9 +167,5 @@ export class CooldownSystem extends BaseSystem {
         if (action) {
             this.world.addComponent(entityId, new Action());
         }
-    }
-
-    update(deltaTime) {
-        // このシステムはイベント駆動のため、update処理は不要です。
     }
 }

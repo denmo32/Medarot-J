@@ -1,9 +1,8 @@
 import { BaseSystem } from '../../core/baseSystem.js';
-import { GameState, Gauge, PlayerInfo, Action } from '../core/components/index.js';
+import { GameState, Gauge, Action } from '../core/components/index.js';
 import { BattleContext } from '../core/index.js';
 import { GameEvents } from '../common/events.js';
-import { BattlePhase, PlayerStateType, TeamID, ModalType } from '../common/constants.js';
-import { ErrorHandler } from '../utils/errorHandler.js';
+import { BattlePhase, PlayerStateType, ModalType } from '../common/constants.js';
 import { Timer } from '../../core/components/Timer.js';
 
 /**
@@ -21,7 +20,6 @@ export class GameFlowSystem extends BaseSystem {
         this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
         this.world.on(GameEvents.BATTLE_START_CANCELLED, this.onBattleStartCancelled.bind(this));
-        // PLAYER_BROKEN の購読を GAME_OVER に変更し、勝利判定ロジックを分離
         this.world.on(GameEvents.GAME_OVER, this.onGameOver.bind(this));
         this.world.on(GameEvents.GAME_PAUSED, this.onGamePaused.bind(this));
         this.world.on(GameEvents.GAME_RESUMED, this.onGameResumed.bind(this));
@@ -86,7 +84,6 @@ export class GameFlowSystem extends BaseSystem {
             this.battleContext.phase = BattlePhase.GAME_OVER;
             this.battleContext.winningTeam = winningTeam;
 
-            // setTimeoutを廃止し、ECSベースのTimerに置き換える
             // 3秒後にシーン遷移を要求するタイマーエンティティを作成
             const timerEntity = this.world.createEntity();
             this.world.addComponent(timerEntity, new Timer(3000, () => {
@@ -101,8 +98,5 @@ export class GameFlowSystem extends BaseSystem {
             // ゲームオーバーモーダルはタイマーとは独立してすぐに表示
             this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.GAME_OVER, data: { winningTeam } });
         }
-    }
-
-    update(deltaTime) {
     }
 }

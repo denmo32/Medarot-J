@@ -27,8 +27,4 @@ export class DebugSystem extends BaseSystem {
             'color: #90cdf4;'   // 水色
         );
     }
-
-    update(deltaTime) {
-        // このシステムはイベント駆動のため、update処理は不要です。
-    }
 }
