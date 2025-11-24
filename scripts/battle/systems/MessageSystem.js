@@ -53,8 +53,9 @@ export class MessageSystem extends BaseSystem {
         });
 
         // --- Step 2: 結果メッセージを生成 ---
-        // 空振りや効果なしの場合は結果メッセージを表示しない
-        const shouldShowResult = (targetId && outcome.isHit) || (appliedEffects && appliedEffects.length > 0);
+        // 回避された場合（outcome.isHitがfalse）でも、ターゲットが存在する攻撃アクションであれば
+        // 結果メッセージ（回避メッセージ）を表示するように条件を変更。
+        const shouldShowResult = targetId || (appliedEffects && appliedEffects.length > 0);
 
         if (shouldShowResult) {
             const resultSequence = this._createResultSequence(detail);
@@ -124,6 +125,7 @@ export class MessageSystem extends BaseSystem {
 
         } else if (!outcome.isHit && targetId) {
             // 回避された場合
+            // ここで ATTACK_EVADED メッセージが生成される
             const targetName = this.world.getComponent(targetId, PlayerInfo)?.name || '相手';
             sequence.push({ 
                 text: this.format(MessageKey.ATTACK_EVADED, { targetName }) 

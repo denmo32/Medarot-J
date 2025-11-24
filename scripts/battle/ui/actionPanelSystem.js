@@ -133,8 +133,13 @@ export class ActionPanelSystem extends BaseSystem {
             });
 
             if (this.currentModalType === ModalType.ATTACK_DECLARATION) {
-                this.isProcessingQueue = false;
-                this._processModalQueue();
+                // 次のモーダルがない場合はパネルを閉じる
+                if (this.modalQueue.length > 0) {
+                    this.isProcessingQueue = false;
+                    this._processModalQueue();
+                } else {
+                    this.hideActionPanel();
+                }
             } else {
                 this.hideActionPanel();
             }
