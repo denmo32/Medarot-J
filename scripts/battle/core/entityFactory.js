@@ -6,6 +6,93 @@ import { MEDAROT_SETS } from '../data/medarotSets.js';
 import { MEDALS_DATA } from '../data/medals.js';
 import { buildPartData } from '../data/partDataUtils.js';
 
+// --- Helper Functions ---
+
+/**
+ * 敵チーム用に完全にランダムなパーツID構成を生成します。
+ * @returns {object} { head, rightArm, leftArm, legs } の形式のパーツIDオブジェクト
+ */
+function generateEnemyPartsIds() {
+    const partIds = {};
+    for (const partInfo of Object.values(PartInfo)) {
+        const partKey = partInfo.key;
+        const partIdList = Object.keys(PARTS_DATA[partKey]);
+        if (partIdList.length > 0) {
+            partIds[partKey] = partIdList[Math.floor(Math.random() * partIdList.length)];
+        }
+    }
+    return partIds;
+}
+
+/**
+ * プレイヤーチーム用のパーツID構成を取得します。
+ * 指定データがあればそれを使用し、なければランダムなセットを使用します。
+ * @param {object | null} medarotData - 指定されたメダロットデータ
+ * @returns {{ ids: object, nameFallback: string }} パーツIDオブジェクトと名前フォールバック
+ */
+function getPlayerPartsIds(medarotData) {
+    const partIds = {};
+    const medarotSet = medarotData ? medarotData.set : MEDAROT_SETS[Math.floor(Math.random() * MEDAROT_SETS.length)];
+
+    for (const partKey in medarotSet.parts) {
+        const partId = medarotSet.parts[partKey];
+        if (PARTS_DATA[partKey] && PARTS_DATA[partKey][partId]) {
+            partIds[partKey] = partId;
+        }
+    }
+    return { ids: partIds, nameFallback: medarotSet.name };
+}
+
+/**
+ * メダル情報（名前、性格）を決定します。
+ * @param {string} teamId
+ * @param {object | null} medarotData
+ * @param {string} nameFallback
+ * @param {number} totalId
+ * @returns {{ name: string, personality: string }}
+ */
+function determineMedalInfo(teamId, medarotData, nameFallback, totalId) {
+    let name = null;
+    let personality = null;
+
+    // 1. メダルデータの取得を試みる
+    if (teamId === TeamID.TEAM1 && medarotData?.medalId) {
+        const medalData = MEDALS_DATA[medarotData.medalId];
+        if (medalData) {
+            name = medalData.name;
+            personality = medalData.personality;
+        }
+    } else if (teamId === TeamID.TEAM2) {
+        const medalKeys = Object.keys(MEDALS_DATA);
+        if (medalKeys.length > 0) {
+            const randomMedalId = medalKeys[Math.floor(Math.random() * medalKeys.length)];
+            const medalData = MEDALS_DATA[randomMedalId];
+            if (medalData) {
+                name = medalData.name;
+                personality = medalData.personality;
+            }
+        }
+    }
+
+    // 2. 取得できなかった場合のフォールバック
+    if (!name || !personality) {
+        console.warn(`Could not determine name/personality from medal for entity ${totalId}. Falling back.`);
+        
+        if (teamId === TeamID.TEAM2) {
+            name = `エネミー #${totalId}`;
+        } else {
+            name = medarotData ? medarotData.name : `${nameFallback} #${totalId}`;
+        }
+
+        const personalityTypes = Object.values(MedalPersonality);
+        personality = personalityTypes[Math.floor(Math.random() * personalityTypes.length)];
+    }
+
+    return { name, personality };
+}
+
+// --- Main Factory Functions ---
+
 /**
  * 単一のプレイヤーエンティティを生成し、その特性を定義するコンポーネント群を追加します。
  * @param {World} world - ワールドオブジェクト
@@ -19,71 +106,20 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     const entityId = world.createEntity();
     const isLeader = index === 0;
 
-    // --- パーツID構成の決定 ---
-    const partIds = {};
-    let medarotSet; // プレイヤーチームの場合の名前フォールバック用に保持
+    // パーツIDの決定
+    let partIds;
+    let nameFallback = '';
 
     if (teamId === TeamID.TEAM2) {
-        // 敵チーム: 各部位を完全にランダムで構成
-        for (const partInfo of Object.values(PartInfo)) {
-            const partKey = partInfo.key;
-            const partIdList = Object.keys(PARTS_DATA[partKey]);
-            if (partIdList.length > 0) {
-                const randomPartId = partIdList[Math.floor(Math.random() * partIdList.length)];
-                partIds[partKey] = randomPartId;
-            }
-        }
+        partIds = generateEnemyPartsIds();
     } else {
-        // プレイヤーチーム: 従来通り medarotData またはランダムなセットを使用
-        medarotSet = medarotData ? medarotData.set : MEDAROT_SETS[Math.floor(Math.random() * MEDAROT_SETS.length)];
-        for (const partKey in medarotSet.parts) {
-            const partId = medarotSet.parts[partKey];
-            // 実際に存在するIDか確認してからセット
-            if (PARTS_DATA[partKey] && PARTS_DATA[partKey][partId]) {
-                partIds[partKey] = partId;
-            }
-        }
+        const result = getPlayerPartsIds(medarotData);
+        partIds = result.ids;
+        nameFallback = result.nameFallback;
     }
 
-    // --- メダルに基づいて名前と性格を決定 ---
-    let name;
-    let personality;
-    const medalKeys = Object.keys(MEDALS_DATA);
-
-    if (teamId === TeamID.TEAM1 && medarotData?.medalId) {
-        // プレイヤーチーム: 指定されたメダルIDを使用
-        const medalData = MEDALS_DATA[medarotData.medalId];
-        if (medalData) {
-            name = medalData.name;
-            personality = medalData.personality;
-        }
-    } else if (teamId === TeamID.TEAM2 && medalKeys.length > 0) {
-        // 敵チーム: ランダムなメダルを使用
-        const randomMedalId = medalKeys[Math.floor(Math.random() * medalKeys.length)];
-        const medalData = MEDALS_DATA[randomMedalId];
-        if (medalData) {
-            name = medalData.name;
-            personality = medalData.personality;
-        }
-    }
-    
-    // フォールバック: メダル情報が取得できなかった場合
-    if (!name || !personality) {
-        console.warn(`Could not determine name/personality from medal for entity ${totalId}. Falling back.`);
-        // チームに応じてフォールバック名を変更
-        if (teamId === TeamID.TEAM2) {
-            name = `エネミー #${totalId}`;
-        } else {
-            // medarotSetはプレイヤーチームの場合のみ定義されている
-            name = medarotData ? medarotData.name : `${medarotSet.name} #${totalId}`;
-        }
-        // ランダムな性格を設定
-        const personalityTypes = Object.values(MedalPersonality);
-        personality = personalityTypes[Math.floor(Math.random() * personalityTypes.length)];
-    }
-
-    const initialX = teamId === TeamID.TEAM1 ? 0 : 1;
-    const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;
+    // 名前と性格の決定
+    const { name, personality } = determineMedalInfo(teamId, medarotData, nameFallback, totalId);
 
     // 共通のデータ構築ユーティリティを使用してパーツデータを生成
     const initializedParts = {
@@ -93,10 +129,19 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
         legs: buildPartData(partIds.legs, 'legs')
     };
 
+    // コンポーネントの追加
+    const initialX = teamId === TeamID.TEAM1 ? 0 : 1;
+    const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;
+
     world.addComponent(entityId, new Components.PlayerInfo(name, teamId, isLeader));
     world.addComponent(entityId, new Components.Gauge());
     world.addComponent(entityId, new Components.GameState());
-    world.addComponent(entityId, new Components.Parts(initializedParts.head, initializedParts.rightArm, initializedParts.leftArm, initializedParts.legs));
+    world.addComponent(entityId, new Components.Parts(
+        initializedParts.head, 
+        initializedParts.rightArm, 
+        initializedParts.leftArm, 
+        initializedParts.legs
+    ));
     world.addComponent(entityId, new Components.Action());
     world.addComponent(entityId, new Components.Medal(personality));
     world.addComponent(entityId, new Components.BattleLog());

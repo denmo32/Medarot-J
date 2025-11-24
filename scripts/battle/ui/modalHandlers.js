@@ -8,6 +8,27 @@ import { GameEvents } from '../common/events.js';
 import { ModalType, PartInfo } from '../common/constants.js';
 import { el } from '../../core/utils/domUtils.js';
 
+// ナビゲーションルール定義
+// 現在のフォーカス位置(key)と入力キー(direction)に対し、
+// 次にフォーカスすべき候補の優先順位リストを定義します。
+const NAVIGATION_MAP = {
+    [PartInfo.HEAD.key]: {
+        arrowdown: [PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key],
+        arrowleft: [PartInfo.LEFT_ARM.key, PartInfo.RIGHT_ARM.key],
+        arrowright: [PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key],
+    },
+    [PartInfo.RIGHT_ARM.key]: {
+        arrowup: [PartInfo.HEAD.key],
+        arrowleft: [PartInfo.LEFT_ARM.key],
+        arrowright: [PartInfo.LEFT_ARM.key], // ループ動作として左腕へ
+    },
+    [PartInfo.LEFT_ARM.key]: {
+        arrowup: [PartInfo.HEAD.key],
+        arrowleft: [PartInfo.RIGHT_ARM.key], // ループ動作として右腕へ
+        arrowright: [PartInfo.RIGHT_ARM.key],
+    }
+};
+
 /**
  * ActionPanelSystemのインスタンスをコンテキストとして受け取り、
  * モーダルハンドラのオブジェクトを生成します。
@@ -113,10 +134,12 @@ export const createModalHandlers = (systemInstance) => ({
         },
         /**
          * 方向キーによるフォーカス移動を処理します。
+         * ナビゲーションマップを使用して、次にフォーカスすべきボタンを決定します。
          * @param {ActionPanelSystem} system - ActionPanelSystemのインスタンス
          * @param {string} key - 押されたキー ('arrowup', 'arrowdown', etc.)
          */
         handleNavigation: (system, key) => {
+            // ヘルパー: ターゲットハイライト更新
             const _updateTargetHighlight = (partKey, show) => {
                 const buttonData = system.currentModalData?.buttons.find(b => b.partKey === partKey);
                 if (!buttonData || !buttonData.target || buttonData.target.targetId === null) return;
@@ -127,15 +150,18 @@ export const createModalHandlers = (systemInstance) => ({
                 }
             };
 
+            // ヘルパー: フォーカスとハイライトの切り替え
             const updateFocus = (newKey) => {
                 if (system.focusedButtonKey === newKey) return;
-                // 古いフォーカスとハイライトを解除
+                
+                // 古いフォーカス解除
                 if (system.focusedButtonKey) {
                     _updateTargetHighlight(system.focusedButtonKey, false);
                     const oldButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${system.focusedButtonKey}`);
                     if (oldButton) oldButton.classList.remove('focused');
                 }
-                // 新しいフォーカスとハイライトを設定
+                
+                // 新しいフォーカス設定
                 _updateTargetHighlight(newKey, true);
                 const newButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${newKey}`);
                 if (newButton) {
@@ -146,26 +172,29 @@ export const createModalHandlers = (systemInstance) => ({
                 }
             };
 
+            // 利用可能な（破壊されていない）ボタンのみを対象とする
             const availableButtons = system.currentModalData?.buttons.filter(b => !b.isBroken);
             if (!availableButtons || availableButtons.length === 0) return;
-            let nextFocusKey = system.focusedButtonKey;
-            const has = (partKey) => availableButtons.some(b => b.partKey === partKey);
-            switch (system.focusedButtonKey) {
-                case PartInfo.HEAD.key:
-                    if (key === 'arrowdown' || key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : PartInfo.LEFT_ARM.key;
-                    else if (key === 'arrowright') nextFocusKey = has(PartInfo.LEFT_ARM.key) ? PartInfo.LEFT_ARM.key : PartInfo.RIGHT_ARM.key;
-                    break;
-                case PartInfo.RIGHT_ARM.key:
-                    if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
-                    else if (key === 'arrowright') nextFocusKey = has(PartInfo.LEFT_ARM.key) ? PartInfo.LEFT_ARM.key : null;
-                    break;
-                case PartInfo.LEFT_ARM.key:
-                    if (key === 'arrowup') nextFocusKey = has(PartInfo.HEAD.key) ? PartInfo.HEAD.key : null;
-                    else if (key === 'arrowleft') nextFocusKey = has(PartInfo.RIGHT_ARM.key) ? PartInfo.RIGHT_ARM.key : null;
-                    break;
-                default: nextFocusKey = availableButtons.find(b => b.partKey === PartInfo.HEAD.key)?.partKey || availableButtons[0]?.partKey;
+
+            // 現在のフォーカスがない場合はデフォルト（頭部または最初の利用可能パーツ）を設定
+            if (!system.focusedButtonKey) {
+                const defaultKey = availableButtons.find(b => b.partKey === PartInfo.HEAD.key)?.partKey || availableButtons[0].partKey;
+                updateFocus(defaultKey);
+                return;
             }
-            if (nextFocusKey) updateFocus(nextFocusKey);
+
+            // ナビゲーションマップに基づいて次の候補を探す
+            const candidates = NAVIGATION_MAP[system.focusedButtonKey]?.[key];
+            if (candidates) {
+                // 候補の中から、実際に利用可能な最初のパーツを選択
+                const nextKey = candidates.find(candidateKey => 
+                    availableButtons.some(b => b.partKey === candidateKey)
+                );
+                
+                if (nextKey) {
+                    updateFocus(nextKey);
+                }
+            }
         },
         handleConfirm: (system) => {
             if (!system.focusedButtonKey) return;

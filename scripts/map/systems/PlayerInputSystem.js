@@ -32,12 +32,8 @@ export class PlayerInputSystem extends BaseSystem {
         );
 
         for (const entityId of entities) {
-            const state = this.world.getComponent(entityId, MapComponents.State);
-
             // アイドル状態での移動入力
-            if (state.value === PLAYER_STATES.IDLE && this.input.direction) {
-                this.handleMovementInput(entityId);
-            }
+            this._handleMovement(entityId);
 
             // インタラクション入力
             if (this.input.wasKeyJustPressed('z')) {
@@ -46,14 +42,39 @@ export class PlayerInputSystem extends BaseSystem {
         }
     }
 
-    handleMovementInput(entityId) {
+    /**
+     * 移動入力の処理
+     * @private
+     */
+    _handleMovement(entityId) {
+        const state = this.world.getComponent(entityId, MapComponents.State);
+        
+        // 移動中でない場合のみ入力を受け付ける
+        if (state.value !== PLAYER_STATES.IDLE || !this.input.direction) {
+            return;
+        }
+
+        const direction = this.input.direction;
+
+        // 1. 向きを更新
+        this._updateFacingDirection(entityId, direction);
+
+        // 2. 移動を試行
+        this._tryMove(entityId, direction);
+    }
+
+    /**
+     * 指定された方向への移動を試みます。
+     * @private
+     */
+    _tryMove(entityId, direction) {
         const position = this.world.getComponent(entityId, MapComponents.Position);
         const collision = this.world.getComponent(entityId, MapComponents.Collision);
-        
-        // 1. 移動先座標の計算
-        const targetPos = this._calculateTargetPosition(position, this.input.direction);
-        
-        // 2. 衝突判定用の矩形作成
+
+        // 移動先座標の計算
+        const targetPos = this._calculateTargetPosition(position, direction);
+
+        // 衝突判定
         const bounds = { 
             x: targetPos.x, 
             y: targetPos.y, 
@@ -61,10 +82,6 @@ export class PlayerInputSystem extends BaseSystem {
             height: collision.height 
         };
 
-        // 3. 向きの更新
-        this._updateFacingDirection(entityId, this.input.direction);
-
-        // 4. 衝突がなければ移動適用
         if (!this.map.isColliding(bounds)) {
             this._applyMovement(entityId, targetPos);
         }
