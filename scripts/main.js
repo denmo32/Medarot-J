@@ -10,13 +10,23 @@ import { CustomizeScene } from './scenes/CustomizeScene.js';
 
 import { World } from './engine/world.js';
 import { InputManager } from './engine/InputManager.js';
-import { GameDataManager } from './engine/GameDataManager.js';
+import { GameDataManager } from './managers/GameDataManager.js';
 import { UI_CONFIG } from './battle/common/UIConfig.js';
+
+// ゲーム固有のキー設定をインポート
+import { KEY_MAP } from './map/constants.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     // --- Global Instances ---
     const world = new World();
-    const inputManager = new InputManager();
+    
+    // ゲーム固有の設定でInputManagerを初期化
+    const inputManager = new InputManager({
+        keyMap: KEY_MAP,
+        // 全てのゲームキーのデフォルト動作（スクロール等）を無効化
+        preventDefaultKeys: Object.keys(KEY_MAP)
+    });
+    
     const gameDataManager = new GameDataManager();
 
     // シーンマネージャーのセットアップ

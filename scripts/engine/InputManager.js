@@ -1,20 +1,22 @@
 /**
  * @file アプリケーション全体の入力を一元管理するシングルトンクラス
  * 
- * - イベントリスナーの一元化: windowへのkeydown/keyupリスナー登録を一度だけに限定し、
- *   リスナーの重複登録や削除漏れといったバグを根本的に防ぎます。
- * - コンテキストベースの入力制御: 'map', 'battle-modal', 'menu' といったゲームの状況（コンテキスト）に応じて、
- *   どの入力処理を有効にするかを簡単に切り替えられます。これにより、モーダル表示中にプレイヤーが動いてしまう、といった不具合を防ぎます。
- * - キー状態の抽象化: 「押された瞬間」「押されている間」「離された瞬間」を明確に区別して扱えるメソッドを提供し、
- *   より信頼性の高い入力処理を簡単に記述できるようにします。
+ * 特定のゲーム設定（KEY_MAPなど）への依存を排除し、
+ * 初期化時に設定オブジェクトを受け取ることで汎用性を高めています。
  */
-import { KEY_MAP } from '../map/constants.js';
-
 export class InputManager {
-    constructor() {
+    /**
+     * @param {object} [config={}]
+     * @param {object} [config.keyMap={}] - キーコードとアクション名のマッピング { 'ArrowUp': 'up', ... }
+     * @param {string[]} [config.preventDefaultKeys=[]] - デフォルト動作を無効化するキーのリスト
+     */
+    constructor(config = {}) {
         if (InputManager.instance) {
             return InputManager.instance;
         }
+
+        this.keyMap = config.keyMap || {};
+        this.preventDefaultKeys = new Set(config.preventDefaultKeys || []);
 
         this.pressedKeys = new Set();
         this.justPressedKeys = new Set();
@@ -23,6 +25,9 @@ export class InputManager {
         this._direction = null;
         this._lastDirectionKey = null;
 
+        // 方向キーとして扱うアクション名のセット（移動ロジック用）
+        this.directionActions = new Set(['up', 'down', 'left', 'right']);
+
         window.addEventListener('keydown', this._handleKeyDown.bind(this));
         window.addEventListener('keyup', this._handleKeyUp.bind(this));
 
@@ -30,9 +35,8 @@ export class InputManager {
     }
 
     _handleKeyDown(e) {
-        if (KEY_MAP[e.key]) {
-            // 常にpreventDefaultを呼ぶと、テキスト入力などができなくなるため、
-            // ゲームの主要な操作キー（KEY_MAPにあるもの）に限定する
+        // keyMapに登録されている、またはpreventDefaultKeysに含まれている場合はデフォルト動作を防ぐ
+        if (this.keyMap[e.key] || this.preventDefaultKeys.has(e.key)) {
             e.preventDefault();
             
             if (!this.pressedKeys.has(e.key)) {
@@ -40,20 +44,27 @@ export class InputManager {
             }
             this.pressedKeys.add(e.key);
 
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            // 方向キーの判定ロジック
+            // keyMapでマッピングされたアクションが方向系なら記録する
+            const action = this.keyMap[e.key];
+            if (action && this.directionActions.has(action)) {
                 this._lastDirectionKey = e.key;
             }
         }
     }
 
     _handleKeyUp(e) {
-        if (KEY_MAP[e.key]) {
+        if (this.keyMap[e.key] || this.preventDefaultKeys.has(e.key)) {
             e.preventDefault();
             this.pressedKeys.delete(e.key);
             this.justReleasedKeys.add(e.key);
 
             if (this._lastDirectionKey === e.key) {
-                const pressedDirectionKeys = [...this.pressedKeys].filter(key => ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key));
+                // 離されたキーが最後の方向キーだった場合、まだ押されている他の方向キーを探す
+                const pressedDirectionKeys = [...this.pressedKeys].filter(key => {
+                    const action = this.keyMap[key];
+                    return action && this.directionActions.has(action);
+                });
                 this._lastDirectionKey = pressedDirectionKeys.pop() || null;
             }
         }
@@ -96,11 +107,12 @@ export class InputManager {
     
     /**
      * 現在押されている方向キーから、最新の入力方向を取得します。
-     * @returns {string | null} 'up', 'down', 'left', 'right' または null
+     * keyMapの設定に基づき、'up', 'down', 'left', 'right' を返します。
+     * @returns {string | null}
      */
     get direction() {
         if (this._lastDirectionKey) {
-            return KEY_MAP[this._lastDirectionKey];
+            return this.keyMap[this._lastDirectionKey];
         }
         return null;
     }

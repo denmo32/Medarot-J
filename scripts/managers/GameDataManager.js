@@ -1,6 +1,7 @@
 /**
  * @file GameDataManager.js
  * @description ゲーム全体の永続的な状態（セーブデータ）を一元管理するシングルトンクラス。
+ * エンジンから分離され、ゲーム固有のデータ構造を管理します。
  */
 
 import { MEDAROT_SETS } from '../battle/data/medarotSets.js';

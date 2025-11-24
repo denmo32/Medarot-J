@@ -4,7 +4,7 @@
  * 更新するビジネスロジックを実行する責務を持ちます。
  */
 import { BaseSystem } from '../../engine/baseSystem.js';
-import { GameDataManager } from '../../engine/GameDataManager.js';
+import { GameDataManager } from '../../managers/GameDataManager.js';
 import { GameEvents } from '../../battle/common/events.js';
 
 export class CustomizeLogicSystem extends BaseSystem {

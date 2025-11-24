@@ -4,7 +4,7 @@
  * DOM生成には `el` ユーティリティを使用し、宣言的に記述します。
  */
 import { BaseSystem } from '../../engine/baseSystem.js';
-import { GameDataManager } from '../../engine/GameDataManager.js';
+import { GameDataManager } from '../../managers/GameDataManager.js';
 import { PartKeyToInfoMap, EquipSlotType } from '../../battle/common/constants.js';
 import { CustomizeState } from '../components/CustomizeState.js';
 import { GameEvents } from '../../battle/common/events.js';
