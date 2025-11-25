@@ -4,6 +4,7 @@ import { BattleContext } from '../../context/index.js';
 import { BattlePhase, ModalType, EffectScope, EffectType } from '../../common/constants.js';
 import { UIManager } from '../../../engine/ui/UIManager.js';
 import { BaseSystem } from '../../../engine/baseSystem.js';
+import { el } from '../../../engine/utils/domUtils.js';
 
 /**
  * アニメーションと視覚効果の再生に特化したシステム。
@@ -13,27 +14,12 @@ export class ViewSystem extends BaseSystem {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
-        // スタイル注入ロジックを削除（style.cssに一元化）
-        this.animationStyleElement = null;
-
-        this.dom = {
-        };
-
-        this.handlers = {
-        };
-
+        
         this.bindWorldEvents();
-        this.bindDOMEvents();
     }
 
     destroy() {
-        if (this.animationStyleElement) {
-            // 念のため残すが、基本的にはnullのまま
-            if (this.animationStyleElement.parentNode) {
-                this.animationStyleElement.parentNode.removeChild(this.animationStyleElement);
-            }
-            this.animationStyleElement = null;
-        }
+        // クリーンアップ処理が必要な場合はここに記述
     }
 
     bindWorldEvents() {
@@ -43,28 +29,29 @@ export class ViewSystem extends BaseSystem {
         this.world.on(GameEvents.HP_BAR_ANIMATION_REQUESTED, this.onHpBarAnimationRequested.bind(this));
     }
 
-    bindDOMEvents() {
-    }
-
     onShowBattleStartAnimation() {
         const battlefield = document.getElementById('battlefield');
         if (!battlefield) return;
 
-        const textEl = document.createElement('div');
-        textEl.className = 'battle-start-text';
-        textEl.textContent = 'ロボトルファイト！';
-        battlefield.appendChild(textEl);
-
-        textEl.addEventListener('animationend', () => {
-            textEl.remove();
-            this.world.emit('BATTLE_ANIMATION_COMPLETED');
+        // elユーティリティを使用して宣言的に要素を生成
+        const textEl = el('div', {
+            className: 'battle-start-text',
+            textContent: 'ロボトルファイト！',
+            onanimationend: () => {
+                textEl.remove();
+                this.world.emit('BATTLE_ANIMATION_COMPLETED');
+            }
         });
+
+        battlefield.appendChild(textEl);
     }
 
     resetView() {
+        // 必要に応じてビューのリセット処理を記述
     }
 
     update(deltaTime) {
+        // アニメーションのフレーム更新が必要な場合はここに記述
     }
 
     /**
@@ -86,7 +73,6 @@ export class ViewSystem extends BaseSystem {
         }
 
         if (!targetId || !attackerDomElements || !isSingleTargetAction) {
-            // [修正] GameEventsオブジェクトからイベントキーを参照するように修正
             this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
             return;
         }
@@ -100,26 +86,32 @@ export class ViewSystem extends BaseSystem {
 
         this.world.emit(GameEvents.GAME_PAUSED);
         
-        const indicator = document.createElement('div');
-        // style.cssで定義されたクラスを使用
-        indicator.className = 'target-indicator';
-        for (let i = 0; i < 4; i++) {
-            const corner = document.createElement('div');
-            corner.className = `corner corner-${i + 1}`;
-            indicator.appendChild(corner);
-        }
+        // elユーティリティを使用してインジケーターを生成
+        // コーナー要素もネストして定義
+        const indicator = el('div', { className: 'target-indicator' }, [
+            el('div', { className: 'corner corner-1' }),
+            el('div', { className: 'corner corner-2' }),
+            el('div', { className: 'corner corner-3' }),
+            el('div', { className: 'corner corner-4' })
+        ]);
+
         document.body.appendChild(indicator);
         
         const attackerIcon = attackerDomElements.iconElement;
         const targetIcon = targetDomElements.iconElement;
         
+        // レイアウト計算とアニメーション開始
+        // DOM追加直後だと計算が正しくない場合があるため、わずかに遅延させる（既存ロジック踏襲）
         setTimeout(() => {
             const attackerRect = attackerIcon.getBoundingClientRect();
             const targetRect = targetIcon.getBoundingClientRect();
             
-            indicator.style.position = 'fixed';
-            indicator.style.zIndex = '100';
-            indicator.style.opacity = '1';
+            // 動的なスタイル適用
+            Object.assign(indicator.style, {
+                position: 'fixed',
+                zIndex: '100',
+                opacity: '1'
+            });
             
             const startX = attackerRect.left + attackerRect.width / 2;
             const startY = attackerRect.top + attackerRect.height / 2;
@@ -129,17 +121,21 @@ export class ViewSystem extends BaseSystem {
             indicator.style.left = `${startX}px`;
             indicator.style.top = `${startY}px`;
             
+            const dx = endX - startX;
+            const dy = endY - startY;
+
             const animation = indicator.animate([
                 { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1, offset: 0 },
                 { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0.2 },
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(1.5)`, opacity: 1, offset: 0.5 },
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0.65 },
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(2.0)`, opacity: 1, offset: 0.8 },
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0, offset: 1 }
+                { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1.5)`, opacity: 1, offset: 0.5 },
+                { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.5)`, opacity: 0.65 },
+                { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(2.0)`, opacity: 1, offset: 0.8 },
+                { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.5)`, opacity: 0, offset: 1 }
             ], {
                 duration: 1200, 
                 easing: 'ease-in-out'
             });
+
             animation.finished.then(() => {
                 indicator.remove();
                 this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
@@ -155,11 +151,11 @@ export class ViewSystem extends BaseSystem {
             return;
         }
 
+        // 全てのアニメーションを並列ではなく順次実行する場合（await）
         for (const effect of effects) {
             await this.animateHpBar(effect);
         }
 
-        // 完了イベントにペイロードを追加
         this.world.emit(GameEvents.HP_BAR_ANIMATION_COMPLETED, { appliedEffects: effects });
     }
 
@@ -200,15 +196,12 @@ export class ViewSystem extends BaseSystem {
             const fallback = setTimeout(cleanup, 1000);
             hpBar.addEventListener('transitionend', onTransitionEnd);
 
+            // アニメーション用の最終HP計算（実際のComponentの値は既に更新されている前提）
+            // ここではバーの見た目を変化させる
             const finalHp = targetPart.hp;
-            const changeAmount = value;
-            const initialHp = (effect.type === EffectType.HEAL)
-                ? Math.max(0, finalHp - changeAmount)
-                : Math.min(targetPart.maxHp, finalHp + changeAmount);
-            
             const finalHpPercentage = (finalHp / targetPart.maxHp) * 100;
 
-            const animateHp = () => {
+            const animateHpText = () => {
                 const currentWidthStyle = getComputedStyle(hpBar).width;
                 const parentWidth = hpBar.parentElement.clientWidth;
                 const currentWidth = parseFloat(currentWidthStyle);
@@ -216,17 +209,18 @@ export class ViewSystem extends BaseSystem {
                 if (parentWidth > 0) {
                     const currentPercentage = (currentWidth / parentWidth) * 100;
                     const currentDisplayHp = Math.round((currentPercentage / 100) * targetPart.maxHp);
-                    hpValueEl.textContent = `${currentDisplayHp}/${targetPart.maxHp}`;
+                    hpValueEl.textContent = `${Math.max(0, currentDisplayHp)}/${targetPart.maxHp}`;
                 }
 
-                animationFrameId = requestAnimationFrame(animateHp);
+                animationFrameId = requestAnimationFrame(animateHpText);
             };
 
+            // CSS Transitionを開始
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                     hpBar.style.transition = 'width 0.8s ease';
                     hpBar.style.width = `${finalHpPercentage}%`;
-                    animationFrameId = requestAnimationFrame(animateHp);
+                    animationFrameId = requestAnimationFrame(animateHpText);
                 });
             });
         });
