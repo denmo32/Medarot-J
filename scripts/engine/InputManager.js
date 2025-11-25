@@ -1,8 +1,9 @@
 /**
- * @file アプリケーション全体の入力を一元管理するシングルトンクラス
+ * @file アプリケーション全体の入力を一元管理するクラス
  * 
  * 特定のゲーム設定（KEY_MAPなど）への依存を排除し、
  * 初期化時に設定オブジェクトを受け取ることで汎用性を高めています。
+ * シングルトンパターンを廃止し、ECSのコンポーネントとしてインスタンス管理されることを想定しています。
  */
 export class InputManager {
     /**
@@ -11,10 +12,6 @@ export class InputManager {
      * @param {string[]} [config.preventDefaultKeys=[]] - デフォルト動作を無効化するキーのリスト
      */
     constructor(config = {}) {
-        if (InputManager.instance) {
-            return InputManager.instance;
-        }
-
         this.keyMap = config.keyMap || {};
         this.preventDefaultKeys = new Set(config.preventDefaultKeys || []);
 
@@ -28,10 +25,17 @@ export class InputManager {
         // 方向キーとして扱うアクション名のセット（移動ロジック用）
         this.directionActions = new Set(['up', 'down', 'left', 'right']);
 
-        window.addEventListener('keydown', this._handleKeyDown.bind(this));
-        window.addEventListener('keyup', this._handleKeyUp.bind(this));
+        // バインドして参照を保持（removeEventListener用）
+        this._boundKeyDown = this._handleKeyDown.bind(this);
+        this._boundKeyUp = this._handleKeyUp.bind(this);
 
-        InputManager.instance = this;
+        window.addEventListener('keydown', this._boundKeyDown);
+        window.addEventListener('keyup', this._boundKeyUp);
+    }
+
+    destroy() {
+        window.removeEventListener('keydown', this._boundKeyDown);
+        window.removeEventListener('keyup', this._boundKeyUp);
     }
 
     _handleKeyDown(e) {

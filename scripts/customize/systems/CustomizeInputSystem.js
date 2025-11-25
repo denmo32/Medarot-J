@@ -11,11 +11,14 @@ import { GameEvents } from '../../battle/common/events.js';
 export class CustomizeInputSystem extends BaseSystem {
     constructor(world) {
         super(world);
-        this.input = new InputManager();
+        // InputManagerはシングルトンコンポーネントとしてWorldから取得
+        this.input = this.world.getSingletonComponent(InputManager);
         this.uiState = this.world.getSingletonComponent(CustomizeState);
     }
 
     update(deltaTime) {
+        if (!this.input) return;
+
         // --- 決定/キャンセル入力 ---
         if (this.input.wasKeyJustPressed('z')) {
             this.world.emit(GameEvents.CUST_CONFIRM_INPUT);

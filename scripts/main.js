@@ -2,14 +2,14 @@
  * @file アプリケーションのエントリーポイント
  * このファイルは、ゲーム全体の初期化とメインループの管理を行います。
  */
-// シーン管理機構をインポート
-import { SceneManager } from './scenes/SceneManager.js';
+import { World } from './engine/world.js';
+import { InputManager } from './engine/InputManager.js';
+import { SceneManager } from './engine/SceneManager.js';
+
 import { MapScene } from './scenes/MapScene.js';
 import { BattleScene } from './scenes/BattleScene.js';
 import { CustomizeScene } from './scenes/CustomizeScene.js';
 
-import { World } from './engine/world.js';
-import { InputManager } from './engine/InputManager.js';
 import { GameDataManager } from './managers/GameDataManager.js';
 import { UI_CONFIG } from './battle/common/UIConfig.js';
 
@@ -20,24 +20,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Global Instances ---
     const world = new World();
     
-    // ゲーム固有の設定でInputManagerを初期化
-    const inputManager = new InputManager({
-        keyMap: KEY_MAP,
-        // 全てのゲームキーのデフォルト動作（スクロール等）を無効化
-        preventDefaultKeys: Object.keys(KEY_MAP)
-    });
-    
     const gameDataManager = new GameDataManager();
 
+    // DOMコンテナのマッピングを定義
+    const containerMap = {
+        map: document.getElementById('map-container'),
+        battle: document.getElementById('battle-container'),
+        customize: document.getElementById('customize-container'),
+    };
+
     // シーンマネージャーのセットアップ
-    const sceneManager = new SceneManager(world);
+    const sceneManager = new SceneManager(world, containerMap);
     sceneManager.register('map', MapScene);
     sceneManager.register('battle', BattleScene);
     sceneManager.register('customize', CustomizeScene);
 
+    // InputManagerの初期化
+    const inputManager = new InputManager({
+        keyMap: KEY_MAP,
+        preventDefaultKeys: Object.keys(KEY_MAP)
+    });
+
+    // InputManagerを「永続コンポーネント」として登録
+    // これにより、シーン遷移（Worldリセット）後も自動的にWorldに再追加される
+    sceneManager.registerPersistentComponent(inputManager);
+
     // SceneManagerにグローバルコンテキストを登録
+    // （initメソッドの引数として渡したいデータがあればここに追加）
     sceneManager.registerGlobalContext('gameDataManager', gameDataManager);
-    sceneManager.registerGlobalContext('inputManager', inputManager);
 
     // --- UI Elements ---
     const titleContainer = document.getElementById('title-container');
@@ -58,17 +68,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 経過時間を蓄積
         accumulator += deltaTime;
 
-        // 蓄積された時間が固定ステップ以上ある間、論理更新を繰り返す
-        // これにより、描画フレームレートが落ちてもゲームロジックの進行速度は一定に保たれる
-        // また、1フレームでの移動量などが一定になり、すり抜け等のバグを防ぐ
         while (accumulator >= FIXED_TIME_STEP) {
-            // SceneManagerに更新を委譲 (常に固定時間を渡す)
             sceneManager.update(FIXED_TIME_STEP);
-
-            // 論理フレームの終わりに、そのフレームで処理された単発入力フラグ(justPressed等)をクリアする
-            // これにより、1回のキー押しが複数の論理フレームで重複して処理されるのを防ぐ
             inputManager.update();
-
             accumulator -= FIXED_TIME_STEP;
         }
 
@@ -83,16 +85,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const startGame = async (isNewGame) => {
         if (isNewGame) {
             gameDataManager.resetToDefault();
-            // 新規ゲーム開始時はセーブしない
         } else {
             gameDataManager.loadGame();
         }
         
-        // switchToの呼び出しを簡潔化
         await sceneManager.switchTo('map');
         
         titleContainer.classList.add('hidden');
-        inputManager.update(); // シーン切り替え直後の入力をリセット
+        inputManager.update();
         
         console.log(`Mode Switch: Map Exploration (${isNewGame ? 'New Game' : 'From Save'})`);
         requestAnimationFrame(gameLoop);
@@ -129,9 +129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Title Screen Input ---
     function setupTitleScreenInput() {
-        const titleContainer = document.getElementById('title-container');
-        if (!titleContainer) return;
-
         const buttons = [
             document.getElementById('start-new-game'),
             document.getElementById('start-from-save')

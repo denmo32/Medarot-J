@@ -2,7 +2,7 @@
  * @file CustomizeScene.js
  * @description カスタマイズ画面のセットアップとロジックをカプセル化するシーンクラス。
  */
-import { BaseScene } from './BaseScene.js';
+import { BaseScene } from '../engine/BaseScene.js';
 import { CustomizeInputSystem } from '../customize/systems/CustomizeInputSystem.js';
 import { CustomizeUISystem } from '../customize/systems/CustomizeUISystem.js';
 import { CustomizeLogicSystem } from '../customize/systems/CustomizeLogicSystem.js';

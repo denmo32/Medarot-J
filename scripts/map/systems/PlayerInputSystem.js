@@ -3,18 +3,22 @@ import * as MapComponents from '../components.js';
 import { CONFIG, PLAYER_STATES } from '../constants.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import { GameEvents } from '../../battle/common/events.js';
+import { InputManager } from '../../engine/InputManager.js';
 
 /**
  * プレイヤーの入力に基づいて目標タイルを設定し、状態を遷移させるシステム。
  */
 export class PlayerInputSystem extends BaseSystem {
-    constructor(world, input, map) {
+    constructor(world, map) {
         super(world);
-        this.input = input;
+        // InputManagerはシングルトンコンポーネントとしてWorldから取得
+        this.input = this.world.getSingletonComponent(InputManager);
         this.map = map;
     }
 
     update() {
+        if (!this.input) return;
+
         const mapUIState = this.world.getSingletonComponent(MapUIState);
         if (mapUIState && mapUIState.isPausedByModal) {
             return;

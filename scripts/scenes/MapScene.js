@@ -2,7 +2,7 @@
  * @file MapScene.js
  * @description マップ探索モードのセットアップとロジックをカプセル化するシーンクラス。
  */
-import { BaseScene } from './BaseScene.js';
+import { BaseScene } from '../engine/BaseScene.js';
 import { MAP_EVENTS, CONFIG as MAP_CONFIG, PLAYER_STATES } from '../map/constants.js';
 import { Camera } from '../map/camera.js';
 import { Renderer } from '../map/renderer.js';
@@ -36,7 +36,7 @@ export class MapScene extends BaseScene {
      */
     async init(data) {
         console.log("Initializing Map Scene...");
-        const { gameDataManager, inputManager, restoreMenu = false } = data;
+        const { gameDataManager, restoreMenu = false } = data;
 
         // --- Resources & Canvas ---
         const { canvas, map } = await this._setupResources();
@@ -45,13 +45,13 @@ export class MapScene extends BaseScene {
         this._setupContexts();
 
         // --- Systems ---
-        const mapUISystem = this._setupSystems(canvas, map, inputManager);
+        const mapUISystem = this._setupSystems(canvas, map);
 
         // --- Entities ---
         const playerEntityId = this._setupEntities(gameDataManager);
 
         // --- Events ---
-        this._bindEvents(gameDataManager, inputManager, playerEntityId);
+        this._bindEvents(gameDataManager, playerEntityId);
 
         // --- Initial State ---
         if (restoreMenu) {
@@ -91,18 +91,18 @@ export class MapScene extends BaseScene {
 
     /**
      * システム群を初期化・登録します。
+     * InputManagerは各システムがWorldから直接取得するため、ここでは渡しません。
      * @param {HTMLElement} canvas 
      * @param {Map} map 
-     * @param {InputManager} inputManager 
      * @returns {MapUISystem} 初期化したUIシステムを返す（初期状態設定のため）
      * @private
      */
-    _setupSystems(canvas, map, inputManager) {
+    _setupSystems(canvas, map) {
         const camera = new Camera();
         const renderer = new Renderer(canvas);
 
-        const mapUISystem = new MapUISystem(this.world, inputManager);
-        this.world.registerSystem(new PlayerInputSystem(this.world, inputManager, map));
+        const mapUISystem = new MapUISystem(this.world);
+        this.world.registerSystem(new PlayerInputSystem(this.world, map));
         this.world.registerSystem(new MovementSystem(this.world, map));
         this.world.registerSystem(new CameraSystem(this.world, camera, map));
         this.world.registerSystem(new MapRenderSystem(this.world, renderer, map, camera));
@@ -136,11 +136,10 @@ export class MapScene extends BaseScene {
     /**
      * イベントリスナーを設定します。
      * @param {GameDataManager} gameDataManager 
-     * @param {InputManager} inputManager 
      * @param {number} playerEntityId 
      * @private
      */
-    _bindEvents(gameDataManager, inputManager, playerEntityId) {
+    _bindEvents(gameDataManager, playerEntityId) {
         // プレイヤーの状態保存用ヘルパー
         const savePlayerState = () => {
             const pos = this.world.getComponent(playerEntityId, MapComponents.Position);
@@ -153,7 +152,8 @@ export class MapScene extends BaseScene {
         // シーン遷移イベント
         const switchTo = (sceneName, additionalData = {}) => {
             savePlayerState();
-            this.sceneManager.switchTo(sceneName, { gameDataManager, inputManager, ...additionalData });
+            // InputManagerはECS経由で取得されるため、dataとして渡す必要はない
+            this.sceneManager.switchTo(sceneName, { gameDataManager, ...additionalData });
         };
 
         this.world.on(MAP_EVENTS.BATTLE_TRIGGERED, () => switchTo('battle'));

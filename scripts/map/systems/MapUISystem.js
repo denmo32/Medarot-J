@@ -2,14 +2,16 @@ import { BaseSystem } from '../../engine/baseSystem.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import * as MapComponents from '../components.js';
 import { GameEvents } from '../../battle/common/events.js';
+import { InputManager } from '../../engine/InputManager.js';
 
 /**
  * マップモードにおけるUIの表示/非表示、およびUI操作中の入力を一元管理するシステム。
  */
 export class MapUISystem extends BaseSystem {
-    constructor(world, inputManager) {
+    constructor(world) {
         super(world);
-        this.input = inputManager;
+        // InputManagerはシングルトンコンポーネントとしてWorldから取得
+        this.input = this.world.getSingletonComponent(InputManager);
         this.mapUIState = this.world.getSingletonComponent(MapUIState);
 
         this.dom = {
@@ -54,6 +56,8 @@ export class MapUISystem extends BaseSystem {
     }
 
     update(deltaTime) {
+        if (!this.input) return;
+
         // メニュー開閉トグル (UI操作中でない場合のみ)
         if (this.input.wasKeyJustPressed('x') && !this.mapUIState.isPausedByModal) {
             this.toggleMenu();

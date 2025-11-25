@@ -2,7 +2,7 @@
  * @file BattleScene.js
  * @description バトルモードのセットアップとロジックをカプセル化するシーンクラス。
  */
-import { BaseScene } from './BaseScene.js';
+import { BaseScene } from '../engine/BaseScene.js';
 import { GameEvents } from '../battle/common/events.js';
 import { initializeSystems, createPlayers, BattleContext } from '../battle/context/index.js';
 
@@ -16,7 +16,7 @@ export class BattleScene extends BaseScene {
      */
     init(data) {
         console.log("Initializing Battle Scene...");
-        const { gameDataManager, inputManager } = data;
+        const { gameDataManager } = data;
 
         this._setupSystems();
         this._setupEntities(gameDataManager);
@@ -51,8 +51,6 @@ export class BattleScene extends BaseScene {
      * @private
      */
     _setupBattleContext() {
-        // 新しいBattleContextが初期化時にgameModeを'battle'に設定するため、
-        // ここでの明示的な設定は本来不要ですが、意図を明確にするために残しています。
         const battleContext = this.world.getSingletonComponent(BattleContext);
         if (battleContext) {
             battleContext.gameMode = 'battle';

@@ -14,7 +14,8 @@ export class ActionPanelSystem extends BaseSystem {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
-        this.inputManager = new InputManager();
+        // InputManagerはシングルトンコンポーネントとしてWorldから取得
+        this.inputManager = this.world.getSingletonComponent(InputManager);
         
         // --- DOM References ---
         this.dom = {
@@ -61,7 +62,7 @@ export class ActionPanelSystem extends BaseSystem {
 
     update(deltaTime) {
         // モーダルが表示されていない、またはアニメーション待機中は入力を無視
-        if (!this.currentHandler || this.isWaitingForAnimation) return;
+        if (!this.currentHandler || this.isWaitingForAnimation || !this.inputManager) return;
 
         this._handleInput();
     }
