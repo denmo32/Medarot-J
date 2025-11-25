@@ -3,7 +3,7 @@
  * @description ダメージ効果の適用に関するビジネスロジックを担当します。
  */
 import { Parts, PlayerInfo } from '../../components/index.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { PartInfo } from '../../common/constants.js';
 import { findRandomPenetrationTarget } from '../../utils/queryUtils.js';
 

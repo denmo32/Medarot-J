@@ -8,7 +8,7 @@ import { BaseSystem } from '../../../engine/baseSystem.js';
 import { BattleContext } from '../../context/index.js';
 import { GameState, PlayerInfo } from '../../components/index.js';
 import { BattlePhase, PlayerStateType } from '../../common/constants.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 
 export class ActionSelectionSystem extends BaseSystem {
     constructor(world) {

@@ -1,7 +1,7 @@
 import { BaseSystem } from '../../engine/baseSystem.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import * as MapComponents from '../components.js';
-import { GameEvents } from '../../battle/common/events.js';
+import { GameEvents } from '../../common/events.js';
 import { InputManager } from '../../engine/InputManager.js';
 
 /**

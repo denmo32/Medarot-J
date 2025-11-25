@@ -4,8 +4,8 @@
  */
 import { BaseScene } from '../engine/BaseScene.js';
 import { MAP_EVENTS, CONFIG as MAP_CONFIG, PLAYER_STATES } from '../map/constants.js';
-import { Camera } from '../map/camera.js';
-import { Renderer } from '../map/renderer.js';
+import { Camera } from '../engine/graphics/Camera.js';
+import { Renderer } from '../engine/graphics/Renderer.js';
 import { Map } from '../map/map.js';
 import * as MapComponents from '../map/components.js';
 import { PlayerInputSystem } from '../map/systems/PlayerInputSystem.js';
@@ -14,7 +14,7 @@ import { CameraSystem } from '../map/systems/CameraSystem.js';
 import { RenderSystem as MapRenderSystem } from '../map/systems/RenderSystem.js';
 import { MapUISystem } from '../map/systems/MapUISystem.js';
 import { InteractionSystem } from '../map/systems/InteractionSystem.js';
-import { GameEvents } from '../battle/common/events.js';
+import { GameEvents } from '../common/events.js';
 
 // マップシーン専用のUI状態コンポーネントを定義
 export class MapUIState {

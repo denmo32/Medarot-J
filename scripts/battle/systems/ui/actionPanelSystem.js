@@ -1,5 +1,5 @@
 import { BaseSystem } from '../../../engine/baseSystem.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { ModalType } from '../../common/constants.js';
 import { InputManager } from '../../../engine/InputManager.js';
 import { UIManager } from '../../ui/UIManager.js';

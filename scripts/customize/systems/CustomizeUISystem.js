@@ -7,7 +7,7 @@ import { BaseSystem } from '../../engine/baseSystem.js';
 import { GameDataManager } from '../../managers/GameDataManager.js';
 import { PartKeyToInfoMap, EquipSlotType } from '../../battle/common/constants.js';
 import { CustomizeState } from '../components/CustomizeState.js';
-import { GameEvents } from '../../battle/common/events.js';
+import { GameEvents } from '../../common/events.js';
 import { el } from '../../engine/utils/domUtils.js';
 
 const focusTransitionMap = {

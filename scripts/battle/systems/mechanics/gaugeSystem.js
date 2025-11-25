@@ -2,9 +2,9 @@ import { Gauge, GameState, Parts } from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { CONFIG } from '../../common/config.js';
 import { PlayerStateType, BattlePhase, PartInfo } from '../../common/constants.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { BaseSystem } from '../../../engine/baseSystem.js';
-import { ErrorHandler } from '../../utils/errorHandler.js';
+import { ErrorHandler } from '../../../engine/utils/ErrorHandler.js';
 
 export class GaugeSystem extends BaseSystem {
     constructor(world) {

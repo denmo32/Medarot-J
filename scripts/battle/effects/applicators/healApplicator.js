@@ -3,7 +3,7 @@
  * @description 回復効果の適用に関するビジネスロジックを担当します。
  */
 import { Parts } from '../../components/index.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 
 /**
  * 回復効果をターゲットに適用します。

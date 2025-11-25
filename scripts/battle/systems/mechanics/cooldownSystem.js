@@ -4,7 +4,7 @@
  * StateSystemから責務を分割し、単一責任の原則を強化します。
  */
 import { BaseSystem } from '../../../engine/baseSystem.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { Action, GameState, Gauge, Parts, ActiveEffects } from '../../components/index.js';
 import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';

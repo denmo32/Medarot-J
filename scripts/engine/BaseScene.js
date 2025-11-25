@@ -5,7 +5,7 @@
  */
 // 注意: engineディレクトリは汎用的なので、特定のゲームイベントへの依存は最小限にすべきですが、
 // 現状の設計互換性を維持するためにパスを修正してインポートします。
-import { GameEvents } from '../battle/common/events.js';
+import { GameEvents } from '../common/events.js';
 
 export class BaseScene {
     /**

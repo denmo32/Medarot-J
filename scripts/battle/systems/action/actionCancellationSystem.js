@@ -5,10 +5,10 @@
  * StateSystemからロジックを分離するために新設されました。
  */
 import { BaseSystem } from '../../../engine/baseSystem.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { GameState, Action, Parts } from '../../components/index.js';
 import { PlayerStateType, PartInfo, ActionCancelReason } from '../../common/constants.js';
-import { ErrorHandler } from '../../utils/errorHandler.js';
+import { ErrorHandler } from '../../../engine/utils/ErrorHandler.js';
 
 /**
  * 行動予約のキャンセル判定に特化したシステム。

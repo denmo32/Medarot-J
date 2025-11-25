@@ -8,7 +8,7 @@ import { BaseSystem } from '../../../engine/baseSystem.js';
 import { BattleContext } from '../../context/index.js';
 import { GameState, PlayerInfo, Action } from '../../components/index.js';
 import { BattlePhase, PlayerStateType } from '../../common/constants.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { TurnSystem } from './TurnSystem.js';
 import { ActionSelectionSystem } from '../action/ActionSelectionSystem.js';
 import { ActionExecutionSystem } from '../action/ActionExecutionSystem.js';

@@ -10,7 +10,7 @@ import { Gauge } from '../components/Gauge.js';
 import { Parts } from '../components/Parts.js';
 import { ActiveEffects } from '../components/ActiveEffects.js';
 import { findBestDefensePart } from './queryUtils.js';
-import { GameError, ErrorType } from './errorHandler.js';
+import { GameError, ErrorType } from '../../engine/utils/ErrorHandler.js';
 import { EffectType, AttackType } from '../common/constants.js';
 
 /**

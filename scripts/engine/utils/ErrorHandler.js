@@ -1,6 +1,7 @@
 /**
  * @file エラーハンドリングユーティリティ
  * ゲーム全体でのエラー処理を統一するためのモジュール
+ * (旧 scripts/battle/utils/errorHandler.js から移動)
  */
 
 /**

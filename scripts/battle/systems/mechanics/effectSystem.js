@@ -5,7 +5,7 @@
  */
 import { BaseSystem } from '../../../engine/baseSystem.js';
 import { ActiveEffects } from '../../components/index.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 
 export class EffectSystem extends BaseSystem {
     constructor(world) {

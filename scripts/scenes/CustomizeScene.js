@@ -7,7 +7,7 @@ import { CustomizeInputSystem } from '../customize/systems/CustomizeInputSystem.
 import { CustomizeUISystem } from '../customize/systems/CustomizeUISystem.js';
 import { CustomizeLogicSystem } from '../customize/systems/CustomizeLogicSystem.js';
 import { CustomizeState } from '../customize/components/CustomizeState.js';
-import { GameEvents } from '../battle/common/events.js';
+import { GameEvents } from '../common/events.js';
 
 export class CustomizeScene extends BaseScene {
     constructor(world, sceneManager) {

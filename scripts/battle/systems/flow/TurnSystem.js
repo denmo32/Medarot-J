@@ -6,9 +6,9 @@
 import { BaseSystem } from '../../../engine/baseSystem.js';
 import { GameState, PlayerInfo, Parts } from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, TeamID, BattlePhase, PartInfo } from '../../common/constants.js';
-import { ErrorHandler } from '../../utils/errorHandler.js';
+import { ErrorHandler } from '../../../engine/utils/ErrorHandler.js';
 import { compareByPropulsion } from '../../utils/queryUtils.js';
 
 /**

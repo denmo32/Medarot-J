@@ -1,4 +1,4 @@
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import * as Components from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { BattlePhase, ModalType, EffectScope, EffectType } from '../../common/constants.js';
@@ -133,7 +133,7 @@ export class ViewSystem extends BaseSystem {
                 { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1, offset: 0 },
                 { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 1, offset: 0.2 },
                 { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(1.5)`, opacity: 1, offset: 0.5 },
-                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 1, offset: 0.65 },
+                { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0.65 },
                 { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(2.0)`, opacity: 1, offset: 0.8 },
                 { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0, offset: 1 }
             ], {

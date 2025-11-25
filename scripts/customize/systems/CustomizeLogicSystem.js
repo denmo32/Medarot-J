@@ -5,7 +5,7 @@
  */
 import { BaseSystem } from '../../engine/baseSystem.js';
 import { GameDataManager } from '../../managers/GameDataManager.js';
-import { GameEvents } from '../../battle/common/events.js';
+import { GameEvents } from '../../common/events.js';
 
 export class CustomizeLogicSystem extends BaseSystem {
     constructor(world) {

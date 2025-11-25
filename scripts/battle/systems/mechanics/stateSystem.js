@@ -1,12 +1,12 @@
 import { Gauge, GameState, Parts, PlayerInfo, Action, Position, ActiveEffects } from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { CONFIG } from '../../common/config.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, ModalType, BattlePhase, TeamID, EffectType, EffectScope, PartInfo, TargetTiming, ActionCancelReason } from '../../common/constants.js';
 import { isValidTarget } from '../../utils/queryUtils.js';
 import { snapToActionLine } from '../../utils/positionUtils.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';
-import { ErrorHandler } from '../../utils/errorHandler.js';
+import { ErrorHandler } from '../../../engine/utils/ErrorHandler.js';
 
 /**
  * エンティティの「状態」を管理するステートマシンとしての役割を担うシステム。

@@ -4,11 +4,11 @@
  */
 
 import { BaseSystem } from '../../../engine/baseSystem.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { decideAndEmitAction } from '../../utils/actionUtils.js';
 import { determineTargetCandidatesByPersonality, selectBestActionPlan } from '../../ai/aiDecisionUtils.js';
 import { determineActionPlans } from '../../utils/targetingUtils.js';
-import { ErrorHandler } from '../../utils/errorHandler.js';
+import { ErrorHandler } from '../../../engine/utils/ErrorHandler.js';
 
 /**
  * AIの「脳」として機能するシステム。

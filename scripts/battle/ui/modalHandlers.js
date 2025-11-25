@@ -4,7 +4,7 @@
  * DOM構築ユーティリティ 'el' を使用して、UI生成コードを簡潔に保ちます。
  */
 import { CONFIG } from '../common/config.js';
-import { GameEvents } from '../common/events.js';
+import { GameEvents } from '../../common/events.js';
 import { ModalType, PartInfo } from '../common/constants.js';
 import { el } from '../../engine/utils/domUtils.js';
 

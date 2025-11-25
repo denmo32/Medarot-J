@@ -8,12 +8,12 @@ import { BaseSystem } from '../../../engine/baseSystem.js';
 import { BattleContext } from '../../context/index.js';
 import { Action, ActiveEffects, Parts, PlayerInfo } from '../../components/index.js';
 import { BattlePhase, EffectType, ActionCancelReason } from '../../common/constants.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';
 import { findGuardian, isValidTarget } from '../../utils/queryUtils.js';
 import { effectStrategies } from '../../effects/effectStrategies.js';
 import { effectApplicators } from '../../effects/applicators/applicatorIndex.js';
-import { ErrorHandler } from '../../utils/errorHandler.js';
+import { ErrorHandler } from '../../../engine/utils/ErrorHandler.js';
 
 export class ActionResolutionSystem extends BaseSystem {
     constructor(world) {

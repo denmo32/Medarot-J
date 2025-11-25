@@ -7,7 +7,7 @@ import { BaseSystem } from '../../engine/baseSystem.js';
 import * as MapComponents from '../components.js';
 import { CONFIG } from '../constants.js';
 import { MapUIState } from '../../scenes/MapScene.js';
-import { GameEvents } from '../../battle/common/events.js';
+import { GameEvents } from '../../common/events.js';
 
 export class InteractionSystem extends BaseSystem {
     constructor(world, map) {

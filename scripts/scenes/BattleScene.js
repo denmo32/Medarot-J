@@ -3,7 +3,7 @@
  * @description バトルモードのセットアップとロジックをカプセル化するシーンクラス。
  */
 import { BaseScene } from '../engine/BaseScene.js';
-import { GameEvents } from '../battle/common/events.js';
+import { GameEvents } from '../common/events.js';
 import { initializeSystems, createPlayers, BattleContext } from '../battle/context/index.js';
 
 export class BattleScene extends BaseScene {

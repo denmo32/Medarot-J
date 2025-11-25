@@ -5,7 +5,7 @@
  * 本番コードからデバッグ用のロジックを分離する責務を持ちます。
  */
 import { BaseSystem } from '../../../engine/baseSystem.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 
 export class DebugSystem extends BaseSystem {
     constructor(world) {

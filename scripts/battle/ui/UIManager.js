@@ -2,6 +2,8 @@
  * @file UI管理システム
  * @description DOM要素とエンティティのマッピングを管理し、UIとロジックの分離を実現します。
  */
+import { GameEvents } from '../../common/events.js'; // 未使用ですが参照整合性のためにimport
+
 export class UIManager {
     constructor() {
         this.entityDOMMap = new Map(); // entityId -> DOM要素のマッピング

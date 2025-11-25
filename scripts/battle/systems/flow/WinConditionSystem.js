@@ -4,7 +4,7 @@
  * GameFlowSystemからロジックを分離することで、勝利条件の追加・変更を容易にします。
  */
 import { BaseSystem } from '../../../engine/baseSystem.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo } from '../../components/index.js';
 import { TeamID, BattlePhase } from '../../common/constants.js';
 import { BattleContext } from '../../context/index.js';

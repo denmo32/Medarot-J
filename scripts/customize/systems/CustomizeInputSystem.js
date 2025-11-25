@@ -6,7 +6,7 @@
 import { BaseSystem } from '../../engine/baseSystem.js';
 import { InputManager } from '../../engine/InputManager.js';
 import { CustomizeState } from '../components/CustomizeState.js';
-import { GameEvents } from '../../battle/common/events.js';
+import { GameEvents } from '../../common/events.js';
 
 export class CustomizeInputSystem extends BaseSystem {
     constructor(world) {

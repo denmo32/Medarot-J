@@ -7,10 +7,10 @@ import { BaseSystem } from '../../../engine/baseSystem.js';
 import { BattleContext } from '../../context/index.js';
 import { Action, GameState, Parts } from '../../components/index.js';
 import { BattlePhase, PlayerStateType, TargetTiming, ModalType } from '../../common/constants.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 import { compareByPropulsion } from '../../utils/queryUtils.js';
-import { ErrorHandler } from '../../utils/errorHandler.js';
+import { ErrorHandler } from '../../../engine/utils/ErrorHandler.js';
 
 export class ActionExecutionSystem extends BaseSystem {
     constructor(world) {

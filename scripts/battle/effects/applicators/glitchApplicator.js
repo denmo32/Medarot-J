@@ -2,7 +2,7 @@
  * @file 妨害(Glitch)効果適用ロジック
  * @description 妨害効果の適用に関するビジネスロジックを担当します。
  */
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { ActionCancelReason } from '../../common/constants.js';
 
 /**

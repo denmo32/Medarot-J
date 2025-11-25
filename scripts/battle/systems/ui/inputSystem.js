@@ -1,5 +1,5 @@
 import { BaseSystem } from '../../../engine/baseSystem.js';
-import { GameEvents } from '../../common/events.js';
+import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts, Medal } from '../../components/index.js';
 import { ModalType, EffectScope, TargetTiming } from '../../common/constants.js';
 import { getAllActionParts } from '../../utils/queryUtils.js';
