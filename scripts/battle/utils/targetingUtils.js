@@ -3,7 +3,8 @@
  * このファイルは、AIやプレイヤーの入力補助から共通して利用される、
  * 「行動プラン」を生成するための関数を提供します。
  */
-import { getAttackableParts, selectItemByProbability } from './queryUtils.js';
+import { getAttackableParts } from './queryUtils.js';
+import { selectItemByProbability } from '../../engine/utils/mathUtils.js';
 import { TargetTiming } from '../common/constants.js';
 
 /**

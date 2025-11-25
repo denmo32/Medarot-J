@@ -2,7 +2,7 @@ import { GameEvents } from '../../../common/events.js';
 import * as Components from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { BattlePhase, ModalType, EffectScope, EffectType } from '../../common/constants.js';
-import { UIManager } from '../../ui/UIManager.js';
+import { UIManager } from '../../../engine/ui/UIManager.js';
 import { BaseSystem } from '../../../engine/baseSystem.js';
 
 /**
@@ -131,7 +131,7 @@ export class ViewSystem extends BaseSystem {
             
             const animation = indicator.animate([
                 { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1, offset: 0 },
-                { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 1, offset: 0.2 },
+                { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0.2 },
                 { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(1.5)`, opacity: 1, offset: 0.5 },
                 { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0.65 },
                 { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(2.0)`, opacity: 1, offset: 0.8 },

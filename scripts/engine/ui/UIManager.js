@@ -1,8 +1,8 @@
 /**
  * @file UI管理システム
  * @description DOM要素とエンティティのマッピングを管理し、UIとロジックの分離を実現します。
+ * ゲーム固有のイベント等には依存しない汎用的な実装です。
  */
-import { GameEvents } from '../../common/events.js'; // 未使用ですが参照整合性のためにimport
 
 export class UIManager {
     constructor() {

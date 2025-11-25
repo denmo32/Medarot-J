@@ -11,7 +11,7 @@ import { GameFlowSystem } from '../systems/flow/GameFlowSystem.js';
 import { MovementSystem } from '../systems/mechanics/MovementSystem.js';
 import { TurnSystem } from '../systems/flow/TurnSystem.js';
 import { EffectSystem } from '../systems/mechanics/EffectSystem.js';
-import { UIManager } from '../ui/UIManager.js'; // UIManagerは移動しない
+import { UIManager } from '../../engine/ui/UIManager.js';
 import { UISystem } from '../systems/ui/UISystem.js';
 import { MessageSystem } from '../systems/mechanics/MessageSystem.js';
 import { ActionCancellationSystem } from '../systems/action/ActionCancellationSystem.js';

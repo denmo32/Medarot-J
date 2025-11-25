@@ -3,7 +3,7 @@ import { CONFIG } from '../../common/config.js';
 import { GameEvents } from '../../../common/events.js';
 import * as Components from '../../components/index.js';
 import { TeamID, PartKeyToInfoMap, PartInfo } from '../../common/constants.js';
-import { UIManager } from '../../ui/UIManager.js';
+import { UIManager } from '../../../engine/ui/UIManager.js';
 import { el } from '../../../engine/utils/domUtils.js';
 
 /**

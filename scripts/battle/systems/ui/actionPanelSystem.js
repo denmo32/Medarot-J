@@ -2,7 +2,7 @@ import { BaseSystem } from '../../../engine/baseSystem.js';
 import { GameEvents } from '../../../common/events.js';
 import { ModalType } from '../../common/constants.js';
 import { InputManager } from '../../../engine/InputManager.js';
-import { UIManager } from '../../ui/UIManager.js';
+import { UIManager } from '../../../engine/ui/UIManager.js';
 import { createModalHandlers } from '../../ui/modalHandlers.js';
 import { PlayerInfo } from '../../components/index.js';
 
