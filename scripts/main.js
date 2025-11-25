@@ -7,6 +7,7 @@ import { World } from '../engine/core/World.js';
 import { InputManager } from '../engine/input/InputManager.js';
 import { SceneManager } from '../engine/scene/SceneManager.js';
 
+import { TitleScene } from './scenes/TitleScene.js';
 import { MapScene } from './scenes/MapScene.js';
 import { BattleScene } from './scenes/BattleScene.js';
 import { CustomizeScene } from './scenes/CustomizeScene.js';
@@ -24,7 +25,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const gameDataManager = new GameDataManager();
 
     // DOMコンテナのマッピングを定義
+    // SceneManagerがシーン遷移時に自動的に hidden クラスを切り替える
     const containerMap = {
+        title: document.getElementById('title-container'),
         map: document.getElementById('map-container'),
         battle: document.getElementById('battle-container'),
         customize: document.getElementById('customize-container'),
@@ -32,6 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // シーンマネージャーのセットアップ
     const sceneManager = new SceneManager(world, containerMap);
+    sceneManager.register('title', TitleScene);
     sceneManager.register('map', MapScene);
     sceneManager.register('battle', BattleScene);
     sceneManager.register('customize', CustomizeScene);
@@ -47,11 +51,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // SceneManagerにグローバルコンテキストを登録
     sceneManager.registerGlobalContext('gameDataManager', gameDataManager);
-
-    // --- UI Elements ---
-    const titleContainer = document.getElementById('title-container');
-    const startNewGameButton = document.getElementById('start-new-game');
-    const startFromSaveButton = document.getElementById('start-from-save');
 
     // --- Main Game Loop ---
     // 固定タイムステップ設定 (60 FPS)
@@ -76,45 +75,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         requestAnimationFrame(gameLoop);
     }
     
-    // --- Initial Setup ---
-    if (localStorage.getItem('medarotJSaveData')) {
-        startFromSaveButton.style.display = 'block';
-    }
-
-    const startGame = async (isNewGame) => {
-        if (isNewGame) {
-            gameDataManager.resetToDefault();
-        } else {
-            gameDataManager.loadGame();
-        }
-        
-        await sceneManager.switchTo('map');
-        
-        titleContainer.classList.add('hidden');
-        inputManager.update();
-        
-        console.log(`Mode Switch: Map Exploration (${isNewGame ? 'New Game' : 'From Save'})`);
-        requestAnimationFrame(gameLoop);
-    };
-
-    startNewGameButton.addEventListener('click', () => startGame(true));
-    startFromSaveButton.addEventListener('click', () => startGame(false));
-
-    titleContainer.classList.remove('hidden');
-
     // --- Game Screen Scaling ---
     function applyScaling() {
         const baseWidth = UI_CONFIG.SCALING.BASE_WIDTH;
         const baseHeight = UI_CONFIG.SCALING.BASE_HEIGHT;
         const scale = Math.min(window.innerWidth / baseWidth, window.innerHeight / baseHeight);
         
-        const containers = [
-            document.getElementById('battle-container'),
-            document.getElementById('map-container'),
-            document.getElementById('customize-container')
-        ];
-        
-        containers.forEach(container => {
+        // 全てのコンテナにスケーリングを適用
+        Object.values(containerMap).forEach(container => {
             if (container) {
                 container.style.width = `${baseWidth}px`;
                 container.style.height = `${baseHeight}px`;
@@ -126,54 +94,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('resize', applyScaling);
     applyScaling();
 
-    // --- Title Screen Input ---
-    function setupTitleScreenInput() {
-        const buttons = [
-            document.getElementById('start-new-game'),
-            document.getElementById('start-from-save')
-        ];
-        let focusedIndex = 0;
-
-        function updateFocus() {
-            const visibleButtons = buttons.filter(btn => btn && btn.style.display !== 'none');
-            if (visibleButtons.length === 0) return;
-            focusedIndex = Math.max(0, Math.min(focusedIndex, visibleButtons.length - 1));
-            visibleButtons.forEach((btn, index) => {
-                if (index === focusedIndex) btn.focus();
-            });
-        }
-
-        function handleKeyDown(e) {
-            if (titleContainer.classList.contains('hidden')) {
-                window.removeEventListener('keydown', handleKeyDown);
-                return;
-            }
-            const visibleButtons = buttons.filter(btn => btn && btn.style.display !== 'none');
-            if (visibleButtons.length === 0) return;
-
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                focusedIndex = (focusedIndex + 1) % visibleButtons.length;
-                updateFocus();
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                focusedIndex = (focusedIndex - 1 + visibleButtons.length) % visibleButtons.length;
-                updateFocus();
-            } else if (e.key === 'z') {
-                e.preventDefault();
-                visibleButtons[focusedIndex].click();
-            }
-        }
-
-        window.addEventListener('keydown', handleKeyDown);
-        
-        const visibleButtons = buttons.filter(btn => btn && btn.style.display !== 'none');
-        if (visibleButtons.length > 0) {
-            focusedIndex = 0;
-            updateFocus();
-        }
-    }
-
-    setupTitleScreenInput();
+    // --- Start Game ---
+    // タイトルシーンから開始
+    await sceneManager.switchTo('title');
+    requestAnimationFrame(gameLoop);
+    
     window.focus();
 });
