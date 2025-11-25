@@ -1,23 +1,17 @@
-import { BaseSystem } from '../../../engine/baseSystem.js';
+import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { ModalType } from '../../common/constants.js';
-import { InputManager } from '../../../engine/InputManager.js';
-import { UIManager } from '../../../engine/ui/UIManager.js';
+import { InputManager } from '../../../../engine/input/InputManager.js';
+import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { createModalHandlers } from '../../ui/modalHandlers.js';
 import { PlayerInfo } from '../../components/index.js';
 
-/**
- * @class ActionPanelSystem
- * @description UIのモーダル（アクションパネル）の表示とインタラクションを管理するシステム。
- */
-export class ActionPanelSystem extends BaseSystem {
+export class ActionPanelSystem extends System {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
-        // InputManagerはシングルトンコンポーネントとしてWorldから取得
         this.inputManager = this.world.getSingletonComponent(InputManager);
         
-        // --- DOM References ---
         this.dom = {
             actionPanel: document.getElementById('action-panel'),
             actionPanelOwner: document.getElementById('action-panel-owner'),
@@ -27,20 +21,17 @@ export class ActionPanelSystem extends BaseSystem {
             actionPanelIndicator: document.getElementById('action-panel-indicator')
         };
 
-        // --- State ---
         this.currentModalType = null;
         this.currentModalData = null;
         this.currentHandler = null;
         this.focusedButtonKey = null;
 
-        // --- Queue State ---
         this.modalQueue = [];
         this.isProcessingQueue = false;
         this.currentMessageSequence = [];
         this.currentSequenceIndex = 0;
         this.isWaitingForAnimation = false;
 
-        // --- Event Handlers ---
         this.boundHandlePanelClick = null;
 
         this.modalHandlers = createModalHandlers(this);
@@ -61,21 +52,17 @@ export class ActionPanelSystem extends BaseSystem {
     }
 
     update(deltaTime) {
-        // モーダルが表示されていない、またはアニメーション待機中は入力を無視
         if (!this.currentHandler || this.isWaitingForAnimation || !this.inputManager) return;
-
         this._handleInput();
     }
 
     _handleInput() {
-        // ナビゲーション処理の委譲
         if (this.currentHandler.handleNavigation) {
             if (this.inputManager.wasKeyJustPressed('ArrowUp')) this.currentHandler.handleNavigation(this, 'arrowup');
             if (this.inputManager.wasKeyJustPressed('ArrowDown')) this.currentHandler.handleNavigation(this, 'arrowdown');
             if (this.inputManager.wasKeyJustPressed('ArrowLeft')) this.currentHandler.handleNavigation(this, 'arrowleft');
             if (this.inputManager.wasKeyJustPressed('ArrowRight')) this.currentHandler.handleNavigation(this, 'arrowright');
         }
-        // 決定・キャンセル処理の委譲
         if (this.inputManager.wasKeyJustPressed('z')) {
             this.currentHandler.handleConfirm?.(this, this.currentModalData);
         }
@@ -114,7 +101,6 @@ export class ActionPanelSystem extends BaseSystem {
         this.currentModalType = type;
         this.currentModalData = data;
         
-        // メッセージシーケンスの初期化
         this.currentMessageSequence = (messageSequence.length > 0) ? messageSequence : [{}];
         this.currentSequenceIndex = 0;
         
@@ -144,8 +130,6 @@ export class ActionPanelSystem extends BaseSystem {
             originalData: this.currentModalData,
         });
 
-        // ATTACK_DECLARATIONの場合は次にEXECUTION_RESULTが控えている可能性があるため、
-        // hideActionPanelを呼ばずに次のキュー処理へ移行する
         if (this.currentModalType === ModalType.ATTACK_DECLARATION && this.modalQueue.length > 0) {
             this.isProcessingQueue = false;
             this._processModalQueue();
@@ -157,16 +141,14 @@ export class ActionPanelSystem extends BaseSystem {
     _displayCurrentSequenceStep() {
         const currentStep = this.currentMessageSequence[this.currentSequenceIndex] || {};
         
-        // アニメーション待機ステップの場合
         if (currentStep.waitForAnimation) {
             this._waitForAnimation(currentStep);
             return;
         }
         
         this.isWaitingForAnimation = false;
-        this.resetPanelDOM(); // 表示のリセット
+        this.resetPanelDOM();
         
-        // ハンドラを使用してコンテンツを構築
         const handler = this.currentHandler;
         const displayData = { ...this.currentModalData, currentMessage: currentStep };
 
@@ -194,7 +176,6 @@ export class ActionPanelSystem extends BaseSystem {
     _updatePanelButtons(handler, displayData) {
         this.dom.actionPanelButtons.innerHTML = '';
         
-        // コンテンツ生成（elユーティリティで作られたDOM要素が返ることを期待）
         if (typeof handler.createContent === 'function') {
             const contentElement = handler.createContent(this, displayData);
             if (contentElement instanceof HTMLElement) {
@@ -202,7 +183,6 @@ export class ActionPanelSystem extends BaseSystem {
             }
         }
 
-        // クリック制御の設定
         if (handler.isClickable) {
             this.dom.actionPanelIndicator.classList.remove('hidden');
             this.dom.actionPanel.classList.add('clickable');
@@ -224,7 +204,6 @@ export class ActionPanelSystem extends BaseSystem {
         this.resetPanelDOM();
         this.resetHighlightsAndFocus();
         
-        // 次のキューがあれば処理
         this._processModalQueue();
     }
 

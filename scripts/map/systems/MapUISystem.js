@@ -1,16 +1,13 @@
-import { BaseSystem } from '../../engine/baseSystem.js';
+import { System } from '../../../engine/core/System.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import * as MapComponents from '../components.js';
 import { GameEvents } from '../../common/events.js';
-import { InputManager } from '../../engine/InputManager.js';
+// InputManager パス修正
+import { InputManager } from '../../../engine/input/InputManager.js';
 
-/**
- * マップモードにおけるUIの表示/非表示、およびUI操作中の入力を一元管理するシステム。
- */
-export class MapUISystem extends BaseSystem {
+export class MapUISystem extends System {
     constructor(world) {
         super(world);
-        // InputManagerはシングルトンコンポーネントとしてWorldから取得
         this.input = this.world.getSingletonComponent(InputManager);
         this.mapUIState = this.world.getSingletonComponent(MapUIState);
 
@@ -24,7 +21,6 @@ export class MapUISystem extends BaseSystem {
         this.menuButtons = [];
         this.focusedMenuIndex = 0;
         
-        // イベントハンドラ
         this.boundToggleMenu = this.toggleMenu.bind(this);
         this.boundShowNpcInteraction = this.showNpcInteraction.bind(this);
         this.menuClickHandlers = new Map();
@@ -58,7 +54,6 @@ export class MapUISystem extends BaseSystem {
     update(deltaTime) {
         if (!this.input) return;
 
-        // メニュー開閉トグル (UI操作中でない場合のみ)
         if (this.input.wasKeyJustPressed('x') && !this.mapUIState.isPausedByModal) {
             this.toggleMenu();
             return;
@@ -70,8 +65,6 @@ export class MapUISystem extends BaseSystem {
             this.handleInteractionWindowInput();
         }
     }
-
-    // --- Menu Logic --- //
 
     toggleMenu() {
         if (!this.mapUIState) return;
@@ -92,7 +85,6 @@ export class MapUISystem extends BaseSystem {
 
         this.world.emit(GameEvents.UI_STATE_CHANGED, { context: 'mapUI', property: 'isMapMenuVisible', value: true });
 
-        // メニューボタンのセットアップ
         const saveButton = this.dom.menu.querySelector('.map-menu-button[data-action="save"]');
         const medarotchiButton = this.dom.menu.querySelector('.map-menu-button[data-action="medarotchi"]');
         this.menuButtons = [medarotchiButton, saveButton].filter(btn => btn);
@@ -182,15 +174,12 @@ export class MapUISystem extends BaseSystem {
         this.world.emit(GameEvents.CUSTOMIZE_SCENE_REQUESTED);
     }
 
-    // --- NPC Interaction Logic --- //
-
     showNpcInteraction(npc) {
         if (!this.dom.interactionWindow || !this.mapUIState) return;
 
         this.mapUIState.isPausedByModal = true;
         this.mapUIState.modalJustOpened = true; 
 
-        // 既存リスナーのクリーンアップ
         if (this.interactionConfirmHandler) {
             this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
         }

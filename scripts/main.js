@@ -2,9 +2,10 @@
  * @file アプリケーションのエントリーポイント
  * このファイルは、ゲーム全体の初期化とメインループの管理を行います。
  */
-import { World } from './engine/world.js';
-import { InputManager } from './engine/InputManager.js';
-import { SceneManager } from './engine/SceneManager.js';
+// Engineの新しいパスからインポート
+import { World } from '../engine/core/World.js';
+import { InputManager } from '../engine/input/InputManager.js';
+import { SceneManager } from '../engine/scene/SceneManager.js';
 
 import { MapScene } from './scenes/MapScene.js';
 import { BattleScene } from './scenes/BattleScene.js';
@@ -42,11 +43,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // InputManagerを「永続コンポーネント」として登録
-    // これにより、シーン遷移（Worldリセット）後も自動的にWorldに再追加される
     sceneManager.registerPersistentComponent(inputManager);
 
     // SceneManagerにグローバルコンテキストを登録
-    // （initメソッドの引数として渡したいデータがあればここに追加）
     sceneManager.registerGlobalContext('gameDataManager', gameDataManager);
 
     // --- UI Elements ---

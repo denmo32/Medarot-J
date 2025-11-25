@@ -1,7 +1,6 @@
 /**
  * @file Canvasレンダラー
- * @description HTML5 Canvasを使用した2D描画機能を提供します。
- * (旧 scripts/map/renderer.js から移動)
+ * @description 2D描画機能を提供します。
  */
 export class Renderer {
     constructor(canvas) {

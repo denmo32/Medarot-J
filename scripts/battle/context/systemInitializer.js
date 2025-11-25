@@ -11,8 +11,6 @@ import { GameFlowSystem } from '../systems/flow/GameFlowSystem.js';
 import { MovementSystem } from '../systems/mechanics/MovementSystem.js';
 import { TurnSystem } from '../systems/flow/TurnSystem.js';
 import { EffectSystem } from '../systems/mechanics/EffectSystem.js';
-import { UIManager } from '../../engine/ui/UIManager.js';
-import { UISystem } from '../systems/ui/UISystem.js';
 import { MessageSystem } from '../systems/mechanics/MessageSystem.js';
 import { ActionCancellationSystem } from '../systems/action/ActionCancellationSystem.js';
 import { DebugSystem } from '../systems/ui/DebugSystem.js';
@@ -22,10 +20,14 @@ import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.j
 import { ActionSetupSystem } from '../systems/action/ActionSetupSystem.js';
 import { ActionExecutionSystem } from '../systems/action/ActionExecutionSystem.js';
 import { ActionResolutionSystem } from '../systems/action/ActionResolutionSystem.js';
-import { TimerSystem } from '../../engine/systems/TimerSystem.js';
 import { CooldownSystem } from '../systems/mechanics/CooldownSystem.js';
 import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
+import { UISystem } from '../systems/ui/UISystem.js';
+
+// Engine Imports (Updated)
+import { UIManager } from '../../../engine/ui/UIManager.js';
+import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。

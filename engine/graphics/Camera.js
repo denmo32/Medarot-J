@@ -1,7 +1,6 @@
 /**
  * @file 2Dカメラ
- * @description ビューポート制御のためのカメラクラス。
- * (旧 scripts/map/camera.js から移動)
+ * @description ビューポート制御を行います。
  */
 export class Camera {
     constructor() {

@@ -1,18 +1,14 @@
-import { BaseSystem } from '../../../engine/baseSystem.js';
+import { System } from '../../../../engine/core/System.js';
 import { GameState, Gauge, Action } from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
-import { Timer } from '../../../engine/components/Timer.js';
+import { Timer } from '../../../../engine/stdlib/components/Timer.js';
 
-/**
- * ゲーム全体のフロー（開始、戦闘、終了、リセット）を管理するシステム。
- */
-export class GameFlowSystem extends BaseSystem {
+export class GameFlowSystem extends System { // extends System
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
-        
         this.bindWorldEvents();
     }
 
@@ -71,31 +67,21 @@ export class GameFlowSystem extends BaseSystem {
         this.world.emit(GameEvents.SHOW_BATTLE_START_ANIMATION);
     }
 
-    /**
-     * ゲームオーバーイベントのハンドラ
-     * WinConditionSystemからゲームの終了が通知された際の処理を行います。
-     * @param {object} detail - GAME_OVER イベントのペイロード { winningTeam }
-     */
     onGameOver(detail) {
         const { winningTeam } = detail;
 
-        // ゲームオーバー状態への遷移は一度だけ行う
         if (this.battleContext.phase !== BattlePhase.GAME_OVER) {
             this.battleContext.phase = BattlePhase.GAME_OVER;
             this.battleContext.winningTeam = winningTeam;
 
-            // 3秒後にシーン遷移を要求するタイマーエンティティを作成
             const timerEntity = this.world.createEntity();
             this.world.addComponent(timerEntity, new Timer(3000, () => {
-                // BattleSceneがこのイベントを購読し、シーン遷移を実行する
                 this.world.emit(GameEvents.SCENE_CHANGE_REQUESTED, {
                     sceneName: 'map',
-                    // BattleScene側でGameDataManagerを取得するため、ここではデータを渡さない
                     data: { result: { winningTeam } } 
                 });
             }));
 
-            // ゲームオーバーモーダルはタイマーとは独立してすぐに表示
             this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.GAME_OVER, data: { winningTeam } });
         }
     }

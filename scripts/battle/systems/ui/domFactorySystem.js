@@ -1,36 +1,26 @@
-import { BaseSystem } from '../../../engine/baseSystem.js';
+import { System } from '../../../../engine/core/System.js';
 import { CONFIG } from '../../common/config.js';
 import { GameEvents } from '../../../common/events.js';
 import * as Components from '../../components/index.js';
 import { TeamID, PartKeyToInfoMap, PartInfo } from '../../common/constants.js';
-import { UIManager } from '../../../engine/ui/UIManager.js';
-import { el } from '../../../engine/utils/domUtils.js';
+import { UIManager } from '../../../../engine/ui/UIManager.js';
+import { el } from '../../../../engine/utils/DOMUtils.js';
 
-/**
- * DOM要素の生成、配置、削除に特化したシステム。
- * HTMLテンプレートを利用せず、elユーティリティを用いて宣言的にDOM構造を定義します。
- */
-export class DomFactorySystem extends BaseSystem {
+export class DomFactorySystem extends System {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
         
-        // コンテナ要素への参照をキャッシュ
         this.battlefield = document.getElementById('battlefield');
         this.teamContainers = {
             [TeamID.TEAM1]: document.querySelector('#team1InfoPanel .team-players-container'),
             [TeamID.TEAM2]: document.querySelector('#team2InfoPanel .team-players-container')
         };
         
-        // UI構築とリセットのイベントをリッスン
         this.world.on(GameEvents.SETUP_UI_REQUESTED, this.onSetupUIRequested.bind(this));
         this.world.on(GameEvents.GAME_WILL_RESET, this.onGameWillReset.bind(this));
     }
 
-    /**
-     * UIのセットアップが要求された際のハンドラ。
-     * 全てのプレイヤーエンティティに対応するDOM要素を生成・配置します。
-     */
     onSetupUIRequested() {
         const playerEntities = this.world.getEntitiesWith(Components.PlayerInfo);
         for (const entityId of playerEntities) {
@@ -38,37 +28,24 @@ export class DomFactorySystem extends BaseSystem {
         }
     }
 
-    /**
-     * ゲームのリセットが要求された際のハンドラ。
-     * このシステムが生成した全てのDOM要素をクリアします。
-     */
     onGameWillReset() {
-        // バトルフィールドのアイコンとマーカーをクリア
         this.battlefield.innerHTML = '<div class="action-line-1"></div><div class="action-line-2"></div>';
         
-        // 各チームの情報パネルをクリア
         Object.values(this.teamContainers).forEach(container => {
             container.innerHTML = '';
         });
 
-        //  UIManagerにキャッシュされているDOM要素への参照もすべてクリアする
         if (this.uiManager) {
             this.uiManager.clear();
         }
     }
 
-    /**
-     * 単一のプレイヤーエンティティに対応するDOM要素を生成し、DOMツリーに追加します。
-     * @param {number} entityId - 対象のエンティティID
-     * @private
-     */
     _createPlayerDOM(entityId) {
         const playerInfo = this.world.getComponent(entityId, Components.PlayerInfo);
         const parts = this.world.getComponent(entityId, Components.Parts);
         const position = this.world.getComponent(entityId, Components.Position);
         const teamConfig = CONFIG.TEAMS[playerInfo.teamId];
         
-        // --- 1. バトルフィールド上のアイコンとホームマーカーを生成 ---
         const homeX = playerInfo.teamId === TeamID.TEAM1
             ? CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM1
             : CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM2;
@@ -100,10 +77,8 @@ export class DomFactorySystem extends BaseSystem {
         this.battlefield.appendChild(marker);
         this.battlefield.appendChild(icon);
 
-        // --- 2. プレイヤー情報パネルを生成 ---
         const partDOMElements = {};
 
-        // 各パーツの行を作成するヘルパー
         const createPartRow = (key, part) => {
             if (!part) return null;
 
@@ -112,7 +87,6 @@ export class DomFactorySystem extends BaseSystem {
             if (hpPercentage > 50) barColor = '#68d391';
             else if (hpPercentage > 20) barColor = '#f6e05e';
 
-            // 要素の参照を保持するための変数
             let nameEl, barEl, valueEl;
 
             const row = el('div', { className: 'part-hp', dataset: { partKey: key } }, [
@@ -132,7 +106,6 @@ export class DomFactorySystem extends BaseSystem {
                 })
             ]);
 
-            // DOM要素への参照を保存
             partDOMElements[key] = {
                 container: row,
                 name: nameEl,
@@ -156,7 +129,6 @@ export class DomFactorySystem extends BaseSystem {
 
         this.teamContainers[playerInfo.teamId].appendChild(infoPanel);
 
-        // UIManagerにDOM要素を登録
         const domElements = {
             iconElement: icon,
             homeMarkerElement: marker,

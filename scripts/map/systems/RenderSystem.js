@@ -1,7 +1,7 @@
-import { BaseSystem } from '../../engine/baseSystem.js';
+import { System } from '../../../engine/core/System.js';
 import * as MapComponents from '../components.js';
 
-export class RenderSystem extends BaseSystem {
+export class RenderSystem extends System {
     constructor(world, renderer, map, camera) {
         super(world);
         this.renderer = renderer;
@@ -30,7 +30,6 @@ export class RenderSystem extends BaseSystem {
                     renderable.color
                 );
                 
-                // 向きに応じた印（ドット）を描画
                 this._drawDirectionIndicator(entityId, position, renderable);
 
             } else if (renderable.shape === 'rect') {
@@ -47,13 +46,6 @@ export class RenderSystem extends BaseSystem {
         this.renderer.ctx.restore();
     }
 
-    /**
-     * エンティティの向きを示すインジケーター（小さな黒い円）を描画します。
-     * @param {number} entityId - エンティティID
-     * @param {Position} position - 位置コンポーネント
-     * @param {Renderable} renderable - 描画可能コンポーネント
-     * @private
-     */
     _drawDirectionIndicator(entityId, position, renderable) {
         const facingDirection = this.world.getComponent(entityId, MapComponents.FacingDirection);
         if (!facingDirection) return;
@@ -63,28 +55,14 @@ export class RenderSystem extends BaseSystem {
         
         const centerX = position.x + renderable.size / 2;
         const centerY = position.y + renderable.size / 2;
-        const offset = renderable.size / 4; // 中心からのオフセット量
+        const offset = renderable.size / 4;
 
         switch (facingDirection.direction) {
-            case 'up':
-                dotX = centerX;
-                dotY = centerY - offset;
-                break;
-            case 'down':
-                dotX = centerX;
-                dotY = centerY + offset;
-                break;
-            case 'left':
-                dotX = centerX - offset;
-                dotY = centerY;
-                break;
-            case 'right':
-                dotX = centerX + offset;
-                dotY = centerY;
-                break;
-            default:
-                dotX = centerX;
-                dotY = centerY;
+            case 'up':    dotX = centerX; dotY = centerY - offset; break;
+            case 'down':  dotX = centerX; dotY = centerY + offset; break;
+            case 'left':  dotX = centerX - offset; dotY = centerY; break;
+            case 'right': dotX = centerX + offset; dotY = centerY; break;
+            default:      dotX = centerX; dotY = centerY;
         }
         
         this.renderer.drawCircle(dotX, dotY, dotRadius, '#000');

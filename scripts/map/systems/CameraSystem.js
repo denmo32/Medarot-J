@@ -1,9 +1,9 @@
-import { BaseSystem } from '../../engine/baseSystem.js';
+import { System } from '../../../engine/core/System.js'; // BaseSystem -> System
 import * as MapComponents from '../components.js';
 import { CONFIG } from '../constants.js';
-import { clamp } from '../../engine/utils/mathUtils.js';
+import { clamp } from '../../../engine/utils/MathUtils.js'; // mathUtils -> MathUtils
 
-export class CameraSystem extends BaseSystem {
+export class CameraSystem extends System { // extends System
     constructor(world, camera, map) {
         super(world);
         this.camera = camera;
@@ -28,11 +28,9 @@ export class CameraSystem extends BaseSystem {
         const playerPosition = this.world.getComponent(playerEntityId, MapComponents.Position);
         if (!playerPosition) return;
 
-        // プレイヤーを中心にカメラを配置
         let targetX = playerPosition.x + (CONFIG.PLAYER_SIZE / 2) - (CONFIG.VIEWPORT_WIDTH / 2);
         let targetY = playerPosition.y + (CONFIG.PLAYER_SIZE / 2) - (CONFIG.VIEWPORT_HEIGHT / 2);
 
-        // マップ端を超えないように制限
         this.camera.x = clamp(targetX, 0, this.map.widthPx - CONFIG.VIEWPORT_WIDTH);
         this.camera.y = clamp(targetY, 0, this.map.heightPx - CONFIG.VIEWPORT_HEIGHT);
     }

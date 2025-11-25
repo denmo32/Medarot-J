@@ -1,17 +1,11 @@
-/**
- * @file カスタマイズ画面：入力システム
- * プレイヤーのキー入力を検知し、それを抽象的なUI操作イベントに変換して発行する責務を持ちます。
- * このシステムはDOMの状態やゲームデータについて一切関知しません。
- */
-import { BaseSystem } from '../../engine/baseSystem.js';
-import { InputManager } from '../../engine/InputManager.js';
+import { System } from '../../../engine/core/System.js'; // BaseSystem -> System
+import { InputManager } from '../../../engine/input/InputManager.js';
 import { CustomizeState } from '../components/CustomizeState.js';
 import { GameEvents } from '../../common/events.js';
 
-export class CustomizeInputSystem extends BaseSystem {
+export class CustomizeInputSystem extends System {
     constructor(world) {
         super(world);
-        // InputManagerはシングルトンコンポーネントとしてWorldから取得
         this.input = this.world.getSingletonComponent(InputManager);
         this.uiState = this.world.getSingletonComponent(CustomizeState);
     }
@@ -19,20 +13,17 @@ export class CustomizeInputSystem extends BaseSystem {
     update(deltaTime) {
         if (!this.input) return;
 
-        // --- 決定/キャンセル入力 ---
         if (this.input.wasKeyJustPressed('z')) {
             this.world.emit(GameEvents.CUST_CONFIRM_INPUT);
         } else if (this.input.wasKeyJustPressed('x')) {
             this.world.emit(GameEvents.CUST_CANCEL_INPUT);
         }
 
-        // --- ナビゲーション入力 ---
         const verticalMove = this.input.wasKeyJustPressed('ArrowDown') ? 1 : this.input.wasKeyJustPressed('ArrowUp') ? -1 : 0;
         if (verticalMove !== 0) {
             this.world.emit(GameEvents.CUST_NAVIGATE_INPUT, { direction: verticalMove > 0 ? 'down' : 'up' });
         }
         
-        // 水平移動のイベント発行を有効化
         const horizontalMove = this.input.wasKeyJustPressed('ArrowRight') ? 1 : this.input.wasKeyJustPressed('ArrowLeft') ? -1 : 0;
         if (horizontalMove !== 0) {
             this.world.emit(GameEvents.CUST_NAVIGATE_INPUT, { direction: horizontalMove > 0 ? 'right' : 'left' });

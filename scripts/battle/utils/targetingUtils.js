@@ -4,7 +4,7 @@
  * 「行動プラン」を生成するための関数を提供します。
  */
 import { getAttackableParts } from './queryUtils.js';
-import { selectItemByProbability } from '../../engine/utils/mathUtils.js';
+import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
 import { TargetTiming } from '../common/constants.js';
 
 /**

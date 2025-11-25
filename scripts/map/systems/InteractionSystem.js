@@ -1,15 +1,13 @@
 /**
  * @file マップシーン：インタラクションシステム
- * プレイヤーからのインタラクション要求に基づき、周囲のNPCなどを探索し、
- * 適切なイベントを発行する責務を持ちます。
  */
-import { BaseSystem } from '../../engine/baseSystem.js';
+import { System } from '../../../engine/core/System.js';
 import * as MapComponents from '../components.js';
 import { CONFIG } from '../constants.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import { GameEvents } from '../../common/events.js';
 
-export class InteractionSystem extends BaseSystem {
+export class InteractionSystem extends System {
     constructor(world, map) {
         super(world);
         this.map = map;
@@ -19,7 +17,7 @@ export class InteractionSystem extends BaseSystem {
     onInteractionKeyPressed(detail) {
         const { entityId } = detail;
         const mapUIState = this.world.getSingletonComponent(MapUIState);
-        // UI操作中はインタラクションを無効化
+        
         if (mapUIState && mapUIState.isPausedByModal) {
             return;
         }
@@ -39,9 +37,8 @@ export class InteractionSystem extends BaseSystem {
                 (playerTileX === npc.x + 1 && playerTileY === npc.y && facingDirection.direction === 'left');
 
             if (isFacingNpc) {
-                // MapUISystemにNPCとのインタラクションUI表示を要求
                 this.world.emit(GameEvents.NPC_INTERACTION_REQUESTED, npc);
-                break; // 最初に見つかったNPCとのみインタラクト
+                break;
             }
         }
     }

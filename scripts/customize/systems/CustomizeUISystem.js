@@ -1,14 +1,9 @@
-/**
- * @file カスタマイズ画面：UIシステム
- * UIの状態管理、DOMの描画、フォーカス制御を担当します。
- * DOM生成には `el` ユーティリティを使用し、宣言的に記述します。
- */
-import { BaseSystem } from '../../engine/baseSystem.js';
+import { System } from '../../../engine/core/System.js';
 import { GameDataManager } from '../../managers/GameDataManager.js';
 import { PartKeyToInfoMap, EquipSlotType } from '../../battle/common/constants.js';
 import { CustomizeState } from '../components/CustomizeState.js';
 import { GameEvents } from '../../common/events.js';
-import { el } from '../../engine/utils/domUtils.js';
+import { el } from '../../../engine/utils/DOMUtils.js'; // domUtils -> DOMUtils
 
 const focusTransitionMap = {
     MEDAROT_SELECT: { confirm: 'EQUIP_PANEL', cancel: 'EXIT' },
@@ -16,7 +11,7 @@ const focusTransitionMap = {
     ITEM_LIST: { cancel: 'EQUIP_PANEL' },
 };
 
-export class CustomizeUISystem extends BaseSystem {
+export class CustomizeUISystem extends System {
     constructor(world) {
         super(world);
         this.dataManager = new GameDataManager();
@@ -91,7 +86,7 @@ export class CustomizeUISystem extends BaseSystem {
             return true;
         } else if (direction === 'left' || direction === 'right') {
             this.changeEquippedItem(direction);
-            return false; // イベント発行により再描画されるため
+            return false;
         }
         return false;
     }
@@ -199,8 +194,6 @@ export class CustomizeUISystem extends BaseSystem {
             emitAction(newItem.id);
         }
     }
-
-    // --- 描画メソッド ---
 
     renderAll() {
         this.renderMedarotList();
@@ -335,10 +328,8 @@ export class CustomizeUISystem extends BaseSystem {
     }
 
     updateAllFocus() {
-        // メダロットリストのフォーカス
         this._updateListFocus(this.dom.medarotList, this.uiState.focus === 'MEDAROT_SELECT', this.uiState.selectedMedarotIndex);
         
-        // 装備パネルのフォーカス
         const allEquipItems = [
             ...this.dom.equippedMedalList.querySelectorAll('li'),
             ...this.dom.equippedPartsList.querySelectorAll('li')
@@ -349,7 +340,6 @@ export class CustomizeUISystem extends BaseSystem {
             if (isFocused) li.scrollIntoView({ block: 'nearest' });
         });
 
-        // 選択リストのフォーカス
         const isMedalList = this.equipSlots[this.uiState.selectedEquipIndex] === EquipSlotType.MEDAL;
         const listIndex = isMedalList ? this.uiState.selectedMedalListIndex : this.uiState.selectedPartListIndex;
         this._updateListFocus(this.dom.partsList, this.uiState.focus === 'ITEM_LIST', listIndex);

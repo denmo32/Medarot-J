@@ -2,17 +2,17 @@
  * @file BattleScene.js
  * @description バトルモードのセットアップとロジックをカプセル化するシーンクラス。
  */
-import { BaseScene } from '../engine/BaseScene.js';
+import { Scene } from '../../engine/scene/Scene.js'; // BaseScene -> Scene
 import { GameEvents } from '../common/events.js';
 import { initializeSystems, createPlayers, BattleContext } from '../battle/context/index.js';
 
-export class BattleScene extends BaseScene {
+export class BattleScene extends Scene { // extends Scene
     constructor(world, sceneManager) {
         super(world, sceneManager);
     }
 
     /**
-     * @param {BattleSceneData} data - シーンの初期化データ。
+     * @param {object} data - シーンの初期化データ。
      */
     init(data) {
         console.log("Initializing Battle Scene...");
@@ -28,28 +28,15 @@ export class BattleScene extends BaseScene {
         this.world.emit(GameEvents.GAME_START_CONFIRMED);
     }
 
-    /**
-     * バトルに必要なシステム群を初期化・登録します。
-     * @private
-     */
     _setupSystems() {
         initializeSystems(this.world);
     }
 
-    /**
-     * プレイヤーおよび敵エンティティを生成します。
-     * @param {GameDataManager} gameDataManager 
-     * @private
-     */
     _setupEntities(gameDataManager) {
         const playerTeamData = gameDataManager.getPlayerDataForBattle();
         createPlayers(this.world, playerTeamData);
     }
 
-    /**
-     * バトルコンテキストの初期設定を行います。
-     * @private
-     */
     _setupBattleContext() {
         const battleContext = this.world.getSingletonComponent(BattleContext);
         if (battleContext) {
@@ -57,25 +44,15 @@ export class BattleScene extends BaseScene {
         }
     }
 
-    /**
-     * シーン固有のイベントリスナーを設定します。
-     * @param {GameDataManager} gameDataManager 
-     * @private
-     */
     _bindEvents(gameDataManager) {
-        // ゲーム終了後の処理とシーン遷移要求を分離
         this.world.on(GameEvents.SCENE_CHANGE_REQUESTED, (detail) => {
-            // このシーンで発生した戦闘結果をゲームデータに反映
             if (detail.data && detail.data.result) {
                 gameDataManager.applyBattleResult(detail.data.result);
             }
-            // シーン切り替え
             this.sceneManager.switchTo(detail.sceneName, detail.data);
         });
 
-        // UIからのリセットボタンクリックを処理
         this.world.on(GameEvents.RESET_BUTTON_CLICKED, () => {
-            // 即座にマップシーンへの遷移を要求
             this.world.emit(GameEvents.SCENE_CHANGE_REQUESTED, {
                 sceneName: 'map',
                 data: {} 

@@ -3,10 +3,10 @@ import { BattleContext } from '../../context/index.js';
 import { CONFIG } from '../../common/config.js';
 import { PlayerStateType, BattlePhase, PartInfo } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
-import { BaseSystem } from '../../../engine/baseSystem.js';
-import { ErrorHandler } from '../../../engine/utils/ErrorHandler.js';
+import { System } from '../../../../engine/core/System.js';
+import { ErrorHandler } from '../../../../engine/utils/ErrorHandler.js';
 
-export class GaugeSystem extends BaseSystem {
+export class GaugeSystem extends System {
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
@@ -18,7 +18,6 @@ export class GaugeSystem extends BaseSystem {
 
     update(deltaTime) {
         try {
-            // ゲージ進行が許可されるフェーズ
             const activePhases = [
                 BattlePhase.TURN_START,
                 BattlePhase.ACTION_SELECTION,
@@ -30,7 +29,6 @@ export class GaugeSystem extends BaseSystem {
                 return;
             }
 
-            // アクション待ち（READY状態）のエンティティがいる場合はゲージを止める
             const entitiesWithState = this.world.getEntitiesWith(GameState);
             const hasActionQueued = entitiesWithState.some(entityId => {
                 const gameState = this.world.getComponent(entityId, GameState);
@@ -43,7 +41,6 @@ export class GaugeSystem extends BaseSystem {
 
             const entities = this.world.getEntitiesWith(Gauge, GameState, Parts);
 
-            // 設定値の参照をキャッシュ
             const { 
                 BASE_ACCELERATION, 
                 MOBILITY_TO_ACCELERATION, 
@@ -61,7 +58,6 @@ export class GaugeSystem extends BaseSystem {
                     continue;
                 }
 
-                // ゲージ更新をスキップする状態
                 const statesToPause = [
                     PlayerStateType.READY_SELECT, 
                     PlayerStateType.READY_EXECUTE, 
@@ -78,14 +74,11 @@ export class GaugeSystem extends BaseSystem {
                 const propulsion = parts.legs?.propulsion || 0;
                 const speedMultiplier = gauge.speedMultiplier || 1.0;
 
-                // 1. 加速度と最高速度を決定 (1updateあたり)
                 const acceleration = BASE_ACCELERATION + (mobility * MOBILITY_TO_ACCELERATION);
                 const maxSpeed = BASE_MAX_SPEED + (propulsion * PROPULSION_TO_MAX_SPEED);
                 
-                // 2. 速度を更新し、最高速度で制限
                 gauge.currentSpeed = Math.min(gauge.currentSpeed + acceleration, maxSpeed);
                 
-                // 3. ゲージを更新
                 const increment = (gauge.currentSpeed / speedMultiplier) * timeFactor;
                 gauge.value += increment;
 

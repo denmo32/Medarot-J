@@ -1,15 +1,12 @@
+import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import * as Components from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
-import { BattlePhase, ModalType, EffectScope, EffectType } from '../../common/constants.js';
-import { UIManager } from '../../../engine/ui/UIManager.js';
-import { BaseSystem } from '../../../engine/baseSystem.js';
-import { el } from '../../../engine/utils/domUtils.js';
+import { EffectScope } from '../../common/constants.js';
+import { UIManager } from '../../../../engine/ui/UIManager.js';
+import { el } from '../../../../engine/utils/DOMUtils.js';
 
-/**
- * アニメーションと視覚効果の再生に特化したシステム。
- */
-export class ViewSystem extends BaseSystem {
+export class ViewSystem extends System {
     constructor(world) {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
@@ -19,7 +16,6 @@ export class ViewSystem extends BaseSystem {
     }
 
     destroy() {
-        // クリーンアップ処理が必要な場合はここに記述
     }
 
     bindWorldEvents() {
@@ -33,7 +29,6 @@ export class ViewSystem extends BaseSystem {
         const battlefield = document.getElementById('battlefield');
         if (!battlefield) return;
 
-        // elユーティリティを使用して宣言的に要素を生成
         const textEl = el('div', {
             className: 'battle-start-text',
             textContent: 'ロボトルファイト！',
@@ -47,17 +42,11 @@ export class ViewSystem extends BaseSystem {
     }
 
     resetView() {
-        // 必要に応じてビューのリセット処理を記述
     }
 
     update(deltaTime) {
-        // アニメーションのフレーム更新が必要な場合はここに記述
     }
 
-    /**
-     * 攻撃アニメーションを実行します。
-     * @param {object} detail - イベントペイロード { attackerId, targetId }
-     */
     executeAttackAnimation(detail) {
         const { attackerId, targetId } = detail;
         const attackerDomElements = this.uiManager.getDOMElements(attackerId);
@@ -86,8 +75,6 @@ export class ViewSystem extends BaseSystem {
 
         this.world.emit(GameEvents.GAME_PAUSED);
         
-        // elユーティリティを使用してインジケーターを生成
-        // コーナー要素もネストして定義
         const indicator = el('div', { className: 'target-indicator' }, [
             el('div', { className: 'corner corner-1' }),
             el('div', { className: 'corner corner-2' }),
@@ -100,13 +87,10 @@ export class ViewSystem extends BaseSystem {
         const attackerIcon = attackerDomElements.iconElement;
         const targetIcon = targetDomElements.iconElement;
         
-        // レイアウト計算とアニメーション開始
-        // DOM追加直後だと計算が正しくない場合があるため、わずかに遅延させる（既存ロジック踏襲）
         setTimeout(() => {
             const attackerRect = attackerIcon.getBoundingClientRect();
             const targetRect = targetIcon.getBoundingClientRect();
             
-            // 動的なスタイル適用
             Object.assign(indicator.style, {
                 position: 'fixed',
                 zIndex: '100',
@@ -151,7 +135,6 @@ export class ViewSystem extends BaseSystem {
             return;
         }
 
-        // 全てのアニメーションを並列ではなく順次実行する場合（await）
         for (const effect of effects) {
             await this.animateHpBar(effect);
         }
@@ -161,7 +144,7 @@ export class ViewSystem extends BaseSystem {
 
     animateHpBar(effect) {
         return new Promise(resolve => {
-            const { targetId, partKey, value } = effect;
+            const { targetId, partKey } = effect;
             const targetDom = this.uiManager.getDOMElements(targetId);
             const partDom = targetDom?.partDOMElements[partKey];
             const targetPart = this.world.getComponent(targetId, Components.Parts)?.[partKey];
@@ -196,17 +179,15 @@ export class ViewSystem extends BaseSystem {
             const fallback = setTimeout(cleanup, 1000);
             hpBar.addEventListener('transitionend', onTransitionEnd);
 
-            // アニメーション用の最終HP計算（実際のComponentの値は既に更新されている前提）
-            // ここではバーの見た目を変化させる
             const finalHp = targetPart.hp;
             const finalHpPercentage = (finalHp / targetPart.maxHp) * 100;
 
             const animateHpText = () => {
                 const currentWidthStyle = getComputedStyle(hpBar).width;
                 const parentWidth = hpBar.parentElement.clientWidth;
-                const currentWidth = parseFloat(currentWidthStyle);
                 
                 if (parentWidth > 0) {
+                    const currentWidth = parseFloat(currentWidthStyle);
                     const currentPercentage = (currentWidth / parentWidth) * 100;
                     const currentDisplayHp = Math.round((currentPercentage / 100) * targetPart.maxHp);
                     hpValueEl.textContent = `${Math.max(0, currentDisplayHp)}/${targetPart.maxHp}`;
@@ -215,7 +196,6 @@ export class ViewSystem extends BaseSystem {
                 animationFrameId = requestAnimationFrame(animateHpText);
             };
 
-            // CSS Transitionを開始
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                     hpBar.style.transition = 'width 0.8s ease';
