@@ -12,6 +12,7 @@ import { ActiveEffects } from '../components/ActiveEffects.js';
 import { findBestDefensePart } from './queryUtils.js';
 import { GameError, ErrorType } from '../../engine/utils/ErrorHandler.js';
 import { EffectType, AttackType } from '../common/constants.js';
+import { clamp } from '../../engine/utils/mathUtils.js';
 
 /**
  * 戦闘計算戦略のインターフェース
@@ -49,7 +50,7 @@ class DefaultCombatStrategy extends CombatStrategy {
         const mobilityAdvantage = mobility - adjustedSuccess;
         const evasionChance = mobilityAdvantage / formula.DIFFERENCE_DIVISOR + formula.BASE_CHANCE;
         
-        return this._clampProbability(evasionChance, 0, formula.MAX_CHANCE);
+        return clamp(evasionChance, 0, formula.MAX_CHANCE);
     }
 
     calculateDefenseChance({ targetLegs }) {
@@ -63,7 +64,7 @@ class DefaultCombatStrategy extends CombatStrategy {
         const formula = CONFIG.FORMULAS.DEFENSE;
         const defenseChance = armor / formula.ARMOR_DIVISOR + formula.BASE_CHANCE;
 
-        return this._clampProbability(defenseChance, 0, formula.MAX_CHANCE);
+        return clamp(defenseChance, 0, formula.MAX_CHANCE);
     }
 
     calculateCriticalChance({ attackingPart, targetLegs }) {
@@ -79,7 +80,7 @@ class DefaultCombatStrategy extends CombatStrategy {
         const baseChance = successAdvantage / config.DIFFERENCE_FACTOR;
         const typeBonus = config.TYPE_BONUS[attackingPart.type] || 0;
         
-        return this._clampProbability(baseChance + typeBonus, 0, 1);
+        return clamp(baseChance + typeBonus, 0, 1);
     }
 
     calculateDamage({ attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false }) {
@@ -244,10 +245,6 @@ class DefaultCombatStrategy extends CombatStrategy {
         }
 
         return { successBonus, mightBonus };
-    }
-
-    _clampProbability(value, min, max) {
-        return Math.max(min, Math.min(max, value));
     }
 }
 

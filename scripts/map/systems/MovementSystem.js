@@ -1,6 +1,7 @@
 import { BaseSystem } from '../../engine/baseSystem.js';
 import * as MapComponents from '../components.js';
 import { CONFIG, PLAYER_STATES, MAP_EVENTS, TILE_TYPES } from '../constants.js';
+import { distance } from '../../engine/utils/mathUtils.js';
 
 /**
  * エンティティの位置を目標地点に向かって更新するシステム。
@@ -33,12 +34,10 @@ export class MovementSystem extends BaseSystem {
 
             const moveAmount = speed * (deltaTime / 1000);
 
-            // 目標地点までの距離
-            const dx = targetPosition.x - position.x;
-            const dy = targetPosition.y - position.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+            // 現在位置から目標地点までの距離を計算
+            const dist = distance(position.x, position.y, targetPosition.x, targetPosition.y);
 
-            if (distance <= moveAmount) {
+            if (dist <= moveAmount) {
                 // 目標地点に到達または超えた場合
                 position.x = targetPosition.x;
                 position.y = targetPosition.y;
@@ -56,8 +55,12 @@ export class MovementSystem extends BaseSystem {
 
             } else {
                 // 目標地点に向かって移動
-                position.x += (dx / distance) * moveAmount;
-                position.y += (dy / distance) * moveAmount;
+                // 正規化ベクトルを計算するためにdx, dyは必要
+                const dx = targetPosition.x - position.x;
+                const dy = targetPosition.y - position.y;
+                
+                position.x += (dx / dist) * moveAmount;
+                position.y += (dy / dist) * moveAmount;
             }
         }
     }
