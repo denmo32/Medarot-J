@@ -5,16 +5,7 @@
 // Engineの新しいパスからインポート
 import { World, InputManager, SceneManager } from '../engine/index.js';
 
-import { TitleScene } from './scenes/TitleScene.js';
-import { MapScene } from './scenes/MapScene.js';
-import { BattleScene } from './scenes/BattleScene.js';
-import { CustomizeScene } from './scenes/CustomizeScene.js';
-
-import { GameDataManager } from './managers/GameDataManager.js';
-import { UI_CONFIG } from './battle/common/UIConfig.js';
-
-// ゲーム固有のキー設定をインポート
-import { KEY_MAP } from './map/constants.js';
+import { TitleScene, MapScene, BattleScene, CustomizeScene, GameDataManager, KEY_MAP, UI_CONFIG } from './index.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     // --- Global Instances ---
