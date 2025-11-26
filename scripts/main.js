@@ -3,9 +3,7 @@
  * このファイルは、ゲーム全体の初期化とメインループの管理を行います。
  */
 // Engineの新しいパスからインポート
-import { World } from '../engine/core/World.js';
-import { InputManager } from '../engine/input/InputManager.js';
-import { SceneManager } from '../engine/scene/SceneManager.js';
+import { World, InputManager, SceneManager } from '../engine/index.js';
 
 import { TitleScene } from './scenes/TitleScene.js';
 import { MapScene } from './scenes/MapScene.js';
