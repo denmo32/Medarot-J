@@ -164,11 +164,14 @@ export class World extends EventEmitter {
 
     /**
      * 登録された全システムのupdateメソッドを実行します。
+     * Systemクラスを継承している場合はexecuteメソッドを通じて安全に実行します。
      * @param {number} deltaTime
      */
     update(deltaTime) {
         for (const system of this.systems) {
-            if (system.update) {
+            if (system.execute) {
+                system.execute(deltaTime);
+            } else if (system.update) {
                 system.update(deltaTime);
             }
         }

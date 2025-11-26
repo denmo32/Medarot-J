@@ -20,9 +20,9 @@ export class MessageSystem extends System {
             [EffectType.APPLY_GUARD]: this._formatGuardMessage.bind(this),
         };
         
-        this.world.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
-        this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
-        this.world.on(GameEvents.GUARD_BROKEN, this.onGuardBroken.bind(this));
+        this.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
+        this.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
+        this.on(GameEvents.GUARD_BROKEN, this.onGuardBroken.bind(this));
     }
 
     onCombatSequenceResolved(detail) {

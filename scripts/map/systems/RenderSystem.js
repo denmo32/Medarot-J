@@ -17,7 +17,7 @@ export class RenderSystem extends System {
 
         this.map.draw(this.renderer, this.camera);
 
-        const entitiesToRender = this.world.getEntitiesWith(MapComponents.Position, MapComponents.Renderable);
+        const entitiesToRender = this.getEntities(MapComponents.Position, MapComponents.Renderable);
         for (const entityId of entitiesToRender) {
             const position = this.world.getComponent(entityId, MapComponents.Position);
             const renderable = this.world.getComponent(entityId, MapComponents.Renderable);

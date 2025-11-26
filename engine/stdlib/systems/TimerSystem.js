@@ -11,7 +11,7 @@ export class TimerSystem extends System {
     }
 
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(Timer);
+        const entities = this.getEntities(Timer);
 
         for (const entityId of entities) {
             const timer = this.world.getComponent(entityId, Timer);

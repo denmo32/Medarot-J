@@ -4,7 +4,7 @@ import { GameEvents } from '../../../common/events.js';
 export class DebugSystem extends System {
     constructor(world) {
         super(world);
-        this.world.on(GameEvents.STRATEGY_EXECUTED, this.onStrategyExecuted.bind(this));
+        this.on(GameEvents.STRATEGY_EXECUTED, this.onStrategyExecuted.bind(this));
     }
 
     onStrategyExecuted(detail) {

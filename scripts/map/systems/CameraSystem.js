@@ -1,9 +1,9 @@
-import { System } from '../../../engine/core/System.js'; // BaseSystem -> System
+import { System } from '../../../engine/core/System.js';
 import * as MapComponents from '../components.js';
 import { CONFIG } from '../constants.js';
-import { clamp } from '../../../engine/utils/MathUtils.js'; // mathUtils -> MathUtils
+import { clamp } from '../../../engine/utils/MathUtils.js';
 
-export class CameraSystem extends System { // extends System
+export class CameraSystem extends System {
     constructor(world, camera, map) {
         super(world);
         this.camera = camera;
@@ -13,7 +13,7 @@ export class CameraSystem extends System { // extends System
 
     _findPlayer() {
         if (this.playerEntityId === null) {
-            const players = this.world.getEntitiesWith(MapComponents.PlayerControllable);
+            const players = this.getEntities(MapComponents.PlayerControllable);
             if (players.length > 0) {
                 this.playerEntityId = players[0];
             }

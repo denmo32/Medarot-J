@@ -5,7 +5,6 @@ import { BattlePhase, PlayerStateType, TargetTiming } from '../../common/constan
 import { GameEvents } from '../../../common/events.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 import { compareByPropulsion } from '../../utils/queryUtils.js';
-import { ErrorHandler } from '../../../../engine/utils/ErrorHandler.js';
 
 export class ActionExecutionSystem extends System {
     constructor(world) {
@@ -15,42 +14,35 @@ export class ActionExecutionSystem extends System {
         this.isExecuting = false;
         this.currentExecutingActorId = null;
 
-        this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onAnimationCompleted.bind(this));
-        this.world.on(GameEvents.COMBAT_RESOLUTION_DISPLAYED, this.onResolutionDisplayed.bind(this));
+        this.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onAnimationCompleted.bind(this));
+        this.on(GameEvents.COMBAT_RESOLUTION_DISPLAYED, this.onResolutionDisplayed.bind(this));
     }
 
     update(deltaTime) {
-        try {
-            if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
-                if (this.executionQueue.length > 0 || this.isExecuting) {
-                    this.executionQueue = [];
-                    this.isExecuting = false;
-                    this.currentExecutingActorId = null;
-                }
+        if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
+            if (this.executionQueue.length > 0 || this.isExecuting) {
+                this.executionQueue = [];
+                this.isExecuting = false;
+                this.currentExecutingActorId = null;
+            }
+            return;
+        }
+
+        if (this.executionQueue.length === 0 && !this.isExecuting) {
+            this.populateExecutionQueueFromReady();
+            if (this.executionQueue.length === 0) {
+                this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
                 return;
             }
+        }
 
-            if (this.executionQueue.length === 0 && !this.isExecuting) {
-                this.populateExecutionQueueFromReady();
-                if (this.executionQueue.length === 0) {
-                    this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
-                    return;
-                }
-            }
-
-            if (!this.isExecuting && this.executionQueue.length > 0) {
-                this.executeNextAction();
-            }
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'ActionExecutionSystem.update' });
-            this.isExecuting = false;
-            this.executionQueue = [];
-            this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
+        if (!this.isExecuting && this.executionQueue.length > 0) {
+            this.executeNextAction();
         }
     }
     
     populateExecutionQueueFromReady() {
-        const readyEntities = this.world.getEntitiesWith(GameState).filter(id => {
+        const readyEntities = this.getEntities(GameState).filter(id => {
             const state = this.world.getComponent(id, GameState);
             return state.state === PlayerStateType.READY_EXECUTE;
         });
@@ -82,11 +74,7 @@ export class ActionExecutionSystem extends System {
         const actionComp = this.world.getComponent(entityId, Action);
         Object.assign(actionComp, actionDetail);
 
-        try {
-            this.determinePostMoveTarget(entityId);
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'ActionExecutionSystem.determinePostMoveTarget', entityId });
-        }
+        this.determinePostMoveTarget(entityId);
 
         const gameState = this.world.getComponent(entityId, GameState);
         if (gameState) gameState.state = PlayerStateType.AWAITING_ANIMATION;

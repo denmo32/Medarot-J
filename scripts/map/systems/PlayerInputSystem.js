@@ -24,7 +24,7 @@ export class PlayerInputSystem extends System {
     }
 
     handleMapInput() {
-        const entities = this.world.getEntitiesWith(
+        const entities = this.getEntities(
             MapComponents.PlayerControllable, 
             MapComponents.State, 
             MapComponents.Position,

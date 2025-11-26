@@ -7,10 +7,10 @@ import { CombatCalculator } from '../../utils/combatFormulas.js';
 export class CooldownSystem extends System {
     constructor(world) {
         super(world);
-        this.world.on(GameEvents.ACTION_COMPLETED, this.onActionCompleted.bind(this));
-        this.world.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
-        this.world.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
-        this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
+        this.on(GameEvents.ACTION_COMPLETED, this.onActionCompleted.bind(this));
+        this.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
+        this.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
+        this.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
     }
 
     onActionCompleted(detail) {

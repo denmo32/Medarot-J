@@ -9,7 +9,7 @@ export class WinConditionSystem extends System {
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
-        this.world.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
+        this.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
     }
 
     onPlayerBroken(detail) {

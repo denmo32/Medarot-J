@@ -15,14 +15,11 @@ export class ViewSystem extends System {
         this.bindWorldEvents();
     }
 
-    destroy() {
-    }
-
     bindWorldEvents() {
-        this.world.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
-        this.world.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this));
-        this.world.on(GameEvents.EXECUTE_ATTACK_ANIMATION, this.executeAttackAnimation.bind(this));
-        this.world.on(GameEvents.HP_BAR_ANIMATION_REQUESTED, this.onHpBarAnimationRequested.bind(this));
+        this.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
+        this.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this));
+        this.on(GameEvents.EXECUTE_ATTACK_ANIMATION, this.executeAttackAnimation.bind(this));
+        this.on(GameEvents.HP_BAR_ANIMATION_REQUESTED, this.onHpBarAnimationRequested.bind(this));
     }
 
     onShowBattleStartAnimation() {

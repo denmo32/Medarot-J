@@ -43,12 +43,13 @@ export class ActionPanelSystem extends System {
         if (this.boundHandlePanelClick) {
             this.dom.actionPanel.removeEventListener('click', this.boundHandlePanelClick);
         }
+        super.destroy();
     }
     
     bindWorldEvents() {
-        this.world.on(GameEvents.SHOW_MODAL, this.queueModal.bind(this));
-        this.world.on(GameEvents.HIDE_MODAL, this.hideActionPanel.bind(this));
-        this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
+        this.on(GameEvents.SHOW_MODAL, this.queueModal.bind(this));
+        this.on(GameEvents.HIDE_MODAL, this.hideActionPanel.bind(this));
+        this.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
     }
 
     update(deltaTime) {
@@ -240,7 +241,7 @@ export class ActionPanelSystem extends System {
     }
     
     resetHighlightsAndFocus() {
-        const allPlayerIds = this.world.getEntitiesWith(PlayerInfo);
+        const allPlayerIds = this.getEntities(PlayerInfo);
         allPlayerIds.forEach(id => {
             const dom = this.uiManager.getDOMElements(id);
             if (dom?.targetIndicatorElement) dom.targetIndicatorElement.classList.remove('active');

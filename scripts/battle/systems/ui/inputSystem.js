@@ -10,8 +10,8 @@ import { determineActionPlans } from '../../utils/targetingUtils.js';
 export class InputSystem extends System {
     constructor(world) {
         super(world);
-        this.world.on(GameEvents.PLAYER_INPUT_REQUIRED, this.onPlayerInputRequired.bind(this));
-        this.world.on(GameEvents.PART_SELECTED, this.onPartSelected.bind(this));
+        this.on(GameEvents.PLAYER_INPUT_REQUIRED, this.onPlayerInputRequired.bind(this));
+        this.on(GameEvents.PART_SELECTED, this.onPartSelected.bind(this));
     }
 
     onPlayerInputRequired(detail) {

@@ -7,14 +7,13 @@ import { CombatCalculator } from '../../utils/combatFormulas.js';
 import { findGuardian, isValidTarget } from '../../utils/queryUtils.js';
 import { effectStrategies } from '../../effects/effectStrategies.js';
 import { effectApplicators } from '../../effects/applicators/applicatorIndex.js';
-import { ErrorHandler } from '../../../../engine/utils/ErrorHandler.js';
 
 export class ActionResolutionSystem extends System {
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         this.effectApplicators = effectApplicators;
-        this.world.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
+        this.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onExecutionAnimationCompleted.bind(this));
     }
 
     update(deltaTime) {}
@@ -27,29 +26,23 @@ export class ActionResolutionSystem extends System {
     }
 
     resolveAction(attackerId) {
-        try {
-            const components = this._getCombatComponents(attackerId);
-            if (!components) {
-                this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: attackerId });
-                return;
-            }
-            
-            const targetContext = this._determineFinalTarget(components, attackerId);
-            if (targetContext.shouldCancel) {
-                this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: attackerId, reason: ActionCancelReason.TARGET_LOST });
-                return;
-            }
-
-            const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
-
-            const resolvedEffects = this._processEffects(attackerId, components, targetContext, outcome);
-            
-            this._applyEffectsAndNotify(attackerId, components, targetContext, outcome, resolvedEffects);
-
-        } catch (error) {
-            ErrorHandler.handle(error, { method: 'ActionResolutionSystem.resolveAction', attackerId });
+        const components = this._getCombatComponents(attackerId);
+        if (!components) {
             this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: attackerId });
+            return;
         }
+        
+        const targetContext = this._determineFinalTarget(components, attackerId);
+        if (targetContext.shouldCancel) {
+            this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: attackerId, reason: ActionCancelReason.TARGET_LOST });
+            return;
+        }
+
+        const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
+
+        const resolvedEffects = this._processEffects(attackerId, components, targetContext, outcome);
+        
+        this._applyEffectsAndNotify(attackerId, components, targetContext, outcome, resolvedEffects);
     }
 
     _determineFinalTarget(components, attackerId) {

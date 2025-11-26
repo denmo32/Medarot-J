@@ -9,8 +9,8 @@ export class ActionSelectionSystem extends System {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         
-        this.world.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
-        this.world.on(GameEvents.NEXT_ACTOR_DETERMINED, this.onNextActorDetermined.bind(this));
+        this.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
+        this.on(GameEvents.NEXT_ACTOR_DETERMINED, this.onNextActorDetermined.bind(this));
     }
 
     update(deltaTime) {

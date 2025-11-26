@@ -11,7 +11,7 @@ export class InteractionSystem extends System {
     constructor(world, map) {
         super(world);
         this.map = map;
-        this.world.on(GameEvents.INTERACTION_KEY_PRESSED, this.onInteractionKeyPressed.bind(this));
+        this.on(GameEvents.INTERACTION_KEY_PRESSED, this.onInteractionKeyPressed.bind(this));
     }
 
     onInteractionKeyPressed(detail) {

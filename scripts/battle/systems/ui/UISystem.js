@@ -10,8 +10,8 @@ export class UISystem extends System {
         super(world);
         this.uiManager = this.world.getSingletonComponent(UIManager);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
-        this.world.on(GameEvents.HP_UPDATED, this.onHpUpdated.bind(this));
-        this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpAnimationCompleted.bind(this));
+        this.on(GameEvents.HP_UPDATED, this.onHpUpdated.bind(this));
+        this.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpAnimationCompleted.bind(this));
     }
 
     onHpUpdated(detail) {
@@ -64,7 +64,7 @@ export class UISystem extends System {
     }
 
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(PlayerInfo, Position, GameState, Parts);
+        const entities = this.getEntities(PlayerInfo, Position, GameState, Parts);
         for (const entityId of entities) {
             this.updatePlayerUI(entityId);
         }

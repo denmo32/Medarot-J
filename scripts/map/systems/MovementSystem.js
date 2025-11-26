@@ -10,7 +10,7 @@ export class MovementSystem extends System {
     }
 
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(
+        const entities = this.getEntities(
             MapComponents.Position, 
             MapComponents.State, 
             MapComponents.TargetPosition

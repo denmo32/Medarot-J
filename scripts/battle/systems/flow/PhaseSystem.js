@@ -8,15 +8,15 @@ export class PhaseSystem extends System {
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
-        this.world.on('BATTLE_ANIMATION_COMPLETED', this.onBattleAnimationCompleted.bind(this));
+        this.on('BATTLE_ANIMATION_COMPLETED', this.onBattleAnimationCompleted.bind(this));
         
-        this.world.on(GameEvents.ACTION_SELECTION_COMPLETED, this.onActionSelectionCompleted.bind(this));
-        this.world.on(GameEvents.ACTION_EXECUTION_COMPLETED, this.onActionExecutionCompleted.bind(this));
+        this.on(GameEvents.ACTION_SELECTION_COMPLETED, this.onActionSelectionCompleted.bind(this));
+        this.on(GameEvents.ACTION_EXECUTION_COMPLETED, this.onActionExecutionCompleted.bind(this));
     }
     
     onBattleAnimationCompleted() {
         if (this.battleContext.phase === BattlePhase.BATTLE_START) {
-            this.world.getEntitiesWith(GameState).forEach(id => {
+            this.getEntities(GameState).forEach(id => {
                 const gauge = this.world.getComponent(id, 'Gauge');
                 if (gauge) gauge.value = 0;
             });
@@ -89,7 +89,7 @@ export class PhaseSystem extends System {
     }
     
     checkInitialSelectionComplete() {
-        const allPlayers = this.world.getEntitiesWith(GameState);
+        const allPlayers = this.getEntities(GameState);
         if (allPlayers.length === 0) return;
 
         const allSelected = allPlayers.every(id => {
@@ -115,7 +115,7 @@ export class PhaseSystem extends System {
     }
     
     isAnyEntityReadyToExecute() {
-        const entities = this.world.getEntitiesWith(GameState);
+        const entities = this.getEntities(GameState);
         return entities.some(id => {
             const state = this.world.getComponent(id, GameState);
             return state.state === PlayerStateType.READY_EXECUTE;
@@ -123,7 +123,7 @@ export class PhaseSystem extends System {
     }
 
     isAnyEntityInCharging() {
-        const entities = this.world.getEntitiesWith(GameState);
+        const entities = this.getEntities(GameState);
         return entities.some(id => {
             const state = this.world.getComponent(id, GameState);
             return state.state === PlayerStateType.CHARGING || state.state === PlayerStateType.SELECTED_CHARGING;

@@ -5,7 +5,7 @@ import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
 import { Timer } from '../../../../engine/stdlib/components/Timer.js';
 
-export class GameFlowSystem extends System { // extends System
+export class GameFlowSystem extends System {
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
@@ -13,12 +13,12 @@ export class GameFlowSystem extends System { // extends System
     }
 
     bindWorldEvents() {
-        this.world.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
-        this.world.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
-        this.world.on(GameEvents.BATTLE_START_CANCELLED, this.onBattleStartCancelled.bind(this));
-        this.world.on(GameEvents.GAME_OVER, this.onGameOver.bind(this));
-        this.world.on(GameEvents.GAME_PAUSED, this.onGamePaused.bind(this));
-        this.world.on(GameEvents.GAME_RESUMED, this.onGameResumed.bind(this));
+        this.on(GameEvents.GAME_START_CONFIRMED, this.onGameStartConfirmed.bind(this));
+        this.on(GameEvents.BATTLE_START_CONFIRMED, this.onBattleStartConfirmed.bind(this));
+        this.on(GameEvents.BATTLE_START_CANCELLED, this.onBattleStartCancelled.bind(this));
+        this.on(GameEvents.GAME_OVER, this.onGameOver.bind(this));
+        this.on(GameEvents.GAME_PAUSED, this.onGamePaused.bind(this));
+        this.on(GameEvents.GAME_RESUMED, this.onGameResumed.bind(this));
     }
 
     onGamePaused() {
@@ -32,7 +32,7 @@ export class GameFlowSystem extends System { // extends System
     _startInitialSelection() {
         this.battleContext.phase = BattlePhase.INITIAL_SELECTION;
 
-        const players = this.world.getEntitiesWith(GameState, Gauge);
+        const players = this.getEntities(GameState, Gauge);
         players.forEach(id => {
             const gameState = this.world.getComponent(id, GameState);
             const gauge = this.world.getComponent(id, Gauge);

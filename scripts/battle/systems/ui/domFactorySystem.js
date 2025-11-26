@@ -17,12 +17,12 @@ export class DomFactorySystem extends System {
             [TeamID.TEAM2]: document.querySelector('#team2InfoPanel .team-players-container')
         };
         
-        this.world.on(GameEvents.SETUP_UI_REQUESTED, this.onSetupUIRequested.bind(this));
-        this.world.on(GameEvents.GAME_WILL_RESET, this.onGameWillReset.bind(this));
+        this.on(GameEvents.SETUP_UI_REQUESTED, this.onSetupUIRequested.bind(this));
+        this.on(GameEvents.GAME_WILL_RESET, this.onGameWillReset.bind(this));
     }
 
     onSetupUIRequested() {
-        const playerEntities = this.world.getEntitiesWith(Components.PlayerInfo);
+        const playerEntities = this.getEntities(Components.PlayerInfo);
         for (const entityId of playerEntities) {
             this._createPlayerDOM(entityId);
         }

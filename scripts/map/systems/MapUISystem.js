@@ -2,7 +2,6 @@ import { System } from '../../../engine/core/System.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import * as MapComponents from '../components.js';
 import { GameEvents } from '../../common/events.js';
-// InputManager パス修正
 import { InputManager } from '../../../engine/input/InputManager.js';
 
 export class MapUISystem extends System {
@@ -29,8 +28,8 @@ export class MapUISystem extends System {
     }
 
     bindWorldEvents() {
-        this.world.on(GameEvents.MENU_TOGGLE_REQUESTED, this.boundToggleMenu);
-        this.world.on(GameEvents.NPC_INTERACTION_REQUESTED, this.boundShowNpcInteraction);
+        this.on(GameEvents.MENU_TOGGLE_REQUESTED, this.boundToggleMenu);
+        this.on(GameEvents.NPC_INTERACTION_REQUESTED, this.boundShowNpcInteraction);
     }
     
     destroy() {
@@ -49,6 +48,7 @@ export class MapUISystem extends System {
         if (this.dom.interactionWindow) {
             this.dom.interactionWindow.classList.add('hidden');
         }
+        super.destroy();
     }
 
     update(deltaTime) {

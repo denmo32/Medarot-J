@@ -1,21 +1,18 @@
+import { System } from '../../../../engine/core/System.js';
 import { Gauge, GameState, Parts, PlayerInfo, Action, Position, ActiveEffects } from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
-import { CONFIG } from '../../common/config.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerStateType, ModalType, BattlePhase, TeamID, EffectType, EffectScope, PartInfo, TargetTiming, ActionCancelReason } from '../../common/constants.js';
-import { isValidTarget } from '../../utils/queryUtils.js';
+import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { snapToActionLine } from '../../utils/positionUtils.js';
-import { CombatCalculator } from '../../utils/combatFormulas.js';
-import { ErrorHandler } from '../../../../engine/utils/ErrorHandler.js';
 
-export class StateSystem {
+export class StateSystem extends System {
     constructor(world) {
-        this.world = world;
+        super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         
-        this.world.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
-        this.world.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
-        this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
+        this.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
+        this.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
+        this.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
     }
     
     onHpBarAnimationCompleted(detail) {

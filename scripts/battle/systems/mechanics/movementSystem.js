@@ -1,14 +1,15 @@
+import { System } from '../../../../engine/core/System.js';
 import { Position, Gauge, GameState, PlayerInfo } from '../../components/index.js';
 import { PlayerStateType, TeamID } from '../../common/constants.js';
 import { CONFIG } from '../../common/config.js';
 
-export class MovementSystem {
+export class MovementSystem extends System {
     constructor(world) {
-        this.world = world;
+        super(world);
     }
 
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(PlayerInfo, Position, Gauge, GameState);
+        const entities = this.getEntities(PlayerInfo, Position, Gauge, GameState);
 
         for (const entityId of entities) {
             const gauge = this.world.getComponent(entityId, Gauge);

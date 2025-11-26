@@ -3,7 +3,7 @@ import { GameDataManager } from '../../managers/GameDataManager.js';
 import { PartKeyToInfoMap, EquipSlotType } from '../../battle/common/constants.js';
 import { CustomizeState } from '../components/CustomizeState.js';
 import { GameEvents } from '../../common/events.js';
-import { el } from '../../../engine/utils/DOMUtils.js'; // domUtils -> DOMUtils
+import { el } from '../../../engine/utils/DOMUtils.js';
 
 const focusTransitionMap = {
     MEDAROT_SELECT: { confirm: 'EQUIP_PANEL', cancel: 'EXIT' },
@@ -41,11 +41,11 @@ export class CustomizeUISystem extends System {
     }
 
     _bindEvents() {
-        this.world.on(GameEvents.CUST_NAVIGATE_INPUT, this.handleNavigation.bind(this));
-        this.world.on(GameEvents.CUST_CONFIRM_INPUT, this.handleConfirm.bind(this));
-        this.world.on(GameEvents.CUST_CANCEL_INPUT, this.handleCancel.bind(this));
-        this.world.on(GameEvents.PART_EQUIPPED, this.onItemEquipped.bind(this));
-        this.world.on(GameEvents.MEDAL_EQUIPPED, this.onItemEquipped.bind(this));
+        this.on(GameEvents.CUST_NAVIGATE_INPUT, this.handleNavigation.bind(this));
+        this.on(GameEvents.CUST_CONFIRM_INPUT, this.handleConfirm.bind(this));
+        this.on(GameEvents.CUST_CANCEL_INPUT, this.handleCancel.bind(this));
+        this.on(GameEvents.PART_EQUIPPED, this.onItemEquipped.bind(this));
+        this.on(GameEvents.MEDAL_EQUIPPED, this.onItemEquipped.bind(this));
     }
 
     handleNavigation({ direction }) {
@@ -355,5 +355,6 @@ export class CustomizeUISystem extends System {
 
     destroy() {
         this.dom.container.classList.add('hidden');
+        super.destroy();
     }
 }

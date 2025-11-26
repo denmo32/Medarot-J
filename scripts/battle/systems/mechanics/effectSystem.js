@@ -5,11 +5,11 @@ import { GameEvents } from '../../../common/events.js';
 export class EffectSystem extends System {
     constructor(world) {
         super(world);
-        this.world.on(GameEvents.TURN_END, this.onTurnEnd.bind(this));
+        this.on(GameEvents.TURN_END, this.onTurnEnd.bind(this));
     }
 
     onTurnEnd(detail) {
-        const allEntities = this.world.getEntitiesWith(ActiveEffects);
+        const allEntities = this.getEntities(ActiveEffects);
         allEntities.forEach(id => this._updateEffectsForEntity(id));
     }
 

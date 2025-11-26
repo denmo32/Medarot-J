@@ -7,8 +7,8 @@ export class CustomizeLogicSystem extends System {
         super(world);
         this.dataManager = new GameDataManager();
 
-        this.world.on(GameEvents.EQUIP_PART_REQUESTED, this.onEquipPartRequested.bind(this));
-        this.world.on(GameEvents.EQUIP_MEDAL_REQUESTED, this.onEquipMedalRequested.bind(this));
+        this.on(GameEvents.EQUIP_PART_REQUESTED, this.onEquipPartRequested.bind(this));
+        this.on(GameEvents.EQUIP_MEDAL_REQUESTED, this.onEquipMedalRequested.bind(this));
     }
 
     onEquipPartRequested(detail) {
