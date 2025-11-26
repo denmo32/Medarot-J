@@ -1,6 +1,2 @@
-export * from './battle/index.js';
-export * from './common/index.js';
-export * from './customize/index.js';
-export * from './managers/index.js';
-export * from './map/index.js';
-export * from './scenes/index.js';
+// ルートレベルでの一括エクスポートは循環参照の原因となるため廃止しました。
+// 各機能のディレクトリの index.js から個別にインポートしてください。

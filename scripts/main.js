@@ -2,10 +2,14 @@
  * @file アプリケーションのエントリーポイント
  * このファイルは、ゲーム全体の初期化とメインループの管理を行います。
  */
-// Engineの新しいパスからインポート
+// Engineのインポート
 import { World, InputManager, SceneManager } from '../engine/index.js';
 
-import { TitleScene, MapScene, BattleScene, CustomizeScene, GameDataManager, KEY_MAP, UI_CONFIG } from './index.js';
+// 各機能モジュールからインポート（ルートのindex.jsを経由しない）
+import { TitleScene, MapScene, BattleScene, CustomizeScene } from './scenes/index.js';
+import { GameDataManager } from './managers/index.js';
+import { KEY_MAP } from './map/index.js';
+import { UI_CONFIG } from './battle/common/index.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     // --- Global Instances ---
