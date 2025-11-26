@@ -40,9 +40,7 @@ export class ActionPanelSystem extends System {
     }
     
     destroy() {
-        if (this.boundHandlePanelClick) {
-            this.dom.actionPanel.removeEventListener('click', this.boundHandlePanelClick);
-        }
+        this.resetPanelDOM();
         super.destroy();
     }
     

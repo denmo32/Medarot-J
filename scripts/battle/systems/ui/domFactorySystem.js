@@ -21,6 +21,34 @@ export class DomFactorySystem extends System {
         this.on(GameEvents.GAME_WILL_RESET, this.onGameWillReset.bind(this));
     }
 
+    /**
+     * システム破棄時にDOMをクリーンアップします。
+     */
+    destroy() {
+        this.clearDOM();
+        super.destroy();
+    }
+
+    /**
+     * DOM要素を初期状態に戻します。
+     */
+    clearDOM() {
+        if (this.battlefield) {
+            // アクションラインを維持してクリア
+            this.battlefield.innerHTML = '<div class="action-line-1"></div><div class="action-line-2"></div>';
+        }
+        
+        Object.values(this.teamContainers).forEach(container => {
+            if (container) {
+                container.innerHTML = '';
+            }
+        });
+
+        if (this.uiManager) {
+            this.uiManager.clear();
+        }
+    }
+
     onSetupUIRequested() {
         const playerEntities = this.getEntities(Components.PlayerInfo);
         for (const entityId of playerEntities) {
@@ -29,15 +57,7 @@ export class DomFactorySystem extends System {
     }
 
     onGameWillReset() {
-        this.battlefield.innerHTML = '<div class="action-line-1"></div><div class="action-line-2"></div>';
-        
-        Object.values(this.teamContainers).forEach(container => {
-            container.innerHTML = '';
-        });
-
-        if (this.uiManager) {
-            this.uiManager.clear();
-        }
+        this.clearDOM();
     }
 
     _createPlayerDOM(entityId) {

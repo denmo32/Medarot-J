@@ -40,9 +40,9 @@ export function initializeSystems(world) {
     world.addComponent(contextEntity, new UIManager());
 
     // --- システムのインスタンス化 ---
-    new InputSystem(world);
-    new AiSystem(world);
-    new DomFactorySystem(world);
+    const inputSystem = new InputSystem(world);
+    const aiSystem = new AiSystem(world);
+    const domFactorySystem = new DomFactorySystem(world);
     const actionPanelSystem = new ActionPanelSystem(world);
 
     const gameFlowSystem = new GameFlowSystem(world);
@@ -64,11 +64,11 @@ export function initializeSystems(world) {
     const cooldownSystem = new CooldownSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
 
-    if (CONFIG.DEBUG) {
-        new DebugSystem(world);
-    }
-    
     // --- システムの登録順序を整理 ---
+    world.registerSystem(inputSystem);
+    world.registerSystem(aiSystem);
+    world.registerSystem(domFactorySystem);
+    
     world.registerSystem(gameFlowSystem);
     world.registerSystem(winConditionSystem);
     world.registerSystem(phaseSystem);
@@ -89,4 +89,8 @@ export function initializeSystems(world) {
     world.registerSystem(viewSystem);
     world.registerSystem(actionPanelSystem);
     world.registerSystem(new UISystem(world));
+
+    if (CONFIG.DEBUG) {
+        world.registerSystem(new DebugSystem(world));
+    }
 }
