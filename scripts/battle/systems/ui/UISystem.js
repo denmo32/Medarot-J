@@ -1,6 +1,6 @@
-import { System } from '../../../../engine/core/System.js';
+﻿import { System } from '../../../../engine/core/System.js';
 import { PlayerInfo, Position, GameState, Parts, ActiveEffects } from '../../components/index.js';
-import { PlayerStateType, EffectType } from '../../common/constants.js';
+import { PlayerStateType, EffectType } from '../../../config/constants.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { GameEvents } from '../../../common/events.js';
 import { BattleContext } from '../../context/index.js';

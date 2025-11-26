@@ -1,4 +1,4 @@
-import * as Components from '../components/index.js';
+﻿import * as Components from '../components/index.js';
 import { BattleContext } from './BattleContext.js';
 import { ViewSystem } from '../systems/ui/ViewSystem.js';
 import { DomFactorySystem } from '../systems/ui/DomFactorySystem.js';
@@ -14,7 +14,7 @@ import { EffectSystem } from '../systems/mechanics/EffectSystem.js';
 import { MessageSystem } from '../systems/mechanics/MessageSystem.js';
 import { ActionCancellationSystem } from '../systems/action/ActionCancellationSystem.js';
 import { DebugSystem } from '../systems/ui/DebugSystem.js';
-import { CONFIG } from '../common/config.js';
+import { CONFIG } from '../../config/gameConfig.js';
 import { PhaseSystem } from '../systems/flow/PhaseSystem.js';
 import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.js';
 import { ActionSetupSystem } from '../systems/action/ActionSetupSystem.js';

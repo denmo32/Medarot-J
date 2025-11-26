@@ -1,7 +1,7 @@
-import { GameEvents } from '../../common/events.js';
-import { ModalType, PartInfo } from '../common/constants.js';
+﻿import { GameEvents } from '../../common/events.js';
+import { ModalType, PartInfo } from '../../config/constants.js';
 import { el } from '../../../engine/utils/DOMUtils.js';
-import { CONFIG } from '../common/config.js';
+import { CONFIG } from '../../config/gameConfig.js';
 
 const NAVIGATION_MAP = {
     [PartInfo.HEAD.key]: {

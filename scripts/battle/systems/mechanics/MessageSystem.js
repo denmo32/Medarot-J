@@ -1,7 +1,7 @@
-import { System } from '../../../../engine/core/System.js';
+﻿import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { ModalType, PartKeyToInfoMap, EffectType, ActionCancelReason } from '../../common/constants.js';
-import { MessageTemplates, MessageKey } from '../../data/messageRepository.js';
+import { ModalType, PartKeyToInfoMap, EffectType, ActionCancelReason } from '../../../config/constants.js';
+import { MessageTemplates, MessageKey } from '../../../data/messageRepository.js';
 import { PlayerInfo } from '../../components/index.js';
 
 const cancelReasonToMessageKey = {

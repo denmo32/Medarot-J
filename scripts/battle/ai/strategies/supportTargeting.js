@@ -3,7 +3,7 @@
  * @description 回復や援護など、味方を対象とする戦略を定義します。
  */
 import { getValidAllies, findMostDamagedAllyPart } from '../../utils/queryUtils.js';
-import { TargetingStrategyKey } from '../strategyKeys.js';
+import { TargetingStrategyKey } from '../../../config/strategyKeys.js';
 
 // 回復系戦略の共通ロジックを関数として定義
 /**

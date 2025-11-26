@@ -1,4 +1,4 @@
-import { PlayerStateType, PartType, TeamID, TargetTiming } from '../common/constants.js';
+﻿import { PlayerStateType, PartType, TeamID, TargetTiming } from '../../config/constants.js';
 
 /**
  * 戦闘アクションの情報を保持するコンポーネント

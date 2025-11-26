@@ -4,7 +4,7 @@
  * パーツIDをキーとしたオブジェクト形式で管理します。
  */
 
-import { PartInfo, EffectType, EffectScope, TargetTiming, ActionType, AttackType } from '../common/constants.js';
+import { PartInfo, EffectType, EffectScope, TargetTiming, ActionType, AttackType } from '../config/constants.js';
 import { PartRoles } from './partRoles.js';
 import { ActionDefinitionKey } from './actionDefinitions.js';
 

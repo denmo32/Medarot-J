@@ -1,5 +1,5 @@
-import { CONFIG } from '../common/config.js';
-import { PlayerStateType, PartType, TeamID, TargetTiming } from '../common/constants.js';
+import { CONFIG } from '../config/gameConfig.js';
+import { PlayerStateType, PartType, TeamID, TargetTiming } from '../config/constants.js';
 
 // プレイヤーの基本情報
 export class PlayerInfo {

@@ -1,7 +1,7 @@
-import { System } from '../../../../engine/core/System.js';
+﻿import { System } from '../../../../engine/core/System.js';
 import { BattleContext } from '../../context/index.js';
 import { Action, ActiveEffects, Parts, PlayerInfo } from '../../components/index.js';
-import { BattlePhase, EffectType, ActionCancelReason } from '../../common/constants.js';
+import { BattlePhase, EffectType, ActionCancelReason } from '../../../config/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';
 import { findGuardian, isValidTarget } from '../../utils/queryUtils.js';

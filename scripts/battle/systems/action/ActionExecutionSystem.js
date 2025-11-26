@@ -1,7 +1,7 @@
-import { System } from '../../../../engine/core/System.js';
+﻿import { System } from '../../../../engine/core/System.js';
 import { BattleContext } from '../../context/index.js';
 import { Action, GameState, Parts } from '../../components/index.js';
-import { BattlePhase, PlayerStateType, TargetTiming } from '../../common/constants.js';
+import { BattlePhase, PlayerStateType, TargetTiming } from '../../../config/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 import { compareByPropulsion } from '../../utils/queryUtils.js';

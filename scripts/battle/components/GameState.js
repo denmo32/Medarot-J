@@ -1,4 +1,4 @@
-import { PlayerStateType, PartType, TeamID, TargetTiming } from '../common/constants.js';
+import { PlayerStateType, PartType, TeamID, TargetTiming } from '../../config/constants.js';
 
 // ゲームの状態
 export class GameState {

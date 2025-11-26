@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file AI攻撃系ターゲティング戦略
  * @description 攻撃、反撃、汎用的なターゲット選択など、主に敵を対象とする戦略を定義します。
  * 各戦略は、重み付けされたターゲット候補のリスト `Array<{ target: { targetId, targetPartKey }, weight: number }>` を返す責務を持ちます。
@@ -11,8 +11,8 @@ import {
     getAllPartsFromCandidates, 
     getValidEnemies 
 } from '../../utils/queryUtils.js';
-import { TargetingStrategyKey } from '../strategyKeys.js';
-import { PartInfo } from '../../common/constants.js';
+import { TargetingStrategyKey } from '../../../config/strategyKeys.js';
+import { PartInfo } from '../../../config/constants.js';
 
 // --- 高階関数 (戦略ジェネレータ) ---
 

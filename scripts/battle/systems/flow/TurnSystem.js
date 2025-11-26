@@ -1,8 +1,8 @@
-import { System } from '../../../../engine/core/System.js';
+﻿import { System } from '../../../../engine/core/System.js';
 import { GameState } from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerStateType, BattlePhase } from '../../common/constants.js';
+import { PlayerStateType, BattlePhase } from '../../../config/constants.js';
 import { compareByPropulsion } from '../../utils/queryUtils.js';
 
 export class TurnSystem extends System {

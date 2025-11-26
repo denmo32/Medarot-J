@@ -4,7 +4,7 @@
  */
 
 // PartInfoを参照することで、パーツに関する定義元を一元化
-import { PartInfo } from '../common/constants.js';
+import { PartInfo } from '../config/constants.js';
 
 export const MEDAROT_SETS = [
     {

@@ -1,11 +1,11 @@
-/**
+﻿/**
  * @file ターゲット決定および行動計画ユーティリティ
  * このファイルは、AIやプレイヤーの入力補助から共通して利用される、
  * 「行動プラン」を生成するための関数を提供します。
  */
 import { getAttackableParts } from './queryUtils.js';
 import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
-import { TargetTiming } from '../common/constants.js';
+import { TargetTiming } from '../../config/constants.js';
 
 /**
  * 重み付けされたターゲット候補リストと使用可能パーツから、パーツごとの行動プランリストを生成します。

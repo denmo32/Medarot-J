@@ -1,4 +1,4 @@
-import { PlayerStateType, PartType, TeamID, TargetTiming } from '../common/constants.js';
+import { PlayerStateType, PartType, TeamID, TargetTiming } from '../config/constants.js';
 
 /**
  * メダルの情報を保持するコンポーネント

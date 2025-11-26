@@ -4,11 +4,11 @@
  * エンジンから分離され、ゲーム固有のデータ構造を管理します。
  */
 
-import { MEDAROT_SETS } from '../battle/data/medarotSets.js';
-import { PARTS_DATA } from '../battle/data/parts.js';
-import { MEDALS_DATA } from '../battle/data/medals.js';
+import { MEDAROT_SETS } from '../data/medarotSets.js';
+import { PARTS_DATA } from '../data/parts.js';
+import { MEDALS_DATA } from '../data/medals.js';
 import { CONFIG as MAP_CONFIG } from '../map/constants.js';
-import { buildPartData } from '../battle/data/partDataUtils.js';
+import { buildPartData } from '../data/partDataUtils.js';
 
 // デフォルトのプレイヤー初期位置
 const initialPlayerPosition = {

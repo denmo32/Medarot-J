@@ -9,7 +9,7 @@ import {
     findMostDamagedAllyPart 
 } from '../../utils/queryUtils.js';
 // 循環参照を避けるため、独立した strategyKeys.js からインポートする
-import { TargetingStrategyKey } from '../strategyKeys.js';
+import { TargetingStrategyKey } from '../../../config/strategyKeys.js';
 
 export const postMoveStrategies = {
     /**

@@ -1,8 +1,8 @@
-import { System } from '../../../../engine/core/System.js';
+﻿import { System } from '../../../../engine/core/System.js';
 import { BattleContext } from '../../context/index.js';
 import { BattleLog, PlayerInfo } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { EffectType } from '../../common/constants.js';
+import { EffectType } from '../../../config/constants.js';
 
 export class BattleHistorySystem extends System {
     constructor(world) {

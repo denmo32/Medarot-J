@@ -1,7 +1,7 @@
-import { System } from '../../../../engine/core/System.js';
+﻿import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { Action, GameState, Gauge, Parts, ActiveEffects } from '../../components/index.js';
-import { PlayerStateType, EffectType } from '../../common/constants.js';
+import { PlayerStateType, EffectType } from '../../../config/constants.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';
 
 export class CooldownSystem extends System {

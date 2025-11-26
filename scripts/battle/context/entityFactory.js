@@ -1,10 +1,10 @@
-import { CONFIG } from '../common/config.js';
+﻿import { CONFIG } from '../../config/gameConfig.js';
 import * as Components from '../components/index.js';
-import { TeamID, MedalPersonality, PartInfo } from '../common/constants.js'; 
-import { PARTS_DATA } from '../data/parts.js'; 
-import { MEDAROT_SETS } from '../data/medarotSets.js'; 
-import { MEDALS_DATA } from '../data/medals.js';
-import { buildPartData } from '../data/partDataUtils.js';
+import { TeamID, MedalPersonality, PartInfo } from '../../config/constants.js'; 
+import { PARTS_DATA } from '../../data/parts.js'; 
+import { MEDAROT_SETS } from '../../data/medarotSets.js'; 
+import { MEDALS_DATA } from '../../data/medals.js';
+import { buildPartData } from '../../data/partDataUtils.js';
 
 // --- Helper Functions ---
 

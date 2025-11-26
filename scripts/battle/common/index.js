@@ -1,3 +1,3 @@
-export * from './config.js';
-export * from './constants.js';
+export * from '../../config/gameConfig.js';
+export * from '../../config/constants.js';
 export * from './UIConfig.js';

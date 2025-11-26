@@ -1,6 +1,6 @@
-import { System } from '../../../../engine/core/System.js';
+﻿import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { ModalType } from '../../common/constants.js';
+import { ModalType } from '../../../config/constants.js';
 import { InputManager } from '../../../../engine/input/InputManager.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { createModalHandlers } from '../../ui/modalHandlers.js';
@@ -227,7 +227,7 @@ export class ActionPanelSystem extends System {
         const { dom } = this;
         dom.actionPanelOwner.textContent = '';
         dom.actionPanelTitle.textContent = '';
-        dom.actionPanelActor.innerHTML = '待機中...';
+        dom.actionPanelActor.innerHTML = '';
         dom.actionPanelButtons.innerHTML = '';
         dom.actionPanelIndicator.classList.add('hidden');
         dom.actionPanel.classList.remove('clickable');

@@ -1,7 +1,7 @@
-import { System } from '../../../../engine/core/System.js';
+﻿import { System } from '../../../../engine/core/System.js';
 import { Position, Gauge, GameState, PlayerInfo } from '../../components/index.js';
-import { PlayerStateType, TeamID } from '../../common/constants.js';
-import { CONFIG } from '../../common/config.js';
+import { PlayerStateType, TeamID } from '../../../config/constants.js';
+import { CONFIG } from '../../../config/gameConfig.js';
 
 export class MovementSystem extends System {
     constructor(world) {

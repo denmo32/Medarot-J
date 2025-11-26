@@ -1,8 +1,8 @@
-import { System } from '../../../../engine/core/System.js';
+﻿import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import * as Components from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
-import { EffectScope } from '../../common/constants.js';
+import { EffectScope } from '../../../config/constants.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { el } from '../../../../engine/utils/DOMUtils.js';
 

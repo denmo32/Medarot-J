@@ -1,4 +1,4 @@
-import { CONFIG } from '../common/config.js';
+﻿import { CONFIG } from '../../config/gameConfig.js';
 
 // ゲージ
 export class Gauge {

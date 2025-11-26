@@ -4,8 +4,8 @@
  * パーツの静的なパラメータと、それが引き起こす行動の振る舞いを完全に分離することで、
  * 新しい行動の追加を容易にし、システムの変更を最小限に抑えます。
  */
-import { TargetTiming, EffectType, EffectScope } from '../common/constants.js';
-import { TargetingStrategyKey } from '../ai/strategyKeys.js';
+import { TargetTiming, EffectType, EffectScope } from '../config/constants.js';
+import { TargetingStrategyKey } from '../config/strategyKeys.js';
 
 export const ActionDefinitions = {
     /**

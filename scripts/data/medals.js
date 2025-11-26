@@ -3,7 +3,7 @@
  * ゲームに登場する全てのメダルの性能（特に性格）を定義します。
  * メダルIDをキーとしたオブジェクト形式で管理します。
  */
-import { MedalPersonality } from '../common/constants.js';
+import { MedalPersonality } from '../config/constants.js';
 
 /**
  * メダルのマスターデータ。
