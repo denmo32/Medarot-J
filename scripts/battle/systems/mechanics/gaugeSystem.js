@@ -1,11 +1,11 @@
 import { Gauge, GameState } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import { BattleContext } from '../../context/index.js';
-import { CONFIG } from '../../common/config.js';
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
 import { PartInfo } from '../../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';
+import { CombatCalculator } from '../../utils/combatFormulas.js';
 
 export class GaugeSystem extends System {
     constructor(world) {
@@ -41,15 +41,6 @@ export class GaugeSystem extends System {
 
         const entities = this.getEntities(Gauge, GameState, Parts);
 
-        const { 
-            BASE_ACCELERATION, 
-            MOBILITY_TO_ACCELERATION, 
-            BASE_MAX_SPEED, 
-            PROPULSION_TO_MAX_SPEED 
-        } = CONFIG.FORMULAS.GAUGE;
-        
-        const timeFactor = deltaTime / CONFIG.UPDATE_INTERVAL;
-
         for (const entityId of entities) {
             const gameState = this.world.getComponent(entityId, GameState);
             const parts = this.world.getComponent(entityId, Parts);
@@ -74,12 +65,15 @@ export class GaugeSystem extends System {
             const propulsion = parts.legs?.propulsion || 0;
             const speedMultiplier = gauge.speedMultiplier || 1.0;
 
-            const acceleration = BASE_ACCELERATION + (mobility * MOBILITY_TO_ACCELERATION);
-            const maxSpeed = BASE_MAX_SPEED + (propulsion * PROPULSION_TO_MAX_SPEED);
+            const { nextSpeed, increment } = CombatCalculator.calculateGaugeUpdate({
+                currentSpeed: gauge.currentSpeed,
+                mobility,
+                propulsion,
+                speedMultiplier,
+                deltaTime
+            });
             
-            gauge.currentSpeed = Math.min(gauge.currentSpeed + acceleration, maxSpeed);
-            
-            const increment = (gauge.currentSpeed / speedMultiplier) * timeFactor;
+            gauge.currentSpeed = nextSpeed;
             gauge.value += increment;
 
             if (gauge.value >= gauge.max) {

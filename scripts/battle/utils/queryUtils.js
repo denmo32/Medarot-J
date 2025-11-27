@@ -204,40 +204,43 @@ export function findGuardian(world, originalTargetId) {
     const targetInfo = world.getComponent(originalTargetId, PlayerInfo);
     if (!targetInfo) return null;
 
-    const potentialGuardians = world.getEntitiesWith(PlayerInfo, ActiveEffects, Parts)
-        .filter(id => {
-            if (id === originalTargetId) return false;
-            const info = world.getComponent(id, PlayerInfo);
-            const parts = world.getComponent(id, Parts);
-            const activeEffects = world.getComponent(id, ActiveEffects);
-            
-            const isSameTeam = info.teamId === targetInfo.teamId;
-            const isAlive = !parts.head?.isBroken;
-            const hasGuardEffect = activeEffects?.effects.some(e => e.type === EffectType.APPLY_GUARD && e.count > 0);
-            
-            return isSameTeam && isAlive && hasGuardEffect;
-        })
-        .map(id => {
-            const activeEffects = world.getComponent(id, ActiveEffects);
-            const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
-            const parts = world.getComponent(id, Parts);
-            const info = world.getComponent(id, PlayerInfo);
-            const guardPart = parts[guardEffect.partKey];
+    const allEntities = world.getEntitiesWith(PlayerInfo, ActiveEffects, Parts);
+    const potentialGuardians = [];
 
-            if (guardPart && !guardPart.isBroken) {
-                return {
-                    id: id,
-                    partKey: guardEffect.partKey,
-                    partHp: guardPart.hp,
-                    name: info.name,
-                };
-            }
-            return null;
-        })
-        .filter(g => g !== null);
+    for (const id of allEntities) {
+        // 自分自身は守れない
+        if (id === originalTargetId) continue;
+
+        const info = world.getComponent(id, PlayerInfo);
+        // 敵チームは守らない
+        if (info.teamId !== targetInfo.teamId) continue;
+
+        const parts = world.getComponent(id, Parts);
+        // 頭部が破壊されているなら守れない
+        if (parts.head?.isBroken) continue;
+
+        const activeEffects = world.getComponent(id, ActiveEffects);
+        const guardEffect = activeEffects?.effects.find(e => e.type === EffectType.APPLY_GUARD && e.count > 0);
+
+        // ガード効果がないなら守れない
+        if (!guardEffect) continue;
+
+        const guardPart = parts[guardEffect.partKey];
+        // ガードパーツが破壊されているなら守れない
+        if (!guardPart || guardPart.isBroken) continue;
+
+        potentialGuardians.push({
+            id: id,
+            partKey: guardEffect.partKey,
+            partHp: guardPart.hp,
+            name: info.name,
+        });
+    }
 
     if (potentialGuardians.length === 0) return null;
     
+    // 最もHPが高いパーツを持つガーディアンが優先される
     potentialGuardians.sort((a, b) => b.partHp - a.partHp);
+    
     return potentialGuardians[0];
 }

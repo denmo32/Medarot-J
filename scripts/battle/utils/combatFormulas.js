@@ -3,16 +3,14 @@
  */
 
 import { CONFIG } from '../common/config.js';
-import { Gauge } from '../components/Gauge.js';
 // scripts/battle/utils/ -> ../../components/index.js
-import { Parts } from '../../components/index.js';
-import { ActiveEffects } from '../components/ActiveEffects.js';
 import { findBestDefensePart } from './queryUtils.js';
 // engineはルート直下にあるため ../../../ で正しい (utils -> battle -> scripts -> root)
 import { GameError, ErrorType } from '../../../engine/utils/ErrorHandler.js';
 // scripts/battle/utils/ -> ../../common/constants.js
 import { AttackType as CommonAttackType, EffectType as CommonEffectType } from '../../common/constants.js';
 import { clamp } from '../../../engine/utils/MathUtils.js';
+import { ActiveEffects } from '../components/ActiveEffects.js';
 
 export class CombatStrategy {
     calculateEvasionChance(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
@@ -20,7 +18,7 @@ export class CombatStrategy {
     calculateCriticalChance(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
     calculateDamage(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
     calculateSpeedMultiplier(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
-    calculateGaugeIncrement(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
+    calculateGaugeUpdate(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
     resolveHitOutcome(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
 }
 
@@ -120,21 +118,35 @@ class DefaultCombatStrategy extends CombatStrategy {
         return multiplier;
     }
 
-    calculateGaugeIncrement({ world, entityId, deltaTime }) {
-        if (!world || entityId === undefined) return 0;
+    /**
+     * ゲージの更新量と次の速度を計算します。
+     * @param {object} context
+     * @param {number} context.currentSpeed - 現在のゲージ増加速度
+     * @param {number} context.mobility - 機動（加速度に影響）
+     * @param {number} context.propulsion - 推進（最大速度に影響）
+     * @param {number} context.speedMultiplier - 速度補正（チャージ/冷却など）
+     * @param {number} context.deltaTime - 経過時間
+     * @returns {{ nextSpeed: number, increment: number }}
+     */
+    calculateGaugeUpdate({ currentSpeed, mobility, propulsion, speedMultiplier, deltaTime }) {
+        const { 
+            BASE_ACCELERATION, 
+            MOBILITY_TO_ACCELERATION, 
+            BASE_MAX_SPEED, 
+            PROPULSION_TO_MAX_SPEED
+        } = CONFIG.FORMULAS.GAUGE;
+        
+        const timeFactor = deltaTime / CONFIG.UPDATE_INTERVAL;
 
-        const gauge = world.getComponent(entityId, Gauge);
-        const parts = world.getComponent(entityId, Parts);
+        const acceleration = BASE_ACCELERATION + (mobility * MOBILITY_TO_ACCELERATION);
+        const maxSpeed = BASE_MAX_SPEED + (propulsion * PROPULSION_TO_MAX_SPEED);
         
-        if (!gauge || !parts) return 0;
+        const nextSpeed = Math.min(currentSpeed + acceleration, maxSpeed);
         
-        const propulsion = parts.legs?.propulsion || 1;
-        const speedMultiplier = gauge.speedMultiplier || 1.0;
-        
-        const baseIncrement = (propulsion / CONFIG.FORMULAS.GAUGE.GAUGE_INCREMENT_DIVISOR);
-        const timeFactor = (deltaTime / CONFIG.UPDATE_INTERVAL);
-        
-        return (baseIncrement * timeFactor) / speedMultiplier;
+        // speedMultiplierが大きいほど遅くなる（分母にある）仕様
+        const increment = (nextSpeed / speedMultiplier) * timeFactor;
+
+        return { nextSpeed, increment };
     }
 
     resolveHitOutcome({ world, attackerId, targetId, attackingPart, targetLegs, initialTargetPartKey }) {
@@ -224,6 +236,6 @@ export const CombatCalculator = {
     calculateCriticalChance(context) { return this.strategy.calculateCriticalChance(context); },
     calculateDamage(context) { return this.strategy.calculateDamage(context); },
     calculateSpeedMultiplier(context) { return this.strategy.calculateSpeedMultiplier(context); },
-    calculateGaugeIncrement(context) { return this.strategy.calculateGaugeIncrement(context); },
+    calculateGaugeUpdate(context) { return this.strategy.calculateGaugeUpdate(context); },
     resolveHitOutcome(context) { return this.strategy.resolveHitOutcome(context); }
 };

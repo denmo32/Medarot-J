@@ -14,11 +14,13 @@ const cancelReasonToMessageKey = {
 export class MessageSystem extends System {
     constructor(world) {
         super(world);
+        
+        // フォーマッタのマッピングを初期化
         this.supportMessageFormatters = {
-            [EffectType.HEAL]: this._formatHealMessage.bind(this),
-            [EffectType.APPLY_SCAN]: this._formatScanMessage.bind(this),
-            [EffectType.APPLY_GLITCH]: this._formatGlitchMessage.bind(this),
-            [EffectType.APPLY_GUARD]: this._formatGuardMessage.bind(this),
+            [EffectType.HEAL]: (effect) => this._formatHealMessage(effect),
+            [EffectType.APPLY_SCAN]: (effect) => this._formatScanMessage(effect),
+            [EffectType.APPLY_GLITCH]: (effect) => this._formatGlitchMessage(effect),
+            [EffectType.APPLY_GUARD]: (effect) => this._formatGuardMessage(effect),
         };
         
         this.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
