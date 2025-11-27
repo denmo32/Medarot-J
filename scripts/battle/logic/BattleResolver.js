@@ -1,12 +1,10 @@
 /**
- * @file 戦闘解決ロジック (Service)
- * @description ActionResolutionSystemから抽出された、純粋な戦闘計算と効果適用のロジッククラス。
- * Systemを継承せず、BattleSequenceSystemから同期的に呼び出されます。
+ * @file BattleResolver.js
+ * @description 戦闘計算ロジック。イベント発行を最小限にし、純粋なデータ計算に集中する。
  */
 import { Action, ActiveEffects } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
 import { EffectType } from '../../common/constants.js';
-import { GameEvents } from '../../common/events.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 import { findGuardian, isValidTarget } from '../utils/queryUtils.js';
 import { effectStrategies } from '../effects/effectStrategies.js';
@@ -19,16 +17,16 @@ export class BattleResolver {
     }
 
     /**
-     * アクションの結果を計算し、効果を適用します。
+     * アクションの結果を計算します。
+     * 副作用（HP減少など）は行わず、計算結果のみを返します。
      * @param {number} attackerId 
      * @returns {object} 結果データ
      */
     resolve(attackerId) {
         const components = this._getCombatComponents(attackerId);
         
-        // コンポーネントが不足している場合はスキップ
         if (!components) {
-            return { attackerId, isCancelled: true };
+            return { attackerId, isCancelled: true, cancelReason: 'INTERRUPTED' };
         }
         
         const targetContext = this._determineFinalTarget(components, attackerId);
@@ -39,9 +37,9 @@ export class BattleResolver {
 
         const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
         const resolvedEffects = this._processEffects(attackerId, components, targetContext, outcome);
-        const appliedEffects = this._applyAllEffects({ resolvedEffects, guardianInfo: targetContext.guardianInfo });
+        const appliedEffects = this._calculateAppliedEffects({ resolvedEffects, guardianInfo: targetContext.guardianInfo });
         
-        const resultData = {
+        return {
             attackerId,
             targetId: targetContext.finalTargetId,
             attackingPart: components.attackingPart,
@@ -51,11 +49,6 @@ export class BattleResolver {
             appliedEffects,
             isCancelled: false
         };
-
-        // 統合イベント発行（履歴記録などのため）
-        this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);
-        
-        return resultData;
     }
 
     _determineFinalTarget(components, attackerId) {
@@ -64,7 +57,6 @@ export class BattleResolver {
         const isTargetRequired = attackingPart.targetScope && (attackingPart.targetScope.endsWith('_SINGLE') || attackingPart.targetScope.endsWith('_TEAM'));
         
         if (isTargetRequired && !attackingPart.isSupport && !isValidTarget(this.world, action.targetId, action.targetPartKey)) {
-            console.warn(`BattleResolver: Target for entity ${attackerId} is no longer valid.`);
             return { shouldCancel: true };
         }
 
@@ -138,32 +130,26 @@ export class BattleResolver {
         return resolvedEffects;
     }
 
-    _applyAllEffects({ resolvedEffects, guardianInfo }) {
+    _calculateAppliedEffects({ resolvedEffects, guardianInfo }) {
         const appliedEffects = [];
         const effectQueue = [...resolvedEffects];
 
-        if (guardianInfo) {
-            this._consumeGuardCount(guardianInfo.id);
-        }
+        // ガード消費は「適用」フェーズで行うべきだが、
+        // ここでは「ガードされた」という事実を効果リストに含めるか、
+        // 呼び出し元で処理するか。今回はResolverは純粋関数に近づけるため、
+        // 消費ロジック自体はここには含めず、適用時に消費させるためのマーカーを含めたいところだが、
+        // 既存ロジックを踏襲し、Applicatorを呼び出して「計算結果」を得る。
+        // Applicatorは副作用（イベント発行）の指示を含むオブジェクトを返す。
 
         while (effectQueue.length > 0) {
             const effect = effectQueue.shift();
             
             const applicator = this.effectApplicators[effect.type];
-            if (!applicator) {
-                console.warn(`BattleResolver: No applicator for "${effect.type}".`);
-                continue;
-            }
+            if (!applicator) continue;
 
-            // 副作用を分離したApplicatorを呼び出し
             const result = applicator({ world: this.world, effect });
 
             if (result) {
-                // 結果に含まれるイベントを発行
-                if (result.events) {
-                    result.events.forEach(event => this.world.emit(event.type, event.payload));
-                }
-
                 appliedEffects.push(result);
                 if (result.nextEffect) {
                     effectQueue.unshift(result.nextEffect);
@@ -171,19 +157,6 @@ export class BattleResolver {
             }
         }
         return appliedEffects;
-    }
-
-    _consumeGuardCount(guardianId) {
-        const activeEffects = this.world.getComponent(guardianId, ActiveEffects);
-        if (!activeEffects) return;
-
-        const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
-        if (guardEffect) {
-            guardEffect.count--;
-            if (guardEffect.count <= 0) {
-                this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId: guardianId, effect: guardEffect });
-            }
-        }
     }
     
     _getCombatComponents(attackerId) {

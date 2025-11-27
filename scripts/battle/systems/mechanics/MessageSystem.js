@@ -1,3 +1,7 @@
+/**
+ * @file MessageSystem.js
+ * @description メッセージとモーダルの表示管理。タスクからの呼び出しに対応。
+ */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { ModalType, ActionCancelReason } from '../../common/constants.js';
@@ -16,46 +20,61 @@ export class MessageSystem extends System {
         super(world);
         this.messageGenerator = new MessageGenerator(world);
         
+        // 旧互換イベント（タスクシステム完全移行後は削除可能だが残しておく）
         this.on(GameEvents.REQUEST_RESULT_DISPLAY, this.onResultDisplayRequested.bind(this));
         this.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
         this.on(GameEvents.GUARD_BROKEN, this.onGuardBroken.bind(this));
+        
+        // モーダル制御用のPromise解決関数保持用
+        this.pendingResolvers = new Map();
+        
+        // モーダルが閉じたときのイベントを監視
+        this.on(GameEvents.MODAL_CLOSED, this.onModalClosed.bind(this));
     }
+
+    /**
+     * メッセージタスクを処理 (Async)
+     * @param {object} task 
+     */
+    showMessage(task) {
+        return new Promise((resolve) => {
+            const { modalType, data, messageSequence } = task;
+            
+            // モーダルタイプをキーにしてResolverを保存
+            this.pendingResolvers.set(modalType, resolve);
+
+            // ActionPanelSystemに対してモーダル表示要求を発行
+            this.world.emit(GameEvents.SHOW_MODAL, {
+                type: modalType,
+                data: data,
+                messageSequence: messageSequence,
+                immediate: true,
+            });
+        });
+    }
+
+    onModalClosed(detail) {
+        const { modalType } = detail;
+        const resolve = this.pendingResolvers.get(modalType);
+        if (resolve) {
+            this.pendingResolvers.delete(modalType);
+            resolve();
+        }
+    }
+
+    // --- 以下、旧イベントハンドラ (タスクシステムから呼ばれないケース用) ---
 
     onResultDisplayRequested(detail) {
         const { resultData } = detail;
         if (!resultData || resultData.isCancelled) return;
 
-        const { attackerId, targetId, appliedEffects } = resultData;
-        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
-        if (!attackerInfo) return;
-
-        // 攻撃宣言モーダルの表示
         const declarationSequence = this.messageGenerator.createDeclarationSequence(resultData);
-        
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.ATTACK_DECLARATION,
             data: { ...resultData },
             messageSequence: declarationSequence,
             immediate: true,
         });
-
-        const shouldShowResult = targetId || (appliedEffects && appliedEffects.length > 0);
-
-        if (shouldShowResult) {
-            // 結果表示モーダルの表示
-            const resultSequence = this.messageGenerator.createResultSequence(resultData);
-            
-            if (resultSequence.length > 0) {
-                this.world.emit(GameEvents.SHOW_MODAL, {
-                    type: ModalType.EXECUTION_RESULT,
-                    data: { ...resultData },
-                    messageSequence: resultSequence,
-                    immediate: true
-                });
-            }
-        }
-        
-        // ActionPanelSystemがモーダルを閉じたタイミングで BattleSequenceSystem がフローを進める
     }
 
     onActionCancelled(detail) {

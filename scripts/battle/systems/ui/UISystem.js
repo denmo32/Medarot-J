@@ -1,7 +1,7 @@
 import { System } from '../../../../engine/core/System.js';
 import { Position, GameState, ActiveEffects } from '../../components/index.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
-import { PlayerStateType } from '../../common/constants.js';
+import { PlayerStateType, BattlePhase } from '../../common/constants.js';
 import { EffectType } from '../../../common/constants.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { GameEvents } from '../../../common/events.js';
@@ -17,10 +17,18 @@ export class UISystem extends System {
     }
 
     onHpUpdated(detail) {
-        if (this.battleContext?.isPaused) {
+        // バトルシーケンス実行中は、HPアニメーション（ViewSystem）に任せるため、
+        // ここでの即時DOM更新は行わない。
+        if (this.battleContext && 
+            this.battleContext.phase === BattlePhase.ACTION_EXECUTION &&
+            this.battleContext.isSequenceRunning) {
             return;
         }
 
+        this._updateHpDom(detail);
+    }
+    
+    _updateHpDom(detail) {
         const { entityId, partKey, newHp, maxHp } = detail;
         const domElements = this.uiManager.getDOMElements(entityId);
         const partDom = domElements?.partDOMElements?.[partKey];
@@ -33,6 +41,7 @@ export class UISystem extends System {
             partDom.value.textContent = `${newHp}/${maxHp}`;
         }
         
+        // 色の更新
         if (newHp === 0) {
             partDom.bar.style.backgroundColor = '#4a5568';
         } else {

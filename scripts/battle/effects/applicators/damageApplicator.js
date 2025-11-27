@@ -1,6 +1,6 @@
 /**
  * @file ダメージ適用ロジック
- * 副作用（イベント発行）を排除し、発行すべきイベント情報を返すように変更。
+ * 副作用を排除し、計算結果のみを返す。
  */
 import { Parts } from '../../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
@@ -14,20 +14,21 @@ export const applyDamage = ({ world, effect }) => {
 
     const oldHp = part.hp;
     const newHp = Math.max(0, oldHp - value);
-    part.hp = newHp;
+    // part.hp = newHp; // ★削除: ここで書き換えない！
+    
     const actualDamage = oldHp - newHp;
     const isPartBroken = oldHp > 0 && newHp === 0;
     let isPlayerBroken = false;
 
-    // 副作用としてのイベント発行を削除し、結果オブジェクトに含める
     const events = [];
     events.push({
         type: GameEvents.HP_UPDATED,
         payload: { entityId: targetId, partKey, newHp, maxHp: part.maxHp, change: -actualDamage, isHeal: false }
     });
     
+    // isPartBrokenの判定はここで行うが、実際のフラグセットは行わない
     if (isPartBroken) {
-        part.isBroken = true;
+        // part.isBroken = true; // ★削除
         if (partKey === PartInfo.HEAD.key) {
             isPlayerBroken = true;
         }
@@ -35,6 +36,12 @@ export const applyDamage = ({ world, effect }) => {
 
     let nextEffect = null;
     const overkillDamage = value - actualDamage;
+    // 貫通判定のためには、次のターゲットを探す必要があるが、
+    // 現在のパーツが壊れた前提で探す必要がある。
+    // queryUtilsのfindRandomPenetrationTargetは現在のisBrokenを見ているため、
+    // ここでisBrokenになっていないと、同じパーツを選んでしまう可能性がある？
+    // -> findRandomPenetrationTargetのexcludedPartKey引数で現在のパーツを除外すればOK。
+    
     if (isPartBroken && effect.penetrates && overkillDamage > 0) {
         const nextTargetPartKey = findRandomPenetrationTarget(world, targetId, partKey);
         if (nextTargetPartKey) {
@@ -54,6 +61,6 @@ export const applyDamage = ({ world, effect }) => {
         isPlayerBroken,
         overkillDamage: overkillDamage,
         nextEffect: nextEffect,
-        events: events // イベント情報を返す
+        events: events
     };
 };

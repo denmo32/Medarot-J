@@ -18,6 +18,11 @@ export class GaugeSystem extends System {
     }
 
     update(deltaTime) {
+        // シーケンス実行中はゲージ更新を停止
+        if (this.battleContext.isSequenceRunning) {
+            return;
+        }
+
         const activePhases = [
             BattlePhase.TURN_START,
             BattlePhase.ACTION_SELECTION,
@@ -29,6 +34,7 @@ export class GaugeSystem extends System {
             return;
         }
 
+        // 行動選択待ちのアクターがいる場合も停止（従来通り）
         const entitiesWithState = this.getEntities(GameState);
         const hasActionQueued = entitiesWithState.some(entityId => {
             const gameState = this.world.getComponent(entityId, GameState);
@@ -55,6 +61,7 @@ export class GaugeSystem extends System {
                 PlayerStateType.COOLDOWN_COMPLETE, 
                 PlayerStateType.BROKEN, 
                 PlayerStateType.GUARDING,
+                PlayerStateType.AWAITING_ANIMATION // これも追加
             ];
             if (statesToPause.includes(gameState.state)) {
                 continue;
@@ -83,11 +90,6 @@ export class GaugeSystem extends System {
         }
     }
     
-    onPauseGame() {
-        this.isPaused = true;
-    }
-    
-    onResumeGame() {
-        this.isPaused = false;
-    }
+    onPauseGame() { this.isPaused = true; }
+    onResumeGame() { this.isPaused = false; }
 }
