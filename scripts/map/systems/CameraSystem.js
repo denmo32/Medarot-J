@@ -1,6 +1,5 @@
 import { System } from '../../../engine/core/System.js';
-import { PlayerControllable } from '../../components/map/PlayerControllable.js';
-import { Position } from '../../components/map/Position.js';
+import * as MapComponents from '../components.js';
 import { CONFIG } from '../constants.js';
 import { clamp } from '../../../engine/utils/MathUtils.js';
 
@@ -14,7 +13,7 @@ export class CameraSystem extends System {
 
     _findPlayer() {
         if (this.playerEntityId === null) {
-            const players = this.getEntities(PlayerControllable);
+            const players = this.getEntities(MapComponents.PlayerControllable);
             if (players.length > 0) {
                 this.playerEntityId = players[0];
             }
@@ -26,7 +25,7 @@ export class CameraSystem extends System {
         const playerEntityId = this._findPlayer();
         if (playerEntityId === null) return;
 
-        const playerPosition = this.world.getComponent(playerEntityId, Position);
+        const playerPosition = this.world.getComponent(playerEntityId, MapComponents.Position);
         if (!playerPosition) return;
 
         let targetX = playerPosition.x + (CONFIG.PLAYER_SIZE / 2) - (CONFIG.VIEWPORT_WIDTH / 2);

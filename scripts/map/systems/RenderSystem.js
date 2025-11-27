@@ -1,7 +1,5 @@
 import { System } from '../../../engine/core/System.js';
-import { Position } from '../../components/map/Position.js';
-import { Renderable } from '../../components/map/Renderable.js';
-import { FacingDirection } from '../../components/map/FacingDirection.js';
+import * as MapComponents from '../components.js';
 
 export class RenderSystem extends System {
     constructor(world, renderer, map, camera) {
@@ -19,10 +17,10 @@ export class RenderSystem extends System {
 
         this.map.draw(this.renderer, this.camera);
 
-        const entitiesToRender = this.getEntities(Position, Renderable);
+        const entitiesToRender = this.getEntities(MapComponents.Position, MapComponents.Renderable);
         for (const entityId of entitiesToRender) {
-            const position = this.world.getComponent(entityId, Position);
-            const renderable = this.world.getComponent(entityId, Renderable);
+            const position = this.world.getComponent(entityId, MapComponents.Position);
+            const renderable = this.world.getComponent(entityId, MapComponents.Renderable);
 
             if (renderable.shape === 'circle') {
                 this.renderer.drawCircle(
@@ -49,7 +47,7 @@ export class RenderSystem extends System {
     }
 
     _drawDirectionIndicator(entityId, position, renderable) {
-        const facingDirection = this.world.getComponent(entityId, FacingDirection);
+        const facingDirection = this.world.getComponent(entityId, MapComponents.FacingDirection);
         if (!facingDirection) return;
 
         const dotRadius = 2;

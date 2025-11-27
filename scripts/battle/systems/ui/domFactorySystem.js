@@ -1,9 +1,8 @@
-﻿import { System } from '../../../../engine/core/System.js';
-import { CONFIG } from '../../../config/gameConfig.js';
+import { System } from '../../../../engine/core/System.js';
+import { CONFIG } from '../../common/config.js';
 import { GameEvents } from '../../../common/events.js';
-import { Position } from '../../../components/battle/index.js';
-import { PlayerInfo, Parts } from '../../../components/common/index.js';
-import { TeamID, PartKeyToInfoMap, PartInfo } from '../../../config/constants.js';
+import * as Components from '../../components/index.js';
+import { TeamID, PartKeyToInfoMap, PartInfo } from '../../common/constants.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { el } from '../../../../engine/utils/DOMUtils.js';
 
@@ -22,34 +21,6 @@ export class DomFactorySystem extends System {
         this.on(GameEvents.GAME_WILL_RESET, this.onGameWillReset.bind(this));
     }
 
-    /**
-     * システム破棄時にDOMをクリーンアップします。
-     */
-    destroy() {
-        this.clearDOM();
-        super.destroy();
-    }
-
-    /**
-     * DOM要素を初期状態に戻します。
-     */
-    clearDOM() {
-        if (this.battlefield) {
-            // アクションラインを維持してクリア
-            this.battlefield.innerHTML = '<div class="action-line-1"></div><div class="action-line-2"></div>';
-        }
-        
-        Object.values(this.teamContainers).forEach(container => {
-            if (container) {
-                container.innerHTML = '';
-            }
-        });
-
-        if (this.uiManager) {
-            this.uiManager.clear();
-        }
-    }
-
     onSetupUIRequested() {
         const playerEntities = this.getEntities(Components.PlayerInfo);
         for (const entityId of playerEntities) {
@@ -58,7 +29,15 @@ export class DomFactorySystem extends System {
     }
 
     onGameWillReset() {
-        this.clearDOM();
+        this.battlefield.innerHTML = '<div class="action-line-1"></div><div class="action-line-2"></div>';
+        
+        Object.values(this.teamContainers).forEach(container => {
+            container.innerHTML = '';
+        });
+
+        if (this.uiManager) {
+            this.uiManager.clear();
+        }
     }
 
     _createPlayerDOM(entityId) {

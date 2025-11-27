@@ -1,13 +1,12 @@
-﻿/**
+/**
  * @file クエリユーティリティ
  * ワールド（ECS）から特定の条件に基づいてエンティティやコンポーネントを
  * 問い合わせる（検索・取得する）ためのユーティリティ関数群です。
  * 宣言的な記述（filter, map, reduce等）を用いて可読性を高めています。
  */
 
-import { Position, GameState, ActiveEffects } from '../../../components/battle/index.js';
-import { Parts, PlayerInfo } from '../../../components/common/index.js';
-import { PartInfo, PlayerStateType, EffectType, EffectScope } from '../../config/constants.js';
+import { Parts, Position, PlayerInfo, GameState, ActiveEffects } from '../components/index.js';
+import { PartInfo, PlayerStateType, EffectType, EffectScope } from '../common/constants.js';
 
 /**
  * 2つのエンティティを脚部パーツの「推進」の値で比較するためのソート関数を生成する高階関数。

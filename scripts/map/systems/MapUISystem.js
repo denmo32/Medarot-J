@@ -1,5 +1,6 @@
 import { System } from '../../../engine/core/System.js';
 import { MapUIState } from '../../scenes/MapScene.js';
+import * as MapComponents from '../components.js';
 import { GameEvents } from '../../common/events.js';
 import { InputManager } from '../../../engine/input/InputManager.js';
 

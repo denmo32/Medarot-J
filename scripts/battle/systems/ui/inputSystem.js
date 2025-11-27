@@ -1,7 +1,7 @@
-﻿import { System } from '../../../../engine/core/System.js';
+import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerInfo } from '../../../components/common/index.js';
-import { ModalType } from '../../../config/constants.js';
+import { PlayerInfo } from '../../components/index.js';
+import { ModalType } from '../../common/constants.js';
 import { getAllActionParts } from '../../utils/queryUtils.js';
 import { decideAndEmitAction } from '../../utils/actionUtils.js';
 import { determineTargetCandidatesByPersonality } from '../../ai/aiDecisionUtils.js';

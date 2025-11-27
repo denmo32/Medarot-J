@@ -1,10 +1,10 @@
-﻿import { System } from '../../../../engine/core/System.js';
+import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { ModalType } from '../../../config/constants.js';
+import { ModalType } from '../../common/constants.js';
 import { InputManager } from '../../../../engine/input/InputManager.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { createModalHandlers } from '../../ui/modalHandlers.js';
-import { PlayerInfo } from '../../../components/common/index.js';
+import { PlayerInfo } from '../../components/index.js';
 
 export class ActionPanelSystem extends System {
     constructor(world) {
@@ -40,7 +40,9 @@ export class ActionPanelSystem extends System {
     }
     
     destroy() {
-        this.resetPanelDOM();
+        if (this.boundHandlePanelClick) {
+            this.dom.actionPanel.removeEventListener('click', this.boundHandlePanelClick);
+        }
         super.destroy();
     }
     
@@ -227,7 +229,7 @@ export class ActionPanelSystem extends System {
         const { dom } = this;
         dom.actionPanelOwner.textContent = '';
         dom.actionPanelTitle.textContent = '';
-        dom.actionPanelActor.innerHTML = '';
+        dom.actionPanelActor.innerHTML = '待機中...';
         dom.actionPanelButtons.innerHTML = '';
         dom.actionPanelIndicator.classList.add('hidden');
         dom.actionPanel.classList.remove('clickable');

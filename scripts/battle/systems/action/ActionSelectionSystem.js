@@ -1,8 +1,8 @@
-﻿import { System } from '../../../../engine/core/System.js';
+import { System } from '../../../../engine/core/System.js';
 import { BattleContext } from '../../context/index.js';
-import { BattlePhase } from '../../../config/constants.js';
+import { BattlePhase } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerInfo } from '../../../components/common/index.js';
+import { PlayerInfo } from '../../components/index.js';
 
 export class ActionSelectionSystem extends System {
     constructor(world) {

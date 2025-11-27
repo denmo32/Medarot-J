@@ -1,13 +1,10 @@
-﻿import { CONFIG } from '../../config/gameConfig.js';
-import { PlayerInfo } from '../../../components/common/PlayerInfo.js';
-import { Gauge, GameState, Action, BattleLog, Position, ActiveEffects } from '../../../components/battle/index.js';
-import { Parts } from '../../../components/common/Parts.js';
-import { Medal } from '../../../components/common/Medal.js';
-import { TeamID, MedalPersonality, PartInfo } from '../../config/constants.js'; 
-import { PARTS_DATA } from '../../data/parts.js'; 
-import { MEDAROT_SETS } from '../../data/medarotSets.js'; 
-import { MEDALS_DATA } from '../../data/medals.js';
-import { buildPartData } from '../../data/partDataUtils.js';
+import { CONFIG } from '../common/config.js';
+import * as Components from '../components/index.js';
+import { TeamID, MedalPersonality, PartInfo } from '../common/constants.js'; 
+import { PARTS_DATA } from '../data/parts.js'; 
+import { MEDAROT_SETS } from '../data/medarotSets.js'; 
+import { MEDALS_DATA } from '../data/medals.js';
+import { buildPartData } from '../data/partDataUtils.js';
 
 // --- Helper Functions ---
 

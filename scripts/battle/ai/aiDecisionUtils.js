@@ -3,7 +3,7 @@
  * このファイルは、AIの思考ルーチンから共通して利用される、
  * ターゲット候補を決定し、最適な行動プランを選択するためのユーティリティ関数を提供します。
  */
-import { Medal, PlayerInfo } from '../../../components/common/index.js';
+import { Medal, PlayerInfo } from '../components/index.js';
 import { getStrategiesFor } from './personalityRegistry.js';
 import { targetingStrategies } from './targetingStrategies.js';
 import { conditionEvaluators } from './conditionEvaluators.js';

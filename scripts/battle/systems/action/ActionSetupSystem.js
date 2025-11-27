@@ -1,8 +1,7 @@
-﻿import { System } from '../../../../engine/core/System.js';
+import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { Action, GameState, Gauge } from '../../../components/battle/index.js';
-import { Parts } from '../../../components/common/index.js';
-import { PlayerStateType } from '../../../config/constants.js';
+import { Action, GameState, Gauge, Parts } from '../../components/index.js';
+import { PlayerStateType } from '../../common/constants.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';
 
 export class ActionSetupSystem extends System {

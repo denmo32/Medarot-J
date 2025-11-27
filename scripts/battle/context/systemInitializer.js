@@ -1,4 +1,4 @@
-﻿
+import * as Components from '../components/index.js';
 import { BattleContext } from './BattleContext.js';
 import { ViewSystem } from '../systems/ui/ViewSystem.js';
 import { DomFactorySystem } from '../systems/ui/DomFactorySystem.js';
@@ -14,7 +14,7 @@ import { EffectSystem } from '../systems/mechanics/EffectSystem.js';
 import { MessageSystem } from '../systems/mechanics/MessageSystem.js';
 import { ActionCancellationSystem } from '../systems/action/ActionCancellationSystem.js';
 import { DebugSystem } from '../systems/ui/DebugSystem.js';
-import { CONFIG } from '../../config/gameConfig.js';
+import { CONFIG } from '../common/config.js';
 import { PhaseSystem } from '../systems/flow/PhaseSystem.js';
 import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.js';
 import { ActionSetupSystem } from '../systems/action/ActionSetupSystem.js';
@@ -40,9 +40,9 @@ export function initializeSystems(world) {
     world.addComponent(contextEntity, new UIManager());
 
     // --- システムのインスタンス化 ---
-    const inputSystem = new InputSystem(world);
-    const aiSystem = new AiSystem(world);
-    const domFactorySystem = new DomFactorySystem(world);
+    new InputSystem(world);
+    new AiSystem(world);
+    new DomFactorySystem(world);
     const actionPanelSystem = new ActionPanelSystem(world);
 
     const gameFlowSystem = new GameFlowSystem(world);
@@ -64,11 +64,11 @@ export function initializeSystems(world) {
     const cooldownSystem = new CooldownSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
 
-    // --- システムの登録順序を整理 ---
-    world.registerSystem(inputSystem);
-    world.registerSystem(aiSystem);
-    world.registerSystem(domFactorySystem);
+    if (CONFIG.DEBUG) {
+        new DebugSystem(world);
+    }
     
+    // --- システムの登録順序を整理 ---
     world.registerSystem(gameFlowSystem);
     world.registerSystem(winConditionSystem);
     world.registerSystem(phaseSystem);
@@ -89,8 +89,4 @@ export function initializeSystems(world) {
     world.registerSystem(viewSystem);
     world.registerSystem(actionPanelSystem);
     world.registerSystem(new UISystem(world));
-
-    if (CONFIG.DEBUG) {
-        world.registerSystem(new DebugSystem(world));
-    }
 }

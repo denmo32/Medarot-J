@@ -1,8 +1,7 @@
-﻿import { System } from '../../../../engine/core/System.js';
+import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { GameState, Action } from '../../../components/battle/index.js';
-import { Parts } from '../../../components/common/index.js';
-import { PlayerStateType, ActionCancelReason } from '../../../config/constants.js';
+import { GameState, Action, Parts } from '../../components/index.js';
+import { PlayerStateType, ActionCancelReason } from '../../common/constants.js';
 
 export class ActionCancellationSystem extends System {
     constructor(world) {

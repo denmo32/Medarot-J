@@ -1,9 +1,9 @@
-﻿/**
+/**
  * @file AIパーツ選択戦略定義
  * このファイルは、AIの「メダルの性格」に基づいた多様な攻撃パーツ選択戦略（アルゴリズム）を定義します。
  */
-import { MedalPersonality } from '../../config/constants.js';
-import { PartRoleKey } from '../../data/partRoles.js';
+import { MedalPersonality } from '../common/constants.js';
+import { PartRoleKey } from '../data/partRoles.js';
 
 /**
  * 指定されたフィルター関数とソート関数に基づいてパーツ選択戦略を生成する高階関数。

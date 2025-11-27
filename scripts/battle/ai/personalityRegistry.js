@@ -1,8 +1,8 @@
-﻿/**
+/**
  * @file AI性格レジストリ
  * AIの「性格」と、それに対応する行動戦略（ターゲット選択、パーツ選択）の関連性を一元管理します。
  */
-import { MedalPersonality } from '../../config/constants.js';
+import { MedalPersonality } from '../common/constants.js';
 import { TargetingStrategyKey } from './targetingStrategies.js';
 import { PartSelectionStrategyKey } from './partSelectionStrategies.js';
 import { ConditionEvaluatorKey } from './conditionEvaluators.js';

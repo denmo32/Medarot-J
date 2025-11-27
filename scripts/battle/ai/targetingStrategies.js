@@ -10,7 +10,7 @@ import { offensiveStrategies } from './strategies/offensiveTargeting.js';
 import { supportStrategies } from './strategies/supportTargeting.js';
 import { postMoveStrategies } from './strategies/postMoveTargeting.js';
 // 循環参照を避けるため、TargetingStrategyKey は strategyKeys.js から再エクスポートする
-export { TargetingStrategyKey } from '../../config/strategyKeys.js';
+export { TargetingStrategyKey } from './strategyKeys.js';
 
 /**
  * メダルの性格に基づいたターゲット決定戦略のコレクション。

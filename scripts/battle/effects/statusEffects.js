@@ -1,10 +1,9 @@
-﻿/**
+/**
  * @file 状態関連効果戦略定義
  * スキャン、妨害、ガードなど、エンティティの状態や能力値を変化させる効果のロジックを定義します。
  */
-import { PlayerInfo } from '../../../components/common/index.js';
-import { ActiveEffects, GameState, Action } from '../../../components/battle/index.js';
-import { EffectType, EffectScope, PlayerStateType } from '../../config/constants.js';
+import { PlayerInfo, ActiveEffects, GameState, Action } from '../components/index.js';
+import { EffectType, EffectScope, PlayerStateType } from '../common/constants.js';
 import { getValidAllies } from '../utils/queryUtils.js';
 
 /**

@@ -1,6 +1,6 @@
 import { System } from '../../../engine/core/System.js';
 import { InputManager } from '../../../engine/input/InputManager.js';
-import { CustomizeState } from '../../components/customize/CustomizeState.js';
+import { CustomizeState } from '../components/CustomizeState.js';
 import { GameEvents } from '../../common/events.js';
 
 export class CustomizeInputSystem extends System {

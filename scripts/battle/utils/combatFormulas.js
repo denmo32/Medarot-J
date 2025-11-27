@@ -1,13 +1,15 @@
-﻿/**
+/**
  * @file 戦闘計算式ユーティリティ
  */
 
-import { CONFIG } from '../../config/gameConfig.js';
-import { Gauge, ActiveEffects } from '../../../components/battle/index.js';
-import { Parts } from '../../../components/common/index.js';
+import { CONFIG } from '../common/config.js';
+import { Gauge } from '../components/Gauge.js';
+import { Parts } from '../components/Parts.js';
+import { ActiveEffects } from '../components/ActiveEffects.js';
 import { findBestDefensePart } from './queryUtils.js';
+// engineインポートパス修正
 import { GameError, ErrorType } from '../../../engine/utils/ErrorHandler.js';
-import { EffectType, AttackType } from '../../config/constants.js';
+import { EffectType, AttackType } from '../common/constants.js';
 import { clamp } from '../../../engine/utils/MathUtils.js'; // PascalCase
 
 export class CombatStrategy {

@@ -7,14 +7,7 @@ import { MAP_EVENTS, CONFIG as MAP_CONFIG, PLAYER_STATES } from '../map/constant
 import { Camera } from '../../engine/graphics/Camera.js';
 import { Renderer } from '../../engine/graphics/Renderer.js';
 import { Map } from '../map/map.js';
-import { Position } from '../components/map/Position.js';
-import { Velocity } from '../components/map/Velocity.js';
-import { Renderable } from '../components/map/Renderable.js';
-import { PlayerControllable } from '../components/map/PlayerControllable.js';
-import { Collision } from '../components/map/Collision.js';
-import { State } from '../components/map/State.js';
-import { TargetPosition } from '../components/map/TargetPosition.js';
-import { FacingDirection } from '../components/map/FacingDirection.js';
+import * as MapComponents from '../map/components.js';
 import { PlayerInputSystem } from '../map/systems/PlayerInputSystem.js';
 import { MovementSystem } from '../map/systems/MovementSystem.js';
 import { CameraSystem } from '../map/systems/CameraSystem.js';
@@ -93,20 +86,21 @@ export class MapScene extends Scene { // extends Scene
         const playerEntityId = this.world.createEntity();
         const mapPlayerData = gameDataManager.getPlayerDataForMap();
         
-        this.world.addComponent(playerEntityId, new Position(mapPlayerData.position.x, mapPlayerData.position.y));
-        this.world.addComponent(playerEntityId, new Velocity(0, 0));
-        this.world.addComponent(playerEntityId, new Renderable('circle', 'gold', MAP_CONFIG.PLAYER_SIZE));
-        this.world.addComponent(playerEntityId, new PlayerControllable());
-        this.world.addComponent(playerEntityId, new Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
-        this.world.addComponent(playerEntityId, new State(PLAYER_STATES.IDLE));
-        this.world.addComponent(playerEntityId, new FacingDirection(mapPlayerData.position.direction));
+        this.world.addComponent(playerEntityId, new MapComponents.Position(mapPlayerData.position.x, mapPlayerData.position.y));
+        this.world.addComponent(playerEntityId, new MapComponents.Velocity(0, 0));
+        this.world.addComponent(playerEntityId, new MapComponents.Renderable('circle', 'gold', MAP_CONFIG.PLAYER_SIZE));
+        this.world.addComponent(playerEntityId, new MapComponents.PlayerControllable());
+        this.world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
+        this.world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
+        this.world.addComponent(playerEntityId, new MapComponents.FacingDirection(mapPlayerData.position.direction));
+
         return playerEntityId;
     }
 
     _bindEvents(gameDataManager, playerEntityId) {
         const savePlayerState = () => {
-            const pos = this.world.getComponent(playerEntityId, Position);
-            const dir = this.world.getComponent(playerEntityId, FacingDirection);
+            const pos = this.world.getComponent(playerEntityId, MapComponents.Position);
+            const dir = this.world.getComponent(playerEntityId, MapComponents.FacingDirection);
             if (pos && dir) {
                 gameDataManager.updatePlayerMapState({ x: pos.x, y: pos.y, direction: dir.direction });
             }
