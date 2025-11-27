@@ -4,7 +4,7 @@ import { ModalType } from '../../../config/constants.js';
 import { InputManager } from '../../../../engine/input/InputManager.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { createModalHandlers } from '../../ui/modalHandlers.js';
-import { PlayerInfo } from '../../components/index.js';
+import { PlayerInfo } from '../../../components/common/index.js';
 
 export class ActionPanelSystem extends System {
     constructor(world) {

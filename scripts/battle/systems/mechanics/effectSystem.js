@@ -1,5 +1,5 @@
 import { System } from '../../../../engine/core/System.js';
-import { ActiveEffects } from '../../components/index.js';
+import { ActiveEffects } from '../../../components/battle/index.js';
 import { GameEvents } from '../../../common/events.js';
 
 export class EffectSystem extends System {

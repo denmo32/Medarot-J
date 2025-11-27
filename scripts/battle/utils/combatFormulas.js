@@ -3,9 +3,8 @@
  */
 
 import { CONFIG } from '../../config/gameConfig.js';
-import { Gauge } from '../components/Gauge.js';
-import { Parts } from '../../models/Parts.js';
-import { ActiveEffects } from '../components/ActiveEffects.js';
+import { Gauge, ActiveEffects } from '../../../components/battle/index.js';
+import { Parts } from '../../../components/common/index.js';
 import { findBestDefensePart } from './queryUtils.js';
 import { GameError, ErrorType } from '../../../engine/utils/ErrorHandler.js';
 import { EffectType, AttackType } from '../../config/constants.js';

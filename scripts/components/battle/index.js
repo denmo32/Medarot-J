@@ -1,10 +1,10 @@
-export { PlayerInfo } from '../../models/PlayerInfo.js';
+export { PlayerInfo } from '../common/PlayerInfo.js';
 export { Gauge } from './Gauge.js';
 export { GameState } from './GameState.js';
-export { Parts } from '../../models/Parts.js';
+export { Parts } from '../common/Parts.js';
 export { Action } from './Action.js';
 export { Position } from './Position.js';
-export { Team } from '../../models/Team.js';
-export { Medal } from '../../models/Medal.js';
+export { Team } from '../common/Team.js';
+export { Medal } from '../common/Medal.js';
 export { BattleLog } from './BattleLog.js';
 export { ActiveEffects } from './ActiveEffects.js';

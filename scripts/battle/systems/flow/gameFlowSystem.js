@@ -1,5 +1,5 @@
 ﻿import { System } from '../../../../engine/core/System.js';
-import { GameState, Gauge, Action } from '../../components/index.js';
+import { GameState, Gauge, Action } from '../../../components/battle/index.js';
 import { BattleContext } from '../../context/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../../config/constants.js';

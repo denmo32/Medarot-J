@@ -1,6 +1,6 @@
 ﻿import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerInfo } from '../../components/index.js';
+import { PlayerInfo } from '../../../components/common/index.js';
 import { TeamID, BattlePhase } from '../../../config/constants.js';
 import { BattleContext } from '../../context/index.js';
 import { getValidAllies } from '../../utils/queryUtils.js';

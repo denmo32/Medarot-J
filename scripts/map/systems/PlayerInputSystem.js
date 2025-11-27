@@ -1,5 +1,10 @@
 import { System } from '../../../engine/core/System.js';
-import * as MapComponents from '../components.js';
+import { PlayerControllable } from '../../components/map/PlayerControllable.js';
+import { State } from '../../components/map/State.js';
+import { Position } from '../../components/map/Position.js';
+import { Collision } from '../../components/map/Collision.js';
+import { FacingDirection } from '../../components/map/FacingDirection.js';
+import { TargetPosition } from '../../components/map/TargetPosition.js';
 import { CONFIG, PLAYER_STATES } from '../constants.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import { GameEvents } from '../../common/events.js';
@@ -25,10 +30,10 @@ export class PlayerInputSystem extends System {
 
     handleMapInput() {
         const entities = this.getEntities(
-            MapComponents.PlayerControllable, 
-            MapComponents.State, 
-            MapComponents.Position,
-            MapComponents.Collision
+            PlayerControllable, 
+            State, 
+            Position,
+            Collision
         );
 
         for (const entityId of entities) {
@@ -41,20 +46,19 @@ export class PlayerInputSystem extends System {
     }
 
     _handleMovement(entityId) {
-        const state = this.world.getComponent(entityId, MapComponents.State);
+        const state = this.world.getComponent(entityId, State);
         
         if (state.value !== PLAYER_STATES.IDLE || !this.input.direction) {
             return;
         }
-
         const direction = this.input.direction;
         this._updateFacingDirection(entityId, direction);
         this._tryMove(entityId, direction);
     }
 
     _tryMove(entityId, direction) {
-        const position = this.world.getComponent(entityId, MapComponents.Position);
-        const collision = this.world.getComponent(entityId, MapComponents.Collision);
+        const position = this.world.getComponent(entityId, Position);
+        const collision = this.world.getComponent(entityId, Collision);
 
         const targetPos = this._calculateTargetPosition(position, direction);
 
@@ -91,24 +95,24 @@ export class PlayerInputSystem extends System {
     }
 
     _updateFacingDirection(entityId, direction) {
-        const facingDirection = this.world.getComponent(entityId, MapComponents.FacingDirection);
+        const facingDirection = this.world.getComponent(entityId, FacingDirection);
         if (facingDirection) {
             facingDirection.direction = direction;
         } else {
-            this.world.addComponent(entityId, new MapComponents.FacingDirection(direction));
+            this.world.addComponent(entityId, new FacingDirection(direction));
         }
     }
 
     _applyMovement(entityId, targetPos) {
-        const state = this.world.getComponent(entityId, MapComponents.State);
+        const state = this.world.getComponent(entityId, State);
         state.value = PLAYER_STATES.WALKING;
         
-        const targetPosition = this.world.getComponent(entityId, MapComponents.TargetPosition);
+        const targetPosition = this.world.getComponent(entityId, TargetPosition);
         if (targetPosition) {
             targetPosition.x = targetPos.x;
             targetPosition.y = targetPos.y;
         } else {
-            this.world.addComponent(entityId, new MapComponents.TargetPosition(targetPos.x, targetPos.y));
+            this.world.addComponent(entityId, new TargetPosition(targetPos.x, targetPos.y));
         }
     }
 }

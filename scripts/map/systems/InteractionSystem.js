@@ -2,7 +2,8 @@
  * @file マップシーン：インタラクションシステム
  */
 import { System } from '../../../engine/core/System.js';
-import * as MapComponents from '../components.js';
+import { Position } from '../../components/map/Position.js';
+import { FacingDirection } from '../../components/map/FacingDirection.js';
 import { CONFIG } from '../constants.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import { GameEvents } from '../../common/events.js';
@@ -22,8 +23,8 @@ export class InteractionSystem extends System {
             return;
         }
 
-        const position = this.world.getComponent(entityId, MapComponents.Position);
-        const facingDirection = this.world.getComponent(entityId, MapComponents.FacingDirection);
+        const position = this.world.getComponent(entityId, Position);
+        const facingDirection = this.world.getComponent(entityId, FacingDirection);
         if (!position || !facingDirection) return;
 
         const playerTileX = Math.floor((position.x + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);

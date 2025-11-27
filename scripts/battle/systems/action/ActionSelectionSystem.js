@@ -2,7 +2,7 @@
 import { BattleContext } from '../../context/index.js';
 import { BattlePhase } from '../../../config/constants.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerInfo } from '../../components/index.js';
+import { PlayerInfo } from '../../../components/common/index.js';
 
 export class ActionSelectionSystem extends System {
     constructor(world) {

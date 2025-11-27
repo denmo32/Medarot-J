@@ -1,7 +1,8 @@
 ﻿import { System } from '../../../../engine/core/System.js';
 import { CONFIG } from '../../../config/gameConfig.js';
 import { GameEvents } from '../../../common/events.js';
-import * as Components from '../../components/index.js';
+import { Position } from '../../../components/battle/index.js';
+import { PlayerInfo, Parts } from '../../../components/common/index.js';
 import { TeamID, PartKeyToInfoMap, PartInfo } from '../../../config/constants.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { el } from '../../../../engine/utils/DOMUtils.js';

@@ -1,6 +1,7 @@
 ﻿import { System } from '../../../../engine/core/System.js';
 import { BattleContext } from '../../context/index.js';
-import { Action, ActiveEffects, Parts, PlayerInfo } from '../../components/index.js';
+import { Action, ActiveEffects } from '../../../components/battle/index.js';
+import { Parts, PlayerInfo } from '../../../components/common/index.js';
 import { BattlePhase, EffectType, ActionCancelReason } from '../../../config/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';

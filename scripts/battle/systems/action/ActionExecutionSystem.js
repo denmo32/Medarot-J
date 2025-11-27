@@ -1,6 +1,7 @@
 ﻿import { System } from '../../../../engine/core/System.js';
 import { BattleContext } from '../../context/index.js';
-import { Action, GameState, Parts } from '../../components/index.js';
+import { Action, GameState } from '../../../components/battle/index.js';
+import { Parts } from '../../../components/common/index.js';
 import { BattlePhase, PlayerStateType, TargetTiming } from '../../../config/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';

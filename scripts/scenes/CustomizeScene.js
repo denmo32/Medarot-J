@@ -6,7 +6,7 @@ import { Scene } from '../../engine/scene/Scene.js'; // BaseScene -> Scene
 import { CustomizeInputSystem } from '../customize/systems/CustomizeInputSystem.js';
 import { CustomizeUISystem } from '../customize/systems/CustomizeUISystem.js';
 import { CustomizeLogicSystem } from '../customize/systems/CustomizeLogicSystem.js';
-import { CustomizeState } from '../customize/components/CustomizeState.js';
+import { CustomizeState } from '../components/customize/CustomizeState.js';
 import { GameEvents } from '../common/events.js';
 
 export class CustomizeScene extends Scene { // extends Scene

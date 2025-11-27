@@ -1,4 +1,11 @@
-export * from './components.js';
+export { Position } from '../components/map/Position.js';
+export { Velocity } from '../components/map/Velocity.js';
+export { Renderable } from '../components/map/Renderable.js';
+export { PlayerControllable } from '../components/map/PlayerControllable.js';
+export { Collision } from '../components/map/Collision.js';
+export { State } from '../components/map/State.js';
+export { TargetPosition } from '../components/map/TargetPosition.js';
+export { FacingDirection } from '../components/map/FacingDirection.js';
 export * from './constants.js';
 export * from './map.js';
 export * from './systems/index.js';

@@ -1,4 +1,4 @@
-﻿import * as Components from '../components/index.js';
+﻿
 import { BattleContext } from './BattleContext.js';
 import { ViewSystem } from '../systems/ui/ViewSystem.js';
 import { DomFactorySystem } from '../systems/ui/DomFactorySystem.js';

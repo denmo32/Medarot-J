@@ -1,6 +1,6 @@
 ﻿import { System } from '../../../../engine/core/System.js';
 import { BattleContext } from '../../context/index.js';
-import { GameState } from '../../components/index.js';
+import { GameState } from '../../../components/battle/index.js';
 import { BattlePhase, PlayerStateType } from '../../../config/constants.js';
 import { GameEvents } from '../../../common/events.js';
 

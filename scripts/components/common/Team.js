@@ -1,4 +1,4 @@
-import { CONFIG } from '../config/gameConfig.js';
+import { CONFIG } from '../../config/gameConfig.js';
 
 // チーム情報
 export class Team {

@@ -1,5 +1,6 @@
 ﻿import { System } from '../../../../engine/core/System.js';
-import { Position, Gauge, GameState, PlayerInfo } from '../../components/index.js';
+import { Position, Gauge, GameState } from '../../../components/battle/index.js';
+import { PlayerInfo } from '../../../components/common/index.js';
 import { PlayerStateType, TeamID } from '../../../config/constants.js';
 import { CONFIG } from '../../../config/gameConfig.js';
 

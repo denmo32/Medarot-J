@@ -2,7 +2,8 @@
  * @file 位置設定ユーティリティ
  * @description エンティティの位置を特定の位置（アクションラインなど）に設定するための共通関数を提供します。
  */
-import { Position, PlayerInfo } from '../components/index.js';
+import { Position } from '../../../components/battle/index.js';
+import { PlayerInfo } from '../../../components/common/index.js';
 import { TeamID } from '../../config/constants.js';
 import { CONFIG } from '../../config/gameConfig.js';
 

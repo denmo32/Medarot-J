@@ -1,5 +1,7 @@
 import { System } from '../../../engine/core/System.js';
-import * as MapComponents from '../components.js';
+import { Position } from '../../components/map/Position.js';
+import { State } from '../../components/map/State.js';
+import { TargetPosition } from '../../components/map/TargetPosition.js';
 import { CONFIG, PLAYER_STATES, MAP_EVENTS, TILE_TYPES } from '../constants.js';
 import { distance } from '../../../engine/utils/MathUtils.js';
 
@@ -11,16 +13,16 @@ export class MovementSystem extends System {
 
     update(deltaTime) {
         const entities = this.getEntities(
-            MapComponents.Position, 
-            MapComponents.State, 
-            MapComponents.TargetPosition
+            Position, 
+            State, 
+            TargetPosition
         );
         const speed = CONFIG.PLAYER_SPEED_PPS;
 
         for (const entityId of entities) {
-            const position = this.world.getComponent(entityId, MapComponents.Position);
-            const state = this.world.getComponent(entityId, MapComponents.State);
-            const targetPosition = this.world.getComponent(entityId, MapComponents.TargetPosition);
+            const position = this.world.getComponent(entityId, Position);
+            const state = this.world.getComponent(entityId, State);
+            const targetPosition = this.world.getComponent(entityId, TargetPosition);
 
             if (state.value !== PLAYER_STATES.WALKING || !targetPosition) {
                 continue;
@@ -33,7 +35,7 @@ export class MovementSystem extends System {
                 position.x = targetPosition.x;
                 position.y = targetPosition.y;
                 state.value = PLAYER_STATES.IDLE;
-                this.world.removeComponent(entityId, MapComponents.TargetPosition);
+                this.world.removeComponent(entityId, TargetPosition);
 
                 const tileX = Math.floor((position.x + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
                 const tileY = Math.floor((position.y + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);

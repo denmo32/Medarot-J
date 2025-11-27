@@ -2,7 +2,7 @@
 import { GameEvents } from '../../../common/events.js';
 import { ModalType, PartKeyToInfoMap, EffectType, ActionCancelReason } from '../../../config/constants.js';
 import { MessageTemplates, MessageKey } from '../../../data/messageRepository.js';
-import { PlayerInfo } from '../../components/index.js';
+import { PlayerInfo } from '../../../components/common/index.js';
 
 const cancelReasonToMessageKey = {
     [ActionCancelReason.PART_BROKEN]: MessageKey.CANCEL_PART_BROKEN,

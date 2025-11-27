@@ -2,7 +2,8 @@
  * @file HP関連効果戦略定義
  * ダメージや回復など、エンティティのHPを直接操作する効果のロジックを定義します。
  */
-import { PlayerInfo, Parts, Action } from '../components/index.js';
+import { PlayerInfo, Parts } from '../../../components/common/index.js';
+import { Action } from '../../../components/battle/index.js';
 import { EffectType, PartKeyToInfoMap } from '../../config/constants.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 
