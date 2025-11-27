@@ -5,6 +5,7 @@ import { ActiveEffects } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { getValidAllies } from '../../utils/queryUtils.js';
 
+// 状態変更のみを行い、特にイベントを発行しないヘルパー関数
 const applySingleEffect = (world, effect) => {
     const activeEffects = world.getComponent(effect.targetId, ActiveEffects);
     if (!activeEffects) return;
@@ -21,18 +22,18 @@ const applySingleEffect = (world, effect) => {
 };
 
 export const applyTeamEffect = ({ world, effect }) => {
-    if (!effect.scope?.endsWith('_TEAM')) return effect;
+    if (!effect.scope?.endsWith('_TEAM')) return { ...effect, events: [] };
     
     const sourceInfo = world.getComponent(effect.targetId, PlayerInfo);
-    if (!sourceInfo) return effect;
+    if (!sourceInfo) return { ...effect, events: [] };
     
     const allies = getValidAllies(world, effect.targetId, true);
     allies.forEach(id => applySingleEffect(world, { ...effect, targetId: id }));
     
-    return effect;
+    return { ...effect, events: [] };
 };
 
 export const applySelfEffect = ({ world, effect }) => {
     applySingleEffect(world, effect);
-    return effect;
+    return { ...effect, events: [] };
 };

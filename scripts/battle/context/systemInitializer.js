@@ -23,8 +23,8 @@ import { CooldownSystem } from '../systems/mechanics/CooldownSystem.js';
 import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
 import { UISystem } from '../systems/ui/UISystem.js';
+import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js'; // New
 
-// Engine Imports (Updated)
 import { UIManager } from '../../../engine/ui/UIManager.js';
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
@@ -59,6 +59,7 @@ export function initializeSystems(world) {
     const actionSetupSystem = new ActionSetupSystem(world);
     const actionResolutionSystem = new ActionResolutionSystem(world);
     const actionExecutionSystem = new ActionExecutionSystem(world);
+    const battleSequenceSystem = new BattleSequenceSystem(world); // New
     const timerSystem = new TimerSystem(world);
     const cooldownSystem = new CooldownSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
@@ -79,6 +80,7 @@ export function initializeSystems(world) {
     world.registerSystem(actionSelectionSystem);
     world.registerSystem(actionSetupSystem);
     world.registerSystem(actionExecutionSystem);
+    world.registerSystem(battleSequenceSystem); // New (ActionExecutionの後)
     world.registerSystem(actionResolutionSystem);
     world.registerSystem(battleHistorySystem);
     world.registerSystem(actionCancellationSystem);

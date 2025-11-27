@@ -1,7 +1,8 @@
 /**
  * @file ダメージ適用ロジック
+ * 副作用（イベント発行）を排除し、発行すべきイベント情報を返すように変更。
  */
-import { Parts, PlayerInfo } from '../../../components/index.js';
+import { Parts } from '../../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { PartInfo } from '../../../common/constants.js';
 import { findRandomPenetrationTarget } from '../../utils/queryUtils.js';
@@ -18,7 +19,12 @@ export const applyDamage = ({ world, effect }) => {
     const isPartBroken = oldHp > 0 && newHp === 0;
     let isPlayerBroken = false;
 
-    world.emit(GameEvents.HP_UPDATED, { entityId: targetId, partKey, newHp, maxHp: part.maxHp, change: -actualDamage, isHeal: false });
+    // 副作用としてのイベント発行を削除し、結果オブジェクトに含める
+    const events = [];
+    events.push({
+        type: GameEvents.HP_UPDATED,
+        payload: { entityId: targetId, partKey, newHp, maxHp: part.maxHp, change: -actualDamage, isHeal: false }
+    });
     
     if (isPartBroken) {
         part.isBroken = true;
@@ -48,5 +54,6 @@ export const applyDamage = ({ world, effect }) => {
         isPlayerBroken,
         overkillDamage: overkillDamage,
         nextEffect: nextEffect,
+        events: events // イベント情報を返す
     };
 };

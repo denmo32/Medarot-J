@@ -13,33 +13,34 @@ export class ActionExecutionSystem extends System {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         this.executionQueue = [];
-        this.isExecuting = false;
-        this.currentExecutingActorId = null;
+        this.isProcessingQueue = false;
 
-        this.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onAnimationCompleted.bind(this));
-        this.on(GameEvents.COMBAT_RESOLUTION_DISPLAYED, this.onResolutionDisplayed.bind(this));
+        this.on(GameEvents.ACTION_SEQUENCE_COMPLETED, this.onActionSequenceCompleted.bind(this));
+        this.on(GameEvents.REQUEST_EXECUTION_ANIMATION, this.onRequestExecutionAnimation.bind(this));
     }
 
     update(deltaTime) {
+        // フェーズ監視とキューの充填のみを行う
         if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
-            if (this.executionQueue.length > 0 || this.isExecuting) {
-                this.executionQueue = [];
-                this.isExecuting = false;
-                this.currentExecutingActorId = null;
-            }
+            this.executionQueue = [];
+            this.isProcessingQueue = false;
             return;
         }
 
-        if (this.executionQueue.length === 0 && !this.isExecuting) {
+        // キューが空で、かつ処理中でなければ、実行可能なエンティティを探してキューに積む
+        if (this.executionQueue.length === 0 && !this.isProcessingQueue) {
             this.populateExecutionQueueFromReady();
+            
+            // それでも空ならフェーズ終了
             if (this.executionQueue.length === 0) {
                 this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
                 return;
             }
         }
 
-        if (!this.isExecuting && this.executionQueue.length > 0) {
-            this.executeNextAction();
+        // キューがあり、処理中でなければ、次のアクションのシーケンス開始を要求する
+        if (!this.isProcessingQueue && this.executionQueue.length > 0) {
+            this._startNextActionSequence();
         }
     }
     
@@ -62,42 +63,53 @@ export class ActionExecutionSystem extends System {
         });
     }
 
-    executeNextAction() {
+    _startNextActionSequence() {
         const actionDetail = this.executionQueue.shift();
-        if (!actionDetail) {
-            this.isExecuting = false;
-            return;
-        }
+        if (!actionDetail) return;
 
-        this.isExecuting = true;
+        this.isProcessingQueue = true;
         const { entityId } = actionDetail;
-        this.currentExecutingActorId = entityId;
         
+        // コンポーネントにアクション情報をセット
         const actionComp = this.world.getComponent(entityId, Action);
         Object.assign(actionComp, actionDetail);
 
         this.determinePostMoveTarget(entityId);
 
+        // 状態更新
         const gameState = this.world.getComponent(entityId, GameState);
         if (gameState) gameState.state = PlayerStateType.AWAITING_ANIMATION;
 
-        this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
-            attackerId: entityId,
-            targetId: actionComp.targetId
+        // シーケンス開始をBattleSequenceSystemに依頼
+        this.world.emit(GameEvents.REQUEST_ACTION_SEQUENCE_START, { 
+            entityId, 
+            actionDetail 
         });
     }
 
-    onAnimationCompleted(detail) {
-        if (this.isExecuting && this.currentExecutingActorId === detail.entityId) {
-        }
+    /**
+     * BattleSequenceSystemからのアニメーション実行要求
+     */
+    onRequestExecutionAnimation(detail) {
+        const { entityId } = detail;
+        const action = this.world.getComponent(entityId, Action);
+
+        // ViewSystemへアニメーション実行を依頼
+        this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
+            attackerId: entityId,
+            targetId: action.targetId
+        });
+        
+        // ViewSystemが完了後に EXECUTION_ANIMATION_COMPLETED を発行し、
+        // それをBattleSequenceSystemが拾う
     }
 
-    onResolutionDisplayed(detail) {
-        if (this.isExecuting && detail.attackerId === this.currentExecutingActorId) {
-            this.world.emit(GameEvents.ACTION_COMPLETED, { entityId: this.currentExecutingActorId });
-            this.isExecuting = false;
-            this.currentExecutingActorId = null;
-        }
+    /**
+     * BattleSequenceSystemからのシーケンス完了通知
+     */
+    onActionSequenceCompleted(detail) {
+        // 次のキュー処理へ
+        this.isProcessingQueue = false;
     }
     
     determinePostMoveTarget(executorId) {

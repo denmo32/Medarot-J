@@ -9,14 +9,21 @@ import { CombatCalculator } from '../../utils/combatFormulas.js';
 export class CooldownSystem extends System {
     constructor(world) {
         super(world);
-        this.on(GameEvents.ACTION_COMPLETED, this.onActionCompleted.bind(this));
+        // BattleSequenceSystemからのリクエストに対応
+        this.on(GameEvents.REQUEST_COOLDOWN_TRANSITION, this.onCooldownTransitionRequested.bind(this));
+        
+        // 以下は例外処理やキャンセル処理用として維持
         this.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
         this.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
         this.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
     }
 
-    onActionCompleted(detail) {
-        this.transitionToCooldown(detail.entityId);
+    onCooldownTransitionRequested(detail) {
+        const { entityId } = detail;
+        this.transitionToCooldown(entityId);
+        
+        // 完了通知
+        this.world.emit(GameEvents.COOLDOWN_TRANSITION_COMPLETED, { entityId });
     }
     
     onActionCancelled(detail) {
