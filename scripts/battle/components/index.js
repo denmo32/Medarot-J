@@ -1,10 +1,10 @@
-export { PlayerInfo } from './PlayerInfo.js';
+// 共通コンポーネントを再エクスポート（互換性維持）
+export * from '../../components/index.js';
+
+// 戦闘専用コンポーネント
 export { Gauge } from './Gauge.js';
 export { GameState } from './GameState.js';
-export { Parts } from './Parts.js';
 export { Action } from './Action.js';
 export { Position } from './Position.js';
-export { Team } from './Team.js';
-export { Medal } from './Medal.js';
 export { BattleLog } from './BattleLog.js';
 export { ActiveEffects } from './ActiveEffects.js';

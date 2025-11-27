@@ -1,8 +1,7 @@
 /**
  * @file MapScene.js
- * @description マップ探索モードのセットアップとロジックをカプセル化するシーンクラス。
  */
-import { Scene } from '../../engine/scene/Scene.js'; // BaseScene -> Scene
+import { Scene } from '../../engine/scene/Scene.js';
 import { MAP_EVENTS, CONFIG as MAP_CONFIG, PLAYER_STATES } from '../map/constants.js';
 import { Camera } from '../../engine/graphics/Camera.js';
 import { Renderer } from '../../engine/graphics/Renderer.js';
@@ -16,7 +15,6 @@ import { MapUISystem } from '../map/systems/MapUISystem.js';
 import { InteractionSystem } from '../map/systems/InteractionSystem.js';
 import { GameEvents } from '../common/events.js';
 
-// マップシーン専用のUI状態コンポーネント
 export class MapUIState {
     constructor() {
         this.isMapMenuVisible = false;
@@ -25,7 +23,7 @@ export class MapUIState {
     }
 }
 
-export class MapScene extends Scene { // extends Scene
+export class MapScene extends Scene {
     constructor(world, sceneManager) {
         super(world, sceneManager);
         this.mapData = null;

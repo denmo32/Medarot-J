@@ -1,6 +1,3 @@
-import { CONFIG } from '../common/config.js';
-import { PlayerStateType, PartType, TeamID, TargetTiming } from '../common/constants.js';
-
 // パーツ情報
 export class Parts {
     /**

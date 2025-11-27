@@ -1,7 +1,8 @@
 import { Gauge, GameState, Parts } from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { CONFIG } from '../../common/config.js';
-import { PlayerStateType, BattlePhase, PartInfo } from '../../common/constants.js';
+import { PlayerStateType, BattlePhase } from '../../common/constants.js';
+import { PartInfo } from '../../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';
 

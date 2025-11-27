@@ -1,19 +1,15 @@
 /**
  * @file BattleScene.js
- * @description バトルモードのセットアップとロジックをカプセル化するシーンクラス。
  */
-import { Scene } from '../../engine/scene/Scene.js'; // BaseScene -> Scene
+import { Scene } from '../../engine/scene/Scene.js';
 import { GameEvents } from '../common/events.js';
 import { initializeSystems, createPlayers, BattleContext } from '../battle/context/index.js';
 
-export class BattleScene extends Scene { // extends Scene
+export class BattleScene extends Scene {
     constructor(world, sceneManager) {
         super(world, sceneManager);
     }
 
-    /**
-     * @param {object} data - シーンの初期化データ。
-     */
     init(data) {
         console.log("Initializing Battle Scene...");
         const { gameDataManager } = data;
@@ -23,7 +19,6 @@ export class BattleScene extends Scene { // extends Scene
         this._setupBattleContext();
         this._bindEvents(gameDataManager);
 
-        // --- Start Battle Flow ---
         this.world.emit(GameEvents.SETUP_UI_REQUESTED);
         this.world.emit(GameEvents.GAME_START_CONFIRMED);
     }

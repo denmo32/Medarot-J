@@ -1,4 +1,4 @@
-import { CONFIG } from '../common/config.js';
+import { CONFIG } from '../battle/common/config.js';
 
 // チーム情報
 export class Team {

@@ -1,16 +1,8 @@
 /**
  * @file メダルマスターデータ
- * ゲームに登場する全てのメダルの性能（特に性格）を定義します。
- * メダルIDをキーとしたオブジェクト形式で管理します。
  */
 import { MedalPersonality } from '../common/constants.js';
 
-/**
- * メダルのマスターデータ。
- * @property {object} [medalId] - メダルIDをキーとするオブジェクト。
- * @property {string} name - メダルの名前 (UI表示用)。
- * @property {string} personality - メダルの性格 (MedalPersonality定数)。AIの思考パターンを決定します。
- */
 export const MEDALS_DATA = {
     'kabuto': {
         id: 'kabuto',

@@ -1,10 +1,9 @@
 /**
  * @file パーツマスターデータ
  * ゲームに登場するすべてのパーツの性能を定義します。
- * パーツIDをキーとしたオブジェクト形式で管理します。
  */
 
-import { PartInfo, EffectType, EffectScope, TargetTiming, ActionType, AttackType } from '../common/constants.js';
+import { PartInfo, AttackType, ActionType } from '../common/constants.js';
 import { PartRoles } from './partRoles.js';
 import { ActionDefinitionKey } from './actionDefinitions.js';
 

@@ -1,14 +1,13 @@
 /**
  * @file GameDataManager.js
  * @description ゲーム全体の永続的な状態（セーブデータ）を一元管理するシングルトンクラス。
- * エンジンから分離され、ゲーム固有のデータ構造を管理します。
  */
 
-import { MEDAROT_SETS } from '../battle/data/medarotSets.js';
-import { PARTS_DATA } from '../battle/data/parts.js';
-import { MEDALS_DATA } from '../battle/data/medals.js';
+import { MEDAROT_SETS } from '../data/medarotSets.js';
+import { PARTS_DATA } from '../data/parts.js';
+import { MEDALS_DATA } from '../data/medals.js';
 import { CONFIG as MAP_CONFIG } from '../map/constants.js';
-import { buildPartData } from '../battle/data/partDataUtils.js';
+import { buildPartData } from '../data/partDataUtils.js';
 
 // デフォルトのプレイヤー初期位置
 const initialPlayerPosition = {
@@ -18,7 +17,6 @@ const initialPlayerPosition = {
     direction: 'down',
 };
 
-// デフォルトのプレイヤー所持メダロットデータ
 const defaultPlayerMedarots = [
     {
         id: 'player_medarot_1',
@@ -99,35 +97,22 @@ export class GameDataManager {
         }
     }
 
-    /**
-     * セーブデータの互換性チェックとマイグレーションを行います。
-     * @returns {boolean} データが更新され、保存が必要な場合はtrue
-     * @private
-     */
     _migrateSaveData() {
         let needsSave = false;
-
         if (this._migratePartsInventory()) needsSave = true;
         if (this._migrateMedalsInventory()) needsSave = true;
         if (this._migrateMedarots()) needsSave = true;
         if (this._migratePlayerPosition()) needsSave = true;
-
         return needsSave;
     }
 
-    /**
-     * パーツインベントリのマイグレーション
-     * @private
-     */
     _migratePartsInventory() {
-        // 古い形式（性能データを含む）かチェック
         if (this.gameData.playerPartsInventory?.head?.head_001?.name) {
             console.log('Old save data detected. Upgrading parts inventory.');
             const newInventory = {};
             for (const partType in PARTS_DATA) {
                 newInventory[partType] = {};
                 for (const partId in PARTS_DATA[partType]) {
-                    // 所持しているという事実だけを引き継ぐ
                     if (this.gameData.playerPartsInventory[partType]?.[partId]) {
                         newInventory[partType][partId] = { count: 1 };
                     }
@@ -139,12 +124,7 @@ export class GameDataManager {
         return false;
     }
 
-    /**
-     * メダルインベントリのマイグレーション
-     * @private
-     */
     _migrateMedalsInventory() {
-        // 新しい形式（オブジェクト）でない場合
         if (!this.gameData.playerMedalsInventory || !this.gameData.playerMedalsInventory.kabuto?.count) {
             console.log('Old save data detected. Upgrading medals inventory.');
             const newMedalsInventory = {};
@@ -157,22 +137,14 @@ export class GameDataManager {
         return false;
     }
 
-    /**
-     * メダロットデータのマイグレーション
-     * @private
-     */
     _migrateMedarots() {
         let updated = false;
-
-        // 装備メダルIDの補完
         this.gameData.playerMedarots.forEach((medarot, index) => {
             if (!medarot.medalId) {
                 medarot.medalId = defaultPlayerMedarots[index]?.medalId || Object.keys(MEDALS_DATA)[0];
                 updated = true;
             }
         });
-
-        // 3機未満の場合の補完
         if (!this.gameData.playerMedarots || this.gameData.playerMedarots.length < 3) {
             console.log('Incomplete medarot data. Completing with default medarots.');
             const existingIds = new Set(this.gameData.playerMedarots.map(m => m.id));
@@ -180,14 +152,9 @@ export class GameDataManager {
             this.gameData.playerMedarots.push(...medarotsToAppend.slice(0, 3 - this.gameData.playerMedarots.length));
             updated = true;
         }
-
         return updated;
     }
 
-    /**
-     * プレイヤー位置情報のマイグレーション
-     * @private
-     */
     _migratePlayerPosition() {
         if (this.gameData.playerPosition && !this.gameData.playerPosition.direction) {
             this.gameData.playerPosition.direction = 'down';

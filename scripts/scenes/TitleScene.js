@@ -1,6 +1,5 @@
 /**
  * @file TitleScene.js
- * @description タイトル画面のロジックを管理するシーンクラス。
  */
 import { Scene } from '../../engine/scene/Scene.js';
 import { InputManager } from '../../engine/input/InputManager.js';
@@ -8,7 +7,7 @@ import { InputManager } from '../../engine/input/InputManager.js';
 export class TitleScene extends Scene {
     constructor(world, sceneManager) {
         super(world, sceneManager);
-        this.input = null; // constructor時点では取得せず、initで取得する
+        this.input = null;
         this.gameDataManager = null;
         
         this.dom = {
@@ -20,14 +19,10 @@ export class TitleScene extends Scene {
         this.focusedIndex = 0;
     }
 
-    /**
-     * @param {object} data
-     */
     init(data) {
         console.log("Initializing Title Scene...");
         this.gameDataManager = data.gameDataManager;
         
-        // InputManagerはinit時に取得する (PersistentComponentとして登録済みのため)
         this.input = this.world.getSingletonComponent(InputManager);
 
         this._setupUI();
@@ -42,7 +37,6 @@ export class TitleScene extends Scene {
     _setupUI() {
         this.buttons = [this.dom.startNewBtn];
 
-        // セーブデータの有無を確認してボタンを表示制御
         if (localStorage.getItem('medarotJSaveData')) {
             this.dom.startLoadBtn.style.display = 'block';
             this.buttons.push(this.dom.startLoadBtn);
@@ -50,7 +44,6 @@ export class TitleScene extends Scene {
             this.dom.startLoadBtn.style.display = 'none';
         }
 
-        // クリックイベントの設定
         this.dom.startNewBtn.onclick = () => this._startGame(true);
         this.dom.startLoadBtn.onclick = () => this._startGame(false);
     }
@@ -95,7 +88,6 @@ export class TitleScene extends Scene {
 
     destroy() {
         console.log("Destroying Title Scene...");
-        // イベントリスナーの解除
         if (this.dom.startNewBtn) this.dom.startNewBtn.onclick = null;
         if (this.dom.startLoadBtn) this.dom.startLoadBtn.onclick = null;
         

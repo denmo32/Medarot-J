@@ -1,16 +1,24 @@
 /**
- * ゲーム全体の状態を定義する定数
- * @description 旧GamePhaseTypeをBattlePhaseに改名し、新しい処理フローに合わせた状態を追加しました。
+ * @file 戦闘シーン固有の定数定義
+ * @description ゲーム全体の定数は `scripts/common/constants.js` から再エクスポートし、
+ * 戦闘シーン特有の状態定義などをここで追加定義します。
+ */
+
+// 共通定数を再エクスポート（既存コードの互換性維持のため）
+export * from '../../common/constants.js';
+
+/**
+ * ゲーム全体の状態（フェーズ）を定義する定数
  */
 export const BattlePhase = {
-    IDLE: 'IDLE',                       // 待機中
-    BATTLE_START: 'BATTLE_START',         // 戦闘開始アニメーションなど
-    INITIAL_SELECTION: 'INITIAL_SELECTION', // 初回行動選択
-    TURN_START: 'TURN_START',           // ターン開始
-    ACTION_SELECTION: 'ACTION_SELECTION', // 行動選択
-    ACTION_EXECUTION: 'ACTION_EXECUTION', // 行動実行
-    TURN_END: 'TURN_END',               // ターン終了
-    GAME_OVER: 'GAME_OVER'              // ゲーム終了
+    IDLE: 'IDLE',
+    BATTLE_START: 'BATTLE_START',
+    INITIAL_SELECTION: 'INITIAL_SELECTION',
+    TURN_START: 'TURN_START',
+    ACTION_SELECTION: 'ACTION_SELECTION',
+    ACTION_EXECUTION: 'ACTION_EXECUTION',
+    TURN_END: 'TURN_END',
+    GAME_OVER: 'GAME_OVER'
 };
 
 /**
@@ -21,153 +29,14 @@ export const PlayerStateType = {
     READY_SELECT: 'ready_select',
     SELECTED_CHARGING: 'selected_charging',
     READY_EXECUTE: 'ready_execute',
-    AWAITING_ANIMATION: 'awaiting_animation', // 実行アニメーション待ち
+    AWAITING_ANIMATION: 'awaiting_animation',
     COOLDOWN_COMPLETE: 'cooldown_complete',
     BROKEN: 'broken',
-    GUARDING: 'guarding', // ガード中状態
-};
-
-/**
- * パーツの部位に関する情報を一元管理する定数
- * 部位キー、日本語名、UIアイコンなどを集約し、情報の散逸を防ぎます。
- * これにより、関連情報の追加・変更がこのオブジェクトの修正のみで完結します。
- */
-export const PartInfo = {
-    HEAD:      { key: 'head',     name: '頭部', icon: '👤' },
-    RIGHT_ARM: { key: 'rightArm', name: '右腕', icon: '🫷' },
-    LEFT_ARM:  { key: 'leftArm',  name: '左腕', icon: '🫸' },
-    LEGS:      { key: 'legs',     name: '脚部', icon: '👣' }
-};
-
-/**
- * パーツのキーを定義する定数 (PartInfoから自動生成)
- * 既存コードとの互換性と、キーへの直接アクセスを提供するために維持します。
- */
-export const PartType = Object.values(PartInfo).reduce((acc, { key }) => {
-    // 例: 'HEAD' -> 'head'
-    const keyName = Object.keys(PartInfo).find(k => PartInfo[k].key === key);
-    if (keyName) {
-        acc[keyName] = key;
-    }
-    return acc;
-}, {});
-
-/**
- * カスタマイズ画面の装備スロットタイプを定義する定数
- * パーツのスロットキーとメダルスロットを統合して管理することで、
- * マジックストリング 'medal' を排除し、コードの堅牢性を向上させます。
- */
-export const EquipSlotType = {
-    ...PartType,
-    MEDAL: 'medal'
-};
-
-/**
- * パーツキー(例: 'head')から対応するPartInfoオブジェクトを逆引きするためのマップ
- * 動的なキー文字列から関連情報(名前、アイコン等)を効率的に取得できます。
- */
-export const PartKeyToInfoMap = Object.values(PartInfo).reduce((acc, info) => {
-    acc[info.key] = info;
-    return acc;
-}, {});
-
-/**
- * チームIDを定義する定数
- */
-export const TeamID = {
-    TEAM1: 'team1',
-    TEAM2: 'team2'
-};
-
-/**
- * メダルの性格タイプを定義する定数
- * これに基づいてターゲット選択のAIが分岐する
- */
-export const MedalPersonality = {
-    LEADER_FOCUS: 'LEADER_FOCUS', // 常にリーダーを狙う
-    RANDOM: 'RANDOM',             // ターゲットをランダムに選択する
-    HUNTER: 'HUNTER',             // 最も現在HPが低いパーツを狙う
-    CRUSHER: 'CRUSHER',           // 最も現在HPが高いパーツを狙う
-    SPEED: 'SPEED',               // 推進の高い敵脚部を狙う
-    JOKER: 'JOKER',               // 敵の全パーツからランダムに選択
-    COUNTER: 'COUNTER',           // 自分を最後に攻撃してきた敵に反撃
-    GUARD: 'GUARD',               // 味方リーダーを最後に攻撃してきた敵を狙う
-    FOCUS: 'FOCUS',               // 前回攻撃したパーツを集中攻撃
-    ASSIST: 'ASSIST',             // 味方が最後に攻撃した敵のパーツを狙う
-    HEALER: 'HEALER',             // 最もHPが減っている味方を狙う
-};
-
-/**
- * アクションの効果種別を定義する定数
- * ActionSystemがこの定義を元に、effectStrategiesから適切な処理を呼び出します。
- */
-export const EffectType = {
-    DAMAGE: 'DAMAGE',           // ダメージを与える
-    APPLY_SCAN: 'APPLY_SCAN',   // スキャン効果を適用する
-    HEAL: 'HEAL',               // 回復
-    APPLY_GLITCH: 'APPLY_GLITCH', // 妨害（グリッチ）
-    APPLY_GUARD: 'APPLY_GUARD', // ガード
-    // 今後追加予定の効果:
-    // APPLY_SMOKE: 'APPLY_SMOKE', // 煙幕効果
-    // SETUP_TRAP: 'SETUP_TRAP',   // トラップ設置
-};
-
-/**
- * アクションの効果範囲を定義する定数
- * ターゲット選択や効果適用ロジックが、この定義を元に対象を決定します。
- */
-export const EffectScope = {
-    ENEMY_SINGLE: 'ENEMY_SINGLE', // 敵単体
-    ALLY_SINGLE: 'ALLY_SINGLE',   // 味方単体
-    ALLY_TEAM: 'ALLY_TEAM',     // 味方全体
-    SELF: 'SELF',                 // 自分自身
-    // 今後追加予定の範囲:
-    // ENEMY_TEAM: 'ENEMY_TEAM',   // 敵全体
-};
-
-/**
- * アクションの論理的な分類を定義する定数
- * `parts.js`の日本語文字列`action`プロパティとは異なり、
- * システム内部のロジック分岐に使用されます。
- */
-export const ActionType = {
-    SHOOT: 'SHOOT',     // 射撃
-    MELEE: 'MELEE',     // 格闘
-    HEAL: 'HEAL',       // 回復
-    SUPPORT: 'SUPPORT', // 援護
-    INTERRUPT: 'INTERRUPT', // 妨害
-    DEFEND: 'DEFEND',   // 防御
-};
-
-/**
- * 攻撃の特性（タイプ）を定義する定数。
- * parts.jsの日本語文字列`type`プロパティを置き換え、マジックストリングを排除します。
- */
-export const AttackType = {
-    // 射撃系
-    SHOOT: '撃つ',
-    AIMED_SHOT: '狙い撃ち',
-    // 格闘系
-    STRIKE: '殴る',
-    RECKLESS: '我武者羅',
-    // 援護・回復・妨害・防御系
-    SUPPORT: '支援',
-    REPAIR: '修復',
-    INTERRUPT: '妨害',
-    DEFEND: '守る',
-};
-
-/**
- * ターゲット決定タイミングを定義する定数
- */
-export const TargetTiming = {
-    PRE_MOVE: 'pre-move',   // 移動前にターゲットを決定する（射撃など）
-    POST_MOVE: 'post-move'  // 移動後にターゲットを決定する（格闘など）
+    GUARDING: 'guarding',
 };
 
 /**
  * モーダルの種類を定義する定数
- * コード内のマジックストリングを排除し、タイプミスによるバグを防ぎます。
  */
 export const ModalType = {
     START_CONFIRM: 'start_confirm',
@@ -181,7 +50,6 @@ export const ModalType = {
 
 /**
  * アクションキャンセルの理由を定義する定数
- * 文字列リテラルへの依存をなくし、タイプミスによるバグを防ぎます。
  */
 export const ActionCancelReason = {
     PART_BROKEN: 'PART_BROKEN',

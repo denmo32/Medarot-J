@@ -6,6 +6,7 @@ import { getAllActionParts } from '../../utils/queryUtils.js';
 import { decideAndEmitAction } from '../../utils/actionUtils.js';
 import { determineTargetCandidatesByPersonality } from '../../ai/aiDecisionUtils.js';
 import { determineActionPlans } from '../../utils/targetingUtils.js';
+import { PartInfo } from '../../../common/constants.js';
 
 export class InputSystem extends System {
     constructor(world) {

@@ -4,13 +4,12 @@
 
 import { CONFIG } from '../common/config.js';
 import { Gauge } from '../components/Gauge.js';
-import { Parts } from '../components/Parts.js';
+import { Parts } from '../components/index.js';
 import { ActiveEffects } from '../components/ActiveEffects.js';
 import { findBestDefensePart } from './queryUtils.js';
-// engineインポートパス修正
 import { GameError, ErrorType } from '../../../engine/utils/ErrorHandler.js';
-import { EffectType, AttackType } from '../common/constants.js';
-import { clamp } from '../../../engine/utils/MathUtils.js'; // PascalCase
+import { EffectType, AttackType } from '../../common/constants.js';
+import { clamp } from '../../../engine/utils/MathUtils.js';
 
 export class CombatStrategy {
     calculateEvasionChance(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }

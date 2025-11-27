@@ -1,9 +1,6 @@
 /**
  * @file 機体構成データ
- * メダロットの機体名と、使用するパーツIDの組み合わせを定義します。
  */
-
-// PartInfoを参照することで、パーツに関する定義元を一元化
 import { PartInfo } from '../common/constants.js';
 
 export const MEDAROT_SETS = [
@@ -16,7 +13,6 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_001'
         }
     },
-
     {
         name: 'ソードテスト',
         parts: {
@@ -26,7 +22,6 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_002'
         }
     },
-
     {
         name: 'ガトリングテスト',
         parts: {
@@ -36,7 +31,6 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_003'
         }
     },
-
     {
         name: 'ハンマーテスト',
         parts: {
@@ -46,7 +40,6 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_004'
         }
     },
-
     {
         name: 'スキャンテスト',
         parts: {
@@ -56,7 +49,6 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_005'
         }
     },
-
     {
         name: 'リペアテスト',
         parts: {
@@ -66,7 +58,6 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_006'
         }
     },
-
     {
         name: 'グリッチテスト',
         parts: {
@@ -76,7 +67,6 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_007'
         }
     },
-
     {
         name: 'ガードテスト',
         parts: {
