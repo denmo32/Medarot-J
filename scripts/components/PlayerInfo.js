@@ -1,4 +1,4 @@
-import { CONFIG } from '../battle/common/config.js';
+import { CONFIG } from '../common/config.js';
 
 // プレイヤーの基本情報
 export class PlayerInfo {

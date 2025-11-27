@@ -1,17 +1,19 @@
-import { TeamID, AttackType } from '../../common/constants.js';
+import { AttackType } from '../../common/constants.js';
+import { CONFIG as COMMON_CONFIG } from '../../common/config.js';
 
 /**
- * @file ゲーム全体の設定値を一元管理するモジュール
+ * @file バトルシーンの設定値を一元管理するモジュール
+ * 共通設定を継承しつつ、バトル固有の設定を追加定義します。
  */
 export const CONFIG = {
+    // 共通設定を展開
+    ...COMMON_CONFIG,
+
     // 基本設定
     MAX_GAUGE: 100,              // ゲージの最大値
     UPDATE_INTERVAL: 20,         // ゲーム状態更新間隔（ミリ秒）
     PLAYERS_PER_TEAM: 3,         // 1チーム当たりのプレイヤー数
     MAX_PLAYERS: 6,              // 最大プレイヤー数（両チーム合わせて）
-    
-    // デバッグ設定
-    DEBUG: false,                // デバッグモード有効化フラグ
     
     // クリティカルヒット関連の定数
     CRITICAL_HIT: {
@@ -86,24 +88,6 @@ export const CONFIG = {
     AI: {
         DECISION_MAKING_DELAY: 1000,
         REACTION_TIME_VARIANCE: 0.2,
-    },
-    
-    // チーム設定
-    TEAMS: {
-        [TeamID.TEAM1]: { 
-            name: 'チーム 1', 
-            color: '#63b3ed', 
-            baseSpeed: 1.0, 
-            textColor: 'text-blue-300',
-            startPosition: 'left'
-        },
-        [TeamID.TEAM2]: { 
-            name: 'チーム 2', 
-            color: '#f56565', 
-            baseSpeed: 1.0, 
-            textColor: 'text-red-300',
-            startPosition: 'right'
-        },
     },
     
     // ゲームルール関連の設定
