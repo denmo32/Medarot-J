@@ -7,6 +7,13 @@ import { CONFIG } from '../constants.js';
 import { MapUIState } from '../../scenes/MapScene.js';
 import { GameEvents } from '../../common/events.js';
 
+const DIRECTION_OFFSETS = {
+    'up': { x: 0, y: -1 },
+    'down': { x: 0, y: 1 },
+    'left': { x: -1, y: 0 },
+    'right': { x: 1, y: 0 }
+};
+
 export class InteractionSystem extends System {
     constructor(world, map) {
         super(world);
@@ -29,17 +36,16 @@ export class InteractionSystem extends System {
         const playerTileX = Math.floor((position.x + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
         const playerTileY = Math.floor((position.y + CONFIG.PLAYER_SIZE / 2) / CONFIG.TILE_SIZE);
 
-        for (const npc of this.map.npcs) {
-            const isFacingNpc = 
-                (playerTileX === npc.x && playerTileY === npc.y - 1 && facingDirection.direction === 'down') ||
-                (playerTileX === npc.x && playerTileY === npc.y + 1 && facingDirection.direction === 'up') ||
-                (playerTileX === npc.x - 1 && playerTileY === npc.y && facingDirection.direction === 'right') ||
-                (playerTileX === npc.x + 1 && playerTileY === npc.y && facingDirection.direction === 'left');
+        const offset = DIRECTION_OFFSETS[facingDirection.direction];
+        if (!offset) return;
 
-            if (isFacingNpc) {
-                this.world.emit(GameEvents.NPC_INTERACTION_REQUESTED, npc);
-                break;
-            }
+        const targetX = playerTileX + offset.x;
+        const targetY = playerTileY + offset.y;
+
+        const targetNpc = this.map.npcs.find(npc => npc.x === targetX && npc.y === targetY);
+
+        if (targetNpc) {
+            this.world.emit(GameEvents.NPC_INTERACTION_REQUESTED, targetNpc);
         }
     }
 }

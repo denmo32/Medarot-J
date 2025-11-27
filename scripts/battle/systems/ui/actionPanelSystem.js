@@ -59,10 +59,18 @@ export class ActionPanelSystem extends System {
 
     _handleInput() {
         if (this.currentHandler.handleNavigation) {
-            if (this.inputManager.wasKeyJustPressed('ArrowUp')) this.currentHandler.handleNavigation(this, 'arrowup');
-            if (this.inputManager.wasKeyJustPressed('ArrowDown')) this.currentHandler.handleNavigation(this, 'arrowdown');
-            if (this.inputManager.wasKeyJustPressed('ArrowLeft')) this.currentHandler.handleNavigation(this, 'arrowleft');
-            if (this.inputManager.wasKeyJustPressed('ArrowRight')) this.currentHandler.handleNavigation(this, 'arrowright');
+            const navKeys = [
+                { key: 'ArrowUp', direction: 'arrowup' },
+                { key: 'ArrowDown', direction: 'arrowdown' },
+                { key: 'ArrowLeft', direction: 'arrowleft' },
+                { key: 'ArrowRight', direction: 'arrowright' }
+            ];
+
+            for (const { key, direction } of navKeys) {
+                if (this.inputManager.wasKeyJustPressed(key)) {
+                    this.currentHandler.handleNavigation(this, direction);
+                }
+            }
         }
         if (this.inputManager.wasKeyJustPressed('z')) {
             this.currentHandler.handleConfirm?.(this, this.currentModalData);
