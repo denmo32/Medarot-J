@@ -1,8 +1,12 @@
 /**
  * @file HP関連効果戦略定義
  */
-import { PlayerInfo, Parts, Action } from '../components/index.js';
-import { EffectType } from '../../common/constants.js';
+import { Action } from '../components/index.js';
+// scripts/battle/effects/ -> ../../components/index.js
+import { PlayerInfo, Parts } from '../../components/index.js';
+import { EffectType } from '../../common/constants.js'; 
+// scripts/battle/effects/ -> ../../common/constants.js
+import { EffectType as CommonEffectType } from '../../common/constants.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 
 const DAMAGE = ({ world, sourceId, targetId, effect, part, partOwner, outcome }) => {
@@ -22,7 +26,7 @@ const DAMAGE = ({ world, sourceId, targetId, effect, part, partOwner, outcome })
     });
 
     return {
-        type: EffectType.DAMAGE,
+        type: CommonEffectType.DAMAGE,
         targetId: targetId,
         partKey: outcome.finalTargetPartKey, 
         value: finalDamage,
@@ -34,7 +38,7 @@ const DAMAGE = ({ world, sourceId, targetId, effect, part, partOwner, outcome })
 const HEAL = ({ world, sourceId, targetId, effect, part }) => {
     if (targetId === null || targetId === undefined) {
         return {
-            type: EffectType.HEAL,
+            type: CommonEffectType.HEAL,
             value: 0,
         };
     }
@@ -48,7 +52,7 @@ const HEAL = ({ world, sourceId, targetId, effect, part }) => {
     if (!targetPartKey) return null;
 
     return {
-        type: EffectType.HEAL,
+        type: CommonEffectType.HEAL,
         targetId: targetId,
         partKey: targetPartKey,
         value: healAmount,
@@ -56,6 +60,6 @@ const HEAL = ({ world, sourceId, targetId, effect, part }) => {
 };
 
 export const hpEffects = {
-    [EffectType.DAMAGE]: DAMAGE,
-    [EffectType.HEAL]: HEAL,
+    [CommonEffectType.DAMAGE]: DAMAGE,
+    [CommonEffectType.HEAL]: HEAL,
 };

@@ -1,7 +1,7 @@
 /**
  * @file ダメージ適用ロジック
  */
-import { Parts, PlayerInfo } from '../../components/index.js';
+import { Parts, PlayerInfo } from '../../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { PartInfo } from '../../../common/constants.js';
 import { findRandomPenetrationTarget } from '../../utils/queryUtils.js';

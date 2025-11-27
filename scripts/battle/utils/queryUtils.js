@@ -2,8 +2,11 @@
  * @file クエリユーティリティ
  */
 
-import { Parts, Position, PlayerInfo, GameState, ActiveEffects } from '../components/index.js';
-import { PlayerStateType } from '../common/constants.js';
+// Position, GameState, ActiveEffects は battle固有コンポーネント: scripts/battle/utils/ -> ../components/index.js
+import { Position, GameState, ActiveEffects } from '../components/index.js';
+// Parts, PlayerInfo は 共通コンポーネント: scripts/battle/utils/ -> ../../components/index.js
+import { Parts, PlayerInfo } from '../../components/index.js';
+// 定数系は共通: scripts/battle/utils/ -> ../../common/constants.js
 import { PartInfo, EffectType, EffectScope } from '../../common/constants.js';
 
 export const compareByPropulsion = (world) => (entityA, entityB) => {

@@ -1,7 +1,8 @@
 /**
  * @file ステータス効果適用ロジック
  */
-import { ActiveEffects, PlayerInfo } from '../../components/index.js';
+import { ActiveEffects } from '../../components/index.js';
+import { PlayerInfo } from '../../../components/index.js';
 import { getValidAllies } from '../../utils/queryUtils.js';
 
 const applySingleEffect = (world, effect) => {

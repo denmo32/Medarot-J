@@ -1,7 +1,7 @@
 /**
  * @file 回復適用ロジック
  */
-import { Parts } from '../../components/index.js';
+import { Parts } from '../../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 
 export const applyHeal = ({ world, effect }) => {

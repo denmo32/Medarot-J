@@ -1,6 +1,7 @@
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { GameState, Action, Parts } from '../../components/index.js';
+import { GameState, Action } from '../../components/index.js';
+import { Parts } from '../../../components/index.js';
 import { PlayerStateType, ActionCancelReason } from '../../common/constants.js';
 
 export class ActionCancellationSystem extends System {

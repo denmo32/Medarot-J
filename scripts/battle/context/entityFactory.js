@@ -1,6 +1,7 @@
 import { CONFIG } from '../common/config.js';
-import * as Components from '../components/index.js';
-import { TeamID, MedalPersonality, PartInfo } from '../common/constants.js'; 
+import * as BattleComponents from '../components/index.js';
+import * as CommonComponents from '../../components/index.js';
+import { TeamID, MedalPersonality, PartInfo } from '../../common/constants.js'; 
 import { PARTS_DATA } from '../../data/parts.js'; 
 import { MEDAROT_SETS } from '../../data/medarotSets.js'; 
 import { MEDALS_DATA } from '../../data/medals.js';
@@ -96,20 +97,20 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     const initialX = teamId === TeamID.TEAM1 ? 0 : 1;
     const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;
 
-    world.addComponent(entityId, new Components.PlayerInfo(name, teamId, isLeader));
-    world.addComponent(entityId, new Components.Gauge());
-    world.addComponent(entityId, new Components.GameState());
-    world.addComponent(entityId, new Components.Parts(
+    world.addComponent(entityId, new CommonComponents.PlayerInfo(name, teamId, isLeader));
+    world.addComponent(entityId, new BattleComponents.Gauge());
+    world.addComponent(entityId, new BattleComponents.GameState());
+    world.addComponent(entityId, new CommonComponents.Parts(
         initializedParts.head, 
         initializedParts.rightArm, 
         initializedParts.leftArm, 
         initializedParts.legs
     ));
-    world.addComponent(entityId, new Components.Action());
-    world.addComponent(entityId, new Components.Medal(personality));
-    world.addComponent(entityId, new Components.BattleLog());
-    world.addComponent(entityId, new Components.Position(initialX, yPos));
-    world.addComponent(entityId, new Components.ActiveEffects());
+    world.addComponent(entityId, new BattleComponents.Action());
+    world.addComponent(entityId, new CommonComponents.Medal(personality));
+    world.addComponent(entityId, new BattleComponents.BattleLog());
+    world.addComponent(entityId, new BattleComponents.Position(initialX, yPos));
+    world.addComponent(entityId, new BattleComponents.ActiveEffects());
 
     return entityId;
 }

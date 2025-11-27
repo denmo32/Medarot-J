@@ -5,20 +5,23 @@
  * これにより、ActionResolutionSystemは効果適用の詳細を知ることなく、
  * このマップを参照するだけでよくなります。
  */
-import { EffectType } from '../../common/constants.js';
 import { applyDamage } from './damageApplicator.js';
 import { applyHeal } from './healApplicator.js';
 import { applyTeamEffect, applySelfEffect } from './statusEffectApplicator.js';
 import { applyGlitch } from './glitchApplicator.js';
+
+// EffectTypeは共通定数として scripts/common/constants.js に定義されています。
+// scripts/battle/effects/applicators/ -> ../../../common/constants.js
+import { EffectType as CommonEffectType } from '../../../common/constants.js';
 
 /**
  * 効果タイプと適用ロジックをマッピングしたオブジェクト。
  * ActionResolutionSystemがこのマップを利用して、適切な適用関数を呼び出します。
  */
 export const effectApplicators = {
-    [EffectType.DAMAGE]: applyDamage,
-    [EffectType.HEAL]: applyHeal,
-    [EffectType.APPLY_SCAN]: applyTeamEffect,
-    [EffectType.APPLY_GUARD]: applySelfEffect,
-    [EffectType.APPLY_GLITCH]: applyGlitch,
+    [CommonEffectType.DAMAGE]: applyDamage,
+    [CommonEffectType.HEAL]: applyHeal,
+    [CommonEffectType.APPLY_SCAN]: applyTeamEffect,
+    [CommonEffectType.APPLY_GUARD]: applySelfEffect,
+    [CommonEffectType.APPLY_GLITCH]: applyGlitch,
 };

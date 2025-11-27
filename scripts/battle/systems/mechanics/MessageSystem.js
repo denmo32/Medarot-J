@@ -1,8 +1,9 @@
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { ModalType, PartKeyToInfoMap, EffectType, ActionCancelReason } from '../../common/constants.js';
+import { ModalType, ActionCancelReason } from '../../common/constants.js';
+import { PartKeyToInfoMap, EffectType } from '../../../common/constants.js';
 import { MessageTemplates, MessageKey } from '../../../data/messageRepository.js';
-import { PlayerInfo } from '../../components/index.js';
+import { PlayerInfo } from '../../../components/index.js';
 
 const cancelReasonToMessageKey = {
     [ActionCancelReason.PART_BROKEN]: MessageKey.CANCEL_PART_BROKEN,

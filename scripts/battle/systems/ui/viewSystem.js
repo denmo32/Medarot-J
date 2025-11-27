@@ -1,6 +1,7 @@
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import * as Components from '../../components/index.js';
+import * as BattleComponents from '../../components/index.js';
+import * as CommonComponents from '../../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { EffectScope } from '../../../common/constants.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
@@ -48,8 +49,8 @@ export class ViewSystem extends System {
         const { attackerId, targetId } = detail;
         const attackerDomElements = this.uiManager.getDOMElements(attackerId);
         
-        const action = this.getCachedComponent(attackerId, Components.Action);
-        const parts = this.getCachedComponent(attackerId, Components.Parts);
+        const action = this.getCachedComponent(attackerId, BattleComponents.Action);
+        const parts = this.getCachedComponent(attackerId, CommonComponents.Parts);
         
         let isSingleTargetAction = false;
         if (action && action.partKey && parts && parts[action.partKey]) {
@@ -144,7 +145,7 @@ export class ViewSystem extends System {
             const { targetId, partKey } = effect;
             const targetDom = this.uiManager.getDOMElements(targetId);
             const partDom = targetDom?.partDOMElements[partKey];
-            const targetPart = this.world.getComponent(targetId, Components.Parts)?.[partKey];
+            const targetPart = this.world.getComponent(targetId, CommonComponents.Parts)?.[partKey];
 
             if (!partDom || !targetPart || !partDom.bar || !partDom.value) {
                 resolve();

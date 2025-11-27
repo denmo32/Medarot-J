@@ -2,12 +2,13 @@
  * @file 行動決定ユーティリティ
  */
 import { GameEvents } from '../../common/events.js';
-import { Parts } from '../components/index.js';
+// scripts/battle/utils/ -> ../../components/index.js
+import { Parts as CommonParts } from '../../components/index.js';
 import { isValidTarget } from './queryUtils.js';
-import { TargetTiming } from '../common/constants.js';
+import { TargetTiming } from '../../common/constants.js';
 
 export function decideAndEmitAction(world, entityId, partKey, target = null) {
-    const parts = world.getComponent(entityId, Parts);
+    const parts = world.getComponent(entityId, CommonParts);
 
     if (!parts || !partKey || !parts[partKey] || parts[partKey].isBroken) {
         console.warn(`decideAndEmitAction: Invalid or broken part selected for entity ${entityId}. Re-queueing.`);

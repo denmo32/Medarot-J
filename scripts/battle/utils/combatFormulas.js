@@ -4,11 +4,14 @@
 
 import { CONFIG } from '../common/config.js';
 import { Gauge } from '../components/Gauge.js';
-import { Parts } from '../components/index.js';
+// scripts/battle/utils/ -> ../../components/index.js
+import { Parts } from '../../components/index.js';
 import { ActiveEffects } from '../components/ActiveEffects.js';
 import { findBestDefensePart } from './queryUtils.js';
+// engineはルート直下にあるため ../../../ で正しい (utils -> battle -> scripts -> root)
 import { GameError, ErrorType } from '../../../engine/utils/ErrorHandler.js';
-import { EffectType, AttackType } from '../../common/constants.js';
+// scripts/battle/utils/ -> ../../common/constants.js
+import { AttackType as CommonAttackType, EffectType as CommonEffectType } from '../../common/constants.js';
 import { clamp } from '../../../engine/utils/MathUtils.js';
 
 export class CombatStrategy {
@@ -179,7 +182,7 @@ class DefaultCombatStrategy extends CombatStrategy {
         if (!activeEffects) return 0;
         
         return activeEffects.effects
-            .filter(e => e.type === EffectType.APPLY_SCAN)
+            .filter(e => e.type === CommonEffectType.APPLY_SCAN)
             .reduce((total, e) => total + e.value, 0);
     }
 
@@ -190,13 +193,13 @@ class DefaultCombatStrategy extends CombatStrategy {
         if (!attackerLegs) return { successBonus, mightBonus };
 
         switch (attackType) {
-            case AttackType.AIMED_SHOT:
+            case CommonAttackType.AIMED_SHOT:
                 successBonus = Math.floor((attackerLegs.stability || 0) / 2);
                 break;
-            case AttackType.STRIKE:
+            case CommonAttackType.STRIKE:
                 successBonus = Math.floor((attackerLegs.mobility || 0) / 2);
                 break;
-            case AttackType.RECKLESS:
+            case CommonAttackType.RECKLESS:
                 mightBonus = Math.floor((attackerLegs.propulsion || 0) / 2);
                 break;
         }

@@ -1,9 +1,10 @@
 import { System } from '../../../../engine/core/System.js';
-import { Gauge, GameState, Parts, PlayerInfo, Action, Position, ActiveEffects } from '../../components/index.js';
+import { Gauge, GameState, Action, Position, ActiveEffects } from '../../components/index.js';
+import { Parts, PlayerInfo } from '../../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType } from '../../common/constants.js';
-import { EffectType } from '../../../common/constants.js';
+import { EffectType, TeamID } from '../../../common/constants.js';
 import { snapToActionLine } from '../../utils/positionUtils.js';
 
 export class StateSystem extends System {

@@ -3,7 +3,8 @@
  */
 import { getAttackableParts } from './queryUtils.js';
 import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
-import { TargetTiming } from '../common/constants.js';
+// scripts/battle/utils/ -> ../../common/constants.js
+import { TargetTiming as CommonTargetTiming } from '../../common/constants.js';
 
 export function determineActionPlans({ world, entityId, targetCandidates }) {
     if (!targetCandidates || targetCandidates.length === 0) {
@@ -19,7 +20,7 @@ export function determineActionPlans({ world, entityId, targetCandidates }) {
     for (const [partKey, part] of availableParts) {
         let selectedTarget = null;
 
-        if (part.targetTiming === TargetTiming.PRE_MOVE) {
+        if (part.targetTiming === CommonTargetTiming.PRE_MOVE) {
             const selectedCandidate = selectItemByProbability(targetCandidates);
             if (selectedCandidate) {
                 selectedTarget = selectedCandidate.target;

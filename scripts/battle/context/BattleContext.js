@@ -4,7 +4,8 @@
  * 従来の4つのコンテキスト(BattlePhase, GameMode, UIState, BattleHistory)を統合し、
  * 状態管理の複雑さを軽減します。
  */
-import { BattlePhase, TeamID } from '../common/constants.js';
+import { BattlePhase } from '../common/constants.js';
+import { TeamID } from '../../common/constants.js';
 
 export class BattleContext {
     constructor() {

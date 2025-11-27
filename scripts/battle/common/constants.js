@@ -1,11 +1,8 @@
 /**
  * @file 戦闘シーン固有の定数定義
- * @description ゲーム全体の定数は `scripts/common/constants.js` から再エクスポートし、
- * 戦闘シーン特有の状態定義などをここで追加定義します。
+ * @description ゲーム全体の定数は `scripts/common/constants.js` に定義し、
+ * ここでは戦闘シーン特有の状態定義などを定義します。
  */
-
-// 共通定数を再エクスポート（既存コードの互換性維持のため）
-export * from '../../common/constants.js';
 
 /**
  * ゲーム全体の状態（フェーズ）を定義する定数

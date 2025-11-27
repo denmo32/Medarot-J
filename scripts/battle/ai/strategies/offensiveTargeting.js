@@ -1,7 +1,8 @@
 /**
  * @file AI攻撃系ターゲティング戦略
  */
-import { PlayerInfo, BattleLog, Parts } from '../../components/index.js';
+import { PlayerInfo, Parts } from '../../../components/index.js';
+import { BattleLog } from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { 
     isValidTarget, 

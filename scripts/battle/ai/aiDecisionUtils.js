@@ -1,7 +1,7 @@
 /**
  * @file AI意思決定ユーティリティ
  */
-import { Medal, PlayerInfo } from '../components/index.js';
+import { Medal, PlayerInfo } from '../../components/index.js';
 import { getStrategiesFor } from './personalityRegistry.js';
 import { targetingStrategies } from './targetingStrategies.js';
 import { conditionEvaluators } from './conditionEvaluators.js';
