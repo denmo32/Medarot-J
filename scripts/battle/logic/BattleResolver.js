@@ -1,47 +1,40 @@
-import { System } from '../../../../engine/core/System.js';
-import { Action, ActiveEffects } from '../../components/index.js';
-import { Parts, PlayerInfo } from '../../../components/index.js';
-import { ActionCancelReason } from '../../common/constants.js';
-import { EffectType } from '../../../common/constants.js';
-import { GameEvents } from '../../../common/events.js';
-import { CombatCalculator } from '../../utils/combatFormulas.js';
-import { findGuardian, isValidTarget } from '../../utils/queryUtils.js';
-import { effectStrategies } from '../../effects/effectStrategies.js';
-import { effectApplicators } from '../../effects/applicators/applicatorIndex.js';
+/**
+ * @file 戦闘解決ロジック (Service)
+ * @description ActionResolutionSystemから抽出された、純粋な戦闘計算と効果適用のロジッククラス。
+ * Systemを継承せず、BattleSequenceSystemから同期的に呼び出されます。
+ */
+import { Action, ActiveEffects } from '../components/index.js';
+import { Parts, PlayerInfo } from '../../components/index.js';
+import { EffectType } from '../../common/constants.js';
+import { GameEvents } from '../../common/events.js';
+import { CombatCalculator } from '../utils/combatFormulas.js';
+import { findGuardian, isValidTarget } from '../utils/queryUtils.js';
+import { effectStrategies } from '../effects/effectStrategies.js';
+import { effectApplicators } from '../effects/applicators/applicatorIndex.js';
 
-export class ActionResolutionSystem extends System {
+export class BattleResolver {
     constructor(world) {
-        super(world);
+        this.world = world;
         this.effectApplicators = effectApplicators;
-        this.on(GameEvents.REQUEST_ACTION_RESOLUTION, this.onActionResolutionRequested.bind(this));
     }
 
-    onActionResolutionRequested(detail) {
-        const { entityId } = detail;
-        this.resolveAction(entityId);
-    }
-
-    resolveAction(attackerId) {
+    /**
+     * アクションの結果を計算し、効果を適用します。
+     * @param {number} attackerId 
+     * @returns {object} 結果データ
+     */
+    resolve(attackerId) {
         const components = this._getCombatComponents(attackerId);
         
-        // コンポーネントが不足している場合はスキップ（結果データなしで完了通知）
+        // コンポーネントが不足している場合はスキップ
         if (!components) {
-            this.world.emit(GameEvents.ACTION_RESOLUTION_COMPLETED, { resultData: { attackerId } });
-            return;
+            return { attackerId, isCancelled: true };
         }
         
         const targetContext = this._determineFinalTarget(components, attackerId);
         
         if (targetContext.shouldCancel) {
-            this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: attackerId, reason: ActionCancelReason.TARGET_LOST });
-            // キャンセルされた場合も完了通知は必要だが、シーケンス側でキャンセルイベントを拾って中断する制御が必要かもしれない。
-            // 現状のBattleSequenceSystemの実装では、キャンセルイベントはMessageSystemで表示されるが、
-            // シーケンスのステートは進まないためスタックする可能性がある。
-            // 暫定対応として、キャンセル時も完了通知を出し、結果データに「キャンセルされた」情報を含める。
-            this.world.emit(GameEvents.ACTION_RESOLUTION_COMPLETED, { 
-                resultData: { attackerId, isCancelled: true } 
-            });
-            return;
+            return { attackerId, isCancelled: true, cancelReason: 'TARGET_LOST' };
         }
 
         const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
@@ -62,8 +55,7 @@ export class ActionResolutionSystem extends System {
         // 統合イベント発行（履歴記録などのため）
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);
         
-        // シーケンスシステムへ完了通知
-        this.world.emit(GameEvents.ACTION_RESOLUTION_COMPLETED, { resultData });
+        return resultData;
     }
 
     _determineFinalTarget(components, attackerId) {
@@ -72,7 +64,7 @@ export class ActionResolutionSystem extends System {
         const isTargetRequired = attackingPart.targetScope && (attackingPart.targetScope.endsWith('_SINGLE') || attackingPart.targetScope.endsWith('_TEAM'));
         
         if (isTargetRequired && !attackingPart.isSupport && !isValidTarget(this.world, action.targetId, action.targetPartKey)) {
-            console.warn(`ActionResolutionSystem: Target for entity ${attackerId} is no longer valid.`);
+            console.warn(`BattleResolver: Target for entity ${attackerId} is no longer valid.`);
             return { shouldCancel: true };
         }
 
@@ -159,7 +151,7 @@ export class ActionResolutionSystem extends System {
             
             const applicator = this.effectApplicators[effect.type];
             if (!applicator) {
-                console.warn(`ActionResolutionSystem: No applicator for "${effect.type}".`);
+                console.warn(`BattleResolver: No applicator for "${effect.type}".`);
                 continue;
             }
 

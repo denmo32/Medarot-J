@@ -16,14 +16,11 @@ import { DebugSystem } from '../systems/ui/DebugSystem.js';
 import { CONFIG } from '../common/config.js';
 import { PhaseSystem } from '../systems/flow/PhaseSystem.js';
 import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.js';
-import { ActionSetupSystem } from '../systems/action/ActionSetupSystem.js';
-import { ActionExecutionSystem } from '../systems/action/ActionExecutionSystem.js';
-import { ActionResolutionSystem } from '../systems/action/ActionResolutionSystem.js';
 import { CooldownSystem } from '../systems/mechanics/CooldownSystem.js';
 import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
 import { UISystem } from '../systems/ui/UISystem.js';
-import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js'; // New
+import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 
 import { UIManager } from '../../../engine/ui/UIManager.js';
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
@@ -56,10 +53,8 @@ export function initializeSystems(world) {
     const messageSystem = new MessageSystem(world);
     const actionCancellationSystem = new ActionCancellationSystem(world);
     const actionSelectionSystem = new ActionSelectionSystem(world);
-    const actionSetupSystem = new ActionSetupSystem(world);
-    const actionResolutionSystem = new ActionResolutionSystem(world);
-    const actionExecutionSystem = new ActionExecutionSystem(world);
-    const battleSequenceSystem = new BattleSequenceSystem(world); // New
+    // 旧 ActionSetupSystem, ActionExecutionSystem, ActionResolutionSystem は削除
+    const battleSequenceSystem = new BattleSequenceSystem(world); 
     const timerSystem = new TimerSystem(world);
     const cooldownSystem = new CooldownSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
@@ -78,10 +73,13 @@ export function initializeSystems(world) {
     world.registerSystem(stateSystem);
     world.registerSystem(cooldownSystem);
     world.registerSystem(actionSelectionSystem);
-    world.registerSystem(actionSetupSystem);
-    world.registerSystem(actionExecutionSystem);
-    world.registerSystem(battleSequenceSystem); // New (ActionExecutionの後)
-    world.registerSystem(actionResolutionSystem);
+    // ActionSetupSystemは削除 (ActionSelectionSystemに統合)
+    
+    // 実行フローの中核
+    world.registerSystem(battleSequenceSystem);
+    
+    // ActionExecution, ActionResolutionは削除 (BattleSequenceSystemに統合)
+    
     world.registerSystem(battleHistorySystem);
     world.registerSystem(actionCancellationSystem);
     world.registerSystem(movementSystem);

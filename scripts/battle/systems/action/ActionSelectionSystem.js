@@ -1,9 +1,16 @@
 import { System } from '../../../../engine/core/System.js';
 import { BattleContext } from '../../context/index.js';
-import { BattlePhase } from '../../common/constants.js';
+import { BattlePhase, PlayerStateType } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerInfo } from '../../../components/index.js';
+import { PlayerInfo, Parts } from '../../../components/index.js';
+import { Action, GameState, Gauge } from '../../components/index.js';
+import { CombatCalculator } from '../../utils/combatFormulas.js';
 
+/**
+ * @class ActionSelectionSystem
+ * @description アクションの選択フェーズを管理します。
+ * 次のアクターの決定、入力要求、および選択後の状態更新（チャージ開始）を担当します。
+ */
 export class ActionSelectionSystem extends System {
     constructor(world) {
         super(world);
@@ -22,6 +29,7 @@ export class ActionSelectionSystem extends System {
             return;
         }
 
+        // 行動選択中のアクターがおらず、キューも空の場合、選択フェーズ終了を通知
         if (this.battleContext.turn.currentActorId === null && this.battleContext.turn.actionQueue.length === 0) {
             if (this.battleContext.phase === BattlePhase.ACTION_SELECTION) {
                 this.world.emit(GameEvents.ACTION_SELECTION_COMPLETED);
@@ -44,12 +52,46 @@ export class ActionSelectionSystem extends System {
         this.world.emit(eventToEmit, { entityId });
     }
 
+    /**
+     * アクションが選択された時の処理
+     * 旧 ActionSetupSystem の役割をここに統合
+     */
     onActionSelected(detail) {
-        const { entityId } = detail;
+        const { entityId, partKey, targetId, targetPartKey } = detail;
 
+        // 現在のアクターと一致するか確認
         if (this.battleContext.turn.currentActorId === entityId) {
             this.battleContext.turn.selectedActions.set(entityId, detail);
             this.battleContext.turn.currentActorId = null;
         }
+
+        // コンポーネントの更新とチャージ開始
+        const action = this.world.getComponent(entityId, Action);
+        const parts = this.world.getComponent(entityId, Parts);
+        const gameState = this.world.getComponent(entityId, GameState);
+        const gauge = this.world.getComponent(entityId, Gauge);
+
+        if (!partKey || !parts?.[partKey] || parts[partKey].isBroken) {
+            console.warn(`ActionSelectionSystem: Invalid or broken part selected for entity ${entityId}. Re-queueing.`, detail);
+            this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
+            return;
+        }
+
+        const selectedPart = parts[partKey];
+
+        // アクション情報を更新
+        action.partKey = partKey;
+        action.type = selectedPart.action;
+        action.targetId = targetId;
+        action.targetPartKey = targetPartKey;
+        action.targetTiming = selectedPart.targetTiming;
+
+        // 状態をチャージ中に更新
+        gameState.state = PlayerStateType.SELECTED_CHARGING;
+        
+        // ゲージをリセットして速度を設定
+        gauge.value = 0;
+        gauge.currentSpeed = 0;
+        gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: selectedPart, factorType: 'charge' });
     }
 }
