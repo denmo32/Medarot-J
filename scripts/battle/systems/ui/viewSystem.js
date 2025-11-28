@@ -11,7 +11,7 @@ import { BattleContext } from '../../context/index.js';
 import { EffectScope } from '../../../common/constants.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { el } from '../../../../engine/utils/DOMUtils.js';
-import { TaskType } from '../../tasks/BattleTasks.js';
+import { UI_CONFIG } from '../../common/UIConfig.js';
 
 export class ViewSystem extends System {
     constructor(world) {
@@ -23,12 +23,9 @@ export class ViewSystem extends System {
     }
 
     bindWorldEvents() {
-        this.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
         this.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this));
         this.on(GameEvents.HP_BAR_ANIMATION_REQUESTED, this.onHpBarAnimationRequested.bind(this));
     }
-
-    resetView() {}
 
     onShowBattleStartAnimation() {
         const battlefield = document.getElementById('battlefield');
@@ -58,7 +55,7 @@ export class ViewSystem extends System {
                 this._playAttackAnimation(attackerId, targetId).then(resolve);
             } else {
                 // その他のアニメーション
-                setTimeout(resolve, 300);
+                setTimeout(resolve, UI_CONFIG.ANIMATION.DURATION);
             }
         });
     }
@@ -132,7 +129,7 @@ export class ViewSystem extends System {
                     { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(2.0)`, opacity: 1, offset: 0.8 },
                     { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.5)`, opacity: 0, offset: 1 }
                 ], {
-                    duration: 800, 
+                    duration: UI_CONFIG.ANIMATION.ATTACK_DURATION, 
                     easing: 'ease-in-out'
                 });
     
@@ -195,7 +192,7 @@ export class ViewSystem extends System {
             };
 
             // タイムアウト設定
-            setTimeout(cleanup, 1200);
+            setTimeout(cleanup, UI_CONFIG.ANIMATION.HP_BAR_TRANSITION * 1.5);
             hpBar.addEventListener('transitionend', onTransitionEnd);
 
             const finalHp = targetPart.hp;
@@ -217,7 +214,7 @@ export class ViewSystem extends System {
 
             // アニメーション開始
             requestAnimationFrame(() => {
-                hpBar.style.transition = 'width 0.8s ease';
+                hpBar.style.transition = `width ${UI_CONFIG.ANIMATION.HP_BAR_TRANSITION}ms ease`;
                 hpBar.style.width = `${finalHpPercentage}%`;
                 
                 // 色の更新

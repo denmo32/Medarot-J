@@ -77,7 +77,7 @@ export class BattleSequenceSystem extends System {
         });
 
         readyEntities.sort(compareByPropulsion(this.world));
-        this.executionQueue = readyEntities.map(id => id);
+        this.executionQueue = readyEntities;
     }
 
     _startNextActionSequence() {

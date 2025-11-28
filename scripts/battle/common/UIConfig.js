@@ -14,6 +14,8 @@ export const UI_CONFIG = {
     ANIMATION: {
         DURATION: 300,        // デフォルトアニメーション時間（ミリ秒）
         EASING: 'ease-out',   // デフォルトイージング
+        ATTACK_DURATION: 800, // 攻撃アニメーション時間
+        HP_BAR_TRANSITION: 800, // HPバー変動時間
     },
     
     // モーダルに関する設定

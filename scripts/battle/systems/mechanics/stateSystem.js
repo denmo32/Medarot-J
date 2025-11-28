@@ -1,5 +1,5 @@
 import { System } from '../../../../engine/core/System.js';
-import { Gauge, GameState, Action, Position } from '../../components/index.js';
+import { Gauge, GameState, Action } from '../../components/index.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { GameEvents } from '../../../common/events.js';
@@ -87,8 +87,5 @@ export class StateSystem extends System {
             gameState.state = PlayerStateType.READY_EXECUTE;
             snapToActionLine(this.world, entityId);
         }
-    }
-    
-    update(deltaTime) {
     }
 }

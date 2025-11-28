@@ -12,7 +12,6 @@ export const GameEvents = {
     GAME_START_CONFIRMED: 'GAME_START_CONFIRMED',
     RESET_BUTTON_CLICKED: 'RESET_BUTTON_CLICKED',
     GAME_WILL_RESET: 'GAME_WILL_RESET',
-    BATTLE_INITIALIZED: 'BATTLE_INITIALIZED',
     BATTLE_START_CANCELLED: 'BATTLE_START_CANCELLED',
     BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED',
     SHOW_BATTLE_START_ANIMATION: 'SHOW_BATTLE_START_ANIMATION',
@@ -27,26 +26,11 @@ export const GameEvents = {
     ACTION_SELECTED: 'ACTION_SELECTED',
 
     // --- BattleSequenceSystem 制御用イベント ---
-    // 旧 REQUEST_ACTION_SEQUENCE_START, REQUEST_ACTION_RESOLUTION, ACTION_RESOLUTION_COMPLETED は廃止
-
-    /**
-     * アクション実行アニメーションの開始を要求 (BattleSequenceSystem -> ViewSystem (経由なし))
-     * ※元々は ActionExecutionSystem -> ViewSystem でしたが、BattleSequenceSystemから直接発行に変更
-     * @event EXECUTE_ATTACK_ANIMATION
-     */
-    EXECUTE_ATTACK_ANIMATION: 'EXECUTE_ATTACK_ANIMATION',
-
     /**
      * アクション実行アニメーションの完了 (ViewSystem -> BattleSequenceSystem)
      * @event EXECUTION_ANIMATION_COMPLETED
      */
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED',
-
-    /**
-     * 結果表示要求 (BattleSequenceSystem -> MessageSystem)
-     * @event REQUEST_RESULT_DISPLAY
-     */
-    REQUEST_RESULT_DISPLAY: 'REQUEST_RESULT_DISPLAY',
 
     /**
      * クールダウン移行要求 (BattleSequenceSystem -> CooldownSystem)
@@ -69,8 +53,6 @@ export const GameEvents = {
     // --- その他イベント ---
     COMBAT_SEQUENCE_RESOLVED: 'COMBAT_SEQUENCE_RESOLVED',
     COMBAT_RESOLUTION_DISPLAYED: 'COMBAT_RESOLUTION_DISPLAYED',
-    ACTION_COMPLETED: 'ACTION_COMPLETED',
-    ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
 
     // --- 状態 & ターン管理イベント ---
     ACTION_SELECTION_COMPLETED: 'ACTION_SELECTION_COMPLETED',

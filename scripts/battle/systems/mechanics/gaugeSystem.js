@@ -7,6 +7,16 @@ import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';
 
+// ゲージ更新を停止すべきプレイヤー状態
+const PAUSED_STATES = new Set([
+    PlayerStateType.READY_SELECT, 
+    PlayerStateType.READY_EXECUTE, 
+    PlayerStateType.COOLDOWN_COMPLETE, 
+    PlayerStateType.BROKEN, 
+    PlayerStateType.GUARDING,
+    PlayerStateType.AWAITING_ANIMATION
+]);
+
 export class GaugeSystem extends System {
     constructor(world) {
         super(world);
@@ -55,15 +65,7 @@ export class GaugeSystem extends System {
                 continue;
             }
 
-            const statesToPause = [
-                PlayerStateType.READY_SELECT, 
-                PlayerStateType.READY_EXECUTE, 
-                PlayerStateType.COOLDOWN_COMPLETE, 
-                PlayerStateType.BROKEN, 
-                PlayerStateType.GUARDING,
-                PlayerStateType.AWAITING_ANIMATION // これも追加
-            ];
-            if (statesToPause.includes(gameState.state)) {
+            if (PAUSED_STATES.has(gameState.state)) {
                 continue;
             }
 
