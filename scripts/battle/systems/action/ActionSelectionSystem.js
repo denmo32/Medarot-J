@@ -68,7 +68,6 @@ export class ActionSelectionSystem extends System {
         // コンポーネントの更新とチャージ開始
         const action = this.world.getComponent(entityId, Action);
         const parts = this.world.getComponent(entityId, Parts);
-        const gameState = this.world.getComponent(entityId, GameState);
         const gauge = this.world.getComponent(entityId, Gauge);
 
         if (!partKey || !parts?.[partKey] || parts[partKey].isBroken) {
@@ -87,7 +86,7 @@ export class ActionSelectionSystem extends System {
         action.targetTiming = selectedPart.targetTiming;
 
         // 状態をチャージ中に更新
-        gameState.state = PlayerStateType.SELECTED_CHARGING;
+        this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.SELECTED_CHARGING });
         
         // ゲージをリセットして速度を設定
         gauge.value = 0;

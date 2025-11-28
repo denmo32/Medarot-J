@@ -27,42 +27,39 @@ export class BattleSequenceSystem extends System {
         this.currentActorId = null;
         
         this.on(GameEvents.ACTION_EXECUTION_COMPLETED, this.onActionExecutionCompleted.bind(this));
+        this.on(GameEvents.ACTION_EXECUTION_REQUESTED, this.onActionExecutionRequested.bind(this));
+    }
+
+    onActionExecutionRequested() {
+        if (this.currentActorId !== null || this.executionQueue.length > 0) {
+            return;
+        }
+        
+        this._populateExecutionQueueFromReady();
+        this._processNextInQueue();
     }
 
     update(deltaTime) {
         this.taskRunner.update(deltaTime);
-
-        // コンテキストのフラグを更新（GaugeSystemなどが参照する）
         this.battleContext.isSequenceRunning = !this.taskRunner.isIdle;
 
-        if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
-            if (this.executionQueue.length > 0 || this.currentActorId !== null) {
-                this._reset();
-            }
-            return;
-        }
-
-        if (!this.taskRunner.isIdle) {
-            return;
-        }
-
-        if (this.currentActorId === null) {
-            if (this.executionQueue.length === 0) {
-                this._populateExecutionQueueFromReady();
-                
-                if (this.executionQueue.length === 0) {
-                    this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
-                    return;
-                }
-            }
-            
-            this._startNextActionSequence();
-        } else {
+        if (this.taskRunner.isIdle && this.currentActorId !== null) {
             this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: this.currentActorId });
             this.currentActorId = null;
+            this._processNextInQueue();
         }
     }
     
+    _processNextInQueue() {
+        if (this.executionQueue.length > 0) {
+            this._startNextActionSequence();
+        } else {
+            if (!this.battleContext.isSequenceRunning) {
+                this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
+            }
+        }
+    }
+
     _reset() {
         this.executionQueue = [];
         this.currentActorId = null;
@@ -82,13 +79,15 @@ export class BattleSequenceSystem extends System {
 
     _startNextActionSequence() {
         const actorId = this.executionQueue.shift();
-        if (!actorId) return;
+        if (!this.isValidEntity(actorId)) {
+            this._processNextInQueue();
+            return;
+        }
 
         this.currentActorId = actorId;
         const actionComp = this.world.getComponent(actorId, Action);
 
-        const gameState = this.world.getComponent(actorId, GameState);
-        if (gameState) gameState.state = PlayerStateType.AWAITING_ANIMATION;
+        this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId: actorId, newState: PlayerStateType.AWAITING_ANIMATION });
 
         this._determinePostMoveTarget(actorId, actionComp);
 
@@ -96,7 +95,6 @@ export class BattleSequenceSystem extends System {
         const tasks = this.timelineBuilder.buildAttackSequence(resultData);
         this.taskRunner.addTasks(tasks);
         
-        // 即座にフラグを立てる
         this.battleContext.isSequenceRunning = true;
     }
 

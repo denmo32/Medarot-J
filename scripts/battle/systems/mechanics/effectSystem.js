@@ -1,6 +1,8 @@
 import { System } from '../../../../engine/core/System.js';
-import { ActiveEffects } from '../../components/index.js';
+import { ActiveEffects, GameState } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
+import { PlayerStateType } from '../../common/constants.js';
+import { EffectType } from '../../../common/constants.js';
 
 export class EffectSystem extends System {
     constructor(world) {
@@ -30,6 +32,11 @@ export class EffectSystem extends System {
                 nextEffects.push(effect);
             } else {
                 this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId, effect });
+                
+                const gameState = this.world.getComponent(entityId, GameState);
+                if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
+                    this.world.emit(GameEvents.REQUEST_RESET_TO_COOLDOWN, { entityId, options: {} });
+                }
             }
         }
 

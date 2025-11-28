@@ -9,13 +9,8 @@ import { CombatCalculator } from '../../utils/combatFormulas.js';
 export class CooldownSystem extends System {
     constructor(world) {
         super(world);
-        // BattleSequenceSystemからのリクエストに対応
         this.on(GameEvents.REQUEST_COOLDOWN_TRANSITION, this.onCooldownTransitionRequested.bind(this));
-        
-        // 以下は例外処理やキャンセル処理用として維持
-        this.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
-        this.on(GameEvents.EFFECT_EXPIRED, this.onEffectExpired.bind(this));
-        this.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
+        this.on(GameEvents.REQUEST_RESET_TO_COOLDOWN, this.onResetToCooldownRequested.bind(this));
     }
 
     onCooldownTransitionRequested(detail) {
@@ -26,45 +21,9 @@ export class CooldownSystem extends System {
         this.world.emit(GameEvents.COOLDOWN_TRANSITION_COMPLETED, { entityId });
     }
     
-    onActionCancelled(detail) {
-        this.resetEntityStateToCooldown(detail.entityId, { interrupted: true });
-    }
-
-    onHpBarAnimationCompleted(detail) {
-        const { appliedEffects } = detail;
-        if (!appliedEffects) return;
-
-        for (const effect of appliedEffects) {
-            if (!effect.isPartBroken) continue;
-            
-            const { targetId: entityId, partKey } = effect;
-            const gameState = this.world.getComponent(entityId, GameState);
-
-            if (gameState?.state !== PlayerStateType.GUARDING) {
-                continue;
-            }
-
-            const activeEffects = this.world.getComponent(entityId, ActiveEffects);
-            if (!activeEffects) continue;
-
-            const isGuardPartBroken = activeEffects.effects.some(
-                activeEffect => activeEffect.type === EffectType.APPLY_GUARD && activeEffect.partKey === partKey
-            );
-
-            if (isGuardPartBroken) {
-                this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
-                this.resetEntityStateToCooldown(entityId);
-            }
-        }
-    }
-
-    onEffectExpired(detail) {
-        const { entityId, effect } = detail;
-        const gameState = this.world.getComponent(entityId, GameState);
-        
-        if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
-            this.resetEntityStateToCooldown(entityId);
-        }
+    onResetToCooldownRequested(detail) {
+        const { entityId, options } = detail;
+        this.resetEntityStateToCooldown(entityId, options);
     }
     
     transitionToCooldown(entityId) {
@@ -89,7 +48,7 @@ export class CooldownSystem extends System {
             gauge.speedMultiplier = 1.0;
         }
 
-        if (gameState) gameState.state = PlayerStateType.CHARGING;
+        this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.CHARGING });
         if (gauge) {
             gauge.value = 0;
             gauge.currentSpeed = 0;
@@ -117,7 +76,7 @@ export class CooldownSystem extends System {
             }
         }
         
-        if (gameState) gameState.state = PlayerStateType.CHARGING;
+        this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.CHARGING });
         if (gauge) {
             if (interrupted) {
                 gauge.value = gauge.max - gauge.value;

@@ -32,16 +32,19 @@ export class ActionCancellationSystem extends System {
 
                 if (actorId === brokenEntityId && action.partKey === brokenPartKey) {
                     this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.PART_BROKEN });
+                    this.world.emit(GameEvents.REQUEST_RESET_TO_COOLDOWN, { entityId: actorId, options: { interrupted: true } });
                     continue;
                 }
                 
                 if (effect.isPlayerBroken && selectedPart && selectedPart.targetScope?.endsWith('_SINGLE') && action.targetId === brokenEntityId) {
                     this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.TARGET_LOST });
+                    this.world.emit(GameEvents.REQUEST_RESET_TO_COOLDOWN, { entityId: actorId, options: { interrupted: true } });
                     continue;
                 }
 
                 if (selectedPart && selectedPart.targetScope?.endsWith('_SINGLE') && action.targetId === brokenEntityId && action.targetPartKey === brokenPartKey) {
                     this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: ActionCancelReason.TARGET_LOST });
+                    this.world.emit(GameEvents.REQUEST_RESET_TO_COOLDOWN, { entityId: actorId, options: { interrupted: true } });
                     continue;
                 }
             }

@@ -27,6 +27,11 @@ export const GameEvents = {
 
     // --- BattleSequenceSystem 制御用イベント ---
     /**
+     * アクション実行フェーズの開始を要求 (PhaseSystem -> BattleSequenceSystem)
+     * @event ACTION_EXECUTION_REQUESTED
+     */
+    ACTION_EXECUTION_REQUESTED: 'ACTION_EXECUTION_REQUESTED',
+    /**
      * アクション実行アニメーションの完了 (ViewSystem -> BattleSequenceSystem)
      * @event EXECUTION_ANIMATION_COMPLETED
      */
@@ -67,6 +72,16 @@ export const GameEvents = {
     COMBAT_RESOLUTION_DISPLAYED: 'COMBAT_RESOLUTION_DISPLAYED',
 
     // --- 状態 & ターン管理イベント ---
+    /**
+     * エンティティの状態遷移を要求 (Any -> StateSystem)
+     * @event REQUEST_STATE_TRANSITION
+     */
+    REQUEST_STATE_TRANSITION: 'REQUEST_STATE_TRANSITION',
+    /**
+     * エンティティをクールダウン状態にリセットするよう要求 (Any -> CooldownSystem)
+     * @event REQUEST_RESET_TO_COOLDOWN
+     */
+    REQUEST_RESET_TO_COOLDOWN: 'REQUEST_RESET_TO_COOLDOWN',
     ACTION_SELECTION_COMPLETED: 'ACTION_SELECTION_COMPLETED',
     ACTION_EXECUTION_COMPLETED: 'ACTION_EXECUTION_COMPLETED',
     TURN_START: 'TURN_START',
