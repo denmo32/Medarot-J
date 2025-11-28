@@ -50,6 +50,18 @@ export const GameEvents = {
      */
     ACTION_SEQUENCE_COMPLETED: 'ACTION_SEQUENCE_COMPLETED',
 
+    /**
+     * タスク実行要求 (TaskRunner -> Systems)
+     * @event REQUEST_TASK_EXECUTION
+     */
+    REQUEST_TASK_EXECUTION: 'REQUEST_TASK_EXECUTION',
+
+    /**
+     * タスク実行完了 (Systems -> TaskRunner)
+     * @event TASK_EXECUTION_COMPLETED
+     */
+    TASK_EXECUTION_COMPLETED: 'TASK_EXECUTION_COMPLETED',
+
     // --- その他イベント ---
     COMBAT_SEQUENCE_RESOLVED: 'COMBAT_SEQUENCE_RESOLVED',
     COMBAT_RESOLUTION_DISPLAYED: 'COMBAT_RESOLUTION_DISPLAYED',

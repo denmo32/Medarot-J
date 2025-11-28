@@ -12,6 +12,7 @@ import { EffectScope } from '../../../common/constants.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { el } from '../../../../engine/utils/DOMUtils.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
+import { TaskType } from '../../tasks/BattleTasks.js';
 
 export class ViewSystem extends System {
     constructor(world) {
@@ -25,6 +26,17 @@ export class ViewSystem extends System {
     bindWorldEvents() {
         this.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this));
         this.on(GameEvents.HP_BAR_ANIMATION_REQUESTED, this.onHpBarAnimationRequested.bind(this));
+        
+        // タスク実行要求を監視
+        this.on(GameEvents.REQUEST_TASK_EXECUTION, this.onRequestTaskExecution.bind(this));
+    }
+
+    onRequestTaskExecution(task) {
+        if (task.type !== TaskType.ANIMATE) return;
+
+        this._executeAnimateTask(task).then(() => {
+            this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId: task.id });
+        });
     }
 
     onShowBattleStartAnimation() {
@@ -44,10 +56,10 @@ export class ViewSystem extends System {
     }
 
     /**
-     * アニメーション再生タスクを実行 (Async)
+     * アニメーション再生タスクを実行 (Internal Async)
      * @param {object} task 
      */
-    playAnimation(task) {
+    _executeAnimateTask(task) {
         return new Promise((resolve) => {
             const { attackerId, targetId, animationType } = task;
 

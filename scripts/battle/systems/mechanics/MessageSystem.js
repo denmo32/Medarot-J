@@ -8,6 +8,7 @@ import { ModalType, ActionCancelReason } from '../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { MessageGenerator } from '../../utils/MessageGenerator.js';
+import { TaskType } from '../../tasks/BattleTasks.js';
 
 const cancelReasonToMessageKey = {
     [ActionCancelReason.PART_BROKEN]: MessageKey.CANCEL_PART_BROKEN,
@@ -28,13 +29,24 @@ export class MessageSystem extends System {
         
         // モーダルが閉じたときのイベントを監視
         this.on(GameEvents.MODAL_CLOSED, this.onModalClosed.bind(this));
+
+        // タスク実行要求を監視
+        this.on(GameEvents.REQUEST_TASK_EXECUTION, this.onRequestTaskExecution.bind(this));
+    }
+
+    onRequestTaskExecution(task) {
+        if (task.type !== TaskType.MESSAGE) return;
+
+        this._executeMessageTask(task).then(() => {
+            this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId: task.id });
+        });
     }
 
     /**
-     * メッセージタスクを処理 (Async)
+     * メッセージタスクを処理 (Internal Async)
      * @param {object} task 
      */
-    showMessage(task) {
+    _executeMessageTask(task) {
         return new Promise((resolve) => {
             const { modalType, data, messageSequence } = task;
             

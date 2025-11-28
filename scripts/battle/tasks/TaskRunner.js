@@ -4,10 +4,8 @@
  */
 import { TaskType } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
-import { UIManager } from '../../../engine/ui/UIManager.js';
 import { Position } from '../components/index.js';
-import { ViewSystem } from '../systems/ui/ViewSystem.js';
-import { MessageSystem } from '../systems/mechanics/MessageSystem.js';
+import { System } from '../../../engine/core/System.js';
 
 export class TaskRunner {
     constructor(world) {
@@ -15,26 +13,11 @@ export class TaskRunner {
         this.queue = [];
         this.currentTask = null;
         this.isProcessing = false;
+        this.isWaitingForEvent = false;
         this.elapsedTime = 0;
 
-        // 外部システムへの参照キャッシュ
-        this._viewSystem = null;
-        this._messageSystem = null;
-    }
-
-    // 遅延取得用ゲッター
-    get viewSystem() {
-        if (!this._viewSystem) {
-            this._viewSystem = this.world.systems.find(s => s instanceof ViewSystem);
-        }
-        return this._viewSystem;
-    }
-
-    get messageSystem() {
-        if (!this._messageSystem) {
-            this._messageSystem = this.world.systems.find(s => s instanceof MessageSystem);
-        }
-        return this._messageSystem;
+        // イベントリスナーの登録（SystemではないがWorldのイベントバスを使用）
+        this.world.on(GameEvents.TASK_EXECUTION_COMPLETED, this.onTaskExecutionCompleted.bind(this));
     }
 
     /**
@@ -42,6 +25,10 @@ export class TaskRunner {
      * @param {Array} tasks 
      */
     addTasks(tasks) {
+        // IDを付与（完了通知との照合用）
+        tasks.forEach(task => {
+            if (!task.id) task.id = Math.random().toString(36).substr(2, 9);
+        });
         this.queue.push(...tasks);
     }
 
@@ -52,14 +39,21 @@ export class TaskRunner {
         this.queue = [];
         this.currentTask = null;
         this.isProcessing = false;
+        this.isWaitingForEvent = false;
     }
 
     update(deltaTime) {
+        // イベント待ち中は新たなタスクを開始しない
+        if (this.isWaitingForEvent) {
+            return;
+        }
+
         if (!this.isProcessing && this.queue.length > 0) {
             this._startNextTask();
         }
 
-        if (this.currentTask) {
+        // 継続的な更新が必要なタスク（Wait, Moveなど）の処理
+        if (this.currentTask && !this.isWaitingForEvent) {
             this._updateCurrentTask(deltaTime);
         }
     }
@@ -90,24 +84,6 @@ export class TaskRunner {
                         this._completeTask(); // コンポーネントがない場合はスキップ
                     }
                     break;
-
-                case TaskType.ANIMATE:
-                    if (this.viewSystem) {
-                        await this.viewSystem.playAnimation(this.currentTask);
-                    } else {
-                        console.warn('[TaskRunner] ViewSystem not found.');
-                    }
-                    this._completeTask();
-                    break;
-
-                case TaskType.MESSAGE:
-                    if (this.messageSystem) {
-                        await this.messageSystem.showMessage(this.currentTask);
-                    } else {
-                        console.warn('[TaskRunner] MessageSystem not found.');
-                    }
-                    this._completeTask();
-                    break;
                 
                 case TaskType.APPLY_STATE:
                     if (this.currentTask.applyFn) {
@@ -127,13 +103,23 @@ export class TaskRunner {
                     }
                     this._completeTask();
                     break;
+                
+                case TaskType.ANIMATE:
+                case TaskType.MESSAGE:
+                    // 外部システムに委譲
+                    this.isWaitingForEvent = true;
+                    this.world.emit(GameEvents.REQUEST_TASK_EXECUTION, this.currentTask);
+                    break;
 
                 default:
-                    console.warn(`Unknown task type: ${this.currentTask.type}`);
-                    this._completeTask();
+                    // 未知のタスクタイプも汎用的に外部委譲を試みる
+                    console.log(`Delegating unknown task type: ${this.currentTask.type}`);
+                    this.isWaitingForEvent = true;
+                    this.world.emit(GameEvents.REQUEST_TASK_EXECUTION, this.currentTask);
+                    break;
             }
         } catch (error) {
-            console.error("Error executing task:", error);
+            console.error("Error starting task:", error);
             this._completeTask(); // エラー時はスキップして次へ
         }
     }
@@ -169,12 +155,25 @@ export class TaskRunner {
         }
     }
 
+    onTaskExecutionCompleted(detail) {
+        // 現在実行中のタスク完了通知か確認（簡易実装として、待ち状態なら完了とする）
+        if (this.isWaitingForEvent && this.currentTask) {
+             // taskId照合（あれば）
+            if (detail && detail.taskId && detail.taskId !== this.currentTask.id) {
+                return;
+            }
+            this.isWaitingForEvent = false;
+            this._completeTask();
+        }
+    }
+
     _completeTask() {
         this.currentTask = null;
         this.isProcessing = false;
+        this.isWaitingForEvent = false;
     }
     
     get isIdle() {
-        return !this.isProcessing && this.queue.length === 0;
+        return !this.isProcessing && !this.isWaitingForEvent && this.queue.length === 0;
     }
 }
