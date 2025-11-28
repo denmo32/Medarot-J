@@ -20,8 +20,6 @@ export class MessageSystem extends System {
         super(world);
         this.messageGenerator = new MessageGenerator(world);
         
-        // 旧互換イベント（タスクシステム完全移行後は削除可能だが残しておく）
-        this.on(GameEvents.REQUEST_RESULT_DISPLAY, this.onResultDisplayRequested.bind(this));
         this.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
         this.on(GameEvents.GUARD_BROKEN, this.onGuardBroken.bind(this));
         
@@ -60,21 +58,6 @@ export class MessageSystem extends System {
             this.pendingResolvers.delete(modalType);
             resolve();
         }
-    }
-
-    // --- 以下、旧イベントハンドラ (タスクシステムから呼ばれないケース用) ---
-
-    onResultDisplayRequested(detail) {
-        const { resultData } = detail;
-        if (!resultData || resultData.isCancelled) return;
-
-        const declarationSequence = this.messageGenerator.createDeclarationSequence(resultData);
-        this.world.emit(GameEvents.SHOW_MODAL, {
-            type: ModalType.ATTACK_DECLARATION,
-            data: { ...resultData },
-            messageSequence: declarationSequence,
-            immediate: true,
-        });
     }
 
     onActionCancelled(detail) {

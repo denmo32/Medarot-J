@@ -1,5 +1,5 @@
 import { System } from '../../../../engine/core/System.js';
-import { Gauge, GameState, Action, Position, ActiveEffects } from '../../components/index.js';
+import { Gauge, GameState, Action, Position } from '../../components/index.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { GameEvents } from '../../../common/events.js';
@@ -17,9 +17,6 @@ export class StateSystem extends System {
         
         // HP更新イベントを監視し、即座に破壊状態などを更新する
         this.on(GameEvents.HP_UPDATED, this.onHpUpdated.bind(this));
-        
-        // 互換性のため維持するが、基本ロジックは HP_UPDATED へ移動
-        this.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
     }
 
     onHpUpdated(detail) {
@@ -56,19 +53,6 @@ export class StateSystem extends System {
         if (playerInfo) {
             this.world.emit(GameEvents.PLAYER_BROKEN, { entityId, teamId: playerInfo.teamId });
         }
-    }
-    
-    onHpBarAnimationCompleted(detail) {
-        // アニメーション完了時の処理は、必要であればここに記述。
-        // タスクシステムでは ApplyStateTask でデータ更新が先行するため、
-        // ここでのロジックは主にView側の整合性チェックなどになる。
-        // 今回は onHpUpdated にロジックを移動したため、ここは空でも良いが、
-        // 念のため破壊エフェクト用などにイベントは残しておく。
-        // ビュー側で破壊表示(グレーアウトなど)を行うためのイベント連携などに使用。
-        const { appliedEffects } = detail;
-        if (!appliedEffects) return;
-
-        // ViewSystemがすでにクラス付与を行っているが、論理的な完了確認として
     }
 
     onCombatSequenceResolved(detail) {

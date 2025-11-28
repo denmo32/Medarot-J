@@ -53,7 +53,6 @@ export function initializeSystems(world) {
     const messageSystem = new MessageSystem(world);
     const actionCancellationSystem = new ActionCancellationSystem(world);
     const actionSelectionSystem = new ActionSelectionSystem(world);
-    // 旧 ActionSetupSystem, ActionExecutionSystem, ActionResolutionSystem は削除
     const battleSequenceSystem = new BattleSequenceSystem(world); 
     const timerSystem = new TimerSystem(world);
     const cooldownSystem = new CooldownSystem(world);
@@ -63,7 +62,7 @@ export function initializeSystems(world) {
         new DebugSystem(world);
     }
     
-    // --- システムの登録順序を整理 ---
+    // --- システムの登録 ---
     world.registerSystem(gameFlowSystem);
     world.registerSystem(winConditionSystem);
     world.registerSystem(phaseSystem);
@@ -73,12 +72,9 @@ export function initializeSystems(world) {
     world.registerSystem(stateSystem);
     world.registerSystem(cooldownSystem);
     world.registerSystem(actionSelectionSystem);
-    // ActionSetupSystemは削除 (ActionSelectionSystemに統合)
     
     // 実行フローの中核
     world.registerSystem(battleSequenceSystem);
-    
-    // ActionExecution, ActionResolutionは削除 (BattleSequenceSystemに統合)
     
     world.registerSystem(battleHistorySystem);
     world.registerSystem(actionCancellationSystem);

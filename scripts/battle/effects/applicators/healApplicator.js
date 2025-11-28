@@ -17,7 +17,6 @@ export const applyHeal = ({ world, effect }) => {
 
     if (!part.isBroken) {
         const oldHp = part.hp;
-        // part.hp = Math.min(part.maxHp, part.hp + value); // ★削除
         const newHp = Math.min(part.maxHp, part.hp + value);
         actualHealAmount = newHp - oldHp;
         

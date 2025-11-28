@@ -30,7 +30,6 @@ export class PhaseSystem extends System {
         if (this.isAnyEntityInCharging()) {
              if (this.isAnyEntityReadyToExecute()) {
                 this.battleContext.phase = BattlePhase.ACTION_EXECUTION;
-             } else {
              }
         } else {
              this.battleContext.phase = BattlePhase.TURN_END;

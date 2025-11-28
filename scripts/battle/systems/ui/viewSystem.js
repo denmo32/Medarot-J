@@ -25,13 +25,6 @@ export class ViewSystem extends System {
     bindWorldEvents() {
         this.on(GameEvents.GAME_WILL_RESET, this.resetView.bind(this));
         this.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this));
-        // 後方互換性のため残すが、基本はTaskから直接呼ばれる想定
-        this.on(GameEvents.EXECUTE_ATTACK_ANIMATION, (detail) => this.playAnimation({ 
-            type: TaskType.ANIMATE, 
-            attackerId: detail.attackerId, 
-            targetId: detail.targetId, 
-            animationType: 'attack' 
-        }));
         this.on(GameEvents.HP_BAR_ANIMATION_REQUESTED, this.onHpBarAnimationRequested.bind(this));
     }
 
