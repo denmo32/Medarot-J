@@ -7,8 +7,9 @@ import { CONFIG } from '../common/config.js';
 const NAVIGATION_MAP = {
     [PartInfo.HEAD.key]: {
         arrowdown: [PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key],
-        arrowleft: [PartInfo.LEFT_ARM.key, PartInfo.RIGHT_ARM.key],
-        arrowright: [PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key],
+        // 修正: 左キーで右腕(向かって左)、右キーで左腕(向かって右)に遷移
+        arrowleft: [PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key],
+        arrowright: [PartInfo.LEFT_ARM.key, PartInfo.RIGHT_ARM.key],
     },
     [PartInfo.RIGHT_ARM.key]: {
         arrowup: [PartInfo.HEAD.key],

@@ -8,22 +8,20 @@ import { PartInfo } from '../../../common/constants.js';
 export class ActionCancellationSystem extends System {
     constructor(world) {
         super(world);
-        // トリガーイベントをUIアニメーション完了から、より直接的なデータ変更イベントに変更
-        this.on(GameEvents.PART_BROKEN, this.onPartBroken.bind(this));
+        // パーツ破壊イベントの直接監視を廃止し、シーケンス末尾でのチェックイベントを監視
+        this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
     }
 
     /**
-     * パーツ破壊イベントをハンドルし、関連するアクションをキャンセルする。
-     * ターゲットの機能停止（頭部破壊）もここで検知する。
-     * @param {{ entityId: number, partKey: string }} detail
+     * アクションキャンセルが必要な状態が発生していないか一括チェックする
+     * シーケンスの最後に呼び出されることを想定
      */
-    onPartBroken(detail) {
-        const { entityId: brokenEntityId, partKey: brokenPartKey } = detail;
-        const isTargetDestroyed = brokenPartKey === PartInfo.HEAD.key;
-
+    onCheckActionCancellation() {
         const actors = this.getEntities(GameState, Action, Parts);
+        
         for (const actorId of actors) {
             const gameState = this.world.getComponent(actorId, GameState);
+            
             // チャージ中のアクションのみがキャンセルの対象
             if (gameState.state !== PlayerStateType.SELECTED_CHARGING) {
                 continue;
@@ -31,25 +29,30 @@ export class ActionCancellationSystem extends System {
 
             const action = this.world.getComponent(actorId, Action);
             const actorParts = this.world.getComponent(actorId, Parts);
-            const selectedPart = actorParts[action.partKey];
 
-            // 1. 自分の使用しようとしているパーツが破壊された場合
-            if (actorId === brokenEntityId && action.partKey === brokenPartKey) {
+            // 1. 自分の使用しようとしているパーツが破壊されているか確認
+            if (!action.partKey || !actorParts[action.partKey] || actorParts[action.partKey].isBroken) {
                 this.emitCancellationEvents(actorId, ActionCancelReason.PART_BROKEN);
-                continue; // このアクターの処理は完了
+                continue;
             }
             
-            // 2. ターゲットに関する破壊
-            if (selectedPart?.targetScope?.endsWith('_SINGLE') && action.targetId === brokenEntityId) {
-                // 2a. ターゲット自体が機能停止した場合（頭部破壊）
-                if (isTargetDestroyed) {
+            // 2. ターゲットに関する破壊確認
+            if (action.targetId !== null) {
+                const targetParts = this.world.getComponent(action.targetId, Parts);
+                
+                // ターゲットが存在しない、または機能停止している(頭部破壊)場合
+                if (!targetParts || (targetParts.head && targetParts.head.isBroken)) {
                     this.emitCancellationEvents(actorId, ActionCancelReason.TARGET_LOST);
                     continue;
                 }
-                // 2b. ターゲットの特定のパーツが破壊された場合
-                if (action.targetPartKey === brokenPartKey) {
-                    this.emitCancellationEvents(actorId, ActionCancelReason.TARGET_LOST);
-                    continue;
+
+                // 特定のパーツ狙いで、そのパーツが破壊された場合
+                if (action.targetPartKey) {
+                     const targetPart = targetParts[action.targetPartKey];
+                     if (targetPart && targetPart.isBroken) {
+                        this.emitCancellationEvents(actorId, ActionCancelReason.TARGET_LOST);
+                        continue;
+                     }
                 }
             }
         }

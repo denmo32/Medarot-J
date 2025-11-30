@@ -67,6 +67,12 @@ export const GameEvents = {
      */
     TASK_EXECUTION_COMPLETED: 'TASK_EXECUTION_COMPLETED',
 
+    /**
+     * アクションキャンセル状態の一括チェック要求
+     * @event CHECK_ACTION_CANCELLATION
+     */
+    CHECK_ACTION_CANCELLATION: 'CHECK_ACTION_CANCELLATION',
+
     // --- その他イベント ---
     COMBAT_SEQUENCE_RESOLVED: 'COMBAT_SEQUENCE_RESOLVED',
     COMBAT_RESOLUTION_DISPLAYED: 'COMBAT_RESOLUTION_DISPLAYED',
@@ -97,6 +103,7 @@ export const GameEvents = {
     HP_UPDATED: 'HP_UPDATED',
     EFFECT_EXPIRED: 'EFFECT_EXPIRED',
     GUARD_BROKEN: 'GUARD_BROKEN',
+    GUARD_EXPIRED: 'GUARD_EXPIRED',
 
     // --- UI & Sceneイベント ---
     SCENE_CHANGE_REQUESTED: 'SCENE_CHANGE_REQUESTED',
@@ -107,6 +114,12 @@ export const GameEvents = {
     SETUP_UI_REQUESTED: 'SETUP_UI_REQUESTED',
     HP_BAR_ANIMATION_REQUESTED: 'HP_BAR_ANIMATION_REQUESTED',
     HP_BAR_ANIMATION_COMPLETED: 'HP_BAR_ANIMATION_COMPLETED',
+    
+    /**
+     * UI全体の表示を最新データに合わせて更新する要求
+     * @event REFRESH_UI
+     */
+    REFRESH_UI: 'REFRESH_UI',
 
     // --- カスタマイズ画面イベント ---
     CUST_CONFIRM_INPUT: 'CUST_CONFIRM_INPUT',

@@ -22,7 +22,8 @@ export class MessageSystem extends System {
         this.messageGenerator = new MessageGenerator(world);
         
         this.on(GameEvents.ACTION_CANCELLED, this.onActionCancelled.bind(this));
-        this.on(GameEvents.GUARD_BROKEN, this.onGuardBroken.bind(this));
+        // GUARD_BROKEN, GUARD_EXPIRED は TimelineBuilder のシーケンス内で表示制御するため、
+        // ここでのイベント駆動リスナーは削除し、重複表示やタイミングの不整合を防ぐ。
         
         // モーダル制御用のPromise解決関数保持用
         this.pendingResolvers = new Map();
@@ -82,14 +83,6 @@ export class MessageSystem extends System {
         
         const message = this.messageGenerator.format(messageKey, { actorName: actorInfo.name });
         
-        this.world.emit(GameEvents.SHOW_MODAL, {
-            type: ModalType.MESSAGE,
-            data: { message: message }
-        });
-    }
-
-    onGuardBroken(detail) {
-        const message = this.messageGenerator.format(MessageKey.GUARD_BROKEN);
         this.world.emit(GameEvents.SHOW_MODAL, {
             type: ModalType.MESSAGE,
             data: { message: message }

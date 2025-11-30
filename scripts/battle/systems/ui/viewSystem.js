@@ -92,12 +92,6 @@ export class ViewSystem extends System {
                 return;
             }
     
-            const targetDomElements = this.uiManager.getDOMElements(targetId);
-            if (!attackerDomElements.iconElement || !targetDomElements?.iconElement) {
-                resolve();
-                return;
-            }
-    
             // エフェクト生成
             const indicator = el('div', { className: 'target-indicator' }, [
                 el('div', { className: 'corner corner-1' }),
@@ -108,13 +102,17 @@ export class ViewSystem extends System {
     
             document.body.appendChild(indicator);
             
-            const attackerIcon = attackerDomElements.iconElement;
-            const targetIcon = targetDomElements.iconElement;
-            
-            // レイアウト確定待ち
+            // レイアウト確定待ち (DOM生成後、スタイル適用のため)
             requestAnimationFrame(() => {
-                const attackerRect = attackerIcon.getBoundingClientRect();
-                const targetRect = targetIcon.getBoundingClientRect();
+                // CSS transitionの影響を受けないよう、Positionコンポーネントから論理座標を計算する
+                const startPos = this._calculateLogicalPosition(attackerId);
+                const endPos = this._calculateLogicalPosition(targetId);
+
+                if (!startPos || !endPos) {
+                    indicator.remove();
+                    resolve();
+                    return;
+                }
                 
                 Object.assign(indicator.style, {
                     position: 'fixed',
@@ -122,16 +120,13 @@ export class ViewSystem extends System {
                     opacity: '1'
                 });
                 
-                const startX = attackerRect.left + attackerRect.width / 2;
-                const startY = attackerRect.top + attackerRect.height / 2;
-                const endX = targetRect.left + targetRect.width / 2;
-                const endY = targetRect.top + targetRect.height / 2;
+                const startX = startPos.x;
+                const startY = startPos.y;
+                const dx = endPos.x - startX;
+                const dy = endPos.y - startY;
                 
                 indicator.style.left = `${startX}px`;
                 indicator.style.top = `${startY}px`;
-                
-                const dx = endX - startX;
-                const dy = endY - startY;
     
                 const animation = indicator.animate([
                     { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1, offset: 0 },
@@ -152,6 +147,28 @@ export class ViewSystem extends System {
                 });
             });
         });
+    }
+
+    /**
+     * エンティティの論理座標から、画面上の絶対座標を計算する
+     * @param {number} entityId 
+     * @returns {{x: number, y: number} | null}
+     */
+    _calculateLogicalPosition(entityId) {
+        const position = this.getCachedComponent(entityId, BattleComponents.Position);
+        if (!position) return null;
+
+        const battlefield = document.getElementById('battlefield');
+        if (!battlefield) return null;
+
+        const rect = battlefield.getBoundingClientRect();
+
+        // Position.x は 0.0～1.0 の比率
+        // Position.y は 0～100 のパーセンテージ値
+        const x = rect.left + (rect.width * position.x);
+        const y = rect.top + (rect.height * (position.y / 100));
+
+        return { x, y };
     }
 
     async onHpBarAnimationRequested(detail) {

@@ -171,6 +171,11 @@ export class MessageGenerator {
             messages.push(prefix + this.format(MessageKey.DAMAGE_APPLIED, params));
         }
 
+        // パーツ破壊によるガード解除の判定 (Resolverで判定済みのフラグを使用)
+        if (firstEffect.isGuardBroken) {
+            messages.push(this.format(MessageKey.GUARD_BROKEN));
+        }
+
         for (let i = 1; i < effects.length; i++) {
             const effect = effects[i];
             if (effect.isPenetration) {
@@ -179,6 +184,10 @@ export class MessageGenerator {
                     partName: penetratedPartName,
                     damage: effect.value,
                 }));
+                // 貫通によるガード破壊判定
+                if (effect.isGuardBroken) {
+                    messages.push(this.format(MessageKey.GUARD_BROKEN));
+                }
             }
         }
     }

@@ -37,16 +37,34 @@ export class BattleResolver {
 
         const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
         const resolvedEffects = this._processEffects(attackerId, components, targetContext, outcome);
+        
+        // ガードが発動した場合は、ガード消費エフェクトを追加
+        if (targetContext.guardianInfo) {
+            resolvedEffects.push({
+                type: EffectType.CONSUME_GUARD,
+                targetId: targetContext.guardianInfo.id,
+                partKey: targetContext.guardianInfo.partKey
+            });
+        }
+
         const appliedEffects = this._calculateAppliedEffects({ resolvedEffects, guardianInfo: targetContext.guardianInfo });
         
+        // フラグの集約 (何が起きたか)
+        const summary = {
+            isGuardBroken: appliedEffects.some(e => e.isGuardBroken),
+            isGuardExpired: appliedEffects.some(e => e.isExpired && e.type === EffectType.CONSUME_GUARD),
+        };
+
         return {
             attackerId,
+            intendedTargetId: targetContext.intendedTargetId,
             targetId: targetContext.finalTargetId,
             attackingPart: components.attackingPart,
             isSupport: components.attackingPart.isSupport,
             guardianInfo: targetContext.guardianInfo,
             outcome,
             appliedEffects,
+            summary, // 集約したイベントフラグ
             isCancelled: false
         };
     }
@@ -60,6 +78,7 @@ export class BattleResolver {
             return { shouldCancel: true };
         }
 
+        const intendedTargetId = action.targetId;
         let finalTargetId = action.targetId;
         let finalTargetPartKey = action.targetPartKey;
         let guardianInfo = null;
@@ -76,6 +95,7 @@ export class BattleResolver {
         const targetLegs = this.world.getComponent(finalTargetId, Parts)?.legs;
 
         return { 
+            intendedTargetId,
             finalTargetId, 
             finalTargetPartKey, 
             targetLegs, 
@@ -133,13 +153,6 @@ export class BattleResolver {
     _calculateAppliedEffects({ resolvedEffects, guardianInfo }) {
         const appliedEffects = [];
         const effectQueue = [...resolvedEffects];
-
-        // ガード消費は「適用」フェーズで行うべきだが、
-        // ここでは「ガードされた」という事実を効果リストに含めるか、
-        // 呼び出し元で処理するか。今回はResolverは純粋関数に近づけるため、
-        // 消費ロジック自体はここには含めず、適用時に消費させるためのマーカーを含めたいところだが、
-        // 既存ロジックを踏襲し、Applicatorを呼び出して「計算結果」を得る。
-        // Applicatorは副作用（イベント発行）の指示を含むオブジェクトを返す。
 
         while (effectQueue.length > 0) {
             const effect = effectQueue.shift();
