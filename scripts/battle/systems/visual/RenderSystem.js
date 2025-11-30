@@ -2,9 +2,10 @@
  * @file RenderSystem.js
  * @description Visualコンポーネントの状態をDOMに反映するシステム。
  * DOMの生成、更新、破棄を一元管理する。
+ * ダーティチェックを行い、変更がない場合はDOM操作をスキップする最適化を含む。
  */
 import { System } from '../../../../engine/core/System.js';
-import { Visual, GameState, ActiveEffects } from '../../components/index.js';
+import { Visual, GameState, Position, ActiveEffects } from '../../components/index.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { el } from '../../../../engine/utils/DOMUtils.js';
@@ -23,21 +24,7 @@ export class RenderSystem extends System {
             [TeamID.TEAM2]: document.querySelector('#team2InfoPanel .team-players-container')
         };
         
-        // Canvasサイズのキャッシュ（Position比率計算用）
-        this.fieldRect = { width: 0, height: 0 };
-        this._updateFieldRect();
-        window.addEventListener('resize', () => this._updateFieldRect());
-
-        // 管理中のエンティティID (DOM削除用)
         this.managedEntities = new Set();
-    }
-
-    _updateFieldRect() {
-        if (this.battlefield) {
-            const rect = this.battlefield.getBoundingClientRect();
-            this.fieldRect.width = rect.width;
-            this.fieldRect.height = rect.height;
-        }
     }
 
     update(deltaTime) {
@@ -49,16 +36,34 @@ export class RenderSystem extends System {
             const visual = this.world.getComponent(entityId, Visual);
 
             if (!visual.isInitialized) {
+                // DOM作成前に、Positionコンポーネントから初期座標をVisualへ確実に同期する
+                // これにより、ホームマーカーなどの初期位置計算（visual.y依存）が正しく行われる
+                const position = this.world.getComponent(entityId, Position);
+                if (position) {
+                    visual.x = position.x;
+                    visual.y = position.y;
+                }
+                
                 this._createDOM(entityId, visual);
                 this._syncInitialValues(entityId, visual);
                 visual.isInitialized = true;
                 this.managedEntities.add(entityId);
             }
 
+            // --- 座標同期 ---
+            // アニメーション中でなければ、PositionコンポーネントからVisualへ値を同期する
+            if (!visual.isAnimating) {
+                const position = this.world.getComponent(entityId, Position);
+                if (position) {
+                    visual.x = position.x;
+                    visual.y = position.y;
+                }
+            }
+
             this._updateDOM(entityId, visual);
         }
         
-        // クリーンアップ処理 (存在しなくなったエンティティのDOMを削除)
+        // クリーンアップ処理
         for (const entityId of this.managedEntities) {
             if (!currentEntities.has(entityId)) {
                 this._removeDOM(entityId);
@@ -71,7 +76,6 @@ export class RenderSystem extends System {
         const domElements = this.uiManager.getDOMElements(entityId);
         if (!domElements) return;
 
-        // 生成したDOM要素を削除
         if (domElements.iconElement) domElements.iconElement.remove();
         if (domElements.homeMarkerElement) domElements.homeMarkerElement.remove();
         if (domElements.infoPanel) domElements.infoPanel.remove();
@@ -81,7 +85,6 @@ export class RenderSystem extends System {
     }
 
     _syncInitialValues(entityId, visual) {
-        // PartsコンポーネントがあればHPの初期値をVisualにコピー
         const parts = this.world.getComponent(entityId, Parts);
         if (parts) {
             Object.keys(parts).forEach(key => {
@@ -95,7 +98,6 @@ export class RenderSystem extends System {
     }
 
     _createDOM(entityId, visual) {
-        // PlayerInfoがある場合はプレイヤー用DOM、なければ汎用エフェクト用DOMを作成
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
 
         if (playerInfo) {
@@ -108,13 +110,10 @@ export class RenderSystem extends System {
     _createPlayerDOM(entityId, visual, playerInfo) {
         const parts = this.world.getComponent(entityId, Parts);
         
-        // 1. マーカーとアイコン (Battlefield内)
-        
-        // ホームポジションマーカーの座標設定
         const homeX = playerInfo.teamId === TeamID.TEAM1
             ? CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM1
             : CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM2;
-        // 初期Y座標はVisual(Position)の初期値を使用
+        // 初期Y座標。visual.y は事前にPositionから同期済みである必要がある
         const homeY = visual.y;
 
         const marker = el('div', {
@@ -133,7 +132,6 @@ export class RenderSystem extends System {
             textContent: playerInfo.name.substring(playerInfo.name.length - 1),
             style: { backgroundColor: playerInfo.color }
         }, [
-            // ターゲットインジケーターを内包
             el('div', { className: 'target-indicator' }, [
                  el('div', { className: 'corner corner-1' }),
                  el('div', { className: 'corner corner-2' }),
@@ -146,7 +144,6 @@ export class RenderSystem extends System {
         this.battlefield.appendChild(marker);
         this.battlefield.appendChild(icon);
 
-        // 2. 情報パネル (サイドバー内)
         const partDOMElements = {};
         const createPartRow = (key, part) => {
             if (!part) return null;
@@ -181,7 +178,6 @@ export class RenderSystem extends System {
 
         this.teamContainers[playerInfo.teamId].appendChild(infoPanel);
 
-        // UIManagerに登録
         this.uiManager.registerEntity(entityId, {
             iconElement: icon,
             homeMarkerElement: marker,
@@ -191,17 +187,15 @@ export class RenderSystem extends System {
             targetIndicatorElement: icon.querySelector('.target-indicator')
         });
 
-        visual.domId = `player-${entityId}`; // 識別用
+        visual.domId = `player-${entityId}`;
     }
 
     _createEffectDOM(entityId, visual) {
-        // エフェクト用のdiv生成
         const element = el('div', {
-            className: 'effect-entity', // ベースクラス
+            className: 'effect-entity',
             style: { position: 'absolute', pointerEvents: 'none' }
         });
         
-        // 初期クラスの適用
         visual.classes.forEach(cls => element.classList.add(cls));
         
         if (visual.classes.has('battle-start-text')) {
@@ -219,18 +213,23 @@ export class RenderSystem extends System {
         const domElements = this.uiManager.getDOMElements(entityId);
         if (!domElements) return;
 
-        // 1. 位置・スタイルの更新 (アイコン or エフェクト)
+        // --- ダーティチェック: 位置・スタイル ---
+        const { cache } = visual;
         const targetElement = domElements.iconElement || domElements.mainElement;
-        if (targetElement) {
-            // 位置設定 (Position Ratio -> %)
-            // Visual.x は 0.0-1.0, y は %指定(バトル仕様)
-            
-            // X座標: ratio -> %
+
+        // 値が変わったかチェック
+        const isDirty = 
+            cache.x !== visual.x ||
+            cache.y !== visual.y ||
+            cache.offsetX !== visual.offsetX ||
+            cache.offsetY !== visual.offsetY ||
+            cache.scale !== visual.scale ||
+            cache.opacity !== visual.opacity ||
+            cache.zIndex !== visual.zIndex;
+
+        if (targetElement && isDirty) {
             const left = (visual.x * 100) + '%';
-            // Y座標: % -> %
             const top = visual.y + '%';
-            
-            // オフセット適用 (px)
             const transform = `translate(calc(-50% + ${visual.offsetX}px), calc(-50% + ${visual.offsetY}px)) scale(${visual.scale})`;
 
             targetElement.style.left = left;
@@ -239,64 +238,65 @@ export class RenderSystem extends System {
             targetElement.style.opacity = visual.opacity;
             targetElement.style.zIndex = visual.zIndex || (domElements.iconElement ? 10 : 100);
 
-            // クラスの同期 (Effectのみ。Playerはステート管理が別にあるため)
-            if (domElements.mainElement) {
-                // Visual.classes を反映
-                visual.classes.forEach(cls => {
-                    if (!targetElement.classList.contains(cls)) targetElement.classList.add(cls);
-                });
+            // キャッシュ更新
+            cache.x = visual.x;
+            cache.y = visual.y;
+            cache.offsetX = visual.offsetX;
+            cache.offsetY = visual.offsetY;
+            cache.scale = visual.scale;
+            cache.opacity = visual.opacity;
+            cache.zIndex = visual.zIndex;
+        }
+
+        // --- クラスの同期 (Effect用) ---
+        if (domElements.mainElement) {
+            const classesSignature = Array.from(visual.classes).sort().join(' ');
+            if (cache.classesSignature !== classesSignature) {
+                targetElement.className = 'effect-entity'; // リセット
+                visual.classes.forEach(cls => targetElement.classList.add(cls));
+                cache.classesSignature = classesSignature;
             }
+        }
             
-            // ターゲットインジケーター制御 (Playerアイコン内包)
+        // --- ターゲットインジケーター制御 ---
+        if (targetElement) {
             const targetIndicator = domElements.targetIndicatorElement;
             if (targetIndicator) {
-                // 'attack-target-active' クラスがあればターゲットインジケーターを表示
                 const isActive = visual.classes.has('attack-target-active');
-                if (isActive) {
-                    if (!targetIndicator.classList.contains('active')) {
-                        targetIndicator.classList.add('active');
-                        targetIndicator.style.opacity = '1';
-                    }
-                } else {
-                    // 行動選択時のハイライトと競合しないよう、RenderSystemでは
-                    // 「攻撃演出中ではない」状態に戻す処理だけを行う
-                    // (ActionPanelSystem等が active にしている可能性があるため、強制削除は注意が必要だが、
-                    //  今回は共通化のためにここで制御する)
-                    if (targetIndicator.classList.contains('active') && !domElements.iconElement.classList.contains('selecting')) {
-                        // ActionPanelSystem側でselectingクラス等で制御していない限り、
-                        // ここでremoveすると行動選択のカーソルも消える可能性がある。
-                        // ただし、実行フェーズでは行動選択は行われないため、実害はないはず。
-                        targetIndicator.classList.remove('active');
-                        targetIndicator.style.opacity = '';
-                    }
+                if (isActive && !targetIndicator.classList.contains('active')) {
+                    targetIndicator.classList.add('active');
+                    targetIndicator.style.opacity = '1';
+                } else if (!isActive && targetIndicator.classList.contains('active') && !domElements.iconElement.classList.contains('selecting')) {
+                    targetIndicator.classList.remove('active');
+                    targetIndicator.style.opacity = '';
                 }
             }
         }
 
-        // 2. プレイヤー固有の更新 (HPバー, ステート枠線)
+        // --- プレイヤー固有の更新 (HPバー, ステート枠線) ---
         if (domElements.infoPanel) {
-            this._updatePlayerSpecificDOM(entityId, visual, domElements);
+            this._updatePlayerSpecificDOM(entityId, visual, domElements, cache);
         }
     }
 
-    _updatePlayerSpecificDOM(entityId, visual, domElements) {
-        // HPバー更新
+    _updatePlayerSpecificDOM(entityId, visual, domElements, cache) {
+        // HPバー更新 (ダーティチェック)
         Object.keys(visual.partsInfo).forEach(partKey => {
             const info = visual.partsInfo[partKey];
             const partDom = domElements.partDOMElements[partKey];
             if (!partDom) return;
 
+            const hpSignature = `${info.current}/${info.max}`;
+            if (cache.hpSignatures[partKey] === hpSignature) return; // 変更なしならスキップ
+
             const hpPercentage = (info.current / info.max) * 100;
             const displayHp = Math.round(info.current);
 
-            // 幅更新
             partDom.bar.style.width = `${Math.max(0, Math.min(100, hpPercentage))}%`;
-            // 数値更新
             partDom.value.textContent = `${Math.max(0, displayHp)}/${info.max}`;
 
-            // 色更新
             if (displayHp <= 0) {
-                partDom.bar.style.backgroundColor = '#4a5568'; // broken color
+                partDom.bar.style.backgroundColor = '#4a5568';
                 partDom.container.classList.add('broken');
             } else {
                 partDom.container.classList.remove('broken');
@@ -305,20 +305,18 @@ export class RenderSystem extends System {
                 else if (ratio > 0.2) partDom.bar.style.backgroundColor = '#f6e05e';
                 else partDom.bar.style.backgroundColor = '#f56565';
             }
+
+            cache.hpSignatures[partKey] = hpSignature;
         });
 
         // プレイヤー状態に応じたアイコン枠線色 (GameState依存)
-        // 本来はVisual.classesやVisual.borderColorに入れるべきだが、
-        // 既存ロジックの移行のためここでGameStateを参照する
         const gameState = this.world.getComponent(entityId, GameState);
         const icon = domElements.iconElement;
         
         if (gameState && icon) {
-            if (visual.lastState !== gameState.state) {
-                // 状態変化時の処理
-                visual.lastState = gameState.state;
+            if (cache.state !== gameState.state) {
+                cache.state = gameState.state;
                 
-                // アイコンのスタイル変更
                 icon.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
                 icon.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
                 
@@ -334,15 +332,16 @@ export class RenderSystem extends System {
         }
 
         // ガードインジケーター更新
-        // ActiveEffectsからカウントを取得して表示
         const activeEffects = this.world.getComponent(entityId, ActiveEffects);
         const guardIndicator = domElements.guardIndicatorElement;
         if (activeEffects && guardIndicator) {
             const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
             const count = guardEffect && guardEffect.count > 0 ? guardEffect.count : 0;
-            
-            guardIndicator.style.display = count > 0 ? 'block' : 'none';
-            if (count > 0) guardIndicator.textContent = `🛡${count}`;
+            const displayStyle = count > 0 ? 'block' : 'none';
+            const displayText = count > 0 ? `🛡${count}` : '';
+
+            if (guardIndicator.style.display !== displayStyle) guardIndicator.style.display = displayStyle;
+            if (guardIndicator.textContent !== displayText) guardIndicator.textContent = displayText;
         }
     }
 }

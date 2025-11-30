@@ -5,11 +5,11 @@
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { Visual, Position } from '../../components/index.js';
-import { Parts } from '../../../components/index.js';
+import { Visual } from '../../components/index.js';
+import { Parts, PlayerInfo } from '../../../components/index.js';
 import { TaskType } from '../../tasks/BattleTasks.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
-import { EffectType, EffectScope } from '../../../common/constants.js';
+import { EffectType, TeamID } from '../../../common/constants.js';
 
 class Tween {
     constructor({ target, property, start, end, duration, easing, onComplete }) {
@@ -43,10 +43,6 @@ export class AnimationSystem extends System {
     constructor(world) {
         super(world);
         this.activeTweens = new Set();
-        
-        // アニメーション中のエンティティID (Position同期を一時停止するため)
-        this.animatingEntities = new Set();
-
         this.bindWorldEvents();
     }
 
@@ -69,20 +65,9 @@ export class AnimationSystem extends System {
             }
             finishedTweens.forEach(t => this.activeTweens.delete(t));
         }
-
-        // Position -> Visual の同期 (アニメーション中以外)
-        const entities = this.getEntities(Position, Visual);
-        for (const entityId of entities) {
-            if (this.animatingEntities.has(entityId)) continue;
-
-            const pos = this.world.getComponent(entityId, Position);
-            const visual = this.world.getComponent(entityId, Visual);
-
-            // 単純な線形補間でスムーズに追従させることも可能だが、
-            // 今回はロジック位置に即座に同期（移動アニメーション自体はMovementSystem等でPositionが補間されている前提）
-            visual.x = pos.x;
-            visual.y = pos.y;
-        }
+        
+        // Position -> Visual の同期処理は RenderSystem に移譲し、
+        // AnimationSystem は Tween の実行のみに専念する
     }
 
     onRefreshUI() {
@@ -168,6 +153,11 @@ export class AnimationSystem extends System {
             this._playAttackAnimation(task.attackerId, task.targetId).then(() => {
                 this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId: task.id });
             });
+        } else if (task.animationType === 'support') {
+             // 支援などの自分自身へのアクション用
+            setTimeout(() => {
+                this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId: task.id });
+            }, UI_CONFIG.ANIMATION.DURATION || 300);
         } else {
             setTimeout(() => {
                 this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId: task.id });
@@ -184,10 +174,10 @@ export class AnimationSystem extends System {
                 return;
             }
 
-            // ターゲット強調クラスを付与 (RenderSystemがこれを検知してtarget-indicatorを表示する)
+            // ターゲット強調
             visualTarget.classes.add('attack-target-active');
 
-            // 一定時間後に解除
+            // 一定時間後に完了とする
             setTimeout(() => {
                 visualTarget.classes.delete('attack-target-active');
                 this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });

@@ -6,6 +6,9 @@ export class Visual {
     constructor() {
         this.isInitialized = false;
         
+        // アニメーション制御フラグ
+        this.isAnimating = false;
+
         // 基本座標 (Positionコンポーネントと同じ単位: x=ratio, y=%)
         // アニメーションしていない時はPositionと同期され、アニメーション時は独自に動く
         this.x = 0;
@@ -22,7 +25,6 @@ export class Visual {
         
         // CSSクラス管理
         this.classes = new Set();
-        this.lastState = null; // ステート変化検知用
         
         // HPバー表示用データ { partKey: { current, max } }
         // アニメーション中の中間値を保持する
@@ -30,5 +32,20 @@ export class Visual {
         
         // ガードカウンターなどの表示用
         this.guardCount = 0;
+
+        // --- ダーティチェック用キャッシュ ---
+        // 前回の描画時の値を保持し、変更がない場合のDOMアクセスをスキップする
+        this.cache = {
+            x: null,
+            y: null,
+            offsetX: null,
+            offsetY: null,
+            scale: null,
+            opacity: null,
+            zIndex: null,
+            classesSignature: null, // クラスセットの署名（文字列表現など）
+            state: null, // GameStateのキャッシュ
+            hpSignatures: {} // HPバーの署名 { partKey: "current/max" }
+        };
     }
 }
