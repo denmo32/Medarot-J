@@ -173,7 +173,12 @@ export class ActionPanelSystem extends System {
         this.isWaitingForAnimation = true;
         this.dom.actionPanel.classList.remove('clickable');
         this.dom.actionPanelIndicator.classList.add('hidden');
-        this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { effects: this.currentModalData.appliedEffects || [] });
+        
+        // ステップに指定されたエフェクトを優先使用、なければデータ全体のエフェクトを使用
+        // パラメータ名を ViewSystem が期待する appliedEffects に統一
+        const effectsToAnimate = step.effects || this.currentModalData.appliedEffects || [];
+        
+        this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { appliedEffects: effectsToAnimate });
     }
 
     _updatePanelText(handler, displayData) {

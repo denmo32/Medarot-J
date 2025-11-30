@@ -27,7 +27,15 @@ export const applyDamage = ({ world, effect }) => {
     const events = [];
     events.push({
         type: GameEvents.HP_UPDATED,
-        payload: { entityId: targetId, partKey, newHp, maxHp: part.maxHp, change: -actualDamage, isHeal: false }
+        payload: { 
+            entityId: targetId, 
+            partKey, 
+            newHp, 
+            oldHp, // アニメーション用に旧値を含める
+            maxHp: part.maxHp, 
+            change: -actualDamage, 
+            isHeal: false 
+        }
     });
     
     if (isPartBroken) {
@@ -66,7 +74,9 @@ export const applyDamage = ({ world, effect }) => {
 
     return { 
         ...effect, 
-        value: actualDamage, 
+        value: actualDamage,
+        oldHp, // アニメーション用に結果にも含める
+        newHp, // アニメーション用に結果にも含める
         isPartBroken, 
         isPlayerBroken,
         isGuardBroken, // フラグを追加

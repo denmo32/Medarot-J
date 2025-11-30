@@ -1,19 +1,16 @@
 /**
  * @file TimelineBuilder.js
+ * @description 戦闘アクションの実行シーケンス（タスクリスト）を構築する。
  */
 import { 
     createWaitTask, createMoveTask, createAnimateTask, 
     createMessageTask, createApplyStateTask, createEventTask 
 } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
-// scripts/battle/tasks/ -> ../common/constants.js
-import { ModalType, ActionCancelReason, PlayerStateType } from '../common/constants.js';
+import { ModalType, ActionCancelReason } from '../common/constants.js';
 import { MessageGenerator } from '../utils/MessageGenerator.js';
-import { snapToActionLine, snapToHomePosition } from '../utils/positionUtils.js';
-import { Position, GameState, ActiveEffects } from '../components/index.js';
-import { PlayerInfo, Parts } from '../../components/index.js';
-import { TeamID, EffectType } from '../../common/constants.js';
-import { CONFIG } from '../../common/config.js';
+import { Parts, PlayerInfo } from '../../components/index.js';
+import { EffectType } from '../../common/constants.js';
 import { MessageKey } from '../../data/messageRepository.js';
 
 export class TimelineBuilder {
@@ -24,18 +21,24 @@ export class TimelineBuilder {
 
     buildAttackSequence(resultData) {
         const tasks = [];
-        const { attackerId, intendedTargetId, targetId, isSupport, isCancelled, cancelReason, outcome, appliedEffects, guardianInfo, summary } = resultData;
+        const { attackerId, intendedTargetId, targetId, isSupport, isCancelled, cancelReason, appliedEffects, guardianInfo, summary } = resultData;
 
+        // --- キャンセル時のシーケンス ---
         if (isCancelled) {
             tasks.push(createEventTask(GameEvents.ACTION_CANCELLED, { entityId: attackerId, reason: cancelReason }));
+            
             const messageKey = this._getCancelMessageKey(cancelReason);
             const actorInfo = this.world.getComponent(attackerId, PlayerInfo);
             const message = this.messageGenerator.format(messageKey, { actorName: actorInfo?.name || '???' });
             
             tasks.push(createMessageTask(ModalType.MESSAGE, { message }, [{ text: message }]));
             tasks.push(createWaitTask(500));
+            tasks.push(createEventTask(GameEvents.REQUEST_COOLDOWN_TRANSITION, { entityId: attackerId }));
+            
             return tasks;
         }
+
+        // --- 正常実行時のシーケンス ---
 
         // 1. ターゲットアニメーション（攻撃演出）
         const animationTargetId = intendedTargetId || targetId;
@@ -45,7 +48,7 @@ export class TimelineBuilder {
             tasks.push(createAnimateTask(attackerId, attackerId, 'support'));
         }
 
-        // 2. 行動結果適用 (データ更新 & HP_UPDATEDイベント発行)
+        // 2. 行動結果適用 (データ更新 & イベント発行)
         tasks.push(createApplyStateTask((world) => {
             if (appliedEffects) {
                 appliedEffects.forEach(effect => {
@@ -55,12 +58,17 @@ export class TimelineBuilder {
                         if (parts && parts[effect.partKey]) {
                             const hpEvent = effect.events?.find(e => e.type === GameEvents.HP_UPDATED);
                             if (hpEvent) {
+                                // データを即時更新
                                 parts[effect.partKey].hp = hpEvent.payload.newHp;
+                                
+                                // RenderSystemはVisualコンポーネントを参照するため、
+                                // Logicデータの即時更新は表示に影響しない（AnimationSystemが補間する）
+                                // なので skipUI フラグは不要
                             }
                         }
                     }
                     
-                    // イベントの発行 (副作用: ガード消費によるクールダウンリクエスト等も含む)
+                    // イベントの発行
                     if (effect.events) {
                         effect.events.forEach(e => world.emit(e.type, e.payload));
                     }
@@ -70,16 +78,15 @@ export class TimelineBuilder {
             world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);
         }));
 
-        // 3. 統合メッセージシーケンス（宣言 + 結果）
+        // 3. 統合メッセージシーケンス（宣言 + 結果表示 + HPバーアニメーション）
         const declarationSeq = this.messageGenerator.createDeclarationSequence(resultData);
         const resultSeq = this.messageGenerator.createResultSequence(resultData);
         const fullMessageSequence = [...declarationSeq, ...resultSeq];
 
         tasks.push(createMessageTask(ModalType.ATTACK_DECLARATION, { ...resultData }, fullMessageSequence));
 
-        // 4. ガード回数終了メッセージ（Summaryフラグを使用）
+        // 4. ガード回数終了メッセージ
         if (summary.isGuardExpired) {
-            // 対象となるエンティティIDを特定（appliedEffectsから検索）
             const expiredEffect = appliedEffects.find(e => e.type === EffectType.CONSUME_GUARD && e.isExpired);
             if (expiredEffect) {
                 const actorInfo = this.world.getComponent(expiredEffect.targetId, PlayerInfo);
@@ -89,13 +96,13 @@ export class TimelineBuilder {
             }
         }
 
-        // クールダウンへの移行
+        // 5. クールダウンへの移行
         tasks.push(createEventTask(GameEvents.REQUEST_COOLDOWN_TRANSITION, { entityId: attackerId }));
         
-        // 5. UIの最終整合性確保
+        // 6. UIの最終整合性確保 (VisualコンポーネントをLogicデータと完全同期)
         tasks.push(createEventTask(GameEvents.REFRESH_UI, {}));
 
-        // 6. キャンセル状態チェック（ターゲットロストや予約パーツ破壊の確認）
+        // 7. キャンセル状態チェック
         tasks.push(createEventTask(GameEvents.CHECK_ACTION_CANCELLATION, {}));
 
         return tasks;

@@ -1,13 +1,21 @@
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { GameState, Action } from '../../components/index.js';
-import { Parts } from '../../../components/index.js';
-import { PlayerStateType, ActionCancelReason } from '../../common/constants.js';
-import { PartInfo } from '../../../common/constants.js';
+import { Parts, PlayerInfo } from '../../../components/index.js';
+import { PlayerStateType, ActionCancelReason, ModalType } from '../../common/constants.js';
+import { MessageKey } from '../../../data/messageRepository.js';
+import { MessageGenerator } from '../../utils/MessageGenerator.js';
+
+const cancelReasonToMessageKey = {
+    [ActionCancelReason.PART_BROKEN]: MessageKey.CANCEL_PART_BROKEN,
+    [ActionCancelReason.TARGET_LOST]: MessageKey.CANCEL_TARGET_LOST,
+    [ActionCancelReason.INTERRUPTED]: MessageKey.CANCEL_INTERRUPTED,
+};
 
 export class ActionCancellationSystem extends System {
     constructor(world) {
         super(world);
+        this.messageGenerator = new MessageGenerator(world);
         // パーツ破壊イベントの直接監視を廃止し、シーケンス末尾でのチェックイベントを監視
         this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
     }
@@ -60,11 +68,27 @@ export class ActionCancellationSystem extends System {
 
     /**
      * キャンセル関連のイベントを発行するヘルパーメソッド
+     * データ更新用のイベントと、UI表示用のイベントを明確に分けて発行する。
      * @param {number} entityId 
      * @param {ActionCancelReason} reason 
      */
     emitCancellationEvents(entityId, reason) {
+        // 1. システムへの通知 (状態リセットなど)
         this.world.emit(GameEvents.ACTION_CANCELLED, { entityId, reason });
         this.world.emit(GameEvents.REQUEST_RESET_TO_COOLDOWN, { entityId, options: { interrupted: true } });
+
+        // 2. ユーザーへの通知 (メッセージ表示)
+        // MessageSystemがACTION_CANCELLEDを監視しなくなったため、ここで明示的にSHOW_MODALを発行する
+        const actorInfo = this.world.getComponent(entityId, PlayerInfo);
+        if (actorInfo) {
+            const messageKey = cancelReasonToMessageKey[reason];
+            if (messageKey) {
+                const message = this.messageGenerator.format(messageKey, { actorName: actorInfo.name });
+                this.world.emit(GameEvents.SHOW_MODAL, {
+                    type: ModalType.MESSAGE,
+                    data: { message: message }
+                });
+            }
+        }
     }
 }

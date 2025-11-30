@@ -1,6 +1,8 @@
 import { BattleContext } from './BattleContext.js';
-import { ViewSystem } from '../systems/ui/ViewSystem.js';
-import { DomFactorySystem } from '../systems/ui/DomFactorySystem.js';
+// import { ViewSystem } from '../systems/ui/ViewSystem.js'; // 廃止
+// import { DomFactorySystem } from '../systems/ui/DomFactorySystem.js'; // 廃止
+import { RenderSystem } from '../systems/visual/RenderSystem.js'; // 新規
+import { AnimationSystem } from '../systems/visual/AnimationSystem.js'; // 新規
 import { ActionPanelSystem } from '../systems/ui/ActionPanelSystem.js';
 import { GaugeSystem } from '../systems/mechanics/GaugeSystem.js';
 import { StateSystem } from '../systems/mechanics/StateSystem.js';
@@ -19,7 +21,7 @@ import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.j
 import { CooldownSystem } from '../systems/mechanics/CooldownSystem.js';
 import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
-import { UISystem } from '../systems/ui/UISystem.js';
+// import { UISystem } from '../systems/ui/UISystem.js'; // 廃止
 import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 
 import { UIManager } from '../../../engine/ui/UIManager.js';
@@ -38,13 +40,17 @@ export function initializeSystems(world) {
     // --- システムのインスタンス化 ---
     new InputSystem(world);
     new AiSystem(world);
-    new DomFactorySystem(world);
-    const actionPanelSystem = new ActionPanelSystem(world);
+    
+    // --- Visual Systems ---
+    // DomFactorySystem, UISystem, ViewSystem を RenderSystem と AnimationSystem に置き換え
+    const renderSystem = new RenderSystem(world);
+    const animationSystem = new AnimationSystem(world);
 
+    const actionPanelSystem = new ActionPanelSystem(world);
     const gameFlowSystem = new GameFlowSystem(world);
     const winConditionSystem = new WinConditionSystem(world);
     const phaseSystem = new PhaseSystem(world);
-    const viewSystem = new ViewSystem(world);
+    
     const gaugeSystem = new GaugeSystem(world);
     const stateSystem = new StateSystem(world);
     const turnSystem = new TurnSystem(world);
@@ -63,6 +69,7 @@ export function initializeSystems(world) {
     }
     
     // --- システムの登録 ---
+    // 登録順序が重要: Logic -> Animation -> Render
     world.registerSystem(gameFlowSystem);
     world.registerSystem(winConditionSystem);
     world.registerSystem(phaseSystem);
@@ -73,7 +80,6 @@ export function initializeSystems(world) {
     world.registerSystem(cooldownSystem);
     world.registerSystem(actionSelectionSystem);
     
-    // 実行フローの中核
     world.registerSystem(battleSequenceSystem);
     
     world.registerSystem(battleHistorySystem);
@@ -81,7 +87,10 @@ export function initializeSystems(world) {
     world.registerSystem(movementSystem);
     world.registerSystem(effectSystem);
     world.registerSystem(messageSystem);
-    world.registerSystem(viewSystem);
+
+    // Visual系システム
+    world.registerSystem(animationSystem);
+    world.registerSystem(renderSystem);
+    
     world.registerSystem(actionPanelSystem);
-    world.registerSystem(new UISystem(world));
 }
