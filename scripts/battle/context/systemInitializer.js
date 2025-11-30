@@ -1,8 +1,7 @@
 import { BattleContext } from './BattleContext.js';
-// import { ViewSystem } from '../systems/ui/ViewSystem.js'; // 廃止
-// import { DomFactorySystem } from '../systems/ui/DomFactorySystem.js'; // 廃止
-import { RenderSystem } from '../systems/visual/RenderSystem.js'; // 新規
-import { AnimationSystem } from '../systems/visual/AnimationSystem.js'; // 新規
+import { BattleUIState } from '../components/index.js'; // 追加
+import { RenderSystem } from '../systems/visual/RenderSystem.js';
+import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
 import { ActionPanelSystem } from '../systems/ui/ActionPanelSystem.js';
 import { GaugeSystem } from '../systems/mechanics/GaugeSystem.js';
 import { StateSystem } from '../systems/mechanics/StateSystem.js';
@@ -12,7 +11,7 @@ import { GameFlowSystem } from '../systems/flow/GameFlowSystem.js';
 import { MovementSystem } from '../systems/mechanics/MovementSystem.js';
 import { TurnSystem } from '../systems/flow/TurnSystem.js';
 import { EffectSystem } from '../systems/mechanics/EffectSystem.js';
-import { MessageSystem } from '../systems/mechanics/MessageSystem.js';
+// MessageSystem は ActionPanelSystem に統合されたため削除
 import { ActionCancellationSystem } from '../systems/action/ActionCancellationSystem.js';
 import { DebugSystem } from '../systems/ui/DebugSystem.js';
 import { CONFIG } from '../common/config.js';
@@ -21,7 +20,6 @@ import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.j
 import { CooldownSystem } from '../systems/mechanics/CooldownSystem.js';
 import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
-// import { UISystem } from '../systems/ui/UISystem.js'; // 廃止
 import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 
 import { UIManager } from '../../../engine/ui/UIManager.js';
@@ -35,6 +33,7 @@ export function initializeSystems(world) {
     // --- シングルトンコンポーネントの作成 ---
     const contextEntity = world.createEntity();
     world.addComponent(contextEntity, new BattleContext());
+    world.addComponent(contextEntity, new BattleUIState()); // UI状態管理コンポーネント
     world.addComponent(contextEntity, new UIManager());
 
     // --- システムのインスタンス化 ---
@@ -42,7 +41,6 @@ export function initializeSystems(world) {
     new AiSystem(world);
     
     // --- Visual Systems ---
-    // DomFactorySystem, UISystem, ViewSystem を RenderSystem と AnimationSystem に置き換え
     const renderSystem = new RenderSystem(world);
     const animationSystem = new AnimationSystem(world);
 
@@ -56,7 +54,7 @@ export function initializeSystems(world) {
     const turnSystem = new TurnSystem(world);
     const movementSystem = new MovementSystem(world);
     const effectSystem = new EffectSystem(world);
-    const messageSystem = new MessageSystem(world);
+    // messageSystem は削除
     const actionCancellationSystem = new ActionCancellationSystem(world);
     const actionSelectionSystem = new ActionSelectionSystem(world);
     const battleSequenceSystem = new BattleSequenceSystem(world); 
@@ -86,7 +84,7 @@ export function initializeSystems(world) {
     world.registerSystem(actionCancellationSystem);
     world.registerSystem(movementSystem);
     world.registerSystem(effectSystem);
-    world.registerSystem(messageSystem);
+    // world.registerSystem(messageSystem); // 削除
 
     // Visual系システム
     world.registerSystem(animationSystem);

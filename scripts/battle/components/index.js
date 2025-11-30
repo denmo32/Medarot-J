@@ -6,3 +6,4 @@ export { Position } from './Position.js';
 export { BattleLog } from './BattleLog.js';
 export { ActiveEffects } from './ActiveEffects.js';
 export { Visual } from './Visual.js';
+export { BattleUIState } from './BattleUIState.js'; // 新規追加
