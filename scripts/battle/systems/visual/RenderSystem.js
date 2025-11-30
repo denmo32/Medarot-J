@@ -27,6 +27,15 @@ export class RenderSystem extends System {
         this.managedEntities = new Set();
     }
 
+    destroy() {
+        // 管理している全てのエンティティのDOMを削除
+        for (const entityId of this.managedEntities) {
+            this._removeDOM(entityId);
+        }
+        this.managedEntities.clear();
+        super.destroy();
+    }
+
     update(deltaTime) {
         const currentEntities = new Set();
         const entities = this.getEntities(Visual);
