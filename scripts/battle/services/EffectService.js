@@ -1,11 +1,13 @@
 /**
  * @file EffectService.js
  * @description 戦闘におけるステータス補正（Modifier）や特性効果を一元管理するサービス。
- * 将来的にはパッシブ効果や状態異常による補正もここで集計する。
+ * TypeDefinitions, TraitDefinitions, ActiveEffectsを参照し、データ駆動で補正値を計算する。
  */
 import { Parts, PlayerInfo } from '../../components/index.js';
 import { ActiveEffects } from '../components/index.js';
 import { AttackType, EffectType } from '../../common/constants.js';
+import { TypeDefinitions } from '../../data/typeDefinitions.js';
+import { TraitDefinitions } from '../../data/traitDefinitions.js';
 
 export class EffectService {
     
@@ -14,16 +16,19 @@ export class EffectService {
      * @param {World} world 
      * @param {number} entityId 
      * @param {string} statName - 'success', 'might', 'mobility', 'evasion' 等
-     * @param {object} context - 計算に必要な文脈情報 (attackingPart, targetLegs 等)
+     * @param {object} context - 計算に必要な文脈情報 (attackingPart, attackerLegs 等)
      * @returns {number} 補正値（加算値）
      */
     static getStatModifier(world, entityId, statName, context = {}) {
         let modifier = 0;
 
-        // 1. パーツ特性による補正 (Trait)
-        modifier += this._getTraitModifier(world, entityId, statName, context);
+        // 1. 攻撃タイプ(Type)による補正
+        modifier += this._getTypeModifier(statName, context);
 
-        // 2. アクティブ効果（バフ・デバフ）による補正
+        // 2. 特性(Trait)による補正
+        modifier += this._getTraitModifier(statName, context);
+
+        // 3. アクティブ効果（バフ・デバフ）による補正
         modifier += this._getActiveEffectModifier(world, entityId, statName);
 
         return modifier;
@@ -39,51 +44,101 @@ export class EffectService {
     static getSpeedMultiplierModifier(world, entityId, part) {
         let multiplier = 1.0;
 
-        if (part && part.type === AttackType.SHOOT) {
-            multiplier *= 0.75; // 射撃はチャージが早い（例）
+        if (part) {
+            // Typeによる補正
+            const typeDef = TypeDefinitions[part.type];
+            if (typeDef && typeDef.speedMultiplier) {
+                multiplier *= typeDef.speedMultiplier;
+            }
+
+            // Traitによる補正
+            const traitDef = TraitDefinitions[part.trait];
+            if (traitDef && traitDef.speedMultiplier) {
+                multiplier *= traitDef.speedMultiplier;
+            }
         }
 
         return multiplier;
     }
 
-    // --- Internal Logic ---
-
-    static _getTraitModifier(world, entityId, statName, context) {
+    /**
+     * クリティカル率への加算補正を取得する
+     * @param {object} part - 使用するパーツ
+     * @returns {number} 加算補正値 (0.0 - 1.0)
+     */
+    static getCriticalChanceModifier(part) {
+        if (!part) return 0;
         let bonus = 0;
-        const { attackingPart, attackerLegs } = context;
+        
+        // Typeによる補正
+        const typeDef = TypeDefinitions[part.type];
+        if (typeDef && typeDef.criticalBonus) {
+            bonus += typeDef.criticalBonus;
+        }
 
-        // 攻撃側の特性補正
-        if (attackingPart && attackerLegs) {
-            // 特性ロジック (旧 CombatCalculator._calculateTypeBonus 相当)
-            // 将来的には trait データ定義自体に "success_bonus_source": "stability" のように持たせる
-            switch (attackingPart.type) {
-                case AttackType.AIMED_SHOT:
-                    if (statName === 'success') {
-                        bonus += Math.floor((attackerLegs.stability || 0) / 2);
-                    }
-                    break;
-                case AttackType.STRIKE:
-                    if (statName === 'success') {
-                        bonus += Math.floor((attackerLegs.mobility || 0) / 2);
-                    }
-                    break;
-                case AttackType.RECKLESS:
-                    if (statName === 'might') {
-                        bonus += Math.floor((attackerLegs.propulsion || 0) / 2);
-                    }
-                    break;
-            }
+        // Traitによる補正
+        const traitDef = TraitDefinitions[part.trait];
+        if (traitDef && traitDef.criticalBonus) {
+            bonus += traitDef.criticalBonus;
         }
 
         return bonus;
     }
 
+    // --- Internal Logic ---
+
+    static _getTypeModifier(statName, context) {
+        let bonus = 0;
+        const { attackingPart, attackerLegs } = context;
+
+        if (attackingPart && attackerLegs) {
+            const typeDef = TypeDefinitions[attackingPart.type];
+            bonus += this._calculateStatBonusFromDef(typeDef, statName, attackerLegs);
+        }
+        return bonus;
+    }
+
+    static _getTraitModifier(statName, context) {
+        let bonus = 0;
+        const { attackingPart, attackerLegs } = context;
+
+        if (attackingPart && attackerLegs && attackingPart.trait) {
+            const traitDef = TraitDefinitions[attackingPart.trait];
+            bonus += this._calculateStatBonusFromDef(traitDef, statName, attackerLegs);
+        }
+        return bonus;
+    }
+
+    static _calculateStatBonusFromDef(def, statName, legs) {
+        let bonus = 0;
+        if (def && def.statModifiers) {
+            for (const mod of def.statModifiers) {
+                if (mod.targetStat === statName) {
+                    const sourceVal = this._resolveSourceValue(mod.sourceStat, legs);
+                    bonus += Math.floor(sourceVal * mod.factor);
+                }
+            }
+        }
+        return bonus;
+    }
+
+    static _resolveSourceValue(sourcePath, legs) {
+        if (!sourcePath || !legs) return 0;
+        
+        const parts = sourcePath.split('.');
+        if (parts[0] === 'legs') {
+            return legs[parts[1]] || 0;
+        }
+        return 0;
+    }
+
     static _getActiveEffectModifier(world, entityId, statName) {
         let bonus = 0;
+        if (!world || entityId === undefined || entityId === null) return 0;
+
         const activeEffects = world.getComponent(entityId, ActiveEffects);
         if (!activeEffects) return 0;
 
-        // スキャン効果 (命中/成功率アップ)
         if (statName === 'success') {
             const scanEffects = activeEffects.effects.filter(e => e.type === EffectType.APPLY_SCAN);
             bonus += scanEffects.reduce((sum, e) => sum + e.value, 0);

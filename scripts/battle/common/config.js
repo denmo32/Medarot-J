@@ -17,10 +17,7 @@ export const CONFIG = {
     // クリティカルヒット関連の定数
     CRITICAL_HIT: {
         DIFFERENCE_FACTOR: 200, 
-        TYPE_BONUS: {
-            [AttackType.STRIKE]: 0.25,
-            [AttackType.AIMED_SHOT]: 0.50,
-        },
+        // TYPE_BONUS は TypeDefinitions へ移動したため削除
     },
     
     // 時間調整関連の定数
@@ -55,8 +52,6 @@ export const CONFIG = {
             PROPULSION_TO_MAX_SPEED: 0.1,
         }
     },
-    
-    // PART_TYPE_MODIFIERS は EffectService に移動したため削除
     
     // バトルフィールド関連の定数
     BATTLEFIELD: {

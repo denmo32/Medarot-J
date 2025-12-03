@@ -27,8 +27,6 @@ class DefaultCombatStrategy extends CombatStrategy {
         const mobility = targetLegs.mobility ?? 0;
         const success = attackingPart.success ?? 0;
         
-        // 成功率への補正を取得 (Service経由)
-        // ここでは攻撃者自身のパーツ特性やバフを含めるため、attackerLegsが必要なら取得する
         let context = { attackingPart };
         if (attackerId !== undefined) {
              const attackerParts = world.getComponent(attackerId, Parts);
@@ -67,7 +65,9 @@ class DefaultCombatStrategy extends CombatStrategy {
         
         const config = CONFIG.CRITICAL_HIT;
         const baseChance = successAdvantage / config.DIFFERENCE_FACTOR;
-        const typeBonus = config.TYPE_BONUS[attackingPart.type] || 0;
+        
+        // 攻撃タイプによる補正をServiceから取得
+        const typeBonus = EffectService.getCriticalChanceModifier(attackingPart);
         
         return clamp(baseChance + typeBonus, 0, 1);
     }
@@ -80,8 +80,6 @@ class DefaultCombatStrategy extends CombatStrategy {
         const mobility = targetLegs.mobility ?? 0;
         let armor = targetLegs.armor ?? 0;
 
-        // 補正値の取得 (Service経由)
-        // world, attackerId が渡されていない場合のフォールバックは考慮しない（呼び出し元で保証する想定）
         const context = { attackingPart, attackerLegs };
         const successBonus = EffectService.getStatModifier(world, attackerId, 'success', context);
         const mightBonus = EffectService.getStatModifier(world, attackerId, 'might', context);
@@ -89,7 +87,6 @@ class DefaultCombatStrategy extends CombatStrategy {
         success += successBonus;
         might += mightBonus;
 
-        // 防御側の安定性による防御ボーナス（これも本来はServiceへ移動すべきだが、今回は攻撃側の整理を優先）
         const stabilityDefenseBonus = Math.floor((targetLegs.stability || 0) / 2);
         armor += stabilityDefenseBonus;
         
@@ -123,11 +120,6 @@ class DefaultCombatStrategy extends CombatStrategy {
         let multiplier = 1.0 + (performanceScore * impactFactor);
         
         // 特性による速度補正 (Service経由)
-        // ここではworldへのアクセスがない静的な計算のみを想定しているが、
-        // 本来はcalculateSpeedMultiplierにworldとentityIdを渡すべき設計。
-        // 現状の呼び出し元（CooldownSystem等）に合わせて、
-        // EffectServiceのメソッドもworld依存なしで動くように設計するか、引数を増やす。
-        // 今回はEffectService.getSpeedMultiplierModifierは単純なPart依存ロジックとしている。
         const modifier = EffectService.getSpeedMultiplierModifier(null, null, part);
         multiplier *= modifier;
 
