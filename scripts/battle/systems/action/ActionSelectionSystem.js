@@ -5,11 +5,11 @@ import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { Action, GameState, Gauge } from '../../components/index.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';
+import { PlayerStatusService } from '../../services/PlayerStatusService.js';
 
 /**
  * @class ActionSelectionSystem
  * @description アクションの選択フェーズを管理します。
- * 次のアクターの決定、入力要求、および選択後の状態更新（チャージ開始）を担当します。
  */
 export class ActionSelectionSystem extends System {
     constructor(world) {
@@ -54,7 +54,6 @@ export class ActionSelectionSystem extends System {
 
     /**
      * アクションが選択された時の処理
-     * 旧 ActionSetupSystem の役割をここに統合
      */
     onActionSelected(detail) {
         const { entityId, partKey, targetId, targetPartKey } = detail;
@@ -85,8 +84,8 @@ export class ActionSelectionSystem extends System {
         action.targetPartKey = targetPartKey;
         action.targetTiming = selectedPart.targetTiming;
 
-        // 状態をチャージ中に更新
-        this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.SELECTED_CHARGING });
+        // 状態をチャージ中に更新 (Service使用)
+        PlayerStatusService.transitionTo(this.world, entityId, PlayerStateType.SELECTED_CHARGING);
         
         // ゲージをリセットして速度を設定
         gauge.value = 0;

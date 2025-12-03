@@ -3,6 +3,7 @@ import { BattleContext } from '../../context/index.js';
 import { GameState, Gauge, Action } from '../../components/index.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
+import { PlayerStatusService } from '../../services/PlayerStatusService.js';
 
 export class PhaseSystem extends System {
     constructor(world) {
@@ -46,7 +47,9 @@ export class PhaseSystem extends System {
             if (gauge) gauge.value = 0;
 
             if (gameState.state !== PlayerStateType.BROKEN) {
-                gameState.state = PlayerStateType.READY_SELECT;
+                // 初期選択状態へ遷移 (Service使用)
+                PlayerStatusService.transitionTo(this.world, id, PlayerStateType.READY_SELECT);
+                
                 gauge.value = gauge.max;
                 gauge.speedMultiplier = 1.0;
                 this.world.addComponent(id, new Action());

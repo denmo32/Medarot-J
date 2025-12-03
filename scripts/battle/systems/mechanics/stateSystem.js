@@ -1,51 +1,18 @@
 import { System } from '../../../../engine/core/System.js';
-import { Gauge, GameState, Action, ActiveEffects } from '../../components/index.js';
-import { Parts, PlayerInfo } from '../../../components/index.js';
-import { BattleContext } from '../../context/index.js';
+import { GameState, ActiveEffects } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType } from '../../common/constants.js';
-import { EffectType, TeamID, PartInfo } from '../../../common/constants.js';
-import { snapToActionLine } from '../../utils/positionUtils.js';
-
-// ゲージを加算すべき状態のリスト
-const ACTIVE_GAUGE_STATES = new Set([
-    PlayerStateType.CHARGING,
-    PlayerStateType.SELECTED_CHARGING
-]);
+import { EffectType, PartInfo } from '../../../common/constants.js';
+import { PlayerStatusService } from '../../services/PlayerStatusService.js';
+import { CooldownService } from '../../services/CooldownService.js';
 
 export class StateSystem extends System {
     constructor(world) {
         super(world);
-        this.battleContext = this.world.getSingletonComponent(BattleContext);
-        
-        this.on(GameEvents.REQUEST_STATE_TRANSITION, this.onStateTransitionRequested.bind(this));
-        this.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
+        // REQUEST_STATE_TRANSITION, COMBAT_SEQUENCE_RESOLVED はService化に伴い削除
         this.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
         this.on(GameEvents.PART_BROKEN, this.onPartBroken.bind(this));
         this.on(GameEvents.GUARD_BROKEN, this.onGuardBroken.bind(this));
-    }
-
-    onStateTransitionRequested(detail) {
-        const { entityId, newState } = detail;
-        const gameState = this.world.getComponent(entityId, GameState);
-        if (gameState) {
-            gameState.state = newState;
-
-            // ゲージのアクティブ状態を更新
-            const gauge = this.world.getComponent(entityId, Gauge);
-            if (gauge) {
-                gauge.isActive = ACTIVE_GAUGE_STATES.has(newState);
-            }
-
-            // 特定の状態遷移に伴う副作用
-            if (newState === PlayerStateType.GUARDING || newState === PlayerStateType.READY_EXECUTE) {
-                snapToActionLine(this.world, entityId);
-            }
-            
-            if (newState === PlayerStateType.BROKEN) {
-                if (gauge) gauge.value = 0;
-            }
-        }
     }
 
     onPartBroken(detail) {
@@ -53,7 +20,7 @@ export class StateSystem extends System {
         
         // 頭部破壊ならプレイヤー破壊（機能停止）
         if (partKey === PartInfo.HEAD.key) {
-            this._setPlayerBroken(entityId);
+            PlayerStatusService.setPlayerBroken(this.world, entityId);
         }
 
         const gameState = this.world.getComponent(entityId, GameState);
@@ -68,8 +35,8 @@ export class StateSystem extends System {
 
             if (isGuardPartBroken) {
                 this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
-                // ガード破壊時はクールダウンへ（Sequence外での発生も想定してイベント経由）
-                this.world.emit(GameEvents.REQUEST_RESET_TO_COOLDOWN, { entityId, options: {} });
+                // ガード破壊時はクールダウンへ（Service直接呼び出し）
+                CooldownService.resetEntityStateToCooldown(this.world, entityId, {});
             }
         }
     }
@@ -78,51 +45,9 @@ export class StateSystem extends System {
         // メッセージ表示などは他で行う
     }
 
-    _setPlayerBroken(entityId) {
-        // State遷移イベントを発行して、GaugeSystemの制御(isActive)もonStateTransitionRequestedに任せる
-        this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.BROKEN });
-
-        const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        const action = this.world.getComponent(entityId, Action);
-        
-        // アクションリセット
-        if (action) {
-            this.world.addComponent(entityId, new Action());
-        }
-
-        if (playerInfo) {
-            this.world.emit(GameEvents.PLAYER_BROKEN, { entityId, teamId: playerInfo.teamId });
-        }
-    }
-
-    onCombatSequenceResolved(detail) {
-        const { appliedEffects, attackerId } = detail;
-        if (!appliedEffects || appliedEffects.length === 0) {
-            return;
-        }
-
-        for (const effect of appliedEffects) {
-            if (effect.type === EffectType.APPLY_GUARD) {
-                this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, {
-                    entityId: attackerId,
-                    newState: PlayerStateType.GUARDING
-                });
-            }
-        }
-    }
-
     onGaugeFull(detail) {
         const { entityId } = detail;
-        const gameState = this.world.getComponent(entityId, GameState);
-
-        if (!gameState) return;
-
-        if (gameState.state === PlayerStateType.CHARGING) {
-            this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.READY_SELECT });
-            this.world.emit(GameEvents.ACTION_QUEUE_REQUEST, { entityId });
-        } 
-        else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
-            this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.READY_EXECUTE });
-        }
+        // Serviceに委譲
+        PlayerStatusService.handleGaugeFull(this.world, entityId);
     }
 }

@@ -1,14 +1,13 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの制御を行う。
- * Serviceを利用してシステム間連携を直接的に行い、Logicデータの即時更新とVisual演出の再生を管理する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { BattlePhase, PlayerStateType } from '../../common/constants.js';
+import { PlayerStateType } from '../../common/constants.js';
 import { BattleContext } from '../../context/index.js';
 import { GameState, Action } from '../../components/index.js';
-import { Parts, PlayerInfo } from '../../../components/index.js';
+import { Parts } from '../../../components/index.js';
 import { compareByPropulsion } from '../../utils/queryUtils.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 import { BattleResolver } from '../../logic/BattleResolver.js';
@@ -19,6 +18,7 @@ import { TargetTiming, EffectType } from '../../../common/constants.js';
 // Services
 import { CooldownService } from '../../services/CooldownService.js';
 import { CancellationService } from '../../services/CancellationService.js';
+import { PlayerStatusService } from '../../services/PlayerStatusService.js';
 
 export class BattleSequenceSystem extends System {
     constructor(world) {
@@ -102,8 +102,8 @@ export class BattleSequenceSystem extends System {
         this.currentActorId = actorId;
         const actionComp = this.world.getComponent(actorId, Action);
 
-        // 状態遷移: アニメーション待機へ
-        this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId: actorId, newState: PlayerStateType.AWAITING_ANIMATION });
+        // 状態遷移: アニメーション待機へ (Service使用)
+        PlayerStatusService.transitionTo(this.world, actorId, PlayerStateType.AWAITING_ANIMATION);
 
         // 1. 実行直前のキャンセルチェック
         const cancelCheck = CancellationService.checkCancellation(this.world, actorId);
@@ -130,7 +130,7 @@ export class BattleSequenceSystem extends System {
     }
 
     _applyLogicUpdate(resultData) {
-        const { appliedEffects } = resultData;
+        const { appliedEffects, attackerId } = resultData;
         
         if (appliedEffects) {
             appliedEffects.forEach(effect => {
@@ -138,26 +138,27 @@ export class BattleSequenceSystem extends System {
                 if (effect.type === EffectType.DAMAGE || effect.type === EffectType.HEAL) {
                     const parts = this.world.getComponent(effect.targetId, Parts);
                     if (parts && parts[effect.partKey]) {
-                        // Logicデータ(Parts)を即時更新
                         parts[effect.partKey].hp = effect.newHp;
                         
-                        // パーツ破壊フラグの更新
                         if (effect.isPartBroken) {
                             parts[effect.partKey].isBroken = true;
                             this.world.emit(GameEvents.PART_BROKEN, { entityId: effect.targetId, partKey: effect.partKey });
                         }
                     }
                 }
-                // その他の副作用（イベント発行など）
+                
+                // ガード状態への遷移 (Service呼び出し)
+                // APPLY_GUARD効果が確定した時点で状態を変更する
+                if (effect.type === EffectType.APPLY_GUARD) {
+                    PlayerStatusService.transitionTo(this.world, attackerId, PlayerStateType.GUARDING);
+                }
+
                 if (effect.events) {
                     effect.events.forEach(e => this.world.emit(e.type, e.payload));
                 }
             });
         }
 
-        // 重要: ロジック更新完了を通知
-        // これにより StateSystem が GUARDING への遷移を行ったり、
-        // BattleHistorySystem が履歴を記録したりする。
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);
     }
 

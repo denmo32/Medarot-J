@@ -1,7 +1,6 @@
 /**
  * @file CooldownService.js
  * @description クールダウン（放熱）状態への遷移処理を提供するサービスクラス。
- * CooldownSystemのロジックを移行。
  */
 import { GameEvents } from '../../common/events.js';
 import { Action, GameState, Gauge, ActiveEffects } from '../components/index.js';
@@ -9,6 +8,7 @@ import { Parts } from '../../components/index.js';
 import { PlayerStateType } from '../common/constants.js';
 import { EffectType } from '../../common/constants.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
+import { PlayerStatusService } from './PlayerStatusService.js';
 
 export class CooldownService {
     /**
@@ -41,8 +41,8 @@ export class CooldownService {
             gauge.speedMultiplier = 1.0;
         }
 
-        // 状態遷移要求
-        world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.CHARGING });
+        // 状態遷移 (Service使用)
+        PlayerStatusService.transitionTo(world, entityId, PlayerStateType.CHARGING);
         
         if (gauge) {
             gauge.value = 0;
@@ -61,7 +61,7 @@ export class CooldownService {
      * @param {World} world 
      * @param {number} entityId 
      * @param {object} options 
-     * @param {boolean} [options.interrupted=false] - 中断によるリセットか（その場合、現在の進行度を引き継いで戻るような表現になる）
+     * @param {boolean} [options.interrupted=false] - 中断によるリセットか
      */
     static resetEntityStateToCooldown(world, entityId, options = {}) {
         const { interrupted = false } = options;
@@ -82,12 +82,11 @@ export class CooldownService {
             }
         }
         
-        world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.CHARGING });
+        // 状態遷移 (Service使用)
+        PlayerStatusService.transitionTo(world, entityId, PlayerStateType.CHARGING);
         
         if (gauge) {
             if (interrupted) {
-                // 中断時は帰り道を表現するために値を反転させる等の処理が考えられるが、
-                // 簡易的に MAX - current で「戻り」を表現する
                 gauge.value = gauge.max - gauge.value;
             } else {
                 gauge.value = 0;
