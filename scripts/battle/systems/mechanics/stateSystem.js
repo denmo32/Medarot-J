@@ -7,6 +7,12 @@ import { PlayerStateType } from '../../common/constants.js';
 import { EffectType, TeamID, PartInfo } from '../../../common/constants.js';
 import { snapToActionLine } from '../../utils/positionUtils.js';
 
+// ゲージを加算すべき状態のリスト
+const ACTIVE_GAUGE_STATES = new Set([
+    PlayerStateType.CHARGING,
+    PlayerStateType.SELECTED_CHARGING
+]);
+
 export class StateSystem extends System {
     constructor(world) {
         super(world);
@@ -15,8 +21,8 @@ export class StateSystem extends System {
         this.on(GameEvents.REQUEST_STATE_TRANSITION, this.onStateTransitionRequested.bind(this));
         this.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
         this.on(GameEvents.GAUGE_FULL, this.onGaugeFull.bind(this));
-        this.on(GameEvents.HP_UPDATED, this.onHpUpdated.bind(this));
         this.on(GameEvents.PART_BROKEN, this.onPartBroken.bind(this));
+        this.on(GameEvents.GUARD_BROKEN, this.onGuardBroken.bind(this));
     }
 
     onStateTransitionRequested(detail) {
@@ -25,35 +31,32 @@ export class StateSystem extends System {
         if (gameState) {
             gameState.state = newState;
 
-            // 特定の状態遷移に伴う副作用もここで管理
+            // ゲージのアクティブ状態を更新
+            const gauge = this.world.getComponent(entityId, Gauge);
+            if (gauge) {
+                gauge.isActive = ACTIVE_GAUGE_STATES.has(newState);
+            }
+
+            // 特定の状態遷移に伴う副作用
             if (newState === PlayerStateType.GUARDING || newState === PlayerStateType.READY_EXECUTE) {
                 snapToActionLine(this.world, entityId);
+            }
+            
+            if (newState === PlayerStateType.BROKEN) {
+                if (gauge) gauge.value = 0;
             }
         }
     }
 
-    onHpUpdated(detail) {
-        const { entityId, partKey, newHp } = detail;
-        
-        // パーツ破壊判定
-        const parts = this.world.getComponent(entityId, Parts);
-        if (parts && parts[partKey]) {
-            if (newHp === 0 && !parts[partKey].isBroken) {
-                parts[partKey].isBroken = true;
-                this.world.emit(GameEvents.PART_BROKEN, { entityId, partKey });
-                
-                // 頭部破壊ならプレイヤー破壊（機能停止）
-                if (partKey === PartInfo.HEAD.key) {
-                    this._setPlayerBroken(entityId);
-                }
-            }
-        }
-    }
-    
     onPartBroken(detail) {
         const { entityId, partKey } = detail;
-        const gameState = this.world.getComponent(entityId, GameState);
         
+        // 頭部破壊ならプレイヤー破壊（機能停止）
+        if (partKey === PartInfo.HEAD.key) {
+            this._setPlayerBroken(entityId);
+        }
+
+        const gameState = this.world.getComponent(entityId, GameState);
         // ガード中のパーツが破壊されたかチェック
         if (gameState?.state === PlayerStateType.GUARDING) {
             const activeEffects = this.world.getComponent(entityId, ActiveEffects);
@@ -65,23 +68,27 @@ export class StateSystem extends System {
 
             if (isGuardPartBroken) {
                 this.world.emit(GameEvents.GUARD_BROKEN, { entityId });
+                // ガード破壊時はクールダウンへ（Sequence外での発生も想定してイベント経由）
                 this.world.emit(GameEvents.REQUEST_RESET_TO_COOLDOWN, { entityId, options: {} });
             }
         }
     }
+    
+    onGuardBroken(detail) {
+        // メッセージ表示などは他で行う
+    }
 
     _setPlayerBroken(entityId) {
-        const gameState = this.world.getComponent(entityId, GameState);
-        const gauge = this.world.getComponent(entityId, Gauge);
-        const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+        // State遷移イベントを発行して、GaugeSystemの制御(isActive)もonStateTransitionRequestedに任せる
+        this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.BROKEN });
 
-        if (gameState) {
-            gameState.state = PlayerStateType.BROKEN;
+        const playerInfo = this.world.getComponent(entityId, PlayerInfo);
+        const action = this.world.getComponent(entityId, Action);
+        
+        // アクションリセット
+        if (action) {
+            this.world.addComponent(entityId, new Action());
         }
-        if (gauge) {
-            gauge.value = 0;
-        }
-        this.world.addComponent(entityId, new Action());
 
         if (playerInfo) {
             this.world.emit(GameEvents.PLAYER_BROKEN, { entityId, teamId: playerInfo.teamId });
@@ -106,10 +113,9 @@ export class StateSystem extends System {
 
     onGaugeFull(detail) {
         const { entityId } = detail;
-        const gauge = this.world.getComponent(entityId, Gauge);
         const gameState = this.world.getComponent(entityId, GameState);
 
-        if (!gauge || !gameState) return;
+        if (!gameState) return;
 
         if (gameState.state === PlayerStateType.CHARGING) {
             this.world.emit(GameEvents.REQUEST_STATE_TRANSITION, { entityId, newState: PlayerStateType.READY_SELECT });

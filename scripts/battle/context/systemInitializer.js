@@ -1,5 +1,5 @@
 import { BattleContext } from './BattleContext.js';
-import { BattleUIState } from '../components/index.js'; // 追加
+import { BattleUIState } from '../components/index.js';
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
 import { ActionPanelSystem } from '../systems/ui/ActionPanelSystem.js';
@@ -11,19 +11,20 @@ import { GameFlowSystem } from '../systems/flow/GameFlowSystem.js';
 import { MovementSystem } from '../systems/mechanics/MovementSystem.js';
 import { TurnSystem } from '../systems/flow/TurnSystem.js';
 import { EffectSystem } from '../systems/mechanics/EffectSystem.js';
-// MessageSystem は ActionPanelSystem に統合されたため削除
-import { ActionCancellationSystem } from '../systems/action/ActionCancellationSystem.js';
 import { DebugSystem } from '../systems/ui/DebugSystem.js';
 import { CONFIG } from '../common/config.js';
 import { PhaseSystem } from '../systems/flow/PhaseSystem.js';
 import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.js';
-import { CooldownSystem } from '../systems/mechanics/CooldownSystem.js';
 import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
 import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 
 import { UIManager } from '../../../engine/ui/UIManager.js';
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
+
+// 削除されたシステム:
+// - CooldownSystem (Service化)
+// - ActionCancellationSystem (Service化)
 
 /**
  * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
@@ -54,12 +55,10 @@ export function initializeSystems(world) {
     const turnSystem = new TurnSystem(world);
     const movementSystem = new MovementSystem(world);
     const effectSystem = new EffectSystem(world);
-    // messageSystem は削除
-    const actionCancellationSystem = new ActionCancellationSystem(world);
+    
     const actionSelectionSystem = new ActionSelectionSystem(world);
     const battleSequenceSystem = new BattleSequenceSystem(world); 
     const timerSystem = new TimerSystem(world);
-    const cooldownSystem = new CooldownSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
 
     if (CONFIG.DEBUG) {
@@ -73,18 +72,17 @@ export function initializeSystems(world) {
     world.registerSystem(phaseSystem);
     world.registerSystem(turnSystem);
     world.registerSystem(timerSystem);
-    world.registerSystem(gaugeSystem);
+    // GaugeSystemはフラグ制御になったため、他のロジックシステムより前に動かすか後に動かすかは依存関係次第だが、
+    // StateSystemなどでフラグが変わった直後に反映されるよう、Logicフェーズの中盤に配置。
     world.registerSystem(stateSystem);
-    world.registerSystem(cooldownSystem);
+    world.registerSystem(gaugeSystem);
     world.registerSystem(actionSelectionSystem);
     
     world.registerSystem(battleSequenceSystem);
     
     world.registerSystem(battleHistorySystem);
-    world.registerSystem(actionCancellationSystem);
     world.registerSystem(movementSystem);
     world.registerSystem(effectSystem);
-    // world.registerSystem(messageSystem); // 削除
 
     // Visual系システム
     world.registerSystem(animationSystem);

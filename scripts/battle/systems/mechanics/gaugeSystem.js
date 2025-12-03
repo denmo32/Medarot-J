@@ -1,21 +1,11 @@
 import { Gauge, GameState } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import { BattleContext } from '../../context/index.js';
-import { PlayerStateType, BattlePhase } from '../../common/constants.js';
+import { BattlePhase } from '../../common/constants.js';
 import { PartInfo } from '../../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';
-
-// ゲージ更新を停止すべきプレイヤー状態
-const PAUSED_STATES = new Set([
-    PlayerStateType.READY_SELECT, 
-    PlayerStateType.READY_EXECUTE, 
-    PlayerStateType.COOLDOWN_COMPLETE, 
-    PlayerStateType.BROKEN, 
-    PlayerStateType.GUARDING,
-    PlayerStateType.AWAITING_ANIMATION
-]);
 
 export class GaugeSystem extends System {
     constructor(world) {
@@ -45,31 +35,36 @@ export class GaugeSystem extends System {
         }
 
         // 行動選択待ちのアクターがいる場合も停止（従来通り）
+        // ※ ここはPhaseSystem等でフラグ制御してもいいが、
+        // 全体停止条件として残しておく
         const entitiesWithState = this.getEntities(GameState);
         const hasActionQueued = entitiesWithState.some(entityId => {
             const gameState = this.world.getComponent(entityId, GameState);
-            return gameState.state === PlayerStateType.READY_SELECT || gameState.state === PlayerStateType.READY_EXECUTE;
+            // READY_SELECT/READY_EXECUTE は「待ち」状態なので全体時間を止める
+            return gameState.state === 'ready_select' || gameState.state === 'ready_execute';
         });
 
         if (hasActionQueued) {
             return;
         }
 
-        const entities = this.getEntities(Gauge, GameState, Parts);
+        const entities = this.getEntities(Gauge, Parts);
 
         for (const entityId of entities) {
-            const gameState = this.world.getComponent(entityId, GameState);
             const parts = this.world.getComponent(entityId, Parts);
 
+            // 頭部破壊時は動かない（これはStateSystemでisActive=falseにされるべきだが、念のため）
             if (parts[PartInfo.HEAD.key]?.isBroken) {
                 continue;
             }
 
-            if (PAUSED_STATES.has(gameState.state)) {
+            const gauge = this.world.getComponent(entityId, Gauge);
+            
+            // isActiveフラグのみで判定
+            if (!gauge.isActive) {
                 continue;
             }
 
-            const gauge = this.world.getComponent(entityId, Gauge);
             const mobility = parts.legs?.mobility || 0;
             const propulsion = parts.legs?.propulsion || 0;
             const speedMultiplier = gauge.speedMultiplier || 1.0;
