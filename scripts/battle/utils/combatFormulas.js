@@ -21,11 +21,12 @@ export class CombatStrategy {
 
 class DefaultCombatStrategy extends CombatStrategy {
     
-    calculateEvasionChance({ world, attackerId, targetLegs, attackingPart }) {
+    calculateEvasionChance({ world, attackerId, targetLegs, attackingPart, calcParams }) {
         if (!targetLegs || !attackingPart) return 0;
 
+        const baseStat = calcParams?.baseStat || 'success';
         const mobility = targetLegs.mobility ?? 0;
-        const success = attackingPart.success ?? 0;
+        const success = attackingPart[baseStat] ?? 0;
         
         let context = { attackingPart };
         if (attackerId !== undefined) {
@@ -33,7 +34,7 @@ class DefaultCombatStrategy extends CombatStrategy {
              if (attackerParts) context.attackerLegs = attackerParts.legs;
         }
 
-        const successModifier = EffectService.getStatModifier(world, attackerId, 'success', context);
+        const successModifier = EffectService.getStatModifier(world, attackerId, baseStat, context);
         const adjustedSuccess = success + successModifier;
         
         const formula = CONFIG.FORMULAS.EVASION;
@@ -66,39 +67,43 @@ class DefaultCombatStrategy extends CombatStrategy {
         const config = CONFIG.CRITICAL_HIT;
         const baseChance = successAdvantage / config.DIFFERENCE_FACTOR;
         
-        // 攻撃タイプによる補正をServiceから取得
         const typeBonus = EffectService.getCriticalChanceModifier(attackingPart);
         
         return clamp(baseChance + typeBonus, 0, 1);
     }
 
-    calculateDamage({ world, attackerId, attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false }) {
+    // calcParams を受け取れるように拡張
+    calculateDamage({ world, attackerId, attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false, calcParams }) {
         if (!attackingPart || !attackerLegs || !targetLegs) return 0;
 
-        let success = attackingPart.success ?? 0;
-        let might = attackingPart.might ?? 0;
-        const mobility = targetLegs.mobility ?? 0;
-        let armor = targetLegs.armor ?? 0;
+        const baseStatKey = calcParams?.baseStat || 'success';
+        const powerStatKey = calcParams?.powerStat || 'might';
+        const defenseStatKey = calcParams?.defenseStat || 'armor';
+
+        let baseVal = attackingPart[baseStatKey] ?? 0;
+        let powerVal = attackingPart[powerStatKey] ?? 0;
+        const mobility = targetLegs.mobility ?? 0; // 回避側の基本性能（固定）
+        let defenseVal = targetLegs[defenseStatKey] ?? 0;
 
         const context = { attackingPart, attackerLegs };
-        const successBonus = EffectService.getStatModifier(world, attackerId, 'success', context);
-        const mightBonus = EffectService.getStatModifier(world, attackerId, 'might', context);
+        const baseBonus = EffectService.getStatModifier(world, attackerId, baseStatKey, context);
+        const powerBonus = EffectService.getStatModifier(world, attackerId, powerStatKey, context);
 
-        success += successBonus;
-        might += mightBonus;
+        baseVal += baseBonus;
+        powerVal += powerBonus;
 
         const stabilityDefenseBonus = Math.floor((targetLegs.stability || 0) / 2);
-        armor += stabilityDefenseBonus;
+        defenseVal += stabilityDefenseBonus;
         
-        let baseDamage;
+        let damageBase;
         if (isCritical) {
-            baseDamage = Math.max(0, success);
+            damageBase = Math.max(0, baseVal);
         } else {
-            const effectiveArmor = isDefenseBypassed ? 0 : armor;
-            baseDamage = Math.max(0, success - mobility - effectiveArmor);
+            const effectiveDefense = isDefenseBypassed ? 0 : defenseVal;
+            damageBase = Math.max(0, baseVal - mobility - effectiveDefense);
         }
 
-        const finalDamage = Math.floor(baseDamage / CONFIG.FORMULAS.DAMAGE.BASE_DAMAGE_DIVISOR) + might;
+        const finalDamage = Math.floor(damageBase / CONFIG.FORMULAS.DAMAGE.BASE_DAMAGE_DIVISOR) + powerVal;
         
         return finalDamage;
     }
@@ -119,7 +124,6 @@ class DefaultCombatStrategy extends CombatStrategy {
         
         let multiplier = 1.0 + (performanceScore * impactFactor);
         
-        // 特性による速度補正 (Service経由)
         const modifier = EffectService.getSpeedMultiplierModifier(null, null, part);
         multiplier *= modifier;
 
@@ -146,7 +150,7 @@ class DefaultCombatStrategy extends CombatStrategy {
         return { nextSpeed, increment };
     }
 
-    resolveHitOutcome({ world, attackerId, targetId, attackingPart, targetLegs, initialTargetPartKey }) {
+    resolveHitOutcome({ world, attackerId, targetId, attackingPart, targetLegs, initialTargetPartKey, calcParams }) {
         const defaultOutcome = { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
 
         if (attackingPart.isSupport) {
@@ -157,7 +161,7 @@ class DefaultCombatStrategy extends CombatStrategy {
             return defaultOutcome;
         }
 
-        const evasionChance = this.calculateEvasionChance({ world, attackerId, targetLegs, attackingPart });
+        const evasionChance = this.calculateEvasionChance({ world, attackerId, targetLegs, attackingPart, calcParams });
         const isEvaded = Math.random() < evasionChance;
         
         if (isEvaded) {

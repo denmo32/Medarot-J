@@ -14,15 +14,18 @@ const DAMAGE = ({ world, sourceId, targetId, effect, part, partOwner, outcome })
     const targetParts = world.getComponent(targetId, Parts);
     if (!targetParts) return null;
 
-    // calculateDamageのシグネチャ変更に合わせて引数を更新
+    // 定義ファイルから計算パラメータを取得して渡す
+    const calcParams = effect.calculation || {};
+
     const finalDamage = CombatCalculator.calculateDamage({
-        world: world, // Worldを追加
-        attackerId: sourceId, // IDを追加
+        world: world,
+        attackerId: sourceId,
         attackingPart: part,
         attackerLegs: partOwner.parts.legs,
         targetLegs: targetParts.legs,
         isCritical: outcome.isCritical,
         isDefenseBypassed: !outcome.isCritical && outcome.isDefended,
+        calcParams: calcParams // 追加
     });
 
     return {
@@ -46,7 +49,9 @@ const HEAL = ({ world, sourceId, targetId, effect, part }) => {
     const targetParts = world.getComponent(targetId, Parts);
     if (!targetParts) return null;
     
-    const healAmount = part.might || 0;
+    // 定義ファイルから参照元パラメータを取得
+    const powerStat = effect.calculation?.powerStat || 'might';
+    const healAmount = part[powerStat] || 0;
     
     const targetPartKey = world.getComponent(sourceId, Action)?.targetPartKey;
     if (!targetPartKey) return null;

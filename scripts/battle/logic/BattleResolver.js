@@ -1,7 +1,6 @@
 /**
  * @file BattleResolver.js
- * @description 戦闘計算ロジック。イベント発行を最小限にし、純粋なデータ計算に集中する。
- * ターゲット解決などの複雑なルールは TargetingService に委譲。
+ * @description 戦闘計算ロジック。
  */
 import { Action, ActiveEffects } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
@@ -17,12 +16,6 @@ export class BattleResolver {
         this.effectApplicators = effectApplicators;
     }
 
-    /**
-     * アクションの結果を計算します。
-     * 副作用（HP減少など）は行わず、計算結果のみを返します。
-     * @param {number} attackerId 
-     * @returns {object} 結果データ
-     */
     resolve(attackerId) {
         const components = this._getCombatComponents(attackerId);
         
@@ -32,7 +25,6 @@ export class BattleResolver {
         
         const { action, attackingPart } = components;
 
-        // ターゲット解決 (TargetingServiceに委譲)
         const targetContext = TargetingService.resolveActualTarget(
             this.world, 
             attackerId, 
@@ -45,7 +37,6 @@ export class BattleResolver {
             return { attackerId, isCancelled: true, cancelReason: 'TARGET_LOST' };
         }
         
-        // ターゲット情報にtargetLegsを追加（計算で必要）
         if (targetContext.finalTargetId !== null) {
             targetContext.targetLegs = this.world.getComponent(targetContext.finalTargetId, Parts)?.legs;
         }
@@ -53,7 +44,6 @@ export class BattleResolver {
         const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
         const resolvedEffects = this._processEffects(attackerId, components, targetContext, outcome);
         
-        // ガードが発動した場合は、ガード消費エフェクトを追加
         if (targetContext.guardianInfo) {
             resolvedEffects.push({
                 type: EffectType.CONSUME_GUARD,
@@ -64,7 +54,6 @@ export class BattleResolver {
 
         const appliedEffects = this._calculateAppliedEffects({ resolvedEffects, guardianInfo: targetContext.guardianInfo });
         
-        // フラグの集約 (何が起きたか)
         const summary = {
             isGuardBroken: appliedEffects.some(e => e.isGuardBroken),
             isGuardExpired: appliedEffects.some(e => e.isExpired && e.type === EffectType.CONSUME_GUARD),
@@ -72,8 +61,8 @@ export class BattleResolver {
 
         return {
             attackerId,
-            intendedTargetId: action.targetId, // 元々のターゲット
-            targetId: targetContext.finalTargetId, // 実際に当たったターゲット
+            intendedTargetId: action.targetId,
+            targetId: targetContext.finalTargetId,
             attackingPart: components.attackingPart,
             isSupport: components.attackingPart.isSupport,
             guardianInfo: targetContext.guardianInfo,
@@ -88,13 +77,19 @@ export class BattleResolver {
         const { attackingPart } = components;
         const { finalTargetId, finalTargetPartKey, targetLegs } = targetContext;
 
+        // メイン効果の計算パラメータを取得
+        // 最初のDAMAGE効果のパラメータを使用する（複数ある場合は先頭優先）
+        const mainEffect = attackingPart.effects?.find(e => e.type === EffectType.DAMAGE);
+        const calcParams = mainEffect?.calculation || {};
+
         return CombatCalculator.resolveHitOutcome({
             world: this.world,
             attackerId,
             targetId: finalTargetId,
             attackingPart,
             targetLegs,
-            initialTargetPartKey: finalTargetPartKey
+            initialTargetPartKey: finalTargetPartKey,
+            calcParams: calcParams // 追加
         });
     }
 

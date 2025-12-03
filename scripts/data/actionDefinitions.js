@@ -1,9 +1,9 @@
 /**
  * @file アクション定義マスターデータ
- * ゲームに登場するすべての「行動の種類」の振る舞いを一元管理します。
+ * アクションごとの効果、ターゲットルール、計算パラメータを定義する。
  */
 import { TargetTiming, EffectType, EffectScope } from '../common/constants.js';
-import { TargetingStrategyKey } from '../battle/ai/strategyKeys.js'; // AI戦略キーはBattle依存だが、データ定義として許容するか、あるいはキー文字列にする
+import { TargetingStrategyKey } from '../battle/ai/strategyKeys.js';
 
 export const ActionDefinitions = {
     // --- 射撃系 ---
@@ -13,7 +13,15 @@ export const ActionDefinitions = {
         targetTiming: TargetTiming.PRE_MOVE,
         targetScope: EffectScope.ENEMY_SINGLE,
         effects: [
-            { type: EffectType.DAMAGE, powerSource: 'might' }
+            { 
+                type: EffectType.DAMAGE, 
+                // ダメージ計算パラメータ
+                calculation: {
+                    baseStat: 'success', // 命中判定の基準
+                    powerStat: 'might',  // 威力の基準
+                    defenseStat: 'armor', // 防御の基準
+                }
+            }
         ]
     },
 
@@ -25,7 +33,14 @@ export const ActionDefinitions = {
         postMoveTargeting: TargetingStrategyKey.NEAREST_ENEMY,
         targetScope: EffectScope.ENEMY_SINGLE,
         effects: [
-            { type: EffectType.DAMAGE, powerSource: 'might' }
+            { 
+                type: EffectType.DAMAGE, 
+                calculation: {
+                    baseStat: 'success',
+                    powerStat: 'might',
+                    defenseStat: 'armor',
+                }
+            }
         ]
     },
 
@@ -37,7 +52,14 @@ export const ActionDefinitions = {
         postMoveTargeting: TargetingStrategyKey.NEAREST_ENEMY,
         targetScope: EffectScope.ENEMY_SINGLE,
         effects: [
-            { type: EffectType.DAMAGE, powerSource: 'might' }
+            { 
+                type: EffectType.DAMAGE, 
+                calculation: {
+                    baseStat: 'success',
+                    powerStat: 'might',
+                    defenseStat: 'armor', // がむしゃらは防御無視などの特性をここで指定可能
+                }
+            }
         ]
     },
 
@@ -49,7 +71,13 @@ export const ActionDefinitions = {
         postMoveTargeting: TargetingStrategyKey.MOST_DAMAGED_ALLY,
         targetScope: EffectScope.ALLY_SINGLE,
         effects: [
-            { type: EffectType.HEAL, powerSource: 'might' }
+            { 
+                type: EffectType.HEAL, 
+                // 回復計算パラメータ
+                calculation: {
+                    powerStat: 'might'
+                }
+            }
         ]
     },
     
@@ -60,7 +88,15 @@ export const ActionDefinitions = {
         targetTiming: TargetTiming.PRE_MOVE,
         targetScope: EffectScope.ALLY_TEAM,
         effects: [
-            { type: EffectType.APPLY_SCAN, duration: 3, powerSource: 'might' }
+            { 
+                type: EffectType.APPLY_SCAN, 
+                // 効果パラメータ
+                params: {
+                    duration: 3,
+                    valueSource: 'might',
+                    valueFactor: 0.1 // 威力値の10%を加算
+                }
+            }
         ]
     },
 
@@ -83,7 +119,13 @@ export const ActionDefinitions = {
         targetTiming: TargetTiming.POST_MOVE,
         targetScope: EffectScope.SELF,
         effects: [
-            { type: EffectType.APPLY_GUARD, countMultiplier: 0.1, powerSource: 'might' }
+            { 
+                type: EffectType.APPLY_GUARD, 
+                params: {
+                    countSource: 'might',
+                    countFactor: 0.1 // 威力値の10%を回数とする
+                }
+            }
         ]
     },
 };
