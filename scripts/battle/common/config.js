@@ -3,17 +3,16 @@ import { CONFIG as COMMON_CONFIG } from '../../common/config.js';
 
 /**
  * @file バトルシーンの設定値を一元管理するモジュール
- * 共通設定を継承しつつ、バトル固有の設定を追加定義します。
  */
 export const CONFIG = {
     // 共通設定を展開
     ...COMMON_CONFIG,
 
     // 基本設定
-    MAX_GAUGE: 100,              // ゲージの最大値
-    UPDATE_INTERVAL: 20,         // ゲーム状態更新間隔（ミリ秒）
-    PLAYERS_PER_TEAM: 3,         // 1チーム当たりのプレイヤー数
-    MAX_PLAYERS: 6,              // 最大プレイヤー数（両チーム合わせて）
+    MAX_GAUGE: 100,
+    UPDATE_INTERVAL: 20,
+    PLAYERS_PER_TEAM: 3,
+    MAX_PLAYERS: 6,
     
     // クリティカルヒット関連の定数
     CRITICAL_HIT: {
@@ -26,10 +25,10 @@ export const CONFIG = {
     
     // 時間調整関連の定数
     TIME_ADJUSTMENT: {
-        MAX_MIGHT: 99,           // ゲーム内の最大威力（基準値）
-        MAX_SUCCESS: 99,         // ゲーム内の最大成功（基準値）
-        CHARGE_IMPACT_FACTOR: 1, // チャージ時間への影響係数
-        COOLDOWN_IMPACT_FACTOR: 1 // クールダウン時間への影響係数
+        MAX_MIGHT: 99,
+        MAX_SUCCESS: 99,
+        CHARGE_IMPACT_FACTOR: 1,
+        COOLDOWN_IMPACT_FACTOR: 1
     },
     
     // 戦闘計算式のパラメータ
@@ -57,12 +56,7 @@ export const CONFIG = {
         }
     },
     
-    // パーツタイプ別の補正値
-    PART_TYPE_MODIFIERS: {
-        [AttackType.SHOOT]: {
-            speedMultiplier: 0.75
-        },
-    },
+    // PART_TYPE_MODIFIERS は EffectService に移動したため削除
     
     // バトルフィールド関連の定数
     BATTLEFIELD: {

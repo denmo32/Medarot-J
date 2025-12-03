@@ -3,14 +3,11 @@
  */
 
 import { CONFIG } from '../common/config.js';
-// scripts/battle/utils/ -> ../../components/index.js
 import { findBestDefensePart } from './queryUtils.js';
-// engineはルート直下にあるため ../../../ で正しい (utils -> battle -> scripts -> root)
 import { GameError, ErrorType } from '../../../engine/utils/ErrorHandler.js';
-// scripts/battle/utils/ -> ../../common/constants.js
-import { AttackType as CommonAttackType, EffectType as CommonEffectType } from '../../common/constants.js';
 import { clamp } from '../../../engine/utils/MathUtils.js';
-import { ActiveEffects } from '../components/ActiveEffects.js';
+import { EffectService } from '../services/EffectService.js';
+import { Parts } from '../../components/index.js';
 
 export class CombatStrategy {
     calculateEvasionChance(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
@@ -30,8 +27,16 @@ class DefaultCombatStrategy extends CombatStrategy {
         const mobility = targetLegs.mobility ?? 0;
         const success = attackingPart.success ?? 0;
         
-        const scanBonus = this._calculateScanBonus(world, attackerId);
-        const adjustedSuccess = success + scanBonus;
+        // 成功率への補正を取得 (Service経由)
+        // ここでは攻撃者自身のパーツ特性やバフを含めるため、attackerLegsが必要なら取得する
+        let context = { attackingPart };
+        if (attackerId !== undefined) {
+             const attackerParts = world.getComponent(attackerId, Parts);
+             if (attackerParts) context.attackerLegs = attackerParts.legs;
+        }
+
+        const successModifier = EffectService.getStatModifier(world, attackerId, 'success', context);
+        const adjustedSuccess = success + successModifier;
         
         const formula = CONFIG.FORMULAS.EVASION;
         const mobilityAdvantage = mobility - adjustedSuccess;
@@ -67,7 +72,7 @@ class DefaultCombatStrategy extends CombatStrategy {
         return clamp(baseChance + typeBonus, 0, 1);
     }
 
-    calculateDamage({ attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false }) {
+    calculateDamage({ world, attackerId, attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false }) {
         if (!attackingPart || !attackerLegs || !targetLegs) return 0;
 
         let success = attackingPart.success ?? 0;
@@ -75,10 +80,16 @@ class DefaultCombatStrategy extends CombatStrategy {
         const mobility = targetLegs.mobility ?? 0;
         let armor = targetLegs.armor ?? 0;
 
-        const { successBonus, mightBonus } = this._calculateTypeBonus(attackingPart.type, attackerLegs);
+        // 補正値の取得 (Service経由)
+        // world, attackerId が渡されていない場合のフォールバックは考慮しない（呼び出し元で保証する想定）
+        const context = { attackingPart, attackerLegs };
+        const successBonus = EffectService.getStatModifier(world, attackerId, 'success', context);
+        const mightBonus = EffectService.getStatModifier(world, attackerId, 'might', context);
+
         success += successBonus;
         might += mightBonus;
 
+        // 防御側の安定性による防御ボーナス（これも本来はServiceへ移動すべきだが、今回は攻撃側の整理を優先）
         const stabilityDefenseBonus = Math.floor((targetLegs.stability || 0) / 2);
         armor += stabilityDefenseBonus;
         
@@ -111,23 +122,18 @@ class DefaultCombatStrategy extends CombatStrategy {
         
         let multiplier = 1.0 + (performanceScore * impactFactor);
         
-        const typeModifier = CONFIG.PART_TYPE_MODIFIERS?.[part.type];
-        if (typeModifier?.speedMultiplier) {
-            multiplier *= typeModifier.speedMultiplier;
-        }
+        // 特性による速度補正 (Service経由)
+        // ここではworldへのアクセスがない静的な計算のみを想定しているが、
+        // 本来はcalculateSpeedMultiplierにworldとentityIdを渡すべき設計。
+        // 現状の呼び出し元（CooldownSystem等）に合わせて、
+        // EffectServiceのメソッドもworld依存なしで動くように設計するか、引数を増やす。
+        // 今回はEffectService.getSpeedMultiplierModifierは単純なPart依存ロジックとしている。
+        const modifier = EffectService.getSpeedMultiplierModifier(null, null, part);
+        multiplier *= modifier;
+
         return multiplier;
     }
 
-    /**
-     * ゲージの更新量と次の速度を計算します。
-     * @param {object} context
-     * @param {number} context.currentSpeed - 現在のゲージ増加速度
-     * @param {number} context.mobility - 機動（加速度に影響）
-     * @param {number} context.propulsion - 推進（最大速度に影響）
-     * @param {number} context.speedMultiplier - 速度補正（チャージ/冷却など）
-     * @param {number} context.deltaTime - 経過時間
-     * @returns {{ nextSpeed: number, increment: number }}
-     */
     calculateGaugeUpdate({ currentSpeed, mobility, propulsion, speedMultiplier, deltaTime }) {
         const { 
             BASE_ACCELERATION, 
@@ -143,7 +149,6 @@ class DefaultCombatStrategy extends CombatStrategy {
         
         const nextSpeed = Math.min(currentSpeed + acceleration, maxSpeed);
         
-        // speedMultiplierが大きいほど遅くなる（分母にある）仕様
         const increment = (nextSpeed / speedMultiplier) * timeFactor;
 
         return { nextSpeed, increment };
@@ -185,38 +190,6 @@ class DefaultCombatStrategy extends CombatStrategy {
         }
 
         return { ...defaultOutcome, isHit: true };
-    }
-
-    _calculateScanBonus(world, attackerId) {
-        if (!world || attackerId === undefined) return 0;
-        
-        const activeEffects = world.getComponent(attackerId, ActiveEffects);
-        if (!activeEffects) return 0;
-        
-        return activeEffects.effects
-            .filter(e => e.type === CommonEffectType.APPLY_SCAN)
-            .reduce((total, e) => total + e.value, 0);
-    }
-
-    _calculateTypeBonus(attackType, attackerLegs) {
-        let successBonus = 0;
-        let mightBonus = 0;
-
-        if (!attackerLegs) return { successBonus, mightBonus };
-
-        switch (attackType) {
-            case CommonAttackType.AIMED_SHOT:
-                successBonus = Math.floor((attackerLegs.stability || 0) / 2);
-                break;
-            case CommonAttackType.STRIKE:
-                successBonus = Math.floor((attackerLegs.mobility || 0) / 2);
-                break;
-            case CommonAttackType.RECKLESS:
-                mightBonus = Math.floor((attackerLegs.propulsion || 0) / 2);
-                break;
-        }
-
-        return { successBonus, mightBonus };
     }
 }
 

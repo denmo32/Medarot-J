@@ -2,10 +2,7 @@
  * @file HP関連効果戦略定義
  */
 import { Action } from '../components/index.js';
-// scripts/battle/effects/ -> ../../components/index.js
 import { PlayerInfo, Parts } from '../../components/index.js';
-import { EffectType } from '../../common/constants.js'; 
-// scripts/battle/effects/ -> ../../common/constants.js
 import { EffectType as CommonEffectType } from '../../common/constants.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 
@@ -17,7 +14,10 @@ const DAMAGE = ({ world, sourceId, targetId, effect, part, partOwner, outcome })
     const targetParts = world.getComponent(targetId, Parts);
     if (!targetParts) return null;
 
+    // calculateDamageのシグネチャ変更に合わせて引数を更新
     const finalDamage = CombatCalculator.calculateDamage({
+        world: world, // Worldを追加
+        attackerId: sourceId, // IDを追加
         attackingPart: part,
         attackerLegs: partOwner.parts.legs,
         targetLegs: targetParts.legs,
