@@ -2,12 +2,10 @@
  * @file 状態関連効果戦略定義
  */
 import { ActiveEffects, GameState, Action } from '../components/index.js';
-// scripts/battle/effects/ -> ../../components/index.js
 import { PlayerInfo } from '../../components/index.js';
-// scripts/battle/effects/ -> ../../common/constants.js
 import { EffectType, EffectScope } from '../../common/constants.js';
 import { PlayerStateType } from '../common/constants.js';
-import { getValidAllies } from '../utils/queryUtils.js';
+import { TargetingService } from '../services/TargetingService.js';
 
 const APPLY_SCAN = ({ world, sourceId, effect, part }) => {
     const sourceInfo = world.getComponent(sourceId, PlayerInfo);

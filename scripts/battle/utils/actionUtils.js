@@ -2,9 +2,8 @@
  * @file 行動決定ユーティリティ
  */
 import { GameEvents } from '../../common/events.js';
-// scripts/battle/utils/ -> ../../components/index.js
 import { Parts as CommonParts } from '../../components/index.js';
-import { isValidTarget } from './queryUtils.js';
+import { TargetingService } from '../services/TargetingService.js';
 import { TargetTiming } from '../../common/constants.js';
 
 export function decideAndEmitAction(world, entityId, partKey, target = null) {
@@ -28,7 +27,7 @@ export function decideAndEmitAction(world, entityId, partKey, target = null) {
         return;
     }
 
-    if (selectedPart.targetScope?.endsWith('_SINGLE') && !isValidTarget(world, target?.targetId, target?.targetPartKey)) {
+    if (selectedPart.targetScope?.endsWith('_SINGLE') && !TargetingService.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
         console.error(`decideAndEmitAction: A valid target was expected but not found. Action may fail.`, {entityId, partKey, target});
     }
 

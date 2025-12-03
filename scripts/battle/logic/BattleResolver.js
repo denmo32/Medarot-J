@@ -1,14 +1,15 @@
 /**
  * @file BattleResolver.js
  * @description 戦闘計算ロジック。イベント発行を最小限にし、純粋なデータ計算に集中する。
+ * ターゲット解決などの複雑なルールは TargetingService に委譲。
  */
 import { Action, ActiveEffects } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
 import { EffectType } from '../../common/constants.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
-import { findGuardian, isValidTarget } from '../utils/queryUtils.js';
 import { effectStrategies } from '../effects/effectStrategies.js';
 import { effectApplicators } from '../effects/applicators/applicatorIndex.js';
+import { TargetingService } from '../services/TargetingService.js';
 
 export class BattleResolver {
     constructor(world) {
@@ -29,10 +30,24 @@ export class BattleResolver {
             return { attackerId, isCancelled: true, cancelReason: 'INTERRUPTED' };
         }
         
-        const targetContext = this._determineFinalTarget(components, attackerId);
+        const { action, attackingPart } = components;
+
+        // ターゲット解決 (TargetingServiceに委譲)
+        const targetContext = TargetingService.resolveActualTarget(
+            this.world, 
+            attackerId, 
+            action.targetId, 
+            action.targetPartKey, 
+            attackingPart.isSupport
+        );
         
         if (targetContext.shouldCancel) {
             return { attackerId, isCancelled: true, cancelReason: 'TARGET_LOST' };
+        }
+        
+        // ターゲット情報にtargetLegsを追加（計算で必要）
+        if (targetContext.finalTargetId !== null) {
+            targetContext.targetLegs = this.world.getComponent(targetContext.finalTargetId, Parts)?.legs;
         }
 
         const outcome = this._calculateCombatOutcome(attackerId, components, targetContext);
@@ -57,50 +72,15 @@ export class BattleResolver {
 
         return {
             attackerId,
-            intendedTargetId: targetContext.intendedTargetId,
-            targetId: targetContext.finalTargetId,
+            intendedTargetId: action.targetId, // 元々のターゲット
+            targetId: targetContext.finalTargetId, // 実際に当たったターゲット
             attackingPart: components.attackingPart,
             isSupport: components.attackingPart.isSupport,
             guardianInfo: targetContext.guardianInfo,
             outcome,
             appliedEffects,
-            summary, // 集約したイベントフラグ
+            summary, 
             isCancelled: false
-        };
-    }
-
-    _determineFinalTarget(components, attackerId) {
-        const { action, attackingPart } = components;
-        
-        const isTargetRequired = attackingPart.targetScope && (attackingPart.targetScope.endsWith('_SINGLE') || attackingPart.targetScope.endsWith('_TEAM'));
-        
-        if (isTargetRequired && !attackingPart.isSupport && !isValidTarget(this.world, action.targetId, action.targetPartKey)) {
-            return { shouldCancel: true };
-        }
-
-        const intendedTargetId = action.targetId;
-        let finalTargetId = action.targetId;
-        let finalTargetPartKey = action.targetPartKey;
-        let guardianInfo = null;
-
-        if (!attackingPart.isSupport && finalTargetId !== null) {
-            const foundGuardian = findGuardian(this.world, finalTargetId);
-            if (foundGuardian) {
-                guardianInfo = foundGuardian;
-                finalTargetId = guardianInfo.id;
-                finalTargetPartKey = guardianInfo.partKey;
-            }
-        }
-
-        const targetLegs = this.world.getComponent(finalTargetId, Parts)?.legs;
-
-        return { 
-            intendedTargetId,
-            finalTargetId, 
-            finalTargetPartKey, 
-            targetLegs, 
-            guardianInfo, 
-            shouldCancel: false 
         };
     }
 

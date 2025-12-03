@@ -1,13 +1,13 @@
 /**
  * @file AI思考ルーチン条件評価関数
  */
-import { getValidAllies, findMostDamagedAllyPart } from '../utils/queryUtils.js';
+import { TargetingService } from '../services/TargetingService.js';
 
 export const conditionEvaluators = {
     ANY_ALLY_DAMAGED: ({ world, entityId, params }) => {
         const { includeSelf = false } = params || {};
-        const allies = getValidAllies(world, entityId, includeSelf);
-        return findMostDamagedAllyPart(world, allies) !== null;
+        const allies = TargetingService.getValidAllies(world, entityId, includeSelf);
+        return TargetingService.findMostDamagedAllyPart(world, allies) !== null;
     },
 };
 

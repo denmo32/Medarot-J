@@ -3,7 +3,7 @@
  */
 import { ActiveEffects } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
-import { getValidAllies } from '../../utils/queryUtils.js';
+import { TargetingService } from '../../services/TargetingService.js';
 import { EffectType } from '../../../common/constants.js';
 
 // 状態変更のみを行い、特にイベントを発行しないヘルパー関数
@@ -28,7 +28,7 @@ export const applyTeamEffect = ({ world, effect }) => {
     const sourceInfo = world.getComponent(effect.targetId, PlayerInfo);
     if (!sourceInfo) return { ...effect, events: [] };
     
-    const allies = getValidAllies(world, effect.targetId, true);
+    const allies = TargetingService.getValidAllies(world, effect.targetId, true);
     allies.forEach(id => applySingleEffect(world, { ...effect, targetId: id }));
     
     return { ...effect, events: [] };

@@ -4,7 +4,7 @@ import { PlayerInfo } from '../../../components/index.js';
 import { TeamID } from '../../../common/constants.js';
 import { BattlePhase } from '../../common/constants.js';
 import { BattleContext } from '../../context/index.js';
-import { getValidAllies } from '../../utils/queryUtils.js';
+import { TargetingService } from '../../services/TargetingService.js';
 
 export class WinConditionSystem extends System {
     constructor(world) {
@@ -46,7 +46,7 @@ export class WinConditionSystem extends System {
             }
 
             // 全滅判定
-            const remainingAllies = getValidAllies(this.world, brokenEntityId, true);
+            const remainingAllies = TargetingService.getValidAllies(this.world, brokenEntityId, true);
             if (remainingAllies.length === 0) {
                 isGameOver = true;
             }
