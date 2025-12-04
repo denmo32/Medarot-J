@@ -1,11 +1,11 @@
 /**
  * @file TimelineBuilder.js
  * @description 戦闘アクションの実行シーケンス（タスクリスト）を構築する。
- * VisualDirectorSystemの導入に伴い、メッセージとUIアニメーションを分離して生成する。
+ * VisualizerRegistry導入により、演出生成ロジックを分離。
  */
 import { 
     createAnimateTask, createEventTask, createCustomTask,
-    createDialogTask, createUiAnimationTask // 新しいタスク生成関数
+    createDialogTask
 } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
@@ -14,6 +14,7 @@ import { PlayerInfo } from '../../components/index.js';
 import { EffectType } from '../../common/constants.js';
 import { MessageKey } from '../../data/messageRepository.js';
 import { CooldownService } from '../services/CooldownService.js';
+import { VisualizerRegistry } from './visualizers/VisualizerRegistry.js'; // 追加
 
 export class TimelineBuilder {
     constructor(world) {
@@ -23,7 +24,7 @@ export class TimelineBuilder {
 
     buildAttackSequence(resultData) {
         const tasks = [];
-        const { attackerId, intendedTargetId, targetId, isCancelled, appliedEffects, summary } = resultData;
+        const { attackerId, intendedTargetId, targetId, isCancelled, appliedEffects, summary, guardianInfo } = resultData;
 
         if (isCancelled) {
             return [];
@@ -37,52 +38,45 @@ export class TimelineBuilder {
             tasks.push(createAnimateTask(attackerId, attackerId, 'support'));
         }
 
-        // 2. メッセージとHPバーアニメーションの構築
-        
-        // 宣言メッセージ
+        // 2. 攻撃宣言メッセージ
         const declarationSeq = this.messageGenerator.createDeclarationSequence(resultData);
         if (declarationSeq.length > 0) {
-            // 現状は先頭のみ取得（MessageGeneratorの戻り値構造に合わせる）
             const text = declarationSeq[0].text;
             tasks.push(createDialogTask(text, { modalType: ModalType.ATTACK_DECLARATION }));
         }
 
-        // 結果メッセージとHPアニメーション
-        const resultSeq = this.messageGenerator.createResultSequence(resultData);
-        
-        for (const step of resultSeq) {
-            if (step.waitForAnimation) {
-                // HPバーアニメーションタスク
-                // ダメージまたは回復効果があった対象に対してUIアニメーションを要求
-                const damageEffects = step.effects.filter(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL);
-                if (damageEffects.length > 0) {
-                    tasks.push(createUiAnimationTask('HP_BAR', { effects: damageEffects }));
-                }
-            } else if (step.text) {
-                tasks.push(createDialogTask(step.text, { modalType: ModalType.EXECUTION_RESULT }));
-            }
+        // 3. 結果演出 (VisualizerRegistryに委譲)
+        // appliedEffects が存在する場合のみ実行
+        if (appliedEffects && appliedEffects.length > 0) {
+            const resultTasks = VisualizerRegistry.createVisualTasks(this.world, appliedEffects, { guardianInfo });
+            tasks.push(...resultTasks);
+        } else if (!resultData.outcome.isHit && resultData.intendedTargetId) {
+             // 回避メッセージ (Visualizerが処理しないケース)
+             const resultSeq = this.messageGenerator.createResultSequence(resultData);
+             if (resultSeq.length > 0 && resultSeq[0].text) {
+                 tasks.push(createDialogTask(resultSeq[0].text, { modalType: ModalType.EXECUTION_RESULT }));
+             }
         }
 
-        // 3. ガード回数終了メッセージ
+        // 4. ガード回数終了メッセージ
         if (summary.isGuardExpired) {
             const expiredEffect = appliedEffects.find(e => e.type === EffectType.CONSUME_GUARD && e.isExpired);
             if (expiredEffect) {
                 const actorInfo = this.world.getComponent(expiredEffect.targetId, PlayerInfo);
                 const message = this.messageGenerator.format(MessageKey.GUARD_EXPIRED, { actorName: actorInfo?.name || '???' });
-                
                 tasks.push(createDialogTask(message, { modalType: ModalType.MESSAGE }));
             }
         }
 
-        // 4. クールダウンへの移行
+        // 5. クールダウンへの移行
         tasks.push(createCustomTask((world) => {
             CooldownService.transitionToCooldown(world, attackerId);
         }));
         
-        // 5. UIの最終整合性確保
+        // 6. UIの最終整合性確保
         tasks.push(createEventTask(GameEvents.REFRESH_UI, {}));
 
-        // 6. キャンセル状態チェック
+        // 7. キャンセル状態チェック
         tasks.push(createEventTask(GameEvents.CHECK_ACTION_CANCELLATION, {}));
 
         return tasks;

@@ -1,6 +1,7 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの制御を行う。
+ * EffectApplier導入により、状態更新ロジックを分離。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -11,11 +12,11 @@ import { Parts } from '../../../components/index.js';
 import { compareByPropulsion } from '../../utils/queryUtils.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 import { BattleResolver } from '../../logic/BattleResolver.js';
+import { EffectApplier } from '../../logic/EffectApplier.js'; // 追加
 import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
-import { TargetTiming, EffectType } from '../../../common/constants.js';
+import { TargetTiming } from '../../../common/constants.js';
 
-// Services
 import { CooldownService } from '../../services/CooldownService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { PlayerStatusService } from '../../services/PlayerStatusService.js';
@@ -59,8 +60,6 @@ export class BattleSequenceSystem extends System {
     
     _finishCurrentActorSequence() {
         this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: this.currentActorId });
-        
-        // 次へ
         this.currentActorId = null;
         this._processNextInQueue();
     }
@@ -102,7 +101,7 @@ export class BattleSequenceSystem extends System {
         this.currentActorId = actorId;
         const actionComp = this.world.getComponent(actorId, Action);
 
-        // 状態遷移: アニメーション待機へ (Service使用)
+        // 状態遷移: アニメーション待機へ
         PlayerStatusService.transitionTo(this.world, actorId, PlayerStateType.AWAITING_ANIMATION);
 
         // 1. 実行直前のキャンセルチェック
@@ -120,46 +119,16 @@ export class BattleSequenceSystem extends System {
         const resultData = this.battleResolver.resolve(actorId);
 
         // 4. Logicデータの即時更新 (副作用の適用)
-        this._applyLogicUpdate(resultData);
+        // ここをEffectApplierに委譲してシンプル化
+        EffectApplier.applyResult(this.world, resultData);
+        
+        this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);
 
         // 5. 演出タスクの構築と実行 (Visual)
         const tasks = this.timelineBuilder.buildAttackSequence(resultData);
         
         this.taskRunner.addTasks(tasks);
         this.battleContext.isSequenceRunning = true;
-    }
-
-    _applyLogicUpdate(resultData) {
-        const { appliedEffects, attackerId } = resultData;
-        
-        if (appliedEffects) {
-            appliedEffects.forEach(effect => {
-                // HPの更新
-                if (effect.type === EffectType.DAMAGE || effect.type === EffectType.HEAL) {
-                    const parts = this.world.getComponent(effect.targetId, Parts);
-                    if (parts && parts[effect.partKey]) {
-                        parts[effect.partKey].hp = effect.newHp;
-                        
-                        if (effect.isPartBroken) {
-                            parts[effect.partKey].isBroken = true;
-                            this.world.emit(GameEvents.PART_BROKEN, { entityId: effect.targetId, partKey: effect.partKey });
-                        }
-                    }
-                }
-                
-                // ガード状態への遷移 (Service呼び出し)
-                // APPLY_GUARD効果が確定した時点で状態を変更する
-                if (effect.type === EffectType.APPLY_GUARD) {
-                    PlayerStatusService.transitionTo(this.world, attackerId, PlayerStateType.GUARDING);
-                }
-
-                if (effect.events) {
-                    effect.events.forEach(e => this.world.emit(e.type, e.payload));
-                }
-            });
-        }
-
-        this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);
     }
 
     _determinePostMoveTarget(executorId, action) {
