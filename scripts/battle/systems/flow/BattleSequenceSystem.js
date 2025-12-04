@@ -12,7 +12,7 @@ import { Parts } from '../../../components/index.js';
 import { compareByPropulsion } from '../../utils/queryUtils.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 import { BattleResolver } from '../../logic/BattleResolver.js';
-import { EffectApplier } from '../../logic/EffectApplier.js'; // 追加
+import { EffectApplier } from '../../logic/EffectApplier.js';
 import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
 import { TargetTiming } from '../../../common/constants.js';
@@ -119,7 +119,7 @@ export class BattleSequenceSystem extends System {
         const resultData = this.battleResolver.resolve(actorId);
 
         // 4. Logicデータの即時更新 (副作用の適用)
-        // ここをEffectApplierに委譲してシンプル化
+        // EffectApplierを使用
         EffectApplier.applyResult(this.world, resultData);
         
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);

@@ -14,7 +14,7 @@ import { PlayerInfo } from '../../components/index.js';
 import { EffectType } from '../../common/constants.js';
 import { MessageKey } from '../../data/messageRepository.js';
 import { CooldownService } from '../services/CooldownService.js';
-import { VisualizerRegistry } from './visualizers/VisualizerRegistry.js'; // 追加
+import { VisualizerRegistry } from './visualizers/VisualizerRegistry.js';
 
 export class TimelineBuilder {
     constructor(world) {

@@ -7,7 +7,7 @@ import { createUiAnimationTask, createDialogTask } from '../BattleTasks.js';
 import { ModalType } from '../../common/constants.js';
 import { MessageGenerator } from '../../utils/MessageGenerator.js';
 
-// 共通のメッセージ生成器インスタンス（都度生成を避けるためキャッシュしても良いが、軽量なので都度生成）
+// 共通のメッセージ生成器インスタンス
 const getMessageGenerator = (world) => new MessageGenerator(world);
 
 /**
@@ -68,9 +68,7 @@ export class VisualizerRegistry {
 
         const tasks = [];
         
-        // 効果をタイプごとにグルーピングすべきか、順次処理すべきか？
-        // ここでは、メインとなる効果（先頭の効果）のタイプに基づいてVisualizerを選択する戦略をとる。
-        // 通常、1つのアクションで全く異なる種類の演出が混在することは少ないため。
+        // メインとなる効果（先頭の効果）のタイプに基づいてVisualizerを選択
         const mainEffect = effects[0];
         const visualizer = visualizers[mainEffect.type] || visualizers['DEFAULT'];
 

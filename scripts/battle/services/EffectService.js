@@ -1,135 +1,132 @@
 /**
  * @file EffectService.js
- * @description 戦闘におけるステータス補正（Modifier）や特性効果を一元管理するサービス。
- * TypeDefinitions, TraitDefinitions, ActiveEffectsを参照し、データ駆動で補正値を計算する。
+ * @description 戦闘におけるステータス補正や特性効果を一元管理するサービス。
+ * TraitRegistryを利用して動的なロジックを実行するように拡張。
  */
-import { Parts, PlayerInfo } from '../../components/index.js';
 import { ActiveEffects } from '../components/index.js';
-import { AttackType, EffectType } from '../../common/constants.js';
+import { EffectType } from '../../common/constants.js';
 import { TypeDefinitions } from '../../data/typeDefinitions.js';
 import { TraitDefinitions } from '../../data/traitDefinitions.js';
+import { TraitRegistry } from '../logic/traits/TraitRegistry.js';
 
 export class EffectService {
     
     /**
-     * 指定されたステータスに対する補正値を取得する
+     * 指定されたステータスに対する補正値を取得する (フック名: onCalculateStat)
      * @param {World} world 
      * @param {number} entityId 
-     * @param {string} statName - 'success', 'might', 'mobility', 'evasion' 等
-     * @param {object} context - 計算に必要な文脈情報 (attackingPart, attackerLegs 等)
+     * @param {string} statName 
+     * @param {object} context 
      * @returns {number} 補正値（加算値）
      */
     static getStatModifier(world, entityId, statName, context = {}) {
+        // コンテキストの拡張
+        const fullContext = {
+            ...context,
+            world,
+            entityId,
+            targetStat: statName,
+            currentVal: 0 // 必要であればベース値を渡す
+        };
+
         let modifier = 0;
 
-        // 1. 攻撃タイプ(Type)による補正
-        modifier += this._getTypeModifier(statName, context);
+        // 1. 定義ファイル（Type/Trait）からのロジック実行
+        modifier += this._executeTraitHooks('onCalculateStat', fullContext);
 
-        // 2. 特性(Trait)による補正
-        modifier += this._getTraitModifier(statName, context);
-
-        // 3. アクティブ効果（バフ・デバフ）による補正
+        // 2. アクティブ効果（バフ・デバフ）による補正 (既存ロジック)
         modifier += this._getActiveEffectModifier(world, entityId, statName);
 
         return modifier;
     }
 
     /**
-     * 速度係数（チャージ/冷却の倍率）に対する補正を取得する
-     * @param {World} world 
-     * @param {number} entityId 
-     * @param {object} part - 使用するパーツ
-     * @returns {number} 乗算補正値 (初期値 1.0)
+     * 速度係数に対する補正を取得する (フック名: onCalculateSpeedMultiplier)
      */
     static getSpeedMultiplierModifier(world, entityId, part) {
+        const context = { world, entityId, part, attackingPart: part };
         let multiplier = 1.0;
 
-        if (part) {
-            // Typeによる補正
-            const typeDef = TypeDefinitions[part.type];
-            if (typeDef && typeDef.speedMultiplier) {
-                multiplier *= typeDef.speedMultiplier;
-            }
-
-            // Traitによる補正
-            const traitDef = TraitDefinitions[part.trait];
-            if (traitDef && traitDef.speedMultiplier) {
-                multiplier *= traitDef.speedMultiplier;
-            }
+        // 定義ファイルからのロジック実行 (乗算として扱う)
+        const factors = this._executeTraitHooks('onCalculateSpeedMultiplier', context, true); // true = collect all results
+        
+        if (factors.length > 0) {
+            multiplier = factors.reduce((acc, val) => acc * val, 1.0);
         }
 
         return multiplier;
     }
 
     /**
-     * クリティカル率への加算補正を取得する
-     * @param {object} part - 使用するパーツ
-     * @returns {number} 加算補正値 (0.0 - 1.0)
+     * クリティカル率への補正を取得する (フック名: onCalculateCritical)
      */
     static getCriticalChanceModifier(part) {
         if (!part) return 0;
-        let bonus = 0;
+        const context = { attackingPart: part };
         
-        // Typeによる補正
-        const typeDef = TypeDefinitions[part.type];
-        if (typeDef && typeDef.criticalBonus) {
-            bonus += typeDef.criticalBonus;
-        }
-
-        // Traitによる補正
-        const traitDef = TraitDefinitions[part.trait];
-        if (traitDef && traitDef.criticalBonus) {
-            bonus += traitDef.criticalBonus;
-        }
-
-        return bonus;
+        return this._executeTraitHooks('onCalculateCritical', context);
     }
 
     // --- Internal Logic ---
 
-    static _getTypeModifier(statName, context) {
-        let bonus = 0;
-        const { attackingPart, attackerLegs } = context;
+    /**
+     * 攻撃パーツの Type と Trait に関連付けられたロジックフックを実行する
+     * @param {string} hookName 実行するメソッド名
+     * @param {object} context ロジックに渡すコンテキスト
+     * @param {boolean} returnArray 結果を配列で返すか（乗算用）、合計値で返すか（加算用）
+     */
+    static _executeTraitHooks(hookName, context, returnArray = false) {
+        const { attackingPart } = context;
+        if (!attackingPart) return returnArray ? [] : 0;
 
-        if (attackingPart && attackerLegs) {
-            const typeDef = TypeDefinitions[attackingPart.type];
-            bonus += this._calculateStatBonusFromDef(typeDef, statName, attackerLegs);
-        }
-        return bonus;
-    }
+        const results = [];
+        let total = 0;
 
-    static _getTraitModifier(statName, context) {
-        let bonus = 0;
-        const { attackingPart, attackerLegs } = context;
+        // チェック対象の定義
+        const definitions = [
+            TypeDefinitions[attackingPart.type],
+            TraitDefinitions[attackingPart.trait]
+        ];
 
-        if (attackingPart && attackerLegs && attackingPart.trait) {
-            const traitDef = TraitDefinitions[attackingPart.trait];
-            bonus += this._calculateStatBonusFromDef(traitDef, statName, attackerLegs);
-        }
-        return bonus;
-    }
+        for (const def of definitions) {
+            if (!def) continue;
 
-    static _calculateStatBonusFromDef(def, statName, legs) {
-        let bonus = 0;
-        if (def && def.statModifiers) {
-            for (const mod of def.statModifiers) {
-                if (mod.targetStat === statName) {
-                    const sourceVal = this._resolveSourceValue(mod.sourceStat, legs);
-                    bonus += Math.floor(sourceVal * mod.factor);
+            // 1. 旧形式 (statModifiers配列) の互換処理 (onCalculateStatのみ)
+            // データ定義を書き換えずに、自動的にTraitRegistryのロジックを適用する
+            if (hookName === 'onCalculateStat' && def.statModifiers) {
+                const logic = TraitRegistry.getLogic('STAT_MODIFIER');
+                if (logic) {
+                    for (const mod of def.statModifiers) {
+                        const val = logic.onCalculateStat(context, mod);
+                        if (val !== 0) {
+                            results.push(val);
+                            total += val;
+                        }
+                    }
                 }
             }
-        }
-        return bonus;
-    }
 
-    static _resolveSourceValue(sourcePath, legs) {
-        if (!sourcePath || !legs) return 0;
-        
-        const parts = sourcePath.split('.');
-        if (parts[0] === 'legs') {
-            return legs[parts[1]] || 0;
+            // 2. 新形式 (logicプロパティ) の処理
+            if (def.logic) {
+                const logicImpl = TraitRegistry.getLogic(def.logic);
+                if (logicImpl && typeof logicImpl[hookName] === 'function') {
+                    const val = logicImpl[hookName](context, def.params || {});
+                    results.push(val);
+                    total += val;
+                }
+            }
+            
+            // 3. 直接定義されたパラメータの処理 (speedMultiplier, criticalBonusなど)
+            if (hookName === 'onCalculateSpeedMultiplier' && def.speedMultiplier !== undefined) {
+                results.push(def.speedMultiplier);
+            }
+            if (hookName === 'onCalculateCritical' && def.criticalBonus !== undefined) {
+                results.push(def.criticalBonus);
+                total += def.criticalBonus;
+            }
         }
-        return 0;
+
+        return returnArray ? results : total;
     }
 
     static _getActiveEffectModifier(world, entityId, statName) {

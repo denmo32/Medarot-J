@@ -22,7 +22,6 @@ export class CooldownService {
 
         const gameState = world.getComponent(entityId, GameState);
         
-        // ガード中の場合はクールダウン概念がないため、アクションをリセットして終了
         if (gameState && gameState.state === PlayerStateType.GUARDING) {
             world.addComponent(entityId, new Action());
             return;
@@ -35,13 +34,18 @@ export class CooldownService {
         if (action && action.partKey && parts && gauge) {
             const usedPart = parts[action.partKey];
             if (usedPart) {
-                gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ part: usedPart, factorType: 'cooldown' });
+                // 修正: world, entityId を渡す
+                gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ 
+                    world, 
+                    entityId, 
+                    part: usedPart, 
+                    factorType: 'cooldown' 
+                });
             }
         } else if (gauge) {
             gauge.speedMultiplier = 1.0;
         }
 
-        // 状態遷移 (Service使用)
         PlayerStatusService.transitionTo(world, entityId, PlayerStateType.CHARGING);
         
         if (gauge) {
@@ -49,19 +53,16 @@ export class CooldownService {
             gauge.currentSpeed = 0;
         }
         
-        // アクション情報のリセット
         world.addComponent(entityId, new Action());
         
-        // 完了通知
         world.emit(GameEvents.COOLDOWN_TRANSITION_COMPLETED, { entityId });
     }
 
     /**
-     * エンティティを強制的にクールダウン開始状態（充填開始前、または中断後の戻り）へリセットする
+     * エンティティを強制的にクールダウン開始状態へリセットする
      * @param {World} world 
      * @param {number} entityId 
      * @param {object} options 
-     * @param {boolean} [options.interrupted=false] - 中断によるリセットか
      */
     static resetEntityStateToCooldown(world, entityId, options = {}) {
         const { interrupted = false } = options;
@@ -74,7 +75,6 @@ export class CooldownService {
         const gameState = world.getComponent(entityId, GameState);
         const gauge = world.getComponent(entityId, Gauge);
         
-        // ガード解除
         if (gameState && gameState.state === PlayerStateType.GUARDING) {
             const activeEffects = world.getComponent(entityId, ActiveEffects);
             if (activeEffects) {
@@ -82,7 +82,6 @@ export class CooldownService {
             }
         }
         
-        // 状態遷移 (Service使用)
         PlayerStatusService.transitionTo(world, entityId, PlayerStateType.CHARGING);
         
         if (gauge) {

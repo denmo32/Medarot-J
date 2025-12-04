@@ -72,7 +72,6 @@ class DefaultCombatStrategy extends CombatStrategy {
         return clamp(baseChance + typeBonus, 0, 1);
     }
 
-    // calcParams を受け取れるように拡張
     calculateDamage({ world, attackerId, attackingPart, attackerLegs, targetLegs, isCritical = false, isDefenseBypassed = false, calcParams }) {
         if (!attackingPart || !attackerLegs || !targetLegs) return 0;
 
@@ -82,7 +81,7 @@ class DefaultCombatStrategy extends CombatStrategy {
 
         let baseVal = attackingPart[baseStatKey] ?? 0;
         let powerVal = attackingPart[powerStatKey] ?? 0;
-        const mobility = targetLegs.mobility ?? 0; // 回避側の基本性能（固定）
+        const mobility = targetLegs.mobility ?? 0;
         let defenseVal = targetLegs[defenseStatKey] ?? 0;
 
         const context = { attackingPart, attackerLegs };
@@ -108,7 +107,7 @@ class DefaultCombatStrategy extends CombatStrategy {
         return finalDamage;
     }
 
-    calculateSpeedMultiplier({ part, factorType }) {
+    calculateSpeedMultiplier({ world, entityId, part, factorType }) {
         if (!part) return 1.0;
         
         const config = CONFIG.TIME_ADJUSTMENT;
@@ -124,7 +123,8 @@ class DefaultCombatStrategy extends CombatStrategy {
         
         let multiplier = 1.0 + (performanceScore * impactFactor);
         
-        const modifier = EffectService.getSpeedMultiplierModifier(null, null, part);
+        // 修正: world, entityId を渡す
+        const modifier = EffectService.getSpeedMultiplierModifier(world, entityId, part);
         multiplier *= modifier;
 
         return multiplier;
