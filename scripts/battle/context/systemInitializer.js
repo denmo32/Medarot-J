@@ -2,6 +2,7 @@ import { BattleContext } from './BattleContext.js';
 import { BattleUIState } from '../components/index.js';
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
+import { VisualDirectorSystem } from '../systems/visual/VisualDirectorSystem.js'; // 追加
 import { ActionPanelSystem } from '../systems/ui/ActionPanelSystem.js';
 import { GaugeSystem } from '../systems/mechanics/GaugeSystem.js';
 import { StateSystem } from '../systems/mechanics/StateSystem.js';
@@ -22,28 +23,19 @@ import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 import { UIManager } from '../../../engine/ui/UIManager.js';
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
-// 削除されたシステム:
-// - CooldownSystem (Service化)
-// - ActionCancellationSystem (Service化)
-
-/**
- * ゲームに必要なすべてのシステムを初期化し、ワールドに登録します。
- * @param {World} world - ワールドオブジェクト
- */
 export function initializeSystems(world) {
-    // --- シングルトンコンポーネントの作成 ---
     const contextEntity = world.createEntity();
     world.addComponent(contextEntity, new BattleContext());
-    world.addComponent(contextEntity, new BattleUIState()); // UI状態管理コンポーネント
+    world.addComponent(contextEntity, new BattleUIState());
     world.addComponent(contextEntity, new UIManager());
 
-    // --- システムのインスタンス化 ---
     new InputSystem(world);
     new AiSystem(world);
     
     // --- Visual Systems ---
     const renderSystem = new RenderSystem(world);
     const animationSystem = new AnimationSystem(world);
+    const visualDirectorSystem = new VisualDirectorSystem(world); // 追加
 
     const actionPanelSystem = new ActionPanelSystem(world);
     const gameFlowSystem = new GameFlowSystem(world);
@@ -66,14 +58,11 @@ export function initializeSystems(world) {
     }
     
     // --- システムの登録 ---
-    // 登録順序が重要: Logic -> Animation -> Render
     world.registerSystem(gameFlowSystem);
     world.registerSystem(winConditionSystem);
     world.registerSystem(phaseSystem);
     world.registerSystem(turnSystem);
     world.registerSystem(timerSystem);
-    // GaugeSystemはフラグ制御になったため、他のロジックシステムより前に動かすか後に動かすかは依存関係次第だが、
-    // StateSystemなどでフラグが変わった直後に反映されるよう、Logicフェーズの中盤に配置。
     world.registerSystem(stateSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(actionSelectionSystem);
@@ -85,6 +74,7 @@ export function initializeSystems(world) {
     world.registerSystem(effectSystem);
 
     // Visual系システム
+    world.registerSystem(visualDirectorSystem); // 登録
     world.registerSystem(animationSystem);
     world.registerSystem(renderSystem);
     

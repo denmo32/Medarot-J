@@ -1,17 +1,25 @@
 /**
  * @file BattleTasks.js
  * @description バトルシーンで使用するタスク（コマンド）の定義
+ * 演出系のタスクを拡充し、宣言的に記述できるようにする。
  */
 
 export const TaskType = {
+    // 基本制御
     WAIT: 'WAIT',
-    MOVE: 'MOVE',
-    ANIMATE: 'ANIMATE',
-    EFFECT: 'EFFECT',
-    MESSAGE: 'MESSAGE',
-    APPLY_STATE: 'APPLY_STATE',
     EVENT: 'EVENT',
-    CUSTOM: 'CUSTOM'
+    CUSTOM: 'CUSTOM',
+    
+    // ロジック制御
+    APPLY_STATE: 'APPLY_STATE',
+    
+    // 演出・UI制御
+    MOVE: 'MOVE',
+    ANIMATE: 'ANIMATE',      // ユニットのアニメーション (攻撃モーションなど)
+    VFX: 'VFX',              // 視覚効果 (パーティクル、ヒットエフェクト)
+    CAMERA: 'CAMERA',        // カメラ制御 (ズーム、シェイク)
+    DIALOG: 'DIALOG',        // メッセージウィンドウ表示 (旧 MESSAGE)
+    UI_ANIMATION: 'UI_ANIMATION' // HPバーなどのUIアニメーション
 };
 
 /**
@@ -24,10 +32,6 @@ export const createWaitTask = (durationMs) => ({
 
 /**
  * エンティティを指定位置へ移動させるタスク
- * @param {number} entityId 
- * @param {number} targetX Ratio (0.0 - 1.0)
- * @param {number} targetY Percent
- * @param {number} durationMs 
  */
 export const createMoveTask = (entityId, targetX, targetY, durationMs = 300) => ({
     type: TaskType.MOVE,
@@ -38,10 +42,10 @@ export const createMoveTask = (entityId, targetX, targetY, durationMs = 300) => 
 });
 
 /**
- * 攻撃アニメーション等を再生するタスク
+ * ユニットのアニメーションを再生するタスク
  * @param {number} attackerId 
  * @param {number} targetId 
- * @param {string} animationType 'attack', 'cast', etc.
+ * @param {string} animationType 'attack', 'damage', 'guard' etc.
  */
 export const createAnimateTask = (attackerId, targetId, animationType = 'attack') => ({
     type: TaskType.ANIMATE,
@@ -51,21 +55,52 @@ export const createAnimateTask = (attackerId, targetId, animationType = 'attack'
 });
 
 /**
- * メッセージ（モーダル）を表示するタスク
- * @param {ModalType} modalType 
- * @param {object} data 
- * @param {Array} messageSequence 
+ * 汎用的な視覚効果(VFX)を再生するタスク
+ * @param {string} effectName 'hit_spark', 'beam', 'explosion'
+ * @param {object} position { x, y } or { targetId }
  */
-export const createMessageTask = (modalType, data, messageSequence) => ({
-    type: TaskType.MESSAGE,
-    modalType,
-    data,
-    messageSequence
+export const createVfxTask = (effectName, position) => ({
+    type: TaskType.VFX,
+    effectName,
+    position
 });
 
 /**
- * 状態変化を適用するタスク（HP減少、エフェクト適用など）
- * @param {Function} applyFn (world) => void
+ * カメラを制御するタスク
+ * @param {string} action 'shake', 'zoom', 'reset'
+ * @param {object} params
+ */
+export const createCameraTask = (action, params = {}) => ({
+    type: TaskType.CAMERA,
+    action,
+    params
+});
+
+/**
+ * ダイアログ（メッセージ）を表示するタスク
+ * 旧 createMessageTask の後継。シーケンス制御は含まない純粋な表示のみ。
+ * @param {string} text 表示テキスト
+ * @param {object} options { modalType, speakerName, autoClose }
+ */
+export const createDialogTask = (text, options = {}) => ({
+    type: TaskType.DIALOG,
+    text,
+    options
+});
+
+/**
+ * UI要素のアニメーションを実行するタスク
+ * @param {string} targetType 'HP_BAR', 'GAUGE'
+ * @param {object} data アニメーションに必要なデータ (oldVal, newVal, targetId)
+ */
+export const createUiAnimationTask = (targetType, data) => ({
+    type: TaskType.UI_ANIMATION,
+    targetType,
+    data
+});
+
+/**
+ * 状態変化を適用するタスク（ロジック用）
  */
 export const createApplyStateTask = (applyFn) => ({
     type: TaskType.APPLY_STATE,
@@ -74,8 +109,6 @@ export const createApplyStateTask = (applyFn) => ({
 
 /**
  * 任意のイベントを発行するタスク
- * @param {string} eventName 
- * @param {object} detail 
  */
 export const createEventTask = (eventName, detail) => ({
     type: TaskType.EVENT,
@@ -85,7 +118,6 @@ export const createEventTask = (eventName, detail) => ({
 
 /**
  * 任意の非同期処理を実行するタスク
- * @param {Function} asyncFn (world) => Promise<void>
  */
 export const createCustomTask = (asyncFn) => ({
     type: TaskType.CUSTOM,
