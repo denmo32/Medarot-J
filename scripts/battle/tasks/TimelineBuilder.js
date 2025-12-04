@@ -4,11 +4,11 @@
  * VisualDirectorSystemの導入に伴い、メッセージとUIアニメーションを分離して生成する。
  */
 import { 
-    createWaitTask, createAnimateTask, createEventTask, createCustomTask,
+    createAnimateTask, createEventTask, createCustomTask,
     createDialogTask, createUiAnimationTask // 新しいタスク生成関数
 } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
-import { ModalType, ActionCancelReason } from '../common/constants.js';
+import { ModalType } from '../common/constants.js';
 import { MessageGenerator } from '../utils/MessageGenerator.js';
 import { PlayerInfo } from '../../components/index.js';
 import { EffectType } from '../../common/constants.js';
@@ -23,7 +23,7 @@ export class TimelineBuilder {
 
     buildAttackSequence(resultData) {
         const tasks = [];
-        const { attackerId, intendedTargetId, targetId, isCancelled, cancelReason, appliedEffects, guardianInfo, summary } = resultData;
+        const { attackerId, intendedTargetId, targetId, isCancelled, appliedEffects, summary } = resultData;
 
         if (isCancelled) {
             return [];
@@ -38,35 +38,22 @@ export class TimelineBuilder {
         }
 
         // 2. メッセージとHPバーアニメーションの構築
-        // 旧来の createMessageTask はメッセージシーケンスとアニメーションをまとめていたが、
-        // これからは分離してタスク化する。
         
         // 宣言メッセージ
         const declarationSeq = this.messageGenerator.createDeclarationSequence(resultData);
         if (declarationSeq.length > 0) {
-            // 現状のMessageGeneratorはオブジェクト配列を返すが、DIALOGタスクは単純なテキストを想定
-            // 互換性のため、一旦テキストを取り出してDIALOGタスクにする
-            // ※ 将来的にはMessageGeneratorも改修すべき
-            const text = declarationSeq[0].text; // 簡易的に先頭のみ
+            // 現状は先頭のみ取得（MessageGeneratorの戻り値構造に合わせる）
+            const text = declarationSeq[0].text;
             tasks.push(createDialogTask(text, { modalType: ModalType.ATTACK_DECLARATION }));
         }
 
         // 結果メッセージとHPアニメーション
-        // 結果シーケンスには「アニメーション待ち」マーカーが含まれる場合がある
         const resultSeq = this.messageGenerator.createResultSequence(resultData);
         
         for (const step of resultSeq) {
             if (step.waitForAnimation) {
-                // HPバーアニメーションタスクを追加
-                // step.effects には oldHp, newHp が含まれている前提
-                // (BattleResolver -> _applyLogicUpdate で更新済みだが、
-                //  Visual用の差分データは別途保持する必要があるか、
-                //  あるいはAnimationSystemが「現在のVisual値」から「Logic値(Parts.hp)」へTweenする)
-                // 今回の改修で Logicは即時更新済み。
-                // AnimationSystemは「現在のVisual値」から「目標値」へTweenする仕様に改修済みであれば、
-                // ターゲットと目標値を渡せばよい。
-                
-                // ここでは簡易的に、ダメージ効果があった対象に対してUIアニメーションを要求する
+                // HPバーアニメーションタスク
+                // ダメージまたは回復効果があった対象に対してUIアニメーションを要求
                 const damageEffects = step.effects.filter(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL);
                 if (damageEffects.length > 0) {
                     tasks.push(createUiAnimationTask('HP_BAR', { effects: damageEffects }));
