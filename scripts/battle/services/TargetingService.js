@@ -1,48 +1,57 @@
 /**
  * @file TargetingService.js
  * @description ターゲットの検索、検証、および最終的な着弾点の解決（ガード判定など）を行うサービス。
- * queryUtilsから高レベルな判定ロジックを集約。
  */
 import { PlayerInfo, Parts } from '../../components/index.js';
-import { ActiveEffects } from '../components/index.js'; // 正しいパスに修正
-import { EffectType, EffectScope, PartInfo } from '../../common/constants.js';
+import { ActiveEffects } from '../components/index.js';
+import { EffectType, EffectScope } from '../../common/constants.js';
 
 export class TargetingService {
 
     /**
      * 攻撃の最終的な着弾対象を解決する。
-     * ガード（かばう）などの割り込み処理はここで行う。
      * @param {World} world 
      * @param {number} attackerId 
      * @param {number} intendedTargetId 
      * @param {string} intendedPartKey 
-     * @param {boolean} isSupport - 支援行動かどうか（支援ならガード判定しない）
+     * @param {boolean} isSupport 
      * @returns {object} { finalTargetId, finalTargetPartKey, guardianInfo, shouldCancel }
      */
     static resolveActualTarget(world, attackerId, intendedTargetId, intendedPartKey, isSupport) {
-        // ターゲット妥当性チェック
-        if (!isSupport && !this.isValidTarget(world, intendedTargetId, intendedPartKey)) {
+        // 1. 支援行動の場合はガード判定等をスキップしてそのまま返す
+        if (isSupport) {
+            return {
+                finalTargetId: intendedTargetId,
+                finalTargetPartKey: intendedPartKey,
+                guardianInfo: null,
+                shouldCancel: false
+            };
+        }
+
+        // 2. ターゲットの妥当性チェック
+        if (!this.isValidTarget(world, intendedTargetId, intendedPartKey)) {
             return { shouldCancel: true };
         }
 
-        let finalTargetId = intendedTargetId;
-        let finalTargetPartKey = intendedPartKey;
-        let guardianInfo = null;
-
-        // ガード判定 (支援行動でなく、ターゲットが存在する場合)
-        if (!isSupport && finalTargetId !== null) {
-            const foundGuardian = this._findGuardian(world, finalTargetId);
+        // 3. ガード（かばう）判定
+        // ターゲットが存在する場合のみチェック
+        if (intendedTargetId !== null) {
+            const foundGuardian = this._findGuardian(world, intendedTargetId);
             if (foundGuardian) {
-                guardianInfo = foundGuardian;
-                finalTargetId = guardianInfo.id;
-                finalTargetPartKey = guardianInfo.partKey;
+                return {
+                    finalTargetId: foundGuardian.id,
+                    finalTargetPartKey: foundGuardian.partKey,
+                    guardianInfo: foundGuardian,
+                    shouldCancel: false
+                };
             }
         }
 
+        // 4. 通常ターゲット
         return {
-            finalTargetId,
-            finalTargetPartKey,
-            guardianInfo,
+            finalTargetId: intendedTargetId,
+            finalTargetPartKey: intendedPartKey,
+            guardianInfo: null,
             shouldCancel: false
         };
     }
