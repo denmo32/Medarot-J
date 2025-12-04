@@ -1,11 +1,11 @@
 /**
  * @file TimelineBuilder.js
  * @description 戦闘アクションの実行シーケンス（タスクリスト）を構築する。
- * Logicデータの更新はSystem側で行われるため、ここではVisual演出用のタスク生成に集中する。
+ * VisualDirectorSystemの導入に伴い、メッセージとUIアニメーションを分離して生成する。
  */
 import { 
-    createWaitTask, createAnimateTask, 
-    createMessageTask, createEventTask, createCustomTask 
+    createWaitTask, createAnimateTask, createEventTask, createCustomTask,
+    createDialogTask, createUiAnimationTask // 新しいタスク生成関数
 } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
 import { ModalType, ActionCancelReason } from '../common/constants.js';
@@ -25,13 +25,9 @@ export class TimelineBuilder {
         const tasks = [];
         const { attackerId, intendedTargetId, targetId, isCancelled, cancelReason, appliedEffects, guardianInfo, summary } = resultData;
 
-        // --- キャンセル時のシーケンス ---
-        // (BattleSequenceSystemで直接処理されるようになったため、ここには到達しないはずだが念のため残す)
         if (isCancelled) {
             return [];
         }
-
-        // --- 正常実行時のシーケンス ---
 
         // 1. ターゲットアニメーション（攻撃演出）
         const animationTargetId = intendedTargetId || targetId;
@@ -41,14 +37,44 @@ export class TimelineBuilder {
             tasks.push(createAnimateTask(attackerId, attackerId, 'support'));
         }
 
-        // 2. 統合メッセージシーケンス（宣言 + 結果表示 + HPバーアニメーション）
-        // Logicデータは既に更新済み。Visualとの同期（アニメーション）はメッセージ表示中に行われる。
-        // AnimationSystem は appliedEffects 内の oldHp / newHp を見てTweenを行う。
+        // 2. メッセージとHPバーアニメーションの構築
+        // 旧来の createMessageTask はメッセージシーケンスとアニメーションをまとめていたが、
+        // これからは分離してタスク化する。
+        
+        // 宣言メッセージ
         const declarationSeq = this.messageGenerator.createDeclarationSequence(resultData);
-        const resultSeq = this.messageGenerator.createResultSequence(resultData);
-        const fullMessageSequence = [...declarationSeq, ...resultSeq];
+        if (declarationSeq.length > 0) {
+            // 現状のMessageGeneratorはオブジェクト配列を返すが、DIALOGタスクは単純なテキストを想定
+            // 互換性のため、一旦テキストを取り出してDIALOGタスクにする
+            // ※ 将来的にはMessageGeneratorも改修すべき
+            const text = declarationSeq[0].text; // 簡易的に先頭のみ
+            tasks.push(createDialogTask(text, { modalType: ModalType.ATTACK_DECLARATION }));
+        }
 
-        tasks.push(createMessageTask(ModalType.ATTACK_DECLARATION, { ...resultData }, fullMessageSequence));
+        // 結果メッセージとHPアニメーション
+        // 結果シーケンスには「アニメーション待ち」マーカーが含まれる場合がある
+        const resultSeq = this.messageGenerator.createResultSequence(resultData);
+        
+        for (const step of resultSeq) {
+            if (step.waitForAnimation) {
+                // HPバーアニメーションタスクを追加
+                // step.effects には oldHp, newHp が含まれている前提
+                // (BattleResolver -> _applyLogicUpdate で更新済みだが、
+                //  Visual用の差分データは別途保持する必要があるか、
+                //  あるいはAnimationSystemが「現在のVisual値」から「Logic値(Parts.hp)」へTweenする)
+                // 今回の改修で Logicは即時更新済み。
+                // AnimationSystemは「現在のVisual値」から「目標値」へTweenする仕様に改修済みであれば、
+                // ターゲットと目標値を渡せばよい。
+                
+                // ここでは簡易的に、ダメージ効果があった対象に対してUIアニメーションを要求する
+                const damageEffects = step.effects.filter(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL);
+                if (damageEffects.length > 0) {
+                    tasks.push(createUiAnimationTask('HP_BAR', { effects: damageEffects }));
+                }
+            } else if (step.text) {
+                tasks.push(createDialogTask(step.text, { modalType: ModalType.EXECUTION_RESULT }));
+            }
+        }
 
         // 3. ガード回数終了メッセージ
         if (summary.isGuardExpired) {
@@ -57,17 +83,16 @@ export class TimelineBuilder {
                 const actorInfo = this.world.getComponent(expiredEffect.targetId, PlayerInfo);
                 const message = this.messageGenerator.format(MessageKey.GUARD_EXPIRED, { actorName: actorInfo?.name || '???' });
                 
-                tasks.push(createMessageTask(ModalType.MESSAGE, { message }, [{ text: message }]));
+                tasks.push(createDialogTask(message, { modalType: ModalType.MESSAGE }));
             }
         }
 
-        // 4. クールダウンへの移行 (Service呼び出し)
+        // 4. クールダウンへの移行
         tasks.push(createCustomTask((world) => {
             CooldownService.transitionToCooldown(world, attackerId);
         }));
         
-        // 5. UIの最終整合性確保 (VisualコンポーネントをLogicデータと完全同期)
-        // アニメーションでズレが生じている可能性があるため念押し
+        // 5. UIの最終整合性確保
         tasks.push(createEventTask(GameEvents.REFRESH_UI, {}));
 
         // 6. キャンセル状態チェック
