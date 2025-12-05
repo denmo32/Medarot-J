@@ -1,3 +1,8 @@
+/**
+ * @file ActionPanelSystem.js
+ * @description アクションパネルおよびモーダル表示を管理するシステム。
+ * TaskRunnerからのコールバック実行に対応し、modalQueue内にコールバックを保持する。
+ */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { ModalType } from '../../common/constants.js';
@@ -29,7 +34,7 @@ export class ActionPanelSystem extends System {
 
         this.modalHandlers = createModalHandlers(this);
         this.bindWorldEvents();
-        this.hideActionPanel(); // 初期化時に非表示
+        this.hideActionPanel();
     }
     
     destroy() {
@@ -43,8 +48,6 @@ export class ActionPanelSystem extends System {
         this.on(GameEvents.SHOW_MODAL, this.onShowModal.bind(this));
         this.on(GameEvents.HIDE_MODAL, this.hideActionPanel.bind(this));
         this.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onHpBarAnimationCompleted.bind(this));
-        
-        // MessageSystemから移行: タスク実行要求を直接処理
         this.on(GameEvents.REQUEST_TASK_EXECUTION, this.onRequestTaskExecution.bind(this));
     }
 
@@ -79,12 +82,12 @@ export class ActionPanelSystem extends System {
     onRequestTaskExecution(task) {
         if (task.type !== TaskType.MESSAGE) return;
         
-        // タスクからの要求としてキューに追加
         this.queueModal({
             type: task.modalType,
             data: task.data,
             messageSequence: task.messageSequence,
-            taskId: task.id // タスクIDを保持
+            taskId: task.id,
+            onComplete: task.onComplete // コールバックをキューに渡す
         });
     }
 
@@ -103,6 +106,8 @@ export class ActionPanelSystem extends System {
         if (this.uiState.modalQueue.length > 0) {
             this.uiState.isProcessingQueue = true;
             const modalRequest = this.uiState.modalQueue.shift();
+            // onComplete コールバックは currentModalCallback として状態に保持
+            this.uiState.currentModalCallback = modalRequest.onComplete || null;
             this._showModal(modalRequest);
         } else {
             this.uiState.isProcessingQueue = false;
@@ -120,7 +125,6 @@ export class ActionPanelSystem extends System {
 
         this.world.emit(GameEvents.GAME_PAUSED);
         
-        // 状態をBattleUIStateコンポーネントにセット
         this.uiState.currentModalType = type;
         this.uiState.currentModalData = data;
         this.uiState.currentTaskId = taskId;
@@ -142,7 +146,7 @@ export class ActionPanelSystem extends System {
     }
 
     _finishCurrentModal() {
-        const { currentModalType, currentModalData, currentTaskId } = this.uiState;
+        const { currentModalType, currentModalData, currentModalCallback } = this.uiState;
 
         if (currentModalType === ModalType.EXECUTION_RESULT) {
             this.world.emit(GameEvents.COMBAT_RESOLUTION_DISPLAYED, {
@@ -155,9 +159,9 @@ export class ActionPanelSystem extends System {
             originalData: currentModalData,
         });
 
-        // タスク経由の場合は完了通知を発行
-        if (currentTaskId) {
-            this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId: currentTaskId });
+        // コールバックが存在すれば実行して、タスクランナーへ完了を通知
+        if (typeof currentModalCallback === 'function') {
+            currentModalCallback();
         }
 
         if (currentModalType === ModalType.ATTACK_DECLARATION && this.uiState.modalQueue.length > 0) {
@@ -244,6 +248,8 @@ export class ActionPanelSystem extends System {
     _resetState() {
         if (this.uiState) {
             this.uiState.reset();
+            // コールバックもリセット
+            this.uiState.currentModalCallback = null;
         }
         this.currentHandler = null;
     }
@@ -284,7 +290,6 @@ export class ActionPanelSystem extends System {
         this.uiState.focusedButtonKey = null;
     }
 
-    // ModalHandlersからアクセスするためのヘルパー (Systemインスタンス経由で呼ばれる想定)
     get focusedButtonKey() { return this.uiState.focusedButtonKey; }
     set focusedButtonKey(value) { this.uiState.focusedButtonKey = value; }
     

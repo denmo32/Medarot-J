@@ -1,17 +1,15 @@
 /**
  * @file AnimationSystem.js
  * @description ビジュアルコンポーネントの値を制御し、アニメーション（Tween）を実行するシステム。
- * DOMには一切触れず、Visualコンポーネントの数値更新のみを行う。
+ * TaskRunnerからのコールバック実行に対応。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { Visual } from '../../components/index.js';
-import { Parts, PlayerInfo } from '../../../components/index.js';
+import { Parts } from '../../../components/index.js';
 import { TaskType } from '../../tasks/BattleTasks.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
-import { EffectType, TeamID } from '../../../common/constants.js';
-import { UIManager } from '../../../../engine/ui/UIManager.js';
-import { el } from '../../../../engine/utils/DOMUtils.js';
+import { EffectType } from '../../../common/constants.js';
 
 class Tween {
     constructor({ target, property, start, end, duration, easing, onComplete }) {
@@ -31,7 +29,6 @@ class Tween {
         const progress = Math.min(this.elapsed / this.duration, 1.0);
         const t = this.easing(progress);
         
-        // オブジェクトのプロパティを更新
         this.target[this.property] = this.start + (this.end - this.start) * t;
 
         if (progress >= 1.0) {
@@ -44,7 +41,6 @@ class Tween {
 export class AnimationSystem extends System {
     constructor(world) {
         super(world);
-        this.uiManager = this.world.getSingletonComponent(UIManager);
         this.activeTweens = new Set();
         this.bindWorldEvents();
     }
@@ -58,7 +54,6 @@ export class AnimationSystem extends System {
     }
 
     update(deltaTime) {
-        // Tweenの更新
         if (this.activeTweens.size > 0) {
             const finishedTweens = [];
             for (const tween of this.activeTweens) {
@@ -69,13 +64,9 @@ export class AnimationSystem extends System {
             }
             finishedTweens.forEach(t => this.activeTweens.delete(t));
         }
-        
-        // Position -> Visual の同期処理は RenderSystem に移譲し、
-        // AnimationSystem は Tween の実行のみに専念する
     }
 
     onRefreshUI() {
-        // 全Visualコンポーネントをロジックデータと強制同期
         const entities = this.getEntities(Parts, Visual);
         for (const entityId of entities) {
             const parts = this.world.getComponent(entityId, Parts);
@@ -92,15 +83,12 @@ export class AnimationSystem extends System {
     }
 
     onActionSequenceCompleted() {
-        // シーケンス完了時に攻撃者強調表示とターゲットロックオン表示をリセット
         const entities = this.getEntities(Visual);
         for (const entityId of entities) {
             const visual = this.world.getComponent(entityId, Visual);
-            // 攻撃者強調のリセット
             if (visual.classes.has('attacker-active')) {
                 visual.classes.delete('attacker-active');
             }
-            // ターゲットロックオンのリセット
             if (visual.classes.has('target-lockon')) {
                 visual.classes.delete('target-lockon');
             }
@@ -121,7 +109,6 @@ export class AnimationSystem extends System {
 
             const { targetId, partKey, oldHp, newHp } = effect;
             if (targetId == null || !partKey || oldHp === undefined || newHp === undefined || oldHp === newHp) {
-                // 値が変わらない場合は即時同期して次へ
                 this._syncHpValue(targetId, partKey, newHp);
                 continue;
             }
@@ -132,7 +119,6 @@ export class AnimationSystem extends System {
             if (!visual.partsInfo[partKey]) visual.partsInfo[partKey] = { current: oldHp, max: 100 };
             const partInfo = visual.partsInfo[partKey];
             
-            // アニメーション開始値をセット
             partInfo.current = oldHp;
 
             this.activeTweens.add(new Tween({
@@ -152,7 +138,6 @@ export class AnimationSystem extends System {
             return;
         }
 
-        // アニメーション完了監視用（簡易的に、最長時間が経過したら完了通知）
         setTimeout(() => {
             this.world.emit(GameEvents.HP_BAR_ANIMATION_COMPLETED, { appliedEffects });
         }, UI_CONFIG.ANIMATION.HP_BAR.DURATION + 50);
@@ -169,18 +154,20 @@ export class AnimationSystem extends System {
     onRequestTaskExecution(task) {
         if (task.type !== TaskType.ANIMATE) return;
 
+        // コールバックがなければ空関数を使用
+        const onComplete = task.onComplete || (() => {});
+
         if (task.animationType === 'attack') {
             this._playAttackAnimation(task.attackerId, task.targetId).then(() => {
-                this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId: task.id });
+                onComplete();
             });
         } else if (task.animationType === 'support') {
-             // 支援などの自分自身へのアクション用
             setTimeout(() => {
-                this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId: task.id });
+                onComplete();
             }, UI_CONFIG.ANIMATION.DURATION || 300);
         } else {
             setTimeout(() => {
-                this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId: task.id });
+                onComplete();
             }, UI_CONFIG.ANIMATION.DURATION);
         }
     }
@@ -197,31 +184,27 @@ export class AnimationSystem extends System {
 
             // 時間差で進行
             setTimeout(() => {
-                // 2. ターゲットロックオン開始 (ターゲットが存在する場合のみ)
+                // 2. ターゲットロックオン開始
                 if (visualTarget) {
                     visualTarget.classes.add('target-lockon');
                     
-                    // ロックオンアニメーション時間待機
                     setTimeout(() => {
-                        // シーケンス完了まで表示を維持するため、ここではクラス削除を行わない
                         this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
                         resolve();
-                    }, 600); // ロックオンアニメーション時間 (CSSのdurationと合わせる)
+                    }, 600); 
                 } else {
-                    // ターゲットがいない場合（自分自身へのバフなど）は即完了
                     this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
                     resolve();
                 }
-            }, 400); // 攻撃者強調開始からロックオン開始までの待機時間
+            }, 400); 
         });
     }
 
     onShowBattleStartAnimation() {
-        // バトル開始テキスト用の一時エンティティ
         const textId = this.world.createEntity();
         const textVisual = new Visual();
-        textVisual.x = 0.5; // 画面中央
-        textVisual.y = 50;  // 画面中央
+        textVisual.x = 0.5; // 画面中央 (0.0-1.0)
+        textVisual.y = 50;  // 画面中央 (%)
         textVisual.classes.add('battle-start-text');
         
         this.world.addComponent(textId, textVisual);

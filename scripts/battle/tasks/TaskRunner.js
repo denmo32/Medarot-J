@@ -1,11 +1,11 @@
 /**
  * @file TaskRunner.js
- * @description タスクキューを管理し、順次実行するクラス
+ * @description タスクキューを管理し、順次実行するクラス。
+ * イベントベースの完了通知を廃止し、コールバック方式に刷新。
  */
 import { TaskType } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
 import { Position } from '../components/index.js';
-import { System } from '../../../engine/core/System.js';
 
 export class TaskRunner {
     constructor(world) {
@@ -13,11 +13,8 @@ export class TaskRunner {
         this.queue = [];
         this.currentTask = null;
         this.isProcessing = false;
-        this.isWaitingForEvent = false;
+        this.isWaitingForAsync = false;
         this.elapsedTime = 0;
-
-        // イベントリスナーの登録（SystemではないがWorldのイベントバスを使用）
-        this.world.on(GameEvents.TASK_EXECUTION_COMPLETED, this.onTaskExecutionCompleted.bind(this));
     }
 
     /**
@@ -25,7 +22,7 @@ export class TaskRunner {
      * @param {Array} tasks 
      */
     addTasks(tasks) {
-        // IDを付与（完了通知との照合用）
+        // ID生成ロジックはデバッグ用として残すが、制御には使用しない
         tasks.forEach(task => {
             if (!task.id) task.id = Math.random().toString(36).substr(2, 9);
         });
@@ -39,12 +36,12 @@ export class TaskRunner {
         this.queue = [];
         this.currentTask = null;
         this.isProcessing = false;
-        this.isWaitingForEvent = false;
+        this.isWaitingForAsync = false;
     }
 
     update(deltaTime) {
-        // イベント待ち中は新たなタスクを開始しない
-        if (this.isWaitingForEvent) {
+        // 非同期処理待ち（アニメーション、ダイアログ等）中は更新しない
+        if (this.isWaitingForAsync) {
             return;
         }
 
@@ -52,8 +49,8 @@ export class TaskRunner {
             this._startNextTask();
         }
 
-        // 継続的な更新が必要なタスク（Wait, Moveなど）の処理
-        if (this.currentTask && !this.isWaitingForEvent) {
+        // 時間経過で管理するタスク（Wait, Moveなど）の更新
+        if (this.currentTask && !this.isWaitingForAsync) {
             this._updateCurrentTask(deltaTime);
         }
     }
@@ -68,6 +65,13 @@ export class TaskRunner {
         this.currentTask = this.queue.shift();
         this.elapsedTime = 0;
 
+        // タスク完了時のコールバック
+        // これを各システムに渡すことで、イベントを経由せずに完了を通知させる
+        const onComplete = () => {
+            this.isWaitingForAsync = false;
+            this._completeTask();
+        };
+
         try {
             switch (this.currentTask.type) {
                 case TaskType.WAIT:
@@ -81,7 +85,7 @@ export class TaskRunner {
                         this.currentTask._startX = pos.x;
                         this.currentTask._startY = pos.y;
                     } else {
-                        this._completeTask(); // コンポーネントがない場合はスキップ
+                        this._completeTask();
                     }
                     break;
                 
@@ -106,16 +110,26 @@ export class TaskRunner {
                 
                 case TaskType.ANIMATE:
                 case TaskType.MESSAGE:
-                    // 外部システムに委譲
-                    this.isWaitingForEvent = true;
-                    this.world.emit(GameEvents.REQUEST_TASK_EXECUTION, this.currentTask);
+                case TaskType.DIALOG:
+                case TaskType.VFX:
+                case TaskType.CAMERA:
+                case TaskType.UI_ANIMATION:
+                    // 外部システムに委譲。onCompleteを渡して制御を預ける
+                    this.isWaitingForAsync = true;
+                    // Taskオブジェクト自体にコールバックを含めてイベント発行
+                    this.world.emit(GameEvents.REQUEST_TASK_EXECUTION, { 
+                        ...this.currentTask, 
+                        onComplete 
+                    });
                     break;
 
                 default:
-                    // 未知のタスクタイプも汎用的に外部委譲を試みる
-                    console.log(`Delegating unknown task type: ${this.currentTask.type}`);
-                    this.isWaitingForEvent = true;
-                    this.world.emit(GameEvents.REQUEST_TASK_EXECUTION, this.currentTask);
+                    console.warn(`Delegating unknown task type: ${this.currentTask.type}`);
+                    this.isWaitingForAsync = true;
+                    this.world.emit(GameEvents.REQUEST_TASK_EXECUTION, { 
+                        ...this.currentTask, 
+                        onComplete 
+                    });
                     break;
             }
         } catch (error) {
@@ -155,25 +169,13 @@ export class TaskRunner {
         }
     }
 
-    onTaskExecutionCompleted(detail) {
-        // 現在実行中のタスク完了通知か確認（簡易実装として、待ち状態なら完了とする）
-        if (this.isWaitingForEvent && this.currentTask) {
-             // taskId照合（あれば）
-            if (detail && detail.taskId && detail.taskId !== this.currentTask.id) {
-                return;
-            }
-            this.isWaitingForEvent = false;
-            this._completeTask();
-        }
-    }
-
     _completeTask() {
         this.currentTask = null;
         this.isProcessing = false;
-        this.isWaitingForEvent = false;
+        this.isWaitingForAsync = false;
     }
     
     get isIdle() {
-        return !this.isProcessing && !this.isWaitingForEvent && this.queue.length === 0;
+        return !this.isProcessing && !this.isWaitingForAsync && this.queue.length === 0;
     }
 }
