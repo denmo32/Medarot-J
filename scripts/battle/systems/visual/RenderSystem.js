@@ -257,27 +257,45 @@ export class RenderSystem extends System {
             cache.zIndex = visual.zIndex;
         }
 
-        // --- クラスの同期 (Effect用) ---
-        if (domElements.mainElement) {
+        // --- クラスの同期 (Effect用 および Player追加エフェクト用) ---
+        // visual.classes を DOM 要素のクラスリストに反映する。
+        // キャッシュと比較して変更がある場合のみ、前回のクラスを削除し、新しいクラスを追加する。
+        if (targetElement) {
             const classesSignature = Array.from(visual.classes).sort().join(' ');
             if (cache.classesSignature !== classesSignature) {
-                targetElement.className = 'effect-entity'; // リセット
-                visual.classes.forEach(cls => targetElement.classList.add(cls));
+                // 前回付与したクラスがあれば削除
+                if (cache.prevClasses) {
+                    cache.prevClasses.forEach(c => targetElement.classList.remove(c));
+                }
+                
+                // 今回のクラスを追加
+                visual.classes.forEach(c => targetElement.classList.add(c));
+                
+                // 状態更新
+                cache.prevClasses = new Set(visual.classes);
                 cache.classesSignature = classesSignature;
+                
+                // EffectEntityの場合はベースクラスをリセットしておく（構造が違うため）
+                if (domElements.mainElement) {
+                    targetElement.className = 'effect-entity';
+                    visual.classes.forEach(cls => targetElement.classList.add(cls));
+                }
             }
         }
             
         // --- ターゲットインジケーター制御 ---
-        if (targetElement) {
+        if (domElements.iconElement && domElements.targetIndicatorElement) {
             const targetIndicator = domElements.targetIndicatorElement;
-            if (targetIndicator) {
-                const isActive = visual.classes.has('attack-target-active');
-                if (isActive && !targetIndicator.classList.contains('active')) {
-                    targetIndicator.classList.add('active');
-                    targetIndicator.style.opacity = '1';
-                } else if (!isActive && targetIndicator.classList.contains('active') && !domElements.iconElement.classList.contains('selecting')) {
-                    targetIndicator.classList.remove('active');
-                    targetIndicator.style.opacity = '';
+            // Visualコンポーネントで管理されるロックオン演出（攻撃時）
+            const isLockon = visual.classes.has('target-lockon');
+            
+            if (isLockon) {
+                if (!targetIndicator.classList.contains('lockon')) {
+                    targetIndicator.classList.add('lockon');
+                }
+            } else {
+                if (targetIndicator.classList.contains('lockon')) {
+                    targetIndicator.classList.remove('lockon');
                 }
             }
         }

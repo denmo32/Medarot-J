@@ -10,6 +10,8 @@ import { Parts, PlayerInfo } from '../../../components/index.js';
 import { TaskType } from '../../tasks/BattleTasks.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
 import { EffectType, TeamID } from '../../../common/constants.js';
+import { UIManager } from '../../../../engine/ui/UIManager.js';
+import { el } from '../../../../engine/utils/DOMUtils.js';
 
 class Tween {
     constructor({ target, property, start, end, duration, easing, onComplete }) {
@@ -42,6 +44,7 @@ class Tween {
 export class AnimationSystem extends System {
     constructor(world) {
         super(world);
+        this.uiManager = this.world.getSingletonComponent(UIManager);
         this.activeTweens = new Set();
         this.bindWorldEvents();
     }
@@ -51,6 +54,7 @@ export class AnimationSystem extends System {
         this.on(GameEvents.HP_BAR_ANIMATION_REQUESTED, this.onHpBarAnimationRequested.bind(this));
         this.on(GameEvents.REQUEST_TASK_EXECUTION, this.onRequestTaskExecution.bind(this));
         this.on(GameEvents.REFRESH_UI, this.onRefreshUI.bind(this));
+        this.on(GameEvents.ACTION_SEQUENCE_COMPLETED, this.onActionSequenceCompleted.bind(this));
     }
 
     update(deltaTime) {
@@ -84,6 +88,22 @@ export class AnimationSystem extends System {
                     visual.partsInfo[key].max = parts[key].maxHp;
                 }
             });
+        }
+    }
+
+    onActionSequenceCompleted() {
+        // シーケンス完了時に攻撃者強調表示とターゲットロックオン表示をリセット
+        const entities = this.getEntities(Visual);
+        for (const entityId of entities) {
+            const visual = this.world.getComponent(entityId, Visual);
+            // 攻撃者強調のリセット
+            if (visual.classes.has('attacker-active')) {
+                visual.classes.delete('attacker-active');
+            }
+            // ターゲットロックオンのリセット
+            if (visual.classes.has('target-lockon')) {
+                visual.classes.delete('target-lockon');
+            }
         }
     }
 
@@ -167,22 +187,32 @@ export class AnimationSystem extends System {
 
     _playAttackAnimation(attackerId, targetId) {
         return new Promise((resolve) => {
+            const visualAttacker = this.world.getComponent(attackerId, Visual);
             const visualTarget = this.world.getComponent(targetId, Visual);
 
-            if (!visualTarget) {
-                resolve();
-                return;
+            // 1. 攻撃者強調開始
+            if (visualAttacker) {
+                visualAttacker.classes.add('attacker-active');
             }
 
-            // ターゲット強調
-            visualTarget.classes.add('attack-target-active');
-
-            // 一定時間後に完了とする
+            // 時間差で進行
             setTimeout(() => {
-                visualTarget.classes.delete('attack-target-active');
-                this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
-                resolve();
-            }, UI_CONFIG.ANIMATION.ATTACK_DURATION || 600);
+                // 2. ターゲットロックオン開始 (ターゲットが存在する場合のみ)
+                if (visualTarget) {
+                    visualTarget.classes.add('target-lockon');
+                    
+                    // ロックオンアニメーション時間待機
+                    setTimeout(() => {
+                        // シーケンス完了まで表示を維持するため、ここではクラス削除を行わない
+                        this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
+                        resolve();
+                    }, 600); // ロックオンアニメーション時間 (CSSのdurationと合わせる)
+                } else {
+                    // ターゲットがいない場合（自分自身へのバフなど）は即完了
+                    this.world.emit(GameEvents.EXECUTION_ANIMATION_COMPLETED, { entityId: attackerId });
+                    resolve();
+                }
+            }, 400); // 攻撃者強調開始からロックオン開始までの待機時間
         });
     }
 
