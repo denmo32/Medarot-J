@@ -1,12 +1,13 @@
 /**
  * @file ダメージ適用ロジック
  * 副作用を排除し、計算結果のみを返す。
+ * 貫通ターゲットの決定などの「次」の処理は行わず、
+ * 純粋にこの適用の結果（破壊されたか、余剰ダメージはいくらか）のみを返す。
  */
-import { Parts, PlayerInfo } from '../../../components/index.js';
+import { Parts } from '../../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { PartInfo, EffectType } from '../../../common/constants.js'; // PartInfo, EffectTypeは共通定数
-import { PlayerStateType } from '../../common/constants.js'; // PlayerStateTypeはBattle固有定数
-import { findRandomPenetrationTarget } from '../../utils/queryUtils.js';
+import { PartInfo, EffectType } from '../../../common/constants.js';
+import { PlayerStateType } from '../../common/constants.js';
 import { GameState, ActiveEffects } from '../../components/index.js';
 
 export const applyDamage = ({ world, effect }) => {
@@ -23,7 +24,6 @@ export const applyDamage = ({ world, effect }) => {
     let isGuardBroken = false;
 
     // HP更新イベントは即時UI反映用ではないデータ通知として扱う
-    // UI反映は別途制御される
     const events = [];
     events.push({
         type: GameEvents.HP_UPDATED,
@@ -31,7 +31,7 @@ export const applyDamage = ({ world, effect }) => {
             entityId: targetId, 
             partKey, 
             newHp, 
-            oldHp, // アニメーション用に旧値を含める
+            oldHp, 
             maxHp: part.maxHp, 
             change: -actualDamage, 
             isHeal: false 
@@ -57,31 +57,18 @@ export const applyDamage = ({ world, effect }) => {
         }
     }
 
-    let nextEffect = null;
     const overkillDamage = value - actualDamage;
-    
-    if (isPartBroken && effect.penetrates && overkillDamage > 0) {
-        const nextTargetPartKey = findRandomPenetrationTarget(world, targetId, partKey);
-        if (nextTargetPartKey) {
-            nextEffect = { 
-                ...effect, 
-                partKey: nextTargetPartKey, 
-                value: overkillDamage, 
-                isPenetration: true 
-            };
-        }
-    }
 
+    // nextEffectの生成ロジックを削除し、結果報告のみを行う
     return { 
         ...effect, 
         value: actualDamage,
-        oldHp, // アニメーション用に結果にも含める
-        newHp, // アニメーション用に結果にも含める
+        oldHp, 
+        newHp, 
         isPartBroken, 
         isPlayerBroken,
-        isGuardBroken, // フラグを追加
-        overkillDamage: overkillDamage,
-        nextEffect: nextEffect,
+        isGuardBroken, 
+        overkillDamage: overkillDamage, // 余剰ダメージ量は報告する
         events: events
     };
 };

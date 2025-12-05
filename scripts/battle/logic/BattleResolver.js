@@ -2,14 +2,16 @@
  * @file BattleResolver.js
  * @description 戦闘の計算ロジック。
  * パイプラインパターンを用いて、ターゲット解決から効果適用までの流れを順次処理する。
+ * 効果の連鎖（貫通など）の制御もここで行う。
  */
-import { Action, ActiveEffects } from '../components/index.js';
+import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
 import { EffectType } from '../../common/constants.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
 import { effectStrategies } from '../effects/effectStrategies.js';
 import { effectApplicators } from '../effects/applicators/applicatorIndex.js';
 import { TargetingService } from '../services/TargetingService.js';
+import { findRandomPenetrationTarget } from '../utils/queryUtils.js'; // 追加: 貫通ターゲット検索用
 
 export class BattleResolver {
     constructor(world) {
@@ -41,7 +43,7 @@ export class BattleResolver {
         // 4. 効果計算フェーズ (ダメージ算出など。まだ適用はしない)
         this._calculateEffects(ctx);
 
-        // 5. 副作用解決フェーズ (ガード消費、実際のHP変動量計算、イベント生成)
+        // 5. 副作用解決フェーズ (ガード消費、実際のHP変動量計算、貫通処理、イベント生成)
         this._resolveApplications(ctx);
 
         // 6. 結果の整形と返却
@@ -132,9 +134,6 @@ export class BattleResolver {
     _calculateEffects(ctx) {
         const { action, attackingPart, attackerInfo, attackerParts, finalTargetId, outcome } = ctx;
 
-        // 命中していない、かつターゲットが必要な攻撃なら効果計算をスキップ
-        // (支援行動などは targetId が null でも効果がある場合があるため、isHitだけで判定しない方が安全だが、
-        //  現状 CombatCalculator.resolveHitOutcome は支援行動なら isHit=true を返すのでOK)
         if (!outcome.isHit && finalTargetId) {
             return;
         }
@@ -155,7 +154,9 @@ export class BattleResolver {
             });
 
             if (result) {
+                // 貫通フラグや計算パラメータを引き継ぐ
                 result.penetrates = attackingPart.penetrates || false;
+                result.calculation = effectDef.calculation; 
                 ctx.rawEffects.push(result);
             }
         }
@@ -171,8 +172,8 @@ export class BattleResolver {
             });
         }
 
-        // 2. 各効果の適用計算（HP変動量確定、イベント生成）
-        // rawEffects は貫通処理などで増える可能性があるためキューとして扱う
+        // 2. 各効果の適用計算
+        // rawEffects はキューとして扱う
         const effectQueue = [...ctx.rawEffects];
 
         while (effectQueue.length > 0) {
@@ -181,14 +182,34 @@ export class BattleResolver {
             const applicator = this.effectApplicators[effect.type];
             if (!applicator) continue;
 
-            // applicatorは副作用なしで結果オブジェクトを返す設計になっている前提
+            // Applicatorを実行 (純粋関数に近い動作を期待)
             const result = applicator({ world: this.world, effect });
 
             if (result) {
                 ctx.appliedEffects.push(result);
-                // 貫通などで新たな効果が発生した場合はキューの先頭に追加
-                if (result.nextEffect) {
-                    effectQueue.unshift(result.nextEffect);
+
+                // --- 貫通処理 (Resolverの責務として実装) ---
+                // パーツが破壊され、かつ余剰ダメージがあり、かつ貫通属性を持つ場合
+                if (result.isPartBroken && result.overkillDamage > 0 && result.penetrates) {
+                    
+                    // 次のターゲットパーツを探す
+                    const nextTargetPartKey = findRandomPenetrationTarget(this.world, result.targetId, result.partKey);
+                    
+                    if (nextTargetPartKey) {
+                        // 新しい効果を作成してキューの先頭に追加
+                        const nextEffect = {
+                            type: EffectType.DAMAGE,
+                            targetId: result.targetId,
+                            partKey: nextTargetPartKey,
+                            value: result.overkillDamage, // 余剰ダメージを引き継ぐ
+                            penetrates: true,             // 貫通属性を継続
+                            isPenetration: true,          // 貫通による攻撃であることを示す
+                            calculation: result.calculation, // 計算パラメータを引き継ぐ
+                            isCritical: result.isCritical // クリティカル状態も引き継ぐ
+                        };
+                        
+                        effectQueue.unshift(nextEffect);
+                    }
                 }
             }
         }
