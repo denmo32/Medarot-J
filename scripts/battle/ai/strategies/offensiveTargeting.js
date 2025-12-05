@@ -5,11 +5,10 @@ import { PlayerInfo, Parts } from '../../../components/index.js';
 import { BattleLog } from '../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { 
-    isValidTarget, 
     selectRandomPart, 
-    getAllPartsFromCandidates, 
-    getValidEnemies 
+    getAllPartsFromCandidates 
 } from '../../utils/queryUtils.js';
+import { TargetingService } from '../../services/TargetingService.js';
 import { TargetingStrategyKey } from '../strategyKeys.js';
 import { PartInfo } from '../../../common/constants.js';
 
@@ -17,7 +16,7 @@ import { PartInfo } from '../../../common/constants.js';
 
 const createEnemyTargetingStrategy = (logicFn) => {
     return ({ world, attackerId }) => {
-        const candidates = getValidEnemies(world, attackerId);
+        const candidates = TargetingService.getValidEnemies(world, attackerId);
         if (candidates.length === 0) return null;
         return logicFn({ world, attackerId, candidates });
     };
@@ -57,7 +56,7 @@ const createTargetedEntityStrategy = (findTargetIdFn) => createEnemyTargetingStr
 
 const createSingleEntityStrategy = (findTargetIdFn) => ({ world, attackerId }) => {
     const targetId = findTargetIdFn({ world, attackerId });
-    if (targetId && isValidTarget(world, targetId)) {
+    if (targetId && TargetingService.isValidTarget(world, targetId)) {
         const allParts = getAllPartsFromCandidates(world, [targetId]);
         return allParts.map(p => ({
             target: { targetId: p.entityId, targetPartKey: p.partKey },
@@ -75,7 +74,7 @@ const createSinglePartStrategy = (findTargetPartFn) => ({ world, attackerId }) =
     const targetInfo = world.getComponent(target.targetId, PlayerInfo);
     const isEnemy = targetInfo && targetInfo.teamId !== attackerInfo.teamId;
 
-    if (isEnemy && isValidTarget(world, target.targetId, target.partKey)) {
+    if (isEnemy && TargetingService.isValidTarget(world, target.targetId, target.partKey)) {
         return [{
             target: { targetId: target.targetId, targetPartKey: target.partKey },
             weight: 10

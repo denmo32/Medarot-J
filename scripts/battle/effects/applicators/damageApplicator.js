@@ -1,11 +1,14 @@
 /**
  * @file ダメージ適用ロジック
- * 副作用（イベント発行）を排除し、発行すべきイベント情報を返すように変更。
+ * 副作用を排除し、計算結果のみを返す。
+ * 貫通ターゲットの決定などの「次」の処理は行わず、
+ * 純粋にこの適用の結果（破壊されたか、余剰ダメージはいくらか）のみを返す。
  */
 import { Parts } from '../../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { PartInfo } from '../../../common/constants.js';
-import { findRandomPenetrationTarget } from '../../utils/queryUtils.js';
+import { PartInfo, EffectType } from '../../../common/constants.js';
+import { PlayerStateType } from '../../common/constants.js';
+import { GameState, ActiveEffects } from '../../components/index.js';
 
 export const applyDamage = ({ world, effect }) => {
     const { targetId, partKey, value } = effect;
@@ -14,46 +17,58 @@ export const applyDamage = ({ world, effect }) => {
 
     const oldHp = part.hp;
     const newHp = Math.max(0, oldHp - value);
-    part.hp = newHp;
+    
     const actualDamage = oldHp - newHp;
     const isPartBroken = oldHp > 0 && newHp === 0;
     let isPlayerBroken = false;
+    let isGuardBroken = false;
 
-    // 副作用としてのイベント発行を削除し、結果オブジェクトに含める
+    // HP更新イベントは即時UI反映用ではないデータ通知として扱う
     const events = [];
     events.push({
         type: GameEvents.HP_UPDATED,
-        payload: { entityId: targetId, partKey, newHp, maxHp: part.maxHp, change: -actualDamage, isHeal: false }
+        payload: { 
+            entityId: targetId, 
+            partKey, 
+            newHp, 
+            oldHp, 
+            maxHp: part.maxHp, 
+            change: -actualDamage, 
+            isHeal: false 
+        }
     });
     
     if (isPartBroken) {
-        part.isBroken = true;
         if (partKey === PartInfo.HEAD.key) {
             isPlayerBroken = true;
         }
-    }
 
-    let nextEffect = null;
-    const overkillDamage = value - actualDamage;
-    if (isPartBroken && effect.penetrates && overkillDamage > 0) {
-        const nextTargetPartKey = findRandomPenetrationTarget(world, targetId, partKey);
-        if (nextTargetPartKey) {
-            nextEffect = { 
-                ...effect, 
-                partKey: nextTargetPartKey, 
-                value: overkillDamage, 
-                isPenetration: true 
-            };
+        // ガード破壊判定
+        const targetState = world.getComponent(targetId, GameState);
+        const activeEffects = world.getComponent(targetId, ActiveEffects);
+        
+        if (targetState && targetState.state === PlayerStateType.GUARDING && activeEffects) {
+            const isGuardPart = activeEffects.effects.some(
+                e => e.type === EffectType.APPLY_GUARD && e.partKey === partKey
+            );
+            if (isGuardPart) {
+                isGuardBroken = true;
+            }
         }
     }
 
+    const overkillDamage = value - actualDamage;
+
+    // nextEffectの生成ロジックを削除し、結果報告のみを行う
     return { 
         ...effect, 
-        value: actualDamage, 
+        value: actualDamage,
+        oldHp, 
+        newHp, 
         isPartBroken, 
         isPlayerBroken,
-        overkillDamage: overkillDamage,
-        nextEffect: nextEffect,
-        events: events // イベント情報を返す
+        isGuardBroken, 
+        overkillDamage: overkillDamage, // 余剰ダメージ量は報告する
+        events: events
     };
 };

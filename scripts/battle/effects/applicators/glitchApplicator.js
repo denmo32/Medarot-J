@@ -17,6 +17,14 @@ export const applyGlitch = ({ world, effect }) => {
                 reason: ActionCancelReason.INTERRUPTED 
             }
         });
+        // 冷却へ強制移行
+        events.push({
+            type: GameEvents.REQUEST_RESET_TO_COOLDOWN,
+            payload: {
+                entityId: effect.targetId,
+                options: { interrupted: true }
+            }
+        });
     }
     
     return { ...effect, events };

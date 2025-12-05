@@ -111,6 +111,9 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     world.addComponent(entityId, new BattleComponents.BattleLog());
     world.addComponent(entityId, new BattleComponents.Position(initialX, yPos));
     world.addComponent(entityId, new BattleComponents.ActiveEffects());
+    
+    // 表示用コンポーネントを追加
+    world.addComponent(entityId, new BattleComponents.Visual());
 
     return entityId;
 }

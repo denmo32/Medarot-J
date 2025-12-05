@@ -12,7 +12,6 @@ export const GameEvents = {
     GAME_START_CONFIRMED: 'GAME_START_CONFIRMED',
     RESET_BUTTON_CLICKED: 'RESET_BUTTON_CLICKED',
     GAME_WILL_RESET: 'GAME_WILL_RESET',
-    BATTLE_INITIALIZED: 'BATTLE_INITIALIZED',
     BATTLE_START_CANCELLED: 'BATTLE_START_CANCELLED',
     BATTLE_START_CONFIRMED: 'BATTLE_START_CONFIRMED',
     SHOW_BATTLE_START_ANIMATION: 'SHOW_BATTLE_START_ANIMATION',
@@ -27,26 +26,16 @@ export const GameEvents = {
     ACTION_SELECTED: 'ACTION_SELECTED',
 
     // --- BattleSequenceSystem 制御用イベント ---
-    // 旧 REQUEST_ACTION_SEQUENCE_START, REQUEST_ACTION_RESOLUTION, ACTION_RESOLUTION_COMPLETED は廃止
-
     /**
-     * アクション実行アニメーションの開始を要求 (BattleSequenceSystem -> ViewSystem (経由なし))
-     * ※元々は ActionExecutionSystem -> ViewSystem でしたが、BattleSequenceSystemから直接発行に変更
-     * @event EXECUTE_ATTACK_ANIMATION
+     * アクション実行フェーズの開始を要求 (PhaseSystem -> BattleSequenceSystem)
+     * @event ACTION_EXECUTION_REQUESTED
      */
-    EXECUTE_ATTACK_ANIMATION: 'EXECUTE_ATTACK_ANIMATION',
-
+    ACTION_EXECUTION_REQUESTED: 'ACTION_EXECUTION_REQUESTED',
     /**
      * アクション実行アニメーションの完了 (ViewSystem -> BattleSequenceSystem)
      * @event EXECUTION_ANIMATION_COMPLETED
      */
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED',
-
-    /**
-     * 結果表示要求 (BattleSequenceSystem -> MessageSystem)
-     * @event REQUEST_RESULT_DISPLAY
-     */
-    REQUEST_RESULT_DISPLAY: 'REQUEST_RESULT_DISPLAY',
 
     /**
      * クールダウン移行要求 (BattleSequenceSystem -> CooldownSystem)
@@ -66,13 +55,39 @@ export const GameEvents = {
      */
     ACTION_SEQUENCE_COMPLETED: 'ACTION_SEQUENCE_COMPLETED',
 
+    /**
+     * タスク実行要求 (TaskRunner -> Systems)
+     * @event REQUEST_TASK_EXECUTION
+     */
+    REQUEST_TASK_EXECUTION: 'REQUEST_TASK_EXECUTION',
+
+    /**
+     * タスク実行完了 (Systems -> TaskRunner)
+     * @event TASK_EXECUTION_COMPLETED
+     */
+    TASK_EXECUTION_COMPLETED: 'TASK_EXECUTION_COMPLETED',
+
+    /**
+     * アクションキャンセル状態の一括チェック要求
+     * @event CHECK_ACTION_CANCELLATION
+     */
+    CHECK_ACTION_CANCELLATION: 'CHECK_ACTION_CANCELLATION',
+
     // --- その他イベント ---
     COMBAT_SEQUENCE_RESOLVED: 'COMBAT_SEQUENCE_RESOLVED',
     COMBAT_RESOLUTION_DISPLAYED: 'COMBAT_RESOLUTION_DISPLAYED',
-    ACTION_COMPLETED: 'ACTION_COMPLETED',
-    ATTACK_DECLARATION_CONFIRMED: 'ATTACK_DECLARATION_CONFIRMED',
 
     // --- 状態 & ターン管理イベント ---
+    /**
+     * エンティティの状態遷移を要求 (Any -> StateSystem)
+     * @event REQUEST_STATE_TRANSITION
+     */
+    REQUEST_STATE_TRANSITION: 'REQUEST_STATE_TRANSITION',
+    /**
+     * エンティティをクールダウン状態にリセットするよう要求 (Any -> CooldownSystem)
+     * @event REQUEST_RESET_TO_COOLDOWN
+     */
+    REQUEST_RESET_TO_COOLDOWN: 'REQUEST_RESET_TO_COOLDOWN',
     ACTION_SELECTION_COMPLETED: 'ACTION_SELECTION_COMPLETED',
     ACTION_EXECUTION_COMPLETED: 'ACTION_EXECUTION_COMPLETED',
     TURN_START: 'TURN_START',
@@ -88,6 +103,7 @@ export const GameEvents = {
     HP_UPDATED: 'HP_UPDATED',
     EFFECT_EXPIRED: 'EFFECT_EXPIRED',
     GUARD_BROKEN: 'GUARD_BROKEN',
+    GUARD_EXPIRED: 'GUARD_EXPIRED',
 
     // --- UI & Sceneイベント ---
     SCENE_CHANGE_REQUESTED: 'SCENE_CHANGE_REQUESTED',
@@ -98,6 +114,12 @@ export const GameEvents = {
     SETUP_UI_REQUESTED: 'SETUP_UI_REQUESTED',
     HP_BAR_ANIMATION_REQUESTED: 'HP_BAR_ANIMATION_REQUESTED',
     HP_BAR_ANIMATION_COMPLETED: 'HP_BAR_ANIMATION_COMPLETED',
+    
+    /**
+     * UI全体の表示を最新データに合わせて更新する要求
+     * @event REFRESH_UI
+     */
+    REFRESH_UI: 'REFRESH_UI',
 
     // --- カスタマイズ画面イベント ---
     CUST_CONFIRM_INPUT: 'CUST_CONFIRM_INPUT',

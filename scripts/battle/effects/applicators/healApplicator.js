@@ -1,6 +1,6 @@
 /**
  * @file 回復適用ロジック
- * 副作用（イベント発行）を排除し、発行すべきイベント情報を返すように変更。
+ * 副作用を排除。
  */
 import { Parts } from '../../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
@@ -13,20 +13,36 @@ export const applyHeal = ({ world, effect }) => {
     if (!part) return null;
 
     let actualHealAmount = 0;
+    let oldHp = part.hp;
+    let newHp = part.hp;
     const events = [];
 
     if (!part.isBroken) {
-        const oldHp = part.hp;
-        part.hp = Math.min(part.maxHp, part.hp + value);
-        actualHealAmount = part.hp - oldHp;
+        oldHp = part.hp;
+        newHp = Math.min(part.maxHp, part.hp + value);
+        actualHealAmount = newHp - oldHp;
         
         if (actualHealAmount > 0) {
             events.push({
                 type: GameEvents.HP_UPDATED,
-                payload: { entityId: targetId, partKey, newHp: part.hp, maxHp: part.maxHp, change: actualHealAmount, isHeal: true }
+                payload: { 
+                    entityId: targetId, 
+                    partKey, 
+                    newHp: newHp, 
+                    oldHp: oldHp, // アニメーション用に旧値を含める
+                    maxHp: part.maxHp, 
+                    change: actualHealAmount, 
+                    isHeal: true 
+                }
             });
         }
     }
     
-    return { ...effect, value: actualHealAmount, events };
+    return { 
+        ...effect, 
+        value: actualHealAmount, 
+        oldHp,
+        newHp,
+        events 
+    };
 };

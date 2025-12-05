@@ -1,15 +1,15 @@
 /**
  * @file ECS (Entity-Component-System) の中核クラス
  * @description エンティティ、コンポーネント、システムの管理とオーケストレーションを行います。
- * イベント機能はEventEmitterを継承して提供します。
+ * Queryシステム導入によるパフォーマンス最適化版。
  */
 import { EventEmitter } from '../event/EventEmitter.js';
+import { Query } from './Query.js';
 
 export class World extends EventEmitter {
     constructor() {
         super();
 
-        // --- Entity & Component Storage ---
         // key: entityId, value: Set<ComponentClass>
         this.entities = new Map();
         this.nextEntityId = 0;
@@ -20,70 +20,55 @@ export class World extends EventEmitter {
         // --- System Storage ---
         this.systems = [];
 
-        // --- Query Cache ---
-        // getEntitiesWithの結果をキャッシュ
-        this.queryCache = new Map();
+        // --- Query Storage ---
+        this.queries = [];
     }
 
     // === Entity and Component Methods ===
 
-    /**
-     * 新しいエンティティを生成します。
-     * @returns {number} 新しいエンティティID
-     */
     createEntity() {
         const entityId = this.nextEntityId++;
         this.entities.set(entityId, new Set());
         return entityId;
     }
 
-    /**
-     * エンティティにコンポーネントを追加します。
-     * @param {number} entityId
-     * @param {Object} component
-     */
     addComponent(entityId, component) {
         const componentClass = component.constructor;
-        this.entities.get(entityId).add(componentClass);
+        const entityComponents = this.entities.get(entityId);
+        
+        if (!entityComponents) {
+            console.error(`Attempted to add component to non-existent entity ${entityId}`);
+            return;
+        }
+
+        entityComponents.add(componentClass);
 
         if (!this.components.has(componentClass)) {
             this.components.set(componentClass, new Map());
         }
         this.components.get(componentClass).set(entityId, component);
 
-        this.queryCache.clear();
+        // クエリの更新
+        this._updateQueries(entityId);
     }
 
-    /**
-     * エンティティからコンポーネントを取得します。
-     * @param {number} entityId
-     * @param {Function} componentClass
-     * @returns {Object|undefined}
-     */
     getComponent(entityId, componentClass) {
         return this.components.get(componentClass)?.get(entityId);
     }
 
-    /**
-     * エンティティからコンポーネントを削除します。
-     * @param {number} entityId
-     * @param {Function} componentClass
-     */
     removeComponent(entityId, componentClass) {
-        if (this.entities.has(entityId)) {
-            this.entities.get(entityId).delete(componentClass);
+        const entityComponents = this.entities.get(entityId);
+        if (entityComponents) {
+            entityComponents.delete(componentClass);
         }
         if (this.components.has(componentClass)) {
             this.components.get(componentClass).delete(entityId);
         }
-        this.queryCache.clear();
+        
+        // クエリの更新
+        this._updateQueries(entityId);
     }
 
-    /**
-     * シングルトンコンポーネントを取得します。
-     * @param {Function} componentClass
-     * @returns {Object|null}
-     */
     getSingletonComponent(componentClass) {
         const componentMap = this.components.get(componentClass);
         if (!componentMap || componentMap.size === 0) {
@@ -93,54 +78,31 @@ export class World extends EventEmitter {
     }
 
     /**
-     * 指定されたコンポーネント群を持つエンティティのリストを取得します。
+     * コンポーネントの組み合わせを指定してエンティティを取得します。
+     * 内部でQueryオブジェクトを生成・キャッシュするため、
+     * 頻繁に呼び出しても高速に動作します。
      * @param  {...Function} componentClasses
      * @returns {number[]}
      */
     getEntitiesWith(...componentClasses) {
-        if (componentClasses.length === 0) return [];
-
-        const cacheKey = componentClasses
-            .map(c => c.name)
-            .sort()
-            .join('|');
-
-        if (this.queryCache.has(cacheKey)) {
-            return this.queryCache.get(cacheKey);
-        }
-
-        const entities = [];
-
-        // 最も要素数の少ないコンポーネントを基準に検索
-        const baseComponentClass = componentClasses.reduce((min, current) => {
-            const minSize = this.components.get(min)?.size || 0;
-            const currentSize = this.components.get(current)?.size || 0;
-            return currentSize < minSize ? current : min;
-        }, componentClasses[0]);
-
-        const baseComponentMap = this.components.get(baseComponentClass);
-        
-        if (baseComponentMap) {
-            for (const entityId of baseComponentMap.keys()) {
-                const entityComponents = this.entities.get(entityId);
-                const hasAll = componentClasses.every(cls => 
-                    cls === baseComponentClass || entityComponents.has(cls)
-                );
-                
-                if (hasAll) {
-                    entities.push(entityId);
-                }
+        // 既存のクエリを探す
+        let query = this.queries.find(q => {
+            if (q.componentClasses.size !== componentClasses.length) return false;
+            for (const cls of componentClasses) {
+                if (!q.componentClasses.has(cls)) return false;
             }
+            return true;
+        });
+
+        // なければ作成
+        if (!query) {
+            query = new Query(this, componentClasses);
+            this.queries.push(query);
         }
 
-        this.queryCache.set(cacheKey, entities);
-        return entities;
+        return query.getEntities();
     }
 
-    /**
-     * エンティティとその全コンポーネントを削除します。
-     * @param {number} entityId
-     */
     destroyEntity(entityId) {
         const componentClasses = this.entities.get(entityId);
         if (componentClasses) {
@@ -149,24 +111,25 @@ export class World extends EventEmitter {
             }
         }
         this.entities.delete(entityId);
-        this.queryCache.clear();
+
+        // クエリから削除
+        for (const query of this.queries) {
+            query.onEntityRemoved(entityId);
+        }
+    }
+
+    _updateQueries(entityId) {
+        for (const query of this.queries) {
+            query.onEntityUpdated(entityId);
+        }
     }
 
     // === System Methods ===
 
-    /**
-     * システムを登録します。
-     * @param {Object} system
-     */
     registerSystem(system) {
         this.systems.push(system);
     }
 
-    /**
-     * 登録された全システムのupdateメソッドを実行します。
-     * Systemクラスを継承している場合はexecuteメソッドを通じて安全に実行します。
-     * @param {number} deltaTime
-     */
     update(deltaTime) {
         for (const system of this.systems) {
             if (system.execute) {
@@ -177,9 +140,6 @@ export class World extends EventEmitter {
         }
     }
 
-    /**
-     * ワールドの状態をリセットします。
-     */
     reset() {
         for (const system of this.systems) {
             if (system.destroy) {
@@ -187,11 +147,11 @@ export class World extends EventEmitter {
             }
         }
         
-        this.clearListeners(); // EventEmitterのメソッドを使用
+        this.clearListeners();
         this.systems = [];
         this.entities.clear();
         this.components.clear();
+        this.queries = []; // クエリもリセット
         this.nextEntityId = 0;
-        this.queryCache.clear();
     }
 }

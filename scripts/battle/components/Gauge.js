@@ -6,11 +6,14 @@ export class Gauge {
         /** @type {number} */
         this.value = 0;
         /** @type {number} */
-        this.speedMultiplier = 1.0; // パーツ性能に応じた速度補正率
-        // speedプロパティは廃止され、GaugeSystemが直接脚部の推進力を参照する
+        this.speedMultiplier = 1.0; 
         /** @type {number} */
         this.max = CONFIG.MAX_GAUGE;
         /** @type {number} */
-        this.currentSpeed = 0; // 現在のゲージ増加速度 (1updateあたり)
+        this.currentSpeed = 0; 
+
+        // ゲージが加算される状態かどうかを制御するフラグ
+        /** @type {boolean} */
+        this.isActive = false;
     }
 }

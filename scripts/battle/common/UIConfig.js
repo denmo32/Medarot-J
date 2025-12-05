@@ -12,14 +12,20 @@ export const UI_CONFIG = {
     
     // アニメーションに関する設定
     ANIMATION: {
-        DURATION: 300,        // デフォルトアニメーション時間（ミリ秒）
+        DURATION: 0,        // デフォルトアニメーション時間（ミリ秒）
         EASING: 'ease-out',   // デフォルトイージング
+        ATTACK_DURATION: 1024, // 攻撃アニメーション時間
+        HP_BAR: {
+            DURATION: 256, // HPバー変動時間
+            // イージング関数 (Ease Out Quad)
+            EASING: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t 
+        }
     },
     
     // モーダルに関する設定
     MODAL: {
-        FADE_IN_DURATION: 200,   // モーダル表示時のフェードイン時間
-        FADE_OUT_DURATION: 150,  // モーダル非表示時のフェードアウト時間
+        FADE_IN_DURATION: 0,   // モーダル表示時のフェードイン時間
+        FADE_OUT_DURATION: 0,  // モーダル非表示時のフェードアウト時間
     },
     
     // UI表示に関する設定

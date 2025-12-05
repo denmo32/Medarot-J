@@ -1,73 +1,84 @@
+/**
+ * @file BattleSequenceSystem.js
+ * @description アクション実行シーケンスの制御を行う。
+ * EffectApplier導入により、状態更新ロジックを分離。
+ */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { BattlePhase, PlayerStateType, ModalType, ActionCancelReason } from '../../common/constants.js';
-import { TargetTiming } from '../../../common/constants.js';
+import { PlayerStateType } from '../../common/constants.js';
 import { BattleContext } from '../../context/index.js';
 import { GameState, Action } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import { compareByPropulsion } from '../../utils/queryUtils.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 import { BattleResolver } from '../../logic/BattleResolver.js';
+import { EffectApplier } from '../../logic/EffectApplier.js';
+import { TaskRunner } from '../../tasks/TaskRunner.js';
+import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
+import { TargetTiming } from '../../../common/constants.js';
 
-const SequenceState = {
-    IDLE: 'IDLE',
-    PROCESSING: 'PROCESSING', // キュー処理中
-    ANIMATING: 'ANIMATING',
-    DISPLAYING: 'DISPLAYING',
-    COOLDOWN: 'COOLDOWN'
-};
+import { CooldownService } from '../../services/CooldownService.js';
+import { CancellationService } from '../../services/CancellationService.js';
+import { PlayerStatusService } from '../../services/PlayerStatusService.js';
 
-/**
- * @class BattleSequenceSystem
- * @description アクション実行フェーズの統合管理システム。
- * キューの管理、アニメーション、計算、結果表示、クールダウン移行を一元的に制御します。
- */
 export class BattleSequenceSystem extends System {
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
+        
         this.battleResolver = new BattleResolver(world);
+        this.timelineBuilder = new TimelineBuilder(world);
+        this.taskRunner = new TaskRunner(world);
         
         this.executionQueue = [];
-        this.currentState = SequenceState.IDLE;
         this.currentActorId = null;
-        this.currentResultData = null;
+        
+        this.on(GameEvents.ACTION_EXECUTION_COMPLETED, this.onActionExecutionCompleted.bind(this));
+        this.on(GameEvents.ACTION_EXECUTION_REQUESTED, this.onActionExecutionRequested.bind(this));
+        
+        this.on(GameEvents.REQUEST_RESET_TO_COOLDOWN, this.onRequestResetToCooldown.bind(this));
+        this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
+    }
 
-        // イベントバインディング
-        this.on(GameEvents.EXECUTION_ANIMATION_COMPLETED, this.onAnimationCompleted.bind(this));
-        this.on(GameEvents.MODAL_CLOSED, this.onModalClosed.bind(this));
-        this.on(GameEvents.COOLDOWN_TRANSITION_COMPLETED, this.onCooldownCompleted.bind(this));
+    onActionExecutionRequested() {
+        if (this.currentActorId !== null || this.executionQueue.length > 0) {
+            return;
+        }
+        
+        this._populateExecutionQueueFromReady();
+        this._processNextInQueue();
     }
 
     update(deltaTime) {
-        // フェーズ監視
-        if (this.battleContext.phase !== BattlePhase.ACTION_EXECUTION) {
-            this._resetQueue();
-            return;
-        }
+        this.taskRunner.update(deltaTime);
+        this.battleContext.isSequenceRunning = !this.taskRunner.isIdle;
 
-        // アイドル状態ならキューを補充または次の処理を開始
-        if (this.currentState === SequenceState.IDLE) {
-            if (this.executionQueue.length === 0) {
-                this._populateExecutionQueueFromReady();
-                
-                // それでも空ならフェーズ終了
-                if (this.executionQueue.length === 0) {
-                    this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
-                    return;
-                }
-            }
-            
-            // 次のアクションを開始
-            this._startNextActionSequence();
+        if (this.taskRunner.isIdle && this.currentActorId !== null) {
+            this._finishCurrentActorSequence();
         }
     }
     
-    _resetQueue() {
-        this.executionQueue = [];
-        this.currentState = SequenceState.IDLE;
+    _finishCurrentActorSequence() {
+        this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: this.currentActorId });
         this.currentActorId = null;
-        this.currentResultData = null;
+        this._processNextInQueue();
+    }
+    
+    _processNextInQueue() {
+        if (this.executionQueue.length > 0) {
+            this._startNextActionSequence();
+        } else {
+            if (!this.battleContext.isSequenceRunning) {
+                this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
+            }
+        }
+    }
+
+    _reset() {
+        this.executionQueue = [];
+        this.currentActorId = null;
+        this.taskRunner.clear();
+        this.battleContext.isSequenceRunning = false;
     }
 
     _populateExecutionQueueFromReady() {
@@ -77,49 +88,53 @@ export class BattleSequenceSystem extends System {
         });
 
         readyEntities.sort(compareByPropulsion(this.world));
-        
-        this.executionQueue = readyEntities.map(id => {
-            const action = this.world.getComponent(id, Action);
-            return {
-                entityId: id,
-                partKey: action.partKey,
-                targetId: action.targetId,
-                targetPartKey: action.targetPartKey
-            };
-        });
+        this.executionQueue = readyEntities;
     }
 
     _startNextActionSequence() {
-        const actionDetail = this.executionQueue.shift();
-        if (!actionDetail) return;
+        const actorId = this.executionQueue.shift();
+        if (!this.isValidEntity(actorId)) {
+            this._processNextInQueue();
+            return;
+        }
 
-        this.currentActorId = actionDetail.entityId;
-        this.currentState = SequenceState.PROCESSING;
+        this.currentActorId = actorId;
+        const actionComp = this.world.getComponent(actorId, Action);
+
+        // 状態遷移: アニメーション待機へ
+        PlayerStatusService.transitionTo(this.world, actorId, PlayerStateType.AWAITING_ANIMATION);
+
+        // 1. 実行直前のキャンセルチェック
+        const cancelCheck = CancellationService.checkCancellation(this.world, actorId);
+        if (cancelCheck.shouldCancel) {
+            CancellationService.executeCancel(this.world, actorId, cancelCheck.reason);
+            CooldownService.resetEntityStateToCooldown(this.world, actorId, { interrupted: true });
+            return;
+        }
+
+        // 2. 移動後ターゲット決定
+        this._determinePostMoveTarget(actorId, actionComp);
+
+        // 3. 戦闘結果の計算 (Logic)
+        const resultData = this.battleResolver.resolve(actorId);
+
+        // 4. Logicデータの即時更新 (副作用の適用)
+        // EffectApplierを使用
+        EffectApplier.applyResult(this.world, resultData);
         
-        // アクション情報の更新
-        const actionComp = this.world.getComponent(this.currentActorId, Action);
-        Object.assign(actionComp, actionDetail);
+        this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);
 
-        // 移動後ターゲットの決定 (必要なら)
-        this._determinePostMoveTarget(this.currentActorId);
-
-        // 状態更新
-        const gameState = this.world.getComponent(this.currentActorId, GameState);
-        if (gameState) gameState.state = PlayerStateType.AWAITING_ANIMATION;
-
-        // --- ステップ1: アニメーション開始 ---
-        this.currentState = SequenceState.ANIMATING;
+        // 5. 演出タスクの構築と実行 (Visual)
+        const tasks = this.timelineBuilder.buildAttackSequence(resultData);
         
-        // ViewSystemへアニメーション実行を依頼
-        this.world.emit(GameEvents.EXECUTE_ATTACK_ANIMATION, {
-            attackerId: this.currentActorId,
-            targetId: actionComp.targetId
-        });
+        this.taskRunner.addTasks(tasks);
+        this.battleContext.isSequenceRunning = true;
     }
 
-    _determinePostMoveTarget(executorId) {
-        const action = this.world.getComponent(executorId, Action);
+    _determinePostMoveTarget(executorId, action) {
         const parts = this.world.getComponent(executorId, Parts);
+        if (!parts || !action.partKey) return;
+        
         const selectedPart = parts[action.partKey];
 
         if (selectedPart && selectedPart.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
@@ -134,75 +149,27 @@ export class BattleSequenceSystem extends System {
         }
     }
 
-    /**
-     * ステップ2: アニメーション完了 -> 計算 -> 結果表示
-     */
-    onAnimationCompleted(detail) {
-        if (this.currentState !== SequenceState.ANIMATING || detail.entityId !== this.currentActorId) {
-            return;
-        }
-
-        // --- ステップ2.1: 計算実行 ---
-        this.currentResultData = this.battleResolver.resolve(this.currentActorId);
-
-        if (this.currentResultData.isCancelled) {
-            // キャンセルされた場合
-            this.world.emit(GameEvents.ACTION_CANCELLED, { 
-                entityId: this.currentActorId, 
-                reason: this.currentResultData.cancelReason || ActionCancelReason.INTERRUPTED 
-            });
+    onRequestResetToCooldown(detail) {
+        const { entityId, options } = detail;
+        CooldownService.resetEntityStateToCooldown(this.world, entityId, options);
+    }
+    
+    onCheckActionCancellation() {
+        const actors = this.getEntities(GameState, Action);
+        
+        for (const actorId of actors) {
+            const gameState = this.world.getComponent(actorId, GameState);
+            if (gameState.state !== PlayerStateType.SELECTED_CHARGING) continue;
             
-            // キャンセル時は即座にクールダウンへ
-            this._proceedToCooldown();
-            return;
-        }
-
-        // --- ステップ3: 結果表示 ---
-        this.currentState = SequenceState.DISPLAYING;
-        
-        // MessageSystemへ結果表示を依頼
-        this.world.emit(GameEvents.REQUEST_RESULT_DISPLAY, { resultData: this.currentResultData });
-    }
-
-    /**
-     * ステップ4: 結果表示完了 (モーダル閉鎖) -> クールダウン
-     */
-    onModalClosed(detail) {
-        if (this.currentState !== SequenceState.DISPLAYING) return;
-
-        // 攻撃宣言(ATTACK_DECLARATION)または結果(EXECUTION_RESULT)が閉じられたら次へ
-        // ActionPanelSystemのキューイングにより、最後のモーダルが閉じられた時にここに来る想定
-        const targetModalTypes = [ModalType.EXECUTION_RESULT, ModalType.ATTACK_DECLARATION];
-        
-        if (targetModalTypes.includes(detail.modalType)) {
-            this._proceedToCooldown();
+            const check = CancellationService.checkCancellation(this.world, actorId);
+            if (check.shouldCancel) {
+                CancellationService.executeCancel(this.world, actorId, check.reason);
+                CooldownService.resetEntityStateToCooldown(this.world, actorId, { interrupted: true });
+            }
         }
     }
 
-    _proceedToCooldown() {
-        this.currentState = SequenceState.COOLDOWN;
-        // CooldownSystemへ移行依頼
-        this.world.emit(GameEvents.REQUEST_COOLDOWN_TRANSITION, { entityId: this.currentActorId });
-    }
-
-    /**
-     * ステップ5: クールダウン完了 -> シーケンス終了
-     */
-    onCooldownCompleted(detail) {
-        if (this.currentState !== SequenceState.COOLDOWN || detail.entityId !== this.currentActorId) {
-            return;
-        }
-
-        const actorId = this.currentActorId;
-        
-        // 状態リセット
-        this.currentState = SequenceState.IDLE;
-        this.currentActorId = null;
-        this.currentResultData = null;
-        
-        // このアクションシーケンスの完了を通知（必要であれば）
-        this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: actorId });
-        
-        // updateループにより、自動的に次のキューアイテムが処理される
+    onActionExecutionCompleted() {
+        this._reset();
     }
 }

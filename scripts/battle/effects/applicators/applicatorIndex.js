@@ -7,7 +7,7 @@
  */
 import { applyDamage } from './damageApplicator.js';
 import { applyHeal } from './healApplicator.js';
-import { applyTeamEffect, applySelfEffect } from './statusEffectApplicator.js';
+import { applyTeamEffect, applySelfEffect, consumeGuard } from './statusEffectApplicator.js';
 import { applyGlitch } from './glitchApplicator.js';
 
 // EffectTypeは共通定数として scripts/common/constants.js に定義されています。
@@ -24,4 +24,5 @@ export const effectApplicators = {
     [CommonEffectType.APPLY_SCAN]: applyTeamEffect,
     [CommonEffectType.APPLY_GUARD]: applySelfEffect,
     [CommonEffectType.APPLY_GLITCH]: applyGlitch,
+    [CommonEffectType.CONSUME_GUARD]: consumeGuard,
 };
