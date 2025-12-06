@@ -1,31 +1,21 @@
 import { System } from '../../../engine/core/System.js';
 import { MapUIState } from '../../scenes/MapScene.js';
-import * as MapComponents from '../components.js';
 import { GameEvents } from '../../common/events.js';
 import { InputManager } from '../../../engine/input/InputManager.js';
+import { MapUIManager } from '../ui/MapUIManager.js';
 
 export class MapUISystem extends System {
     constructor(world) {
         super(world);
         this.input = this.world.getSingletonComponent(InputManager);
         this.mapUIState = this.world.getSingletonComponent(MapUIState);
+        this.uiManager = new MapUIManager();
 
-        this.dom = {
-            menu: document.getElementById('map-menu'),
-            interactionWindow: document.getElementById('interaction-message-window'),
-            confirmBattleButton: document.getElementById('confirm-battle-button'),
-            cancelBattleButton: document.getElementById('cancel-battle-button'),
-        };
-
-        this.menuButtons = [];
         this.focusedMenuIndex = 0;
-        this.menuClickHandlers = new Map();
         
         this._handlers = {
             toggleMenu: this.toggleMenu.bind(this),
             showNpcInteraction: this.showNpcInteraction.bind(this),
-            interactionConfirm: null,
-            interactionCancel: null
         };
 
         this.bindWorldEvents();
@@ -37,24 +27,10 @@ export class MapUISystem extends System {
     }
     
     destroy() {
-        this.removeMenuClickHandlers();
-        this._cleanupInteractionHandlers();
-        
-        if (this.dom.menu) this.dom.menu.classList.add('hidden');
-        if (this.dom.interactionWindow) this.dom.interactionWindow.classList.add('hidden');
-        
+        // UI非表示 (イベントリスナー解除はManager側のクローン置換で対応されるため明示的なremove不要だが、非表示は必要)
+        this.uiManager.hideMenu();
+        this.uiManager.hideInteractionWindow();
         super.destroy();
-    }
-    
-    _cleanupInteractionHandlers() {
-        if (this._handlers.interactionConfirm) {
-            this.dom.confirmBattleButton?.removeEventListener('click', this._handlers.interactionConfirm);
-            this._handlers.interactionConfirm = null;
-        }
-        if (this._handlers.interactionCancel) {
-            this.dom.cancelBattleButton?.removeEventListener('click', this._handlers.interactionCancel);
-            this._handlers.interactionCancel = null;
-        }
     }
 
     update(deltaTime) {
@@ -83,92 +59,50 @@ export class MapUISystem extends System {
     }
 
     openMenu() {
-        if (!this.dom.menu || !this.mapUIState) return;
+        if (!this.mapUIState) return;
         
         this.mapUIState.isMapMenuVisible = true;
         this.mapUIState.isPausedByModal = true;
-        this.dom.menu.classList.remove('hidden');
+        this.uiManager.showMenu();
 
         this.world.emit(GameEvents.UI_STATE_CHANGED, { context: 'mapUI', property: 'isMapMenuVisible', value: true });
 
-        const saveButton = this.dom.menu.querySelector('.map-menu-button[data-action="save"]');
-        const medarotchiButton = this.dom.menu.querySelector('.map-menu-button[data-action="medarotchi"]');
-        this.menuButtons = [medarotchiButton, saveButton].filter(btn => btn);
         this.focusedMenuIndex = 0;
         
-        this.setupMenuClickHandlers();
-        this.updateMenuFocus();
+        // アクションのバインド
+        this.uiManager.bindMenuAction('save', () => { this.saveGame(); this.closeMenu(); });
+        this.uiManager.bindMenuAction('medarotchi', () => { this.openCustomizeScene(); this.closeMenu(); });
+        
+        this.uiManager.updateMenuFocus(this.focusedMenuIndex);
     }
 
     closeMenu() {
-        if (!this.dom.menu || !this.mapUIState) return;
+        if (!this.mapUIState) return;
 
         this.mapUIState.isMapMenuVisible = false;
         this.mapUIState.isPausedByModal = false;
-        this.dom.menu.classList.add('hidden');
+        this.uiManager.hideMenu();
 
         this.world.emit(GameEvents.UI_STATE_CHANGED, { context: 'mapUI', property: 'isMapMenuVisible', value: false });
-
-        this.removeFocusIndicators();
-        this.removeMenuClickHandlers();
     }
 
     handleMenuInput() {
+        const count = this.uiManager.getMenuButtonCount();
+        if (count === 0) return;
+
         if (this.input.wasKeyJustPressed('ArrowUp')) {
-            this.focusedMenuIndex = (this.focusedMenuIndex > 0) ? this.focusedMenuIndex - 1 : this.menuButtons.length - 1;
-            this.updateMenuFocus();
+            this.focusedMenuIndex = (this.focusedMenuIndex > 0) ? this.focusedMenuIndex - 1 : count - 1;
+            this.uiManager.updateMenuFocus(this.focusedMenuIndex);
         }
         if (this.input.wasKeyJustPressed('ArrowDown')) {
-            this.focusedMenuIndex = (this.focusedMenuIndex < this.menuButtons.length - 1) ? this.focusedMenuIndex + 1 : 0;
-            this.updateMenuFocus();
+            this.focusedMenuIndex = (this.focusedMenuIndex < count - 1) ? this.focusedMenuIndex + 1 : 0;
+            this.uiManager.updateMenuFocus(this.focusedMenuIndex);
         }
         if (this.input.wasKeyJustPressed('z')) {
-            if (this.menuButtons[this.focusedMenuIndex]) {
-                this.menuButtons[this.focusedMenuIndex].click();
-            }
+            this.uiManager.triggerMenuButton(this.focusedMenuIndex);
         }
         if (this.input.wasKeyJustPressed('x')) {
             this.closeMenu();
-        }
-    }
-
-    updateMenuFocus() {
-        this.menuButtons.forEach(btn => btn.classList.remove('focused'));
-        const button = this.menuButtons[this.focusedMenuIndex];
-        if (button) {
-            button.focus();
-            button.classList.add('focused');
-        }
-    }
-
-    removeFocusIndicators() {
-        this.menuButtons.forEach(btn => btn.classList.remove('focused'));
-    }
-
-    setupMenuClickHandlers() {
-        this.removeMenuClickHandlers();
-
-        this.menuButtons.forEach(button => {
-            const action = button.dataset.action;
-            let handler;
-            if (action === 'save') {
-                handler = () => { this.saveGame(); this.closeMenu(); };
-            } else if (action === 'medarotchi') {
-                handler = () => { this.openCustomizeScene(); this.closeMenu(); };
-            }
-            if (handler) {
-                button.addEventListener('click', handler);
-                this.menuClickHandlers.set(button, handler);
-            }
-        });
-    }
-
-    removeMenuClickHandlers() {
-        if (this.menuClickHandlers) {
-            this.menuClickHandlers.forEach((handler, button) => {
-                button.removeEventListener('click', handler);
-            });
-            this.menuClickHandlers.clear();
         }
     }
 
@@ -181,35 +115,30 @@ export class MapUISystem extends System {
     }
 
     showNpcInteraction(npc) {
-        if (!this.dom.interactionWindow || !this.mapUIState) return;
+        if (!this.mapUIState) return;
 
         this.mapUIState.isPausedByModal = true;
         this.mapUIState.modalJustOpened = true; 
 
-        this._cleanupInteractionHandlers();
-
         const closeWindow = () => {
-            this._cleanupInteractionHandlers();
-            this.dom.interactionWindow.classList.add('hidden');
+            this.uiManager.hideInteractionWindow();
             if (this.mapUIState) this.mapUIState.isPausedByModal = false;
         };
 
-        this._handlers.interactionConfirm = () => {
+        const onConfirm = () => {
             closeWindow();
             this.world.emit(GameEvents.NPC_INTERACTED, npc);
         };
 
-        this._handlers.interactionCancel = () => {
+        const onCancel = () => {
             closeWindow();
-            const canvas = document.getElementById('game-canvas');
-            if (canvas) canvas.focus();
+            // Canvasへのフォーカス戻しなどは本来GlobalなInput管理で行うべきだが、
+            // ここでは簡易的にDOMUtils等を使わずとも、クリックイベント終了でフォーカスが外れるのを防ぐ程度とする
+             document.getElementById('game-canvas')?.focus();
         };
 
-        this.dom.confirmBattleButton.addEventListener('click', this._handlers.interactionConfirm);
-        this.dom.cancelBattleButton.addEventListener('click', this._handlers.interactionCancel);
-
-        this.dom.interactionWindow.classList.remove('hidden');
-        this.dom.confirmBattleButton.focus();
+        this.uiManager.bindInteractionActions(onConfirm, onCancel);
+        this.uiManager.showInteractionWindow();
     }
 
     handleInteractionWindowInput() {
@@ -219,23 +148,21 @@ export class MapUISystem extends System {
         }
 
         if (this.input.wasKeyJustPressed('ArrowLeft') || this.input.wasKeyJustPressed('ArrowRight') || this.input.wasKeyJustPressed('ArrowUp') || this.input.wasKeyJustPressed('ArrowDown')) {
-            if (document.activeElement === this.dom.confirmBattleButton) {
-                this.dom.cancelBattleButton.focus();
+            // 現在のフォーカスを確認してトグルするロジックはManager側で持つべきだが、
+            // 簡易的にアクティブ要素を確認する
+            if (document.activeElement?.id === 'confirm-battle-button') {
+                this.uiManager.focusCancelButton();
             } else {
-                this.dom.confirmBattleButton.focus();
+                this.uiManager.focusConfirmButton();
             }
         }
 
         if (this.input.wasKeyJustPressed('z')) {
-            if (document.activeElement instanceof HTMLButtonElement) {
-                document.activeElement.click();
-            } else {
-                this.dom.confirmBattleButton.click();
-            }
+            this.uiManager.clickActiveButton();
         }
 
         if (this.input.wasKeyJustPressed('x')) {
-            this.dom.cancelBattleButton.click();
+            this.uiManager.clickCancelButton();
         }
     }
 }
