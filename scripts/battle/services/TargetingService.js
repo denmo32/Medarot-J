@@ -4,7 +4,8 @@
  */
 import { PlayerInfo, Parts } from '../../components/index.js';
 import { ActiveEffects } from '../components/index.js';
-import { EffectType, EffectScope } from '../../common/constants.js';
+import { EffectType, EffectScope, TargetTiming } from '../../common/constants.js';
+import { targetingStrategies } from '../ai/targetingStrategies.js';
 
 export class TargetingService {
 
@@ -54,6 +55,31 @@ export class TargetingService {
             guardianInfo: null,
             shouldCancel: false
         };
+    }
+
+    /**
+     * 移動後のタイミングでターゲットを決定する必要がある場合、戦略に基づいてターゲットを解決する
+     * @param {World} world 
+     * @param {number} executorId 
+     * @param {object} actionComp Action Component
+     */
+    static resolvePostMoveTarget(world, executorId, actionComp) {
+        const parts = world.getComponent(executorId, Parts);
+        if (!parts || !actionComp.partKey) return;
+        
+        const selectedPart = parts[actionComp.partKey];
+
+        // ターゲット未定 かつ POST_MOVEタイミングの場合のみ解決を試みる
+        if (selectedPart && selectedPart.targetTiming === TargetTiming.POST_MOVE && actionComp.targetId === null) {
+            const strategy = targetingStrategies[selectedPart.postMoveTargeting];
+            if (strategy) {
+                const targetData = strategy({ world, attackerId: executorId });
+                if (targetData) {
+                    actionComp.targetId = targetData.targetId;
+                    actionComp.targetPartKey = targetData.targetPartKey;
+                }
+            }
+        }
     }
 
     /**

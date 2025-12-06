@@ -1,25 +1,23 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの制御を行う。
- * EffectApplier導入により、状態更新ロジックを分離。
+ * ターゲット解決ロジックをTargetingServiceに委譲し、責務を分離。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType } from '../../common/constants.js';
 import { BattleContext } from '../../context/index.js';
 import { GameState, Action } from '../../components/index.js';
-import { Parts } from '../../../components/index.js';
 import { compareByPropulsion } from '../../utils/queryUtils.js';
-import { targetingStrategies } from '../../ai/targetingStrategies.js';
 import { BattleResolver } from '../../logic/BattleResolver.js';
 import { EffectApplier } from '../../logic/EffectApplier.js';
 import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
-import { TargetTiming } from '../../../common/constants.js';
 
 import { CooldownService } from '../../services/CooldownService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { PlayerStatusService } from '../../services/PlayerStatusService.js';
+import { TargetingService } from '../../services/TargetingService.js';
 
 export class BattleSequenceSystem extends System {
     constructor(world) {
@@ -112,14 +110,13 @@ export class BattleSequenceSystem extends System {
             return;
         }
 
-        // 2. 移動後ターゲット決定
-        this._determinePostMoveTarget(actorId, actionComp);
+        // 2. 移動後ターゲット決定 (TargetingServiceに委譲)
+        TargetingService.resolvePostMoveTarget(this.world, actorId, actionComp);
 
         // 3. 戦闘結果の計算 (Logic)
         const resultData = this.battleResolver.resolve(actorId);
 
         // 4. Logicデータの即時更新 (副作用の適用)
-        // EffectApplierを使用
         EffectApplier.applyResult(this.world, resultData);
         
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);
@@ -129,24 +126,6 @@ export class BattleSequenceSystem extends System {
         
         this.taskRunner.addTasks(tasks);
         this.battleContext.isSequenceRunning = true;
-    }
-
-    _determinePostMoveTarget(executorId, action) {
-        const parts = this.world.getComponent(executorId, Parts);
-        if (!parts || !action.partKey) return;
-        
-        const selectedPart = parts[action.partKey];
-
-        if (selectedPart && selectedPart.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
-            const strategy = targetingStrategies[selectedPart.postMoveTargeting];
-            if (strategy) {
-                const targetData = strategy({ world: this.world, attackerId: executorId });
-                if (targetData) {
-                    action.targetId = targetData.targetId;
-                    action.targetPartKey = targetData.targetPartKey;
-                }
-            }
-        }
     }
 
     onRequestResetToCooldown(detail) {
