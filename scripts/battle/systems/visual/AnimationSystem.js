@@ -10,33 +10,7 @@ import { Parts } from '../../../components/index.js';
 import { TaskType } from '../../tasks/BattleTasks.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
 import { EffectType } from '../../../common/constants.js';
-
-class Tween {
-    constructor({ target, property, start, end, duration, easing, onComplete }) {
-        this.target = target;
-        this.property = property;
-        this.start = start;
-        this.end = end;
-        this.duration = duration;
-        this.elapsed = 0;
-        this.easing = easing || ((t) => t);
-        this.onComplete = onComplete;
-        this.isFinished = false;
-    }
-
-    update(dt) {
-        this.elapsed += dt;
-        const progress = Math.min(this.elapsed / this.duration, 1.0);
-        const t = this.easing(progress);
-        
-        this.target[this.property] = this.start + (this.end - this.start) * t;
-
-        if (progress >= 1.0) {
-            this.isFinished = true;
-            if (this.onComplete) this.onComplete();
-        }
-    }
-}
+import { Tween } from '../../../../engine/utils/Tween.js';
 
 export class AnimationSystem extends System {
     constructor(world) {
