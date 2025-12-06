@@ -19,36 +19,42 @@ export class MapUISystem extends System {
 
         this.menuButtons = [];
         this.focusedMenuIndex = 0;
-        
-        this.boundToggleMenu = this.toggleMenu.bind(this);
-        this.boundShowNpcInteraction = this.showNpcInteraction.bind(this);
         this.menuClickHandlers = new Map();
         
+        this._handlers = {
+            toggleMenu: this.toggleMenu.bind(this),
+            showNpcInteraction: this.showNpcInteraction.bind(this),
+            interactionConfirm: null,
+            interactionCancel: null
+        };
+
         this.bindWorldEvents();
     }
 
     bindWorldEvents() {
-        this.on(GameEvents.MENU_TOGGLE_REQUESTED, this.boundToggleMenu);
-        this.on(GameEvents.NPC_INTERACTION_REQUESTED, this.boundShowNpcInteraction);
+        this.on(GameEvents.MENU_TOGGLE_REQUESTED, this._handlers.toggleMenu);
+        this.on(GameEvents.NPC_INTERACTION_REQUESTED, this._handlers.showNpcInteraction);
     }
     
     destroy() {
         this.removeMenuClickHandlers();
+        this._cleanupInteractionHandlers();
         
-        if (this.interactionConfirmHandler && this.dom.confirmBattleButton) {
-            this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
-        }
-        if (this.interactionCancelHandler && this.dom.cancelBattleButton) {
-            this.dom.cancelBattleButton.removeEventListener('click', this.interactionCancelHandler);
-        }
+        if (this.dom.menu) this.dom.menu.classList.add('hidden');
+        if (this.dom.interactionWindow) this.dom.interactionWindow.classList.add('hidden');
         
-        if (this.dom.menu) {
-            this.dom.menu.classList.add('hidden');
-        }
-        if (this.dom.interactionWindow) {
-            this.dom.interactionWindow.classList.add('hidden');
-        }
         super.destroy();
+    }
+    
+    _cleanupInteractionHandlers() {
+        if (this._handlers.interactionConfirm) {
+            this.dom.confirmBattleButton?.removeEventListener('click', this._handlers.interactionConfirm);
+            this._handlers.interactionConfirm = null;
+        }
+        if (this._handlers.interactionCancel) {
+            this.dom.cancelBattleButton?.removeEventListener('click', this._handlers.interactionCancel);
+            this._handlers.interactionCancel = null;
+        }
     }
 
     update(deltaTime) {
@@ -180,41 +186,27 @@ export class MapUISystem extends System {
         this.mapUIState.isPausedByModal = true;
         this.mapUIState.modalJustOpened = true; 
 
-        if (this.interactionConfirmHandler) {
-            this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
-        }
-        if (this.interactionCancelHandler) {
-            this.dom.cancelBattleButton.removeEventListener('click', this.interactionCancelHandler);
-        }
+        this._cleanupInteractionHandlers();
 
-        const cleanup = () => {
-            if (this.interactionConfirmHandler) {
-                this.dom.confirmBattleButton.removeEventListener('click', this.interactionConfirmHandler);
-                this.interactionConfirmHandler = null;
-            }
-            if (this.interactionCancelHandler) {
-                this.dom.cancelBattleButton.removeEventListener('click', this.interactionCancelHandler);
-                this.interactionCancelHandler = null;
-            }
+        const closeWindow = () => {
+            this._cleanupInteractionHandlers();
             this.dom.interactionWindow.classList.add('hidden');
-            if (this.mapUIState) {
-                this.mapUIState.isPausedByModal = false;
-            }
+            if (this.mapUIState) this.mapUIState.isPausedByModal = false;
         };
 
-        this.interactionConfirmHandler = () => {
-            cleanup();
+        this._handlers.interactionConfirm = () => {
+            closeWindow();
             this.world.emit(GameEvents.NPC_INTERACTED, npc);
         };
 
-        this.interactionCancelHandler = () => {
-            cleanup();
+        this._handlers.interactionCancel = () => {
+            closeWindow();
             const canvas = document.getElementById('game-canvas');
             if (canvas) canvas.focus();
         };
 
-        this.dom.confirmBattleButton.addEventListener('click', this.interactionConfirmHandler);
-        this.dom.cancelBattleButton.addEventListener('click', this.interactionCancelHandler);
+        this.dom.confirmBattleButton.addEventListener('click', this._handlers.interactionConfirm);
+        this.dom.cancelBattleButton.addEventListener('click', this._handlers.interactionCancel);
 
         this.dom.interactionWindow.classList.remove('hidden');
         this.dom.confirmBattleButton.focus();

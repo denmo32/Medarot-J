@@ -98,22 +98,25 @@ export class GameDataManager {
     }
 
     _migrateSaveData() {
-        let needsSave = false;
-        if (this._migratePartsInventory()) needsSave = true;
-        if (this._migrateMedalsInventory()) needsSave = true;
-        if (this._migrateMedarots()) needsSave = true;
-        if (this._migratePlayerPosition()) needsSave = true;
-        return needsSave;
+        const migrations = [
+            this._migratePartsInventory.bind(this),
+            this._migrateMedalsInventory.bind(this),
+            this._migrateMedarots.bind(this),
+            this._migratePlayerPosition.bind(this)
+        ];
+
+        return migrations.reduce((needsSave, migration) => migration() || needsSave, false);
     }
 
     _migratePartsInventory() {
-        if (this.gameData.playerPartsInventory?.head?.head_001?.name) {
-            console.log('Old save data detected. Upgrading parts inventory.');
+        const inv = this.gameData.playerPartsInventory;
+        if (inv?.head?.head_001?.name) {
+            console.log('Migrating parts inventory...');
             const newInventory = {};
             for (const partType in PARTS_DATA) {
                 newInventory[partType] = {};
                 for (const partId in PARTS_DATA[partType]) {
-                    if (this.gameData.playerPartsInventory[partType]?.[partId]) {
+                    if (inv[partType]?.[partId]) {
                         newInventory[partType][partId] = { count: 1 };
                     }
                 }
@@ -126,7 +129,7 @@ export class GameDataManager {
 
     _migrateMedalsInventory() {
         if (!this.gameData.playerMedalsInventory || !this.gameData.playerMedalsInventory.kabuto?.count) {
-            console.log('Old save data detected. Upgrading medals inventory.');
+            console.log('Migrating medals inventory...');
             const newMedalsInventory = {};
             for (const medalId in MEDALS_DATA) {
                 newMedalsInventory[medalId] = { count: 1 };
@@ -145,8 +148,8 @@ export class GameDataManager {
                 updated = true;
             }
         });
-        if (!this.gameData.playerMedarots || this.gameData.playerMedarots.length < 3) {
-            console.log('Incomplete medarot data. Completing with default medarots.');
+        if (this.gameData.playerMedarots.length < 3) {
+            console.log('Completing missing medarots...');
             const existingIds = new Set(this.gameData.playerMedarots.map(m => m.id));
             const medarotsToAppend = defaultPlayerMedarots.filter(m => !existingIds.has(m.id));
             this.gameData.playerMedarots.push(...medarotsToAppend.slice(0, 3 - this.gameData.playerMedarots.length));

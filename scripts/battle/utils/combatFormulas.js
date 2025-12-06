@@ -21,6 +21,14 @@ export class CombatStrategy {
 
 class DefaultCombatStrategy extends CombatStrategy {
     
+    /**
+     * ステータス値に補正を適用して取得するヘルパー
+     */
+    _getModifiedStat(world, entityId, statName, baseVal, context) {
+        const modifier = EffectService.getStatModifier(world, entityId, statName, context);
+        return baseVal + modifier;
+    }
+
     calculateEvasionChance({ world, attackerId, targetLegs, attackingPart, calcParams }) {
         if (!targetLegs || !attackingPart) return 0;
 
@@ -34,8 +42,7 @@ class DefaultCombatStrategy extends CombatStrategy {
              if (attackerParts) context.attackerLegs = attackerParts.legs;
         }
 
-        const successModifier = EffectService.getStatModifier(world, attackerId, baseStat, context);
-        const adjustedSuccess = success + successModifier;
+        const adjustedSuccess = this._getModifiedStat(world, attackerId, baseStat, success, context);
         
         const formula = CONFIG.FORMULAS.EVASION;
         const mobilityAdvantage = mobility - adjustedSuccess;
@@ -47,9 +54,7 @@ class DefaultCombatStrategy extends CombatStrategy {
     calculateDefenseChance({ targetLegs }) {
         if (!targetLegs) return 0;
         
-        const armor = targetLegs.armor;
-        if (typeof armor !== 'number') return 0;
-
+        const armor = targetLegs.armor || 0;
         const formula = CONFIG.FORMULAS.DEFENSE;
         const defenseChance = armor / formula.ARMOR_DIVISOR + formula.BASE_CHANCE;
 
@@ -79,20 +84,19 @@ class DefaultCombatStrategy extends CombatStrategy {
         const powerStatKey = calcParams?.powerStat || 'might';
         const defenseStatKey = calcParams?.defenseStat || 'armor';
 
-        let baseVal = attackingPart[baseStatKey] ?? 0;
-        let powerVal = attackingPart[powerStatKey] ?? 0;
-        const mobility = targetLegs.mobility ?? 0;
-        let defenseVal = targetLegs[defenseStatKey] ?? 0;
-
         const context = { attackingPart, attackerLegs };
-        const baseBonus = EffectService.getStatModifier(world, attackerId, baseStatKey, context);
-        const powerBonus = EffectService.getStatModifier(world, attackerId, powerStatKey, context);
 
-        baseVal += baseBonus;
-        powerVal += powerBonus;
+        const baseVal = this._getModifiedStat(
+            world, attackerId, baseStatKey, attackingPart[baseStatKey] ?? 0, context
+        );
+        const powerVal = this._getModifiedStat(
+            world, attackerId, powerStatKey, attackingPart[powerStatKey] ?? 0, context
+        );
 
+        const mobility = targetLegs.mobility ?? 0;
+        const defenseBase = targetLegs[defenseStatKey] ?? 0;
         const stabilityDefenseBonus = Math.floor((targetLegs.stability || 0) / 2);
-        defenseVal += stabilityDefenseBonus;
+        const defenseVal = defenseBase + stabilityDefenseBonus;
         
         let damageBase;
         if (isCritical) {
@@ -123,7 +127,6 @@ class DefaultCombatStrategy extends CombatStrategy {
         
         let multiplier = 1.0 + (performanceScore * impactFactor);
         
-        // 修正: world, entityId を渡す
         const modifier = EffectService.getSpeedMultiplierModifier(world, entityId, part);
         multiplier *= modifier;
 

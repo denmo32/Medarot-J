@@ -1,4 +1,3 @@
 export { PlayerInfo } from './PlayerInfo.js';
 export { Parts } from './Parts.js';
 export { Medal } from './Medal.js';
-export { Team } from './Team.js';
