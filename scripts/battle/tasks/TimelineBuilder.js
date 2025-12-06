@@ -11,7 +11,7 @@ import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
 import { MessageGenerator } from '../utils/MessageGenerator.js';
 import { CooldownService } from '../services/CooldownService.js';
-import { EffectRegistry } from '../definitions/EffectRegistry.js'; // 変更
+import { EffectRegistry } from '../definitions/EffectRegistry.js';
 
 export class TimelineBuilder {
     constructor(world) {
@@ -36,20 +36,14 @@ export class TimelineBuilder {
         }
 
         // 2. 攻撃宣言メッセージ
+        // 修正: 複数のメッセージがある場合に対応 (ガーディアン発動メッセージなど)
         const declarationSeq = this.messageGenerator.createDeclarationSequence(resultData);
-        if (declarationSeq.length > 0) {
-            const text = declarationSeq[0].text;
-            tasks.push(createDialogTask(text, { modalType: ModalType.ATTACK_DECLARATION }));
-        }
+        declarationSeq.forEach(msg => {
+            tasks.push(createDialogTask(msg.text, { modalType: ModalType.ATTACK_DECLARATION }));
+        });
 
         // 3. 結果演出 (EffectRegistryに委譲)
         if (appliedEffects && appliedEffects.length > 0) {
-            // 複数の効果がある場合、最初の効果タイプに基づいてタスクを一括生成する方式をとるか、
-            // 効果ごとに生成して結合するか。現状の設計ではメインの効果タイプ（先頭）に依存する形が自然。
-            // ただし、Scanのようにチーム全体にかかるものはまとめて1つ、
-            // ダメージのように連続するものはまとめてシーケンス化したい。
-            // EffectRegistry.createTasks に全効果を渡して、Effect側で判断させる。
-
             const mainEffectType = appliedEffects[0].type;
             const resultTasks = EffectRegistry.createTasks(mainEffectType, {
                 world: this.world,

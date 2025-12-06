@@ -2,11 +2,11 @@ import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { ModalType } from '../../common/constants.js';
+import { EffectScope } from '../../../common/constants.js'; // 修正
 import { getAllActionParts } from '../../utils/queryUtils.js';
 import { decideAndEmitAction } from '../../utils/actionUtils.js';
 import { determineTargetCandidatesByPersonality } from '../../ai/aiDecisionUtils.js';
 import { determineActionPlans } from '../../utils/targetingUtils.js';
-import { PartInfo } from '../../../common/constants.js';
 
 export class InputSystem extends System {
     constructor(world) {
@@ -21,6 +21,7 @@ export class InputSystem extends System {
         const context = { world: this.world, entityId };
 
         const { candidates: targetCandidates } = determineTargetCandidatesByPersonality(context);
+        
         if (!targetCandidates || targetCandidates.length === 0) {
             console.warn(`Player ${entityId}: No valid target candidates found. Re-queueing.`);
             this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
@@ -28,22 +29,22 @@ export class InputSystem extends System {
         }
 
         const actionPlans = determineActionPlans({ ...context, targetCandidates });
-        if (actionPlans.length === 0) {
-            console.warn(`Player ${entityId}: No attackable parts available.`);
-            this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
-            return;
-        }
-
         const allPossibleParts = getAllActionParts(this.world, entityId);
 
         const buttonsData = allPossibleParts.map(([partKey, part]) => {
             const plan = actionPlans.find(p => p.partKey === partKey);
+            let targetToSet = plan ? plan.target : null;
+
+            if (part.targetScope === EffectScope.ALLY_TEAM || part.targetScope === EffectScope.SELF) {
+                targetToSet = null;
+            }
+
             return {
                 text: `${part.name} (${part.type})`,
                 partKey: partKey,
                 isBroken: part.isBroken,
                 action: part.action,
-                target: plan ? plan.target : null
+                target: targetToSet
             };
         });
 

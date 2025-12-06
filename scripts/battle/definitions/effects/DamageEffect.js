@@ -95,9 +95,14 @@ export const DamageEffect = {
                 );
                 if (isGuardPart) {
                     isGuardBroken = true;
+                    // ガード解除イベントとクールダウン移行リクエストを発行
                     events.push({
                         type: GameEvents.GUARD_BROKEN,
                         payload: { entityId: targetId }
+                    });
+                    events.push({
+                        type: GameEvents.REQUEST_RESET_TO_COOLDOWN,
+                        payload: { entityId: targetId, options: {} }
                     });
                 }
             }
@@ -105,10 +110,7 @@ export const DamageEffect = {
 
         const overkillDamage = value - actualDamage;
 
-        // 状態更新 (EffectApplierで行っていた処理の一部もここで責務を持つ)
-        // ※ ただし、純粋関数性を保つため、ここでは「こう更新すべき」という情報を返し、
-        // 実際の書き込みは共通のApplierが担うか、ここで行ってしまうか。
-        // リファクタリング方針として「凝集度向上」なので、ここで書き換えてしまうのが自然。
+        // 状態更新
         part.hp = newHp;
         if (isPartBroken) {
             part.isBroken = true;
