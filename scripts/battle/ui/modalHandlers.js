@@ -7,7 +7,6 @@ import { CONFIG } from '../common/config.js';
 const NAVIGATION_MAP = {
     [PartInfo.HEAD.key]: {
         arrowdown: [PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key],
-        // 修正: 左キーで右腕(向かって左)、右キーで左腕(向かって右)に遷移
         arrowleft: [PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key],
         arrowright: [PartInfo.LEFT_ARM.key, PartInfo.RIGHT_ARM.key],
     },
@@ -57,7 +56,8 @@ export const createModalHandlers = (systemInstance) => ({
                 const buttonData = getBtnData(partKey);
                 if (!buttonData || !buttonData.target || buttonData.target.targetId === null) return;
                 
-                const targetDom = system.uiManager.getDOMElements(buttonData.target.targetId);
+                // engineUIManager を使用してターゲットインジケータを操作
+                const targetDom = system.engineUIManager.getDOMElements(buttonData.target.targetId);
                 if (targetDom?.targetIndicatorElement) {
                     targetDom.targetIndicatorElement.classList.toggle('active', show);
                 }
@@ -107,7 +107,7 @@ export const createModalHandlers = (systemInstance) => ({
                 const buttonData = system.currentModalData?.buttons.find(b => b.partKey === partKey);
                 if (!buttonData || !buttonData.target || buttonData.target.targetId === null) return;
 
-                const targetDom = system.uiManager.getDOMElements(buttonData.target.targetId);
+                const targetDom = system.engineUIManager.getDOMElements(buttonData.target.targetId);
                 if (targetDom?.targetIndicatorElement) {
                      targetDom.targetIndicatorElement.classList.toggle('active', show);
                 }
@@ -118,18 +118,18 @@ export const createModalHandlers = (systemInstance) => ({
                 
                 if (system.focusedButtonKey) {
                     _updateTargetHighlight(system.focusedButtonKey, false);
-                    const oldButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${system.focusedButtonKey}`);
-                    if (oldButton) oldButton.classList.remove('focused');
+                    system.battleUI.setButtonFocus(system.focusedButtonKey, false);
                 }
                 
                 _updateTargetHighlight(newKey, true);
-                const newButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${newKey}`);
-                if (newButton) {
-                    newButton.classList.add('focused');
-                    system.focusedButtonKey = newKey;
-                } else {
-                    system.focusedButtonKey = null;
-                }
+                // ボタンの存在確認は BattleUIManager 側で行う
+                system.battleUI.setButtonFocus(newKey, true);
+                
+                // system.battleUI.setButtonFocus は DOM要素がない場合何もしないので、
+                // 実際にフォーカスが当たったかどうかを確認するには、DOMを参照するか、
+                // ロジックを信頼してキー更新を行う。ここでは後者。
+                // ただし、ボタンが無効化されている場合などの考慮が必要であれば調整する。
+                system.focusedButtonKey = newKey;
             };
 
             const availableButtons = system.currentModalData?.buttons.filter(b => !b.isBroken);
@@ -154,8 +154,7 @@ export const createModalHandlers = (systemInstance) => ({
         },
         handleConfirm: (system) => {
             if (!system.focusedButtonKey) return;
-            const focusedButton = system.dom.actionPanelButtons.querySelector(`#panelBtn-${system.focusedButtonKey}`);
-            if (focusedButton && !focusedButton.disabled) focusedButton.click();
+            system.battleUI.triggerButtonClick(system.focusedButtonKey);
         },
         init: (system, data) => {
             const available = data.buttons.filter(b => !b.isBroken);

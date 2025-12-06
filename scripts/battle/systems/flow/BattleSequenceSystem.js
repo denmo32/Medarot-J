@@ -1,31 +1,24 @@
 /**
  * @file BattleSequenceSystem.js
- * @description アクション実行シーケンスの制御を行う。
- * ターゲット解決ロジックをTargetingServiceに委譲し、責務を分離。
+ * @description アクション実行シーケンスの制御を行うシステム。
+ * ロジックはActionSequenceServiceに委譲し、タスクの実行管理に集中する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType } from '../../common/constants.js';
 import { BattleContext } from '../../context/index.js';
 import { GameState, Action } from '../../components/index.js';
-import { compareByPropulsion } from '../../utils/queryUtils.js';
-import { BattleResolver } from '../../logic/BattleResolver.js';
-import { EffectApplier } from '../../logic/EffectApplier.js';
 import { TaskRunner } from '../../tasks/TaskRunner.js';
-import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
-
+import { ActionSequenceService } from '../../services/ActionSequenceService.js';
 import { CooldownService } from '../../services/CooldownService.js';
 import { CancellationService } from '../../services/CancellationService.js';
-import { PlayerStatusService } from '../../services/PlayerStatusService.js';
-import { TargetingService } from '../../services/TargetingService.js';
 
 export class BattleSequenceSystem extends System {
     constructor(world) {
         super(world);
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         
-        this.battleResolver = new BattleResolver(world);
-        this.timelineBuilder = new TimelineBuilder(world);
+        this.service = new ActionSequenceService(world);
         this.taskRunner = new TaskRunner(world);
         
         this.executionQueue = [];
@@ -43,7 +36,8 @@ export class BattleSequenceSystem extends System {
             return;
         }
         
-        this._populateExecutionQueueFromReady();
+        // 実行キューの構築をサービスに委譲
+        this.executionQueue = this.service.getSortedReadyEntities();
         this._processNextInQueue();
     }
 
@@ -79,16 +73,6 @@ export class BattleSequenceSystem extends System {
         this.battleContext.isSequenceRunning = false;
     }
 
-    _populateExecutionQueueFromReady() {
-        const readyEntities = this.getEntities(GameState).filter(id => {
-            const state = this.world.getComponent(id, GameState);
-            return state.state === PlayerStateType.READY_EXECUTE;
-        });
-
-        readyEntities.sort(compareByPropulsion(this.world));
-        this.executionQueue = readyEntities;
-    }
-
     _startNextActionSequence() {
         const actorId = this.executionQueue.shift();
         if (!this.isValidEntity(actorId)) {
@@ -97,35 +81,18 @@ export class BattleSequenceSystem extends System {
         }
 
         this.currentActorId = actorId;
-        const actionComp = this.world.getComponent(actorId, Action);
 
-        // 状態遷移: アニメーション待機へ
-        PlayerStatusService.transitionTo(this.world, actorId, PlayerStateType.AWAITING_ANIMATION);
+        // シーケンス実行処理をサービスに委譲
+        const { tasks, isCancelled } = this.service.executeSequence(actorId);
 
-        // 1. 実行直前のキャンセルチェック
-        const cancelCheck = CancellationService.checkCancellation(this.world, actorId);
-        if (cancelCheck.shouldCancel) {
-            CancellationService.executeCancel(this.world, actorId, cancelCheck.reason);
-            CooldownService.resetEntityStateToCooldown(this.world, actorId, { interrupted: true });
-            return;
+        if (isCancelled) {
+            // キャンセル時は即座に次へ（TaskRunnerには何も積まれていない）
+            this.currentActorId = null; // 即時終了扱い
+            this._processNextInQueue();
+        } else {
+            this.taskRunner.addTasks(tasks);
+            this.battleContext.isSequenceRunning = true;
         }
-
-        // 2. 移動後ターゲット決定 (TargetingServiceに委譲)
-        TargetingService.resolvePostMoveTarget(this.world, actorId, actionComp);
-
-        // 3. 戦闘結果の計算 (Logic)
-        const resultData = this.battleResolver.resolve(actorId);
-
-        // 4. Logicデータの即時更新 (副作用の適用)
-        EffectApplier.applyResult(this.world, resultData);
-        
-        this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);
-
-        // 5. 演出タスクの構築と実行 (Visual)
-        const tasks = this.timelineBuilder.buildAttackSequence(resultData);
-        
-        this.taskRunner.addTasks(tasks);
-        this.battleContext.isSequenceRunning = true;
     }
 
     onRequestResetToCooldown(detail) {

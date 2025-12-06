@@ -1,13 +1,14 @@
 /**
  * @file ActionPanelSystem.js
  * @description アクションパネルおよびモーダル表示を管理するシステム。
- * TaskRunnerからのコールバック実行に対応し、modalQueue内にコールバックを保持する。
+ * DOM操作はBattleUIManagerに委譲し、入力処理と状態遷移に集中する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { ModalType } from '../../common/constants.js';
 import { InputManager } from '../../../../engine/input/InputManager.js';
-import { UIManager } from '../../../../engine/ui/UIManager.js';
+import { UIManager } from '../../../../engine/ui/UIManager.js'; // エンジンのUIManager
+import { BattleUIManager } from '../../ui/BattleUIManager.js'; // 新規作成したUIマネージャ
 import { BattleUIState } from '../../components/index.js';
 import { createModalHandlers } from '../../ui/modalHandlers.js';
 import { PlayerInfo } from '../../../components/index.js';
@@ -16,31 +17,27 @@ import { TaskType } from '../../tasks/BattleTasks.js';
 export class ActionPanelSystem extends System {
     constructor(world) {
         super(world);
-        this.uiManager = this.world.getSingletonComponent(UIManager);
+        // エンジンのUIManager (エンティティとDOMの紐付け用)
+        this.engineUIManager = this.world.getSingletonComponent(UIManager);
+        
         this.inputManager = this.world.getSingletonComponent(InputManager);
         this.uiState = this.world.getSingletonComponent(BattleUIState);
         
-        this.dom = {
-            actionPanel: document.getElementById('action-panel'),
-            actionPanelOwner: document.getElementById('action-panel-owner'),
-            actionPanelTitle: document.getElementById('action-panel-title'),
-            actionPanelActor: document.getElementById('action-panel-actor'),
-            actionPanelButtons: document.getElementById('action-panel-buttons'),
-            actionPanelIndicator: document.getElementById('action-panel-indicator')
-        };
+        // バトル専用UIマネージャ (パネル操作用)
+        this.battleUI = new BattleUIManager();
 
         this.currentHandler = null;
         this.boundHandlePanelClick = null;
 
         this.modalHandlers = createModalHandlers(this);
         this.bindWorldEvents();
+        
+        // 初期化時にパネルを非表示
         this.hideActionPanel();
     }
     
     destroy() {
-        if (this.boundHandlePanelClick) {
-            this.dom.actionPanel.removeEventListener('click', this.boundHandlePanelClick);
-        }
+        this.battleUI.removePanelClickListener(this.boundHandlePanelClick);
         super.destroy();
     }
     
@@ -87,7 +84,7 @@ export class ActionPanelSystem extends System {
             data: task.data,
             messageSequence: task.messageSequence,
             taskId: task.id,
-            onComplete: task.onComplete // コールバックをキューに渡す
+            onComplete: task.onComplete
         });
     }
 
@@ -106,7 +103,6 @@ export class ActionPanelSystem extends System {
         if (this.uiState.modalQueue.length > 0) {
             this.uiState.isProcessingQueue = true;
             const modalRequest = this.uiState.modalQueue.shift();
-            // onComplete コールバックは currentModalCallback として状態に保持
             this.uiState.currentModalCallback = modalRequest.onComplete || null;
             this._showModal(modalRequest);
         } else {
@@ -159,13 +155,11 @@ export class ActionPanelSystem extends System {
             originalData: currentModalData,
         });
 
-        // コールバックが存在すれば実行して、タスクランナーへ完了を通知
         if (typeof currentModalCallback === 'function') {
             currentModalCallback();
         }
 
         if (currentModalType === ModalType.ATTACK_DECLARATION && this.uiState.modalQueue.length > 0) {
-            // 攻撃宣言などの後ですぐに次のモーダルがある場合はパネルを閉じずに次へ
             this.uiState.isProcessingQueue = false;
             this._processModalQueue();
         } else {
@@ -182,12 +176,19 @@ export class ActionPanelSystem extends System {
         }
         
         this.uiState.isWaitingForAnimation = false;
-        this.resetPanelDOM();
+        
+        // UI更新はBattleUIManagerに委譲
+        this.battleUI.resetPanel();
         
         const handler = this.currentHandler;
         const displayData = { ...this.uiState.currentModalData, currentMessage: currentStep };
 
-        this._updatePanelText(handler, displayData);
+        const ownerName = handler.getOwnerName?.(displayData) || '';
+        const title = handler.getTitle?.(displayData) || '';
+        const actorName = handler.getActorName?.(displayData) || '';
+
+        this.battleUI.updatePanelText(ownerName, title, actorName);
+        
         this._updatePanelButtons(handler, displayData);
         
         if (handler.init) {
@@ -197,38 +198,31 @@ export class ActionPanelSystem extends System {
 
     _waitForAnimation(step) {
         this.uiState.isWaitingForAnimation = true;
-        this.dom.actionPanel.classList.remove('clickable');
-        this.dom.actionPanelIndicator.classList.add('hidden');
+        this.battleUI.setPanelClickable(false);
+        this.battleUI.hideIndicator();
         
         const effectsToAnimate = step.effects || this.uiState.currentModalData.appliedEffects || [];
-        
         this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { appliedEffects: effectsToAnimate });
     }
 
-    _updatePanelText(handler, displayData) {
-        this.dom.actionPanelOwner.textContent = handler.getOwnerName?.(displayData) || '';
-        this.dom.actionPanelTitle.textContent = handler.getTitle?.(displayData) || '';
-        this.dom.actionPanelActor.innerHTML = handler.getActorName?.(displayData) || '';
-    }
-
     _updatePanelButtons(handler, displayData) {
-        this.dom.actionPanelButtons.innerHTML = '';
+        this.battleUI.clearButtons();
         
         if (typeof handler.createContent === 'function') {
             const contentElement = handler.createContent(this, displayData);
             if (contentElement instanceof HTMLElement) {
-                this.dom.actionPanelButtons.appendChild(contentElement);
+                this.battleUI.addButtonContent(contentElement);
             }
         }
 
         if (handler.isClickable) {
-            this.dom.actionPanelIndicator.classList.remove('hidden');
-            this.dom.actionPanel.classList.add('clickable');
+            this.battleUI.showIndicator();
+            this.battleUI.setPanelClickable(true);
             
             if (!this.boundHandlePanelClick) {
                 this.boundHandlePanelClick = () => handler.handleConfirm?.(this, this.uiState.currentModalData);
             }
-            this.dom.actionPanel.addEventListener('click', this.boundHandlePanelClick);
+            this.battleUI.setPanelClickListener(this.boundHandlePanelClick);
         }
     }
     
@@ -239,7 +233,7 @@ export class ActionPanelSystem extends System {
         }
         
         this._resetState();
-        this.resetPanelDOM();
+        this.battleUI.resetPanel();
         this.resetHighlightsAndFocus();
         
         this._processModalQueue();
@@ -248,7 +242,6 @@ export class ActionPanelSystem extends System {
     _resetState() {
         if (this.uiState) {
             this.uiState.reset();
-            // コールバックもリセット
             this.uiState.currentModalCallback = null;
         }
         this.currentHandler = null;
@@ -260,32 +253,16 @@ export class ActionPanelSystem extends System {
             this.proceedToNextSequence();
         }
     }
-
-    resetPanelDOM() {
-        const { dom } = this;
-        dom.actionPanelOwner.textContent = '';
-        dom.actionPanelTitle.textContent = '';
-        dom.actionPanelActor.innerHTML = '待機中...';
-        dom.actionPanelButtons.innerHTML = '';
-        dom.actionPanelIndicator.classList.add('hidden');
-        dom.actionPanel.classList.remove('clickable');
-        
-        if (this.boundHandlePanelClick) {
-            dom.actionPanel.removeEventListener('click', this.boundHandlePanelClick);
-            this.boundHandlePanelClick = null;
-        }
-    }
     
     resetHighlightsAndFocus() {
         const allPlayerIds = this.getEntities(PlayerInfo);
         allPlayerIds.forEach(id => {
-            const dom = this.uiManager.getDOMElements(id);
+            const dom = this.engineUIManager.getDOMElements(id);
             if (dom?.targetIndicatorElement) dom.targetIndicatorElement.classList.remove('active');
         });
 
         if (this.uiState.focusedButtonKey) {
-            const oldButton = this.dom.actionPanelButtons.querySelector(`#panelBtn-${this.uiState.focusedButtonKey}`);
-            if (oldButton) oldButton.classList.remove('focused');
+            this.battleUI.setButtonFocus(this.uiState.focusedButtonKey, false);
         }
         this.uiState.focusedButtonKey = null;
     }
