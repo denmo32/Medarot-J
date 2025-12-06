@@ -1,5 +1,4 @@
 import { System } from '../../../engine/core/System.js';
-import { GameDataManager } from '../../managers/GameDataManager.js';
 import { PartKeyToInfoMap, EquipSlotType } from '../../common/constants.js';
 import { CustomizeState } from '../components/CustomizeState.js';
 import { GameEvents } from '../../common/events.js';
@@ -12,9 +11,13 @@ const focusTransitionMap = {
 };
 
 export class CustomizeUISystem extends System {
-    constructor(world) {
+    /**
+     * @param {World} world 
+     * @param {GameDataManager} gameDataManager 依存性注入
+     */
+    constructor(world, gameDataManager) {
         super(world);
-        this.dataManager = new GameDataManager();
+        this.dataManager = gameDataManager;
         this.uiState = this.world.getSingletonComponent(CustomizeState);
         this.uiManager = new CustomizeUIManager();
 

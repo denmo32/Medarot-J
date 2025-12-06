@@ -14,7 +14,7 @@ export class BattleScene extends Scene {
         console.log("Initializing Battle Scene...");
         const { gameDataManager } = data;
 
-        this._setupSystems();
+        this._setupSystems(gameDataManager);
         this._setupEntities(gameDataManager);
         this._setupBattleContext();
         this._bindEvents(gameDataManager);
@@ -23,8 +23,8 @@ export class BattleScene extends Scene {
         this.world.emit(GameEvents.GAME_START_CONFIRMED);
     }
 
-    _setupSystems() {
-        initializeSystems(this.world);
+    _setupSystems(gameDataManager) {
+        initializeSystems(this.world, gameDataManager);
     }
 
     _setupEntities(gameDataManager) {

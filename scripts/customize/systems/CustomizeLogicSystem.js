@@ -1,11 +1,14 @@
 import { System } from '../../../engine/core/System.js';
-import { GameDataManager } from '../../managers/GameDataManager.js';
 import { GameEvents } from '../../common/events.js';
 
 export class CustomizeLogicSystem extends System {
-    constructor(world) {
+    /**
+     * @param {World} world 
+     * @param {GameDataManager} gameDataManager 依存性注入
+     */
+    constructor(world, gameDataManager) {
         super(world);
-        this.dataManager = new GameDataManager();
+        this.dataManager = gameDataManager;
 
         this.on(GameEvents.EQUIP_PART_REQUESTED, this.onEquipPartRequested.bind(this));
         this.on(GameEvents.EQUIP_MEDAL_REQUESTED, this.onEquipMedalRequested.bind(this));

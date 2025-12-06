@@ -2,7 +2,7 @@ import { BattleContext } from './BattleContext.js';
 import { BattleUIState } from '../components/index.js';
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
-import { VisualDirectorSystem } from '../systems/visual/VisualDirectorSystem.js'; // 追加
+import { VisualDirectorSystem } from '../systems/visual/VisualDirectorSystem.js';
 import { ActionPanelSystem } from '../systems/ui/ActionPanelSystem.js';
 import { GaugeSystem } from '../systems/mechanics/GaugeSystem.js';
 import { StateSystem } from '../systems/mechanics/StateSystem.js';
@@ -23,7 +23,7 @@ import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 import { UIManager } from '../../../engine/ui/UIManager.js';
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
-export function initializeSystems(world) {
+export function initializeSystems(world, gameDataManager) {
     const contextEntity = world.createEntity();
     world.addComponent(contextEntity, new BattleContext());
     world.addComponent(contextEntity, new BattleUIState());
@@ -35,7 +35,7 @@ export function initializeSystems(world) {
     // --- Visual Systems ---
     const renderSystem = new RenderSystem(world);
     const animationSystem = new AnimationSystem(world);
-    const visualDirectorSystem = new VisualDirectorSystem(world); // 追加
+    const visualDirectorSystem = new VisualDirectorSystem(world);
 
     const actionPanelSystem = new ActionPanelSystem(world);
     const gameFlowSystem = new GameFlowSystem(world);
@@ -74,7 +74,7 @@ export function initializeSystems(world) {
     world.registerSystem(effectSystem);
 
     // Visual系システム
-    world.registerSystem(visualDirectorSystem); // 登録
+    world.registerSystem(visualDirectorSystem);
     world.registerSystem(animationSystem);
     world.registerSystem(renderSystem);
     

@@ -11,10 +11,12 @@ import { GameEvents } from '../common/events.js';
 export class CustomizeScene extends Scene {
     constructor(world, sceneManager) {
         super(world, sceneManager);
+        this.gameDataManager = null;
     }
 
     init(data) {
         console.log("Initializing Customize Scene...");
+        this.gameDataManager = data.gameDataManager;
         
         this._setupContexts();
         this._setupSystems();
@@ -27,9 +29,10 @@ export class CustomizeScene extends Scene {
     }
 
     _setupSystems() {
-        this.world.registerSystem(new CustomizeUISystem(this.world));
+        // GameDataManagerをSystemに注入する
+        this.world.registerSystem(new CustomizeUISystem(this.world, this.gameDataManager));
         this.world.registerSystem(new CustomizeInputSystem(this.world));
-        this.world.registerSystem(new CustomizeLogicSystem(this.world));
+        this.world.registerSystem(new CustomizeLogicSystem(this.world, this.gameDataManager));
     }
 
     _bindEvents() {
