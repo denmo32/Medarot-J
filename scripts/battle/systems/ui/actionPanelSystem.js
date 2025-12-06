@@ -8,9 +8,9 @@ import { GameEvents } from '../../../common/events.js';
 import { ModalType } from '../../common/constants.js';
 import { InputManager } from '../../../../engine/input/InputManager.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js'; // エンジンのUIManager
-import { BattleUIManager } from '../../ui/BattleUIManager.js'; // 新規作成したUIマネージャ
+import { BattleUIManager } from '../../ui/BattleUIManager.js';
 import { BattleUIState } from '../../components/index.js';
-import { createModalHandlers } from '../../ui/modalHandlers.js';
+import { modalHandlers } from '../../ui/modalHandlers.js'; // 静的定義をインポート
 import { PlayerInfo } from '../../../components/index.js';
 import { TaskType } from '../../tasks/BattleTasks.js';
 
@@ -29,7 +29,9 @@ export class ActionPanelSystem extends System {
         this.currentHandler = null;
         this.boundHandlePanelClick = null;
 
-        this.modalHandlers = createModalHandlers(this);
+        // this.modalHandlers は直接インポートしたものを使用するため、ここでは保持しないか、参照のみ持つ
+        this.handlers = modalHandlers;
+        
         this.bindWorldEvents();
         
         // 初期化時にパネルを非表示
@@ -54,6 +56,8 @@ export class ActionPanelSystem extends System {
     }
 
     _handleInput() {
+        const ctx = this._createHandlerContext();
+
         if (this.currentHandler.handleNavigation) {
             const navKeys = [
                 { key: 'ArrowUp', direction: 'arrowup' },
@@ -64,16 +68,50 @@ export class ActionPanelSystem extends System {
 
             for (const { key, direction } of navKeys) {
                 if (this.inputManager.wasKeyJustPressed(key)) {
-                    this.currentHandler.handleNavigation(this, direction);
+                    this.currentHandler.handleNavigation(ctx, direction);
                 }
             }
         }
         if (this.inputManager.wasKeyJustPressed('z')) {
-            this.currentHandler.handleConfirm?.(this, this.uiState.currentModalData);
+            this.currentHandler.handleConfirm?.(ctx, this.uiState.currentModalData);
         }
         if (this.inputManager.wasKeyJustPressed('x')) {
-            this.currentHandler.handleCancel?.(this, this.uiState.currentModalData);
+            this.currentHandler.handleCancel?.(ctx, this.uiState.currentModalData);
         }
+    }
+
+    /**
+     * ハンドラに渡すコンテキストオブジェクトを生成する
+     * @returns {object} ModalHandlerContext
+     */
+    _createHandlerContext() {
+        return {
+            data: this.uiState.currentModalData,
+            uiState: this.uiState,
+            focusedButtonKey: this.focusedButtonKey,
+            
+            emit: (eventName, detail) => this.world.emit(eventName, detail),
+            close: () => this.hideActionPanel(),
+            proceed: () => this.proceedToNextSequence(),
+            
+            updateTargetHighlight: (targetId, show) => {
+                const targetDom = this.engineUIManager.getDOMElements(targetId);
+                if (targetDom?.targetIndicatorElement) {
+                    targetDom.targetIndicatorElement.classList.toggle('active', show);
+                }
+            },
+            
+            setButtonFocus: (key, focused) => {
+                this.battleUI.setButtonFocus(key, focused);
+                if (focused) {
+                    this.focusedButtonKey = key;
+                } else if (this.focusedButtonKey === key) {
+                    this.focusedButtonKey = null;
+                }
+            },
+            
+            triggerButtonClick: (key) => this.battleUI.triggerButtonClick(key)
+        };
     }
 
     onRequestTaskExecution(task) {
@@ -111,7 +149,7 @@ export class ActionPanelSystem extends System {
     }
     
     _showModal({ type, data, messageSequence = [], taskId = null }) {
-        this.currentHandler = this.modalHandlers[type];
+        this.currentHandler = this.handlers[type];
         if (!this.currentHandler) {
             console.warn(`ActionPanelSystem: No handler found for modal type "${type}"`);
             this.uiState.isProcessingQueue = false;
@@ -189,10 +227,11 @@ export class ActionPanelSystem extends System {
 
         this.battleUI.updatePanelText(ownerName, title, actorName);
         
-        this._updatePanelButtons(handler, displayData);
+        const ctx = this._createHandlerContext();
+        this._updatePanelButtons(handler, ctx, displayData);
         
         if (handler.init) {
-            handler.init(this, displayData);
+            handler.init(ctx, displayData);
         }
     }
 
@@ -205,11 +244,11 @@ export class ActionPanelSystem extends System {
         this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { appliedEffects: effectsToAnimate });
     }
 
-    _updatePanelButtons(handler, displayData) {
+    _updatePanelButtons(handler, ctx, displayData) {
         this.battleUI.clearButtons();
         
         if (typeof handler.createContent === 'function') {
-            const contentElement = handler.createContent(this, displayData);
+            const contentElement = handler.createContent(ctx, displayData);
             if (contentElement instanceof HTMLElement) {
                 this.battleUI.addButtonContent(contentElement);
             }
@@ -220,8 +259,17 @@ export class ActionPanelSystem extends System {
             this.battleUI.setPanelClickable(true);
             
             if (!this.boundHandlePanelClick) {
-                this.boundHandlePanelClick = () => handler.handleConfirm?.(this, this.uiState.currentModalData);
+                // コンテキストを都度生成するため、クロージャ内でその時点のctxを使用するか、
+                // click発生時に再生成するか検討が必要。
+                // ここではシンプルに、click発生時に_handleInput同様に処理を委譲する形をとるか、
+                // ハンドラ実行用のヘルパーを呼ぶ。
+                this.boundHandlePanelClick = () => {
+                    // クリックイベント発生時点のコンテキストで実行
+                    const clickCtx = this._createHandlerContext();
+                    handler.handleConfirm?.(clickCtx, this.uiState.currentModalData);
+                };
             }
+            // リスナーを再設定（同じ関数インスタンスなら重複しないが、念のためresetPanelで解除済み）
             this.battleUI.setPanelClickListener(this.boundHandlePanelClick);
         }
     }

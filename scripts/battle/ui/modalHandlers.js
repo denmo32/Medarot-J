@@ -1,3 +1,8 @@
+/**
+ * @file modalHandlers.js
+ * @description モーダルごとの表示内容と挙動定義。
+ * Systemへの直接依存を排除し、コンテキストオブジェクトを通じて操作を行う。
+ */
 import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
 import { el } from '../../../engine/utils/DOMUtils.js';
@@ -22,44 +27,60 @@ const NAVIGATION_MAP = {
     }
 };
 
-export const createModalHandlers = (systemInstance) => ({
+/**
+ * @typedef {object} ModalHandlerContext
+ * @property {object} data - モーダルデータ
+ * @property {object} uiState - 現在のUI状態
+ * @property {string|null} focusedButtonKey - 現在フォーカスされているボタンキー
+ * @property {Function} emit - イベント発行 (eventName, detail)
+ * @property {Function} close - モーダルを閉じる
+ * @property {Function} proceed - 次のシーケンスへ進む
+ * @property {Function} updateTargetHighlight - ターゲットハイライト更新 (targetId, show)
+ * @property {Function} setButtonFocus - ボタンフォーカス更新 (key, focused)
+ * @property {Function} triggerButtonClick - ボタンクリック発火 (key)
+ */
+
+export const modalHandlers = {
     [ModalType.START_CONFIRM]: {
         getActorName: () => 'ロボトルを開始しますか？',
-        createContent: (system) => {
+        /**
+         * @param {ModalHandlerContext} ctx 
+         */
+        createContent: (ctx) => {
             return el('div', { className: 'buttons-center' }, [
                 el('button', {
                     textContent: 'OK',
                     className: 'action-panel-button',
                     onclick: () => {
-                        system.world.emit(GameEvents.GAME_START_CONFIRMED);
-                        system.hideActionPanel();
+                        ctx.emit(GameEvents.GAME_START_CONFIRMED);
+                        ctx.close();
                     }
                 }),
                 el('button', {
                     textContent: 'キャンセル',
                     className: 'action-panel-button bg-red-500 hover:bg-red-600',
-                    onclick: () => system.hideActionPanel()
+                    onclick: () => ctx.close()
                 })
             ]);
         }
     },
     [ModalType.SELECTION]: {
         getOwnerName: (data) => data.ownerName,
-        createContent: (system, data) => {
+        /**
+         * @param {ModalHandlerContext} ctx 
+         * @param {object} data 
+         */
+        createContent: (ctx, data) => {
             const buttonsData = data.buttons;
             const getBtnData = (key) => buttonsData.find(b => b.partKey === key);
             const headBtnData = getBtnData(PartInfo.HEAD.key);
             const rArmBtnData = getBtnData(PartInfo.RIGHT_ARM.key);
             const lArmBtnData = getBtnData(PartInfo.LEFT_ARM.key);
 
-            const updateTargetHighlight = (partKey, show) => {
+            const updateHighlight = (partKey, show) => {
                 const buttonData = getBtnData(partKey);
-                if (!buttonData || !buttonData.target || buttonData.target.targetId === null) return;
-                
-                // engineUIManager を使用してターゲットインジケータを操作
-                const targetDom = system.engineUIManager.getDOMElements(buttonData.target.targetId);
-                if (targetDom?.targetIndicatorElement) {
-                    targetDom.targetIndicatorElement.classList.toggle('active', show);
+                if (buttonData?.target?.targetId) {
+                    ctx.updateTargetHighlight(buttonData.target.targetId, show);
                 }
             };
 
@@ -78,17 +99,17 @@ export const createModalHandlers = (systemInstance) => ({
                     attributes.disabled = true;
                 } else {
                     attributes.onclick = () => {
-                        system.world.emit(GameEvents.PART_SELECTED, {
+                        ctx.emit(GameEvents.PART_SELECTED, {
                             entityId: data.entityId,
                             partKey: btnData.partKey,
                             target: btnData.target,
                         });
-                        system.hideActionPanel();
+                        ctx.close();
                     };
 
                     if (btnData.target) {
-                        attributes.onmouseover = () => updateTargetHighlight(btnData.partKey, true);
-                        attributes.onmouseout = () => updateTargetHighlight(btnData.partKey, false);
+                        attributes.onmouseover = () => updateHighlight(btnData.partKey, true);
+                        attributes.onmouseout = () => updateHighlight(btnData.partKey, false);
                     }
                 }
                 return el('button', attributes);
@@ -102,46 +123,40 @@ export const createModalHandlers = (systemInstance) => ({
                 ])
             ]);
         },
-        handleNavigation: (system, key) => {
-            const _updateTargetHighlight = (partKey, show) => {
-                const buttonData = system.currentModalData?.buttons.find(b => b.partKey === partKey);
-                if (!buttonData || !buttonData.target || buttonData.target.targetId === null) return;
-
-                const targetDom = system.engineUIManager.getDOMElements(buttonData.target.targetId);
-                if (targetDom?.targetIndicatorElement) {
-                     targetDom.targetIndicatorElement.classList.toggle('active', show);
+        /**
+         * @param {ModalHandlerContext} ctx 
+         * @param {string} key 
+         */
+        handleNavigation: (ctx, key) => {
+            const _updateHighlight = (partKey, show) => {
+                const buttonData = ctx.data?.buttons.find(b => b.partKey === partKey);
+                if (buttonData?.target?.targetId) {
+                    ctx.updateTargetHighlight(buttonData.target.targetId, show);
                 }
             };
 
             const updateFocus = (newKey) => {
-                if (system.focusedButtonKey === newKey) return;
+                if (ctx.focusedButtonKey === newKey) return;
                 
-                if (system.focusedButtonKey) {
-                    _updateTargetHighlight(system.focusedButtonKey, false);
-                    system.battleUI.setButtonFocus(system.focusedButtonKey, false);
+                if (ctx.focusedButtonKey) {
+                    _updateHighlight(ctx.focusedButtonKey, false);
+                    ctx.setButtonFocus(ctx.focusedButtonKey, false);
                 }
                 
-                _updateTargetHighlight(newKey, true);
-                // ボタンの存在確認は BattleUIManager 側で行う
-                system.battleUI.setButtonFocus(newKey, true);
-                
-                // system.battleUI.setButtonFocus は DOM要素がない場合何もしないので、
-                // 実際にフォーカスが当たったかどうかを確認するには、DOMを参照するか、
-                // ロジックを信頼してキー更新を行う。ここでは後者。
-                // ただし、ボタンが無効化されている場合などの考慮が必要であれば調整する。
-                system.focusedButtonKey = newKey;
+                _updateHighlight(newKey, true);
+                ctx.setButtonFocus(newKey, true);
             };
 
-            const availableButtons = system.currentModalData?.buttons.filter(b => !b.isBroken);
+            const availableButtons = ctx.data?.buttons.filter(b => !b.isBroken);
             if (!availableButtons || availableButtons.length === 0) return;
 
-            if (!system.focusedButtonKey) {
+            if (!ctx.focusedButtonKey) {
                 const defaultKey = availableButtons.find(b => b.partKey === PartInfo.HEAD.key)?.partKey || availableButtons[0].partKey;
                 updateFocus(defaultKey);
                 return;
             }
 
-            const candidates = NAVIGATION_MAP[system.focusedButtonKey]?.[key];
+            const candidates = NAVIGATION_MAP[ctx.focusedButtonKey]?.[key];
             if (candidates) {
                 const nextKey = candidates.find(candidateKey => 
                     availableButtons.some(b => b.partKey === candidateKey)
@@ -152,52 +167,82 @@ export const createModalHandlers = (systemInstance) => ({
                 }
             }
         },
-        handleConfirm: (system) => {
-            if (!system.focusedButtonKey) return;
-            system.battleUI.triggerButtonClick(system.focusedButtonKey);
+        /**
+         * @param {ModalHandlerContext} ctx 
+         */
+        handleConfirm: (ctx) => {
+            if (!ctx.focusedButtonKey) return;
+            ctx.triggerButtonClick(ctx.focusedButtonKey);
         },
-        init: (system, data) => {
+        /**
+         * @param {ModalHandlerContext} ctx 
+         * @param {object} data 
+         */
+        init: (ctx, data) => {
             const available = data.buttons.filter(b => !b.isBroken);
             const initialFocusKey = available.find(b => b.partKey === PartInfo.HEAD.key)?.partKey ||
                                     available.find(b => b.partKey === PartInfo.RIGHT_ARM.key)?.partKey ||
                                     available.find(b => b.partKey === PartInfo.LEFT_ARM.key)?.partKey;
-            if (initialFocusKey) setTimeout(() => system.currentHandler.handleNavigation(system, initialFocusKey), 0);
+            
+            // 初期フォーカスの設定ロジックをNavigationハンドラに委譲
+            // ここでは直接フォーカス設定を行わず、システム側で呼び出されることを期待するか、
+            // コンテキスト経由で設定する
+            if (initialFocusKey) {
+                // setTimeoutはUI更新待ちのために必要だが、コンテキストからは隠蔽したい。
+                // ただし、DOM構築直後である保証がないため、ここではロジックのみ示す。
+                // 実際にはActionPanelSystem側でinit後にNavigationを呼ぶか、ctx.setButtonFocusを呼ぶ。
+                // 互換性のためNavigationロジックを利用する
+                
+                // system.currentHandler.handleNavigation(system, initialFocusKey) 相当の処理
+                // 自分自身のhandleNavigationを呼ぶ
+                modalHandlers[ModalType.SELECTION].handleNavigation(ctx, initialFocusKey); // ダミーキーは不要だがロジック上 updateFocus が呼ばれるようにする
+                
+                // handleNavigationはキー入力を前提としているため、初期化用としては不適切かもしれない。
+                // ここでは直接 ctx.setButtonFocus を呼ぶ方が適切。
+                ctx.setButtonFocus(initialFocusKey, true);
+                
+                // 初期ハイライト
+                const buttonData = data.buttons.find(b => b.partKey === initialFocusKey);
+                if (buttonData?.target?.targetId) {
+                    ctx.updateTargetHighlight(buttonData.target.targetId, true);
+                }
+            }
         }
     },
     [ModalType.ATTACK_DECLARATION]: {
         getActorName: (data) => data.currentMessage?.text || '',
         isClickable: true,
-        handleConfirm: (system, data) => {
-            system.proceedToNextSequence();
+        handleConfirm: (ctx) => {
+            ctx.proceed();
         }
     },
     [ModalType.EXECUTION_RESULT]: {
         getActorName: (data) => data.currentMessage?.text || '',
         isClickable: true,
-        handleConfirm: (system, data) => {
-            system.proceedToNextSequence();
+        handleConfirm: (ctx) => {
+            ctx.proceed();
         }
     },
     [ModalType.BATTLE_START_CONFIRM]: {
         getActorName: () => '合意と見てよろしいですね！？',
         isClickable: true,
-        handleConfirm: (system) => {
-            system.world.emit(GameEvents.BATTLE_START_CONFIRMED, {});
-            system.hideActionPanel();
+        handleConfirm: (ctx) => {
+            ctx.emit(GameEvents.BATTLE_START_CONFIRMED, {});
+            ctx.close();
         },
-        handleCancel: (system) => {
-            system.world.emit(GameEvents.BATTLE_START_CANCELLED, {});
-            system.hideActionPanel();
+        handleCancel: (ctx) => {
+            ctx.emit(GameEvents.BATTLE_START_CANCELLED, {});
+            ctx.close();
         }
     },
     [ModalType.MESSAGE]: {
         getActorName: (data) => data?.currentMessage?.text || data?.message || '',
         isClickable: true,
-        handleConfirm: (system) => {
-            if (system.currentMessageSequence && system.currentMessageSequence.length > 1) {
-                system.proceedToNextSequence();
+        handleConfirm: (ctx) => {
+            if (ctx.uiState.currentMessageSequence && ctx.uiState.currentMessageSequence.length > 1) {
+                ctx.proceed();
             } else {
-                system.hideActionPanel();
+                ctx.close();
             }
         },
     },
@@ -205,9 +250,9 @@ export const createModalHandlers = (systemInstance) => ({
         getTitle: (data) => `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`,
         getActorName: () => 'ロボトル終了！',
         isClickable: true,
-        handleConfirm: (system) => {
-            system.world.emit(GameEvents.RESET_BUTTON_CLICKED);
-            system.hideActionPanel();
+        handleConfirm: (ctx) => {
+            ctx.emit(GameEvents.RESET_BUTTON_CLICKED);
+            ctx.close();
         }
     }
-});
+};
