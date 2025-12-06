@@ -1,20 +1,14 @@
 /**
  * @file TaskRunner.js
  * @description タスクキューを管理し、順次実行するクラス。
- * イベントベースの完了通知を廃止し、コールバック方式に刷新。
+ * ポリモーフィズム導入により実装を簡素化。
  */
-import { TaskType } from './BattleTasks.js';
-import { GameEvents } from '../../common/events.js';
-import { Position } from '../components/index.js';
-
 export class TaskRunner {
     constructor(world) {
         this.world = world;
         this.queue = [];
         this.currentTask = null;
         this.isProcessing = false;
-        this.isWaitingForAsync = false;
-        this.elapsedTime = 0;
     }
 
     /**
@@ -22,10 +16,6 @@ export class TaskRunner {
      * @param {Array} tasks 
      */
     addTasks(tasks) {
-        // ID生成ロジックはデバッグ用として残すが、制御には使用しない
-        tasks.forEach(task => {
-            if (!task.id) task.id = Math.random().toString(36).substr(2, 9);
-        });
         this.queue.push(...tasks);
     }
 
@@ -36,26 +26,22 @@ export class TaskRunner {
         this.queue = [];
         this.currentTask = null;
         this.isProcessing = false;
-        this.isWaitingForAsync = false;
     }
 
     update(deltaTime) {
-        // 非同期処理待ち（アニメーション、ダイアログ等）中は更新しない
-        if (this.isWaitingForAsync) {
+        // 現在のタスクがあれば更新
+        if (this.currentTask) {
+            this.currentTask.update(deltaTime);
             return;
         }
 
+        // タスクがなく、キューに残っていれば次を開始
         if (!this.isProcessing && this.queue.length > 0) {
             this._startNextTask();
         }
-
-        // 時間経過で管理するタスク（Wait, Moveなど）の更新
-        if (this.currentTask && !this.isWaitingForAsync) {
-            this._updateCurrentTask(deltaTime);
-        }
     }
 
-    async _startNextTask() {
+    _startNextTask() {
         if (this.queue.length === 0) {
             this.isProcessing = false;
             return;
@@ -63,119 +49,39 @@ export class TaskRunner {
 
         this.isProcessing = true;
         this.currentTask = this.queue.shift();
-        this.elapsedTime = 0;
 
-        // タスク完了時のコールバック
-        // これを各システムに渡すことで、イベントを経由せずに完了を通知させる
-        const onComplete = () => {
-            this.isWaitingForAsync = false;
-            this._completeTask();
-        };
-
+        // タスク実行 (完了コールバックを渡す)
         try {
-            switch (this.currentTask.type) {
-                case TaskType.WAIT:
-                    // updateで時間経過を待つ
-                    break;
-
-                case TaskType.MOVE:
-                    // 初期位置を記録
-                    const pos = this.world.getComponent(this.currentTask.entityId, Position);
-                    if (pos) {
-                        this.currentTask._startX = pos.x;
-                        this.currentTask._startY = pos.y;
-                    } else {
-                        this._completeTask();
-                    }
-                    break;
-                
-                case TaskType.APPLY_STATE:
-                    if (this.currentTask.applyFn) {
-                        this.currentTask.applyFn(this.world);
-                    }
-                    this._completeTask();
-                    break;
-
-                case TaskType.EVENT:
-                    this.world.emit(this.currentTask.eventName, this.currentTask.detail);
-                    this._completeTask();
-                    break;
-
-                case TaskType.CUSTOM:
-                    if (this.currentTask.execute) {
-                        await this.currentTask.execute(this.world);
-                    }
-                    this._completeTask();
-                    break;
-                
-                case TaskType.ANIMATE:
-                case TaskType.MESSAGE:
-                case TaskType.DIALOG:
-                case TaskType.VFX:
-                case TaskType.CAMERA:
-                case TaskType.UI_ANIMATION:
-                    // 外部システムに委譲。onCompleteを渡して制御を預ける
-                    this.isWaitingForAsync = true;
-                    // Taskオブジェクト自体にコールバックを含めてイベント発行
-                    this.world.emit(GameEvents.REQUEST_TASK_EXECUTION, { 
-                        ...this.currentTask, 
-                        onComplete 
-                    });
-                    break;
-
-                default:
-                    console.warn(`Delegating unknown task type: ${this.currentTask.type}`);
-                    this.isWaitingForAsync = true;
-                    this.world.emit(GameEvents.REQUEST_TASK_EXECUTION, { 
-                        ...this.currentTask, 
-                        onComplete 
-                    });
-                    break;
-            }
+            this.currentTask.execute(this.world, () => {
+                this._completeTask();
+            });
         } catch (error) {
-            console.error("Error starting task:", error);
-            this._completeTask(); // エラー時はスキップして次へ
-        }
-    }
-
-    _updateCurrentTask(deltaTime) {
-        if (!this.currentTask) return;
-
-        this.elapsedTime += deltaTime;
-
-        switch (this.currentTask.type) {
-            case TaskType.WAIT:
-                if (this.elapsedTime >= this.currentTask.duration) {
-                    this._completeTask();
-                }
-                break;
-
-            case TaskType.MOVE:
-                const { entityId, targetX, targetY, duration, _startX, _startY } = this.currentTask;
-                const progress = Math.min(this.elapsedTime / duration, 1.0);
-                // イージング関数 (Ease Out Quad)
-                const t = 1 - (1 - progress) * (1 - progress);
-
-                const pos = this.world.getComponent(entityId, Position);
-                if (pos) {
-                    pos.x = _startX + (targetX - _startX) * t;
-                    pos.y = _startY + (targetY - _startY) * t;
-                }
-
-                if (progress >= 1.0) {
-                    this._completeTask();
-                }
-                break;
+            console.error("Error executing task:", error, this.currentTask);
+            this._completeTask(); // エラー時はスキップ
         }
     }
 
     _completeTask() {
         this.currentTask = null;
-        this.isProcessing = false;
-        this.isWaitingForAsync = false;
+        // isProcessingは維持し、次のupdateループで即座に次へ進むか、
+        // あるいはここで再帰的に _startNextTask を呼ぶか。
+        // スタックオーバーフロー防止のため、フラグ管理にとどめ次のupdateを待つのが安全。
+        // ただし、1フレームに複数タスク消化したい場合（イベント発行など）はループが必要。
+        // ここではシンプルに「updateごとに進行」または「同期タスクは即時完了して次へ」の挙動を
+        // Task.complete() -> callback -> _completeTask のフローで制御する。
+        
+        // 同期的に完了した場合、このメソッド内で this.currentTask が null になる。
+        // 連続実行を許可する場合:
+        if (this.queue.length > 0) {
+            // setTimeout(() => this._startNextTask(), 0); // 非同期で次へ
+            // または
+            this._startNextTask(); // 同期的に次へ（スタック注意だがパフォーマンス良）
+        } else {
+            this.isProcessing = false;
+        }
     }
     
     get isIdle() {
-        return !this.isProcessing && !this.isWaitingForAsync && this.queue.length === 0;
+        return !this.isProcessing && !this.currentTask && this.queue.length === 0;
     }
 }
