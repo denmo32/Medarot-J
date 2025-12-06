@@ -1,52 +1,38 @@
 /**
  * @file BattleResolver.js
  * @description 戦闘の計算ロジック。
- * パイプラインパターンを用いて、ターゲット解決から効果適用までの流れを順次処理する。
- * 効果の連鎖（貫通など）の制御もここで行う。
+ * EffectRegistryを利用して計算・適用フローを制御する。
  */
 import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
 import { EffectType } from '../../common/constants.js';
 import { CombatCalculator } from '../utils/combatFormulas.js';
-import { effectStrategies } from '../effects/effectStrategies.js';
-import { effectApplicators } from '../effects/applicators/applicatorIndex.js';
+import { EffectRegistry } from '../definitions/EffectRegistry.js'; // 変更
 import { TargetingService } from '../services/TargetingService.js';
-import { findRandomPenetrationTarget } from '../utils/queryUtils.js'; // 追加: 貫通ターゲット検索用
+import { findRandomPenetrationTarget } from '../utils/queryUtils.js';
 
 export class BattleResolver {
     constructor(world) {
         this.world = world;
-        this.effectApplicators = effectApplicators;
     }
 
-    /**
-     * アクションの結果を解決する
-     * @param {number} attackerId 
-     * @returns {object} 結果データ
-     */
     resolve(attackerId) {
-        // 1. 戦闘コンテキストの初期化 (必要なコンポーネントの収集)
         const ctx = this._initializeContext(attackerId);
         if (!ctx) {
             return { attackerId, isCancelled: true, cancelReason: 'INTERRUPTED' };
         }
 
-        // 2. ターゲット解決フェーズ (かばう判定、ターゲット生存確認)
         this._resolveTarget(ctx);
         if (ctx.shouldCancel) {
             return { attackerId, isCancelled: true, cancelReason: 'TARGET_LOST' };
         }
 
-        // 3. 命中・クリティカル判定フェーズ
         this._calculateHitOutcome(ctx);
 
-        // 4. 効果計算フェーズ (ダメージ算出など。まだ適用はしない)
         this._calculateEffects(ctx);
 
-        // 5. 副作用解決フェーズ (ガード消費、実際のHP変動量計算、貫通処理、イベント生成)
         this._resolveApplications(ctx);
 
-        // 6. 結果の整形と返却
         return this._buildResult(ctx);
     }
 
@@ -62,30 +48,22 @@ export class BattleResolver {
         const attackingPart = attackerParts[action.partKey];
         if (!attackingPart) return null;
 
-        // パイプライン全体で共有するデータコンテナ
         return {
-            // 入力データ
             attackerId,
             action,
             attackerInfo,
             attackerParts,
             attackingPart,
             isSupport: attackingPart.isSupport,
-
-            // ターゲット解決結果
             intendedTargetId: action.targetId,
             intendedTargetPartKey: action.targetPartKey,
             finalTargetId: null,
             finalTargetPartKey: null,
             guardianInfo: null,
             targetLegs: null,
-            
-            // 計算結果
-            outcome: null,      // isHit, isCritical, isDefended など
-            rawEffects: [],     // 計算された効果のリスト (適用前)
-            appliedEffects: [], // 適用後の効果リスト (実際のダメージ値、イベントなど)
-            
-            // 制御フラグ
+            outcome: null,
+            rawEffects: [],
+            appliedEffects: [],
             shouldCancel: false
         };
     }
@@ -115,8 +93,6 @@ export class BattleResolver {
 
     _calculateHitOutcome(ctx) {
         const { attackingPart } = ctx;
-
-        // メイン効果（ダメージ系）の計算パラメータを取得
         const mainEffect = attackingPart.effects?.find(e => e.type === EffectType.DAMAGE);
         const calcParams = mainEffect?.calculation || {};
 
@@ -139,10 +115,8 @@ export class BattleResolver {
         }
 
         for (const effectDef of attackingPart.effects || []) {
-            const strategy = effectStrategies[effectDef.type];
-            if (!strategy) continue;
-
-            const result = strategy({
+            // EffectRegistryを利用して計算
+            const result = EffectRegistry.process(effectDef.type, {
                 world: this.world,
                 sourceId: ctx.attackerId,
                 targetId: finalTargetId,
@@ -154,7 +128,6 @@ export class BattleResolver {
             });
 
             if (result) {
-                // 貫通フラグや計算パラメータを引き継ぐ
                 result.penetrates = attackingPart.penetrates || false;
                 result.calculation = effectDef.calculation; 
                 ctx.rawEffects.push(result);
@@ -173,39 +146,32 @@ export class BattleResolver {
         }
 
         // 2. 各効果の適用計算
-        // rawEffects はキューとして扱う
         const effectQueue = [...ctx.rawEffects];
 
         while (effectQueue.length > 0) {
             const effect = effectQueue.shift();
             
-            const applicator = this.effectApplicators[effect.type];
-            if (!applicator) continue;
-
-            // Applicatorを実行 (純粋関数に近い動作を期待)
-            const result = applicator({ world: this.world, effect });
+            // EffectRegistryを利用して適用
+            const result = EffectRegistry.apply(effect.type, { world: this.world, effect });
 
             if (result) {
                 ctx.appliedEffects.push(result);
 
-                // --- 貫通処理 (Resolverの責務として実装) ---
-                // パーツが破壊され、かつ余剰ダメージがあり、かつ貫通属性を持つ場合
+                // --- 貫通処理 ---
                 if (result.isPartBroken && result.overkillDamage > 0 && result.penetrates) {
                     
-                    // 次のターゲットパーツを探す
                     const nextTargetPartKey = findRandomPenetrationTarget(this.world, result.targetId, result.partKey);
                     
                     if (nextTargetPartKey) {
-                        // 新しい効果を作成してキューの先頭に追加
                         const nextEffect = {
                             type: EffectType.DAMAGE,
                             targetId: result.targetId,
                             partKey: nextTargetPartKey,
-                            value: result.overkillDamage, // 余剰ダメージを引き継ぐ
-                            penetrates: true,             // 貫通属性を継続
-                            isPenetration: true,          // 貫通による攻撃であることを示す
-                            calculation: result.calculation, // 計算パラメータを引き継ぐ
-                            isCritical: result.isCritical // クリティカル状態も引き継ぐ
+                            value: result.overkillDamage,
+                            penetrates: true,
+                            isPenetration: true,
+                            calculation: result.calculation,
+                            isCritical: result.isCritical
                         };
                         
                         effectQueue.unshift(nextEffect);
