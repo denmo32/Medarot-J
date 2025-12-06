@@ -1,5 +1,6 @@
 /**
  * @file 戦闘計算式ユーティリティ
+ * Strategyパターンを用いて計算ロジックを抽象化。
  */
 
 import { CONFIG } from '../common/config.js';
@@ -9,6 +10,10 @@ import { clamp } from '../../../engine/utils/MathUtils.js';
 import { EffectService } from '../services/EffectService.js';
 import { Parts } from '../../components/index.js';
 
+/**
+ * 戦闘計算戦略の基底クラス
+ * すべてのメソッドはオーバーライド可能です。
+ */
 export class CombatStrategy {
     calculateEvasionChance(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
     calculateDefenseChance(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
@@ -19,14 +24,33 @@ export class CombatStrategy {
     resolveHitOutcome(context) { throw new GameError('Not implemented', ErrorType.CALCULATION_ERROR); }
 }
 
+/**
+ * デフォルトの計算戦略
+ */
 class DefaultCombatStrategy extends CombatStrategy {
     
     /**
-     * ステータス値に補正を適用して取得するヘルパー
+     * ステータス値に補正を適用して取得する共通メソッド
+     * @param {World} world 
+     * @param {number} entityId 
+     * @param {string} statName 
+     * @param {number} baseVal 
+     * @param {object} context 
+     * @returns {number}
      */
-    _getModifiedStat(world, entityId, statName, baseVal, context) {
+    applyStatModifiers(world, entityId, statName, baseVal, context) {
+        // EffectServiceを通じて、Trait/ActiveEffectsからの補正を取得
         const modifier = EffectService.getStatModifier(world, entityId, statName, context);
         return baseVal + modifier;
+    }
+
+    /**
+     * 攻撃側のステータス値を取得（補正込み）
+     */
+    getAttackerStat(world, attackerId, statName, attackingPart, attackerLegs) {
+        const baseVal = attackingPart[statName] ?? 0;
+        const context = { attackingPart, attackerLegs };
+        return this.applyStatModifiers(world, attackerId, statName, baseVal, context);
     }
 
     calculateEvasionChance({ world, attackerId, targetLegs, attackingPart, calcParams }) {
@@ -34,15 +58,15 @@ class DefaultCombatStrategy extends CombatStrategy {
 
         const baseStat = calcParams?.baseStat || 'success';
         const mobility = targetLegs.mobility ?? 0;
-        const success = attackingPart[baseStat] ?? 0;
         
-        let context = { attackingPart };
+        // 攻撃側の脚部情報を取得（存在すれば）
+        let attackerLegs = null;
         if (attackerId !== undefined) {
              const attackerParts = world.getComponent(attackerId, Parts);
-             if (attackerParts) context.attackerLegs = attackerParts.legs;
+             if (attackerParts) attackerLegs = attackerParts.legs;
         }
 
-        const adjustedSuccess = this._getModifiedStat(world, attackerId, baseStat, success, context);
+        const adjustedSuccess = this.getAttackerStat(world, attackerId, baseStat, attackingPart, attackerLegs);
         
         const formula = CONFIG.FORMULAS.EVASION;
         const mobilityAdvantage = mobility - adjustedSuccess;
@@ -72,6 +96,7 @@ class DefaultCombatStrategy extends CombatStrategy {
         const config = CONFIG.CRITICAL_HIT;
         const baseChance = successAdvantage / config.DIFFERENCE_FACTOR;
         
+        // 特性によるクリティカル補正を取得
         const typeBonus = EffectService.getCriticalChanceModifier(attackingPart);
         
         return clamp(baseChance + typeBonus, 0, 1);
@@ -84,30 +109,35 @@ class DefaultCombatStrategy extends CombatStrategy {
         const powerStatKey = calcParams?.powerStat || 'might';
         const defenseStatKey = calcParams?.defenseStat || 'armor';
 
-        const context = { attackingPart, attackerLegs };
+        // 攻撃側の各ステータス（補正込み）を取得
+        const effectiveBaseVal = this.getAttackerStat(world, attackerId, baseStatKey, attackingPart, attackerLegs);
+        const effectivePowerVal = this.getAttackerStat(world, attackerId, powerStatKey, attackingPart, attackerLegs);
 
-        const baseVal = this._getModifiedStat(
-            world, attackerId, baseStatKey, attackingPart[baseStatKey] ?? 0, context
-        );
-        const powerVal = this._getModifiedStat(
-            world, attackerId, powerStatKey, attackingPart[powerStatKey] ?? 0, context
-        );
-
+        // 防御側の防御力計算
         const mobility = targetLegs.mobility ?? 0;
         const defenseBase = targetLegs[defenseStatKey] ?? 0;
         const stabilityDefenseBonus = Math.floor((targetLegs.stability || 0) / 2);
-        const defenseVal = defenseBase + stabilityDefenseBonus;
+        const totalDefense = defenseBase + stabilityDefenseBonus;
         
+        // ダメージベース値の計算
         let damageBase;
         if (isCritical) {
-            damageBase = Math.max(0, baseVal);
+            // クリティカル時は防御・回避ステータスを無視（基本値がそのまま通る）
+            damageBase = Math.max(0, effectiveBaseVal);
         } else {
-            const effectiveDefense = isDefenseBypassed ? 0 : defenseVal;
-            damageBase = Math.max(0, baseVal - mobility - effectiveDefense);
+            const effectiveDefense = isDefenseBypassed ? 0 : totalDefense;
+            damageBase = Math.max(0, effectiveBaseVal - mobility - effectiveDefense);
         }
 
-        const finalDamage = Math.floor(damageBase / CONFIG.FORMULAS.DAMAGE.BASE_DAMAGE_DIVISOR) + powerVal;
+        // 最終ダメージ計算 (基本ダメージ + 威力)
+        // ※ ここでの計算式はゲームバランスに応じて調整可能
+        let finalDamage = Math.floor(damageBase / CONFIG.FORMULAS.DAMAGE.BASE_DAMAGE_DIVISOR) + effectivePowerVal;
         
+        // クリティカル時の倍率補正（オプション）
+        if (isCritical) {
+            finalDamage = Math.floor(finalDamage * CONFIG.FORMULAS.DAMAGE.CRITICAL_MULTIPLIER);
+        }
+
         return finalDamage;
     }
 
@@ -127,6 +157,7 @@ class DefaultCombatStrategy extends CombatStrategy {
         
         let multiplier = 1.0 + (performanceScore * impactFactor);
         
+        // 特性による速度補正を取得（乗算）
         const modifier = EffectService.getSpeedMultiplierModifier(world, entityId, part);
         multiplier *= modifier;
 
@@ -156,6 +187,7 @@ class DefaultCombatStrategy extends CombatStrategy {
     resolveHitOutcome({ world, attackerId, targetId, attackingPart, targetLegs, initialTargetPartKey, calcParams }) {
         const defaultOutcome = { isHit: false, isCritical: false, isDefended: false, finalTargetPartKey: initialTargetPartKey };
 
+        // 支援行動は必中扱い
         if (attackingPart.isSupport) {
             return { ...defaultOutcome, isHit: true };
         }
@@ -164,6 +196,7 @@ class DefaultCombatStrategy extends CombatStrategy {
             return defaultOutcome;
         }
 
+        // 1. 回避判定
         const evasionChance = this.calculateEvasionChance({ world, attackerId, targetLegs, attackingPart, calcParams });
         const isEvaded = Math.random() < evasionChance;
         
@@ -171,6 +204,7 @@ class DefaultCombatStrategy extends CombatStrategy {
             return defaultOutcome;
         }
 
+        // 2. クリティカル判定
         const critChance = this.calculateCriticalChance({ attackingPart, targetLegs });
         const isCritical = Math.random() < critChance;
 
@@ -178,6 +212,7 @@ class DefaultCombatStrategy extends CombatStrategy {
             return { ...defaultOutcome, isHit: true, isCritical: true };
         }
 
+        // 3. 防御判定
         const defenseChance = this.calculateDefenseChance({ targetLegs });
         const isDefended = Math.random() < defenseChance;
 
@@ -188,13 +223,22 @@ class DefaultCombatStrategy extends CombatStrategy {
             }
         }
 
+        // 4. 通常ヒット
         return { ...defaultOutcome, isHit: true };
     }
 }
 
+/**
+ * CombatCalculator シングルトン
+ * 計算戦略を保持し、計算要求を委譲します。
+ */
 export const CombatCalculator = {
     strategy: new DefaultCombatStrategy(),
     
+    /**
+     * 計算戦略を切り替える
+     * @param {CombatStrategy} newStrategy 
+     */
     setStrategy(newStrategy) {
         if (newStrategy instanceof CombatStrategy) {
             this.strategy = newStrategy;
