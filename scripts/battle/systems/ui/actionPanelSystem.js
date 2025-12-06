@@ -1,7 +1,7 @@
 /**
  * @file ActionPanelSystem.js
  * @description アクションパネルおよびモーダル表示を管理するシステム。
- * DOM操作はBattleUIManagerに委譲し、入力処理と状態遷移に集中する。
+ * DOM操作はBattleUIManagerに委譲し、入力処理はBattleInputControllerに委譲する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -9,6 +9,7 @@ import { ModalType } from '../../common/constants.js';
 import { InputManager } from '../../../../engine/input/InputManager.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js'; // エンジンのUIManager
 import { BattleUIManager } from '../../ui/BattleUIManager.js';
+import { BattleInputController } from '../../ui/BattleInputController.js';
 import { BattleUIState } from '../../components/index.js';
 import { modalHandlers } from '../../ui/modalHandlers.js'; // 静的定義をインポート
 import { PlayerInfo } from '../../../components/index.js';
@@ -26,11 +27,18 @@ export class ActionPanelSystem extends System {
         // バトル専用UIマネージャ (パネル操作用)
         this.battleUI = new BattleUIManager();
 
+        // モーダルハンドラ定義への参照
+        this.handlers = modalHandlers;
+
+        // 入力コントローラー (入力判定ロジックの分離)
+        this.inputController = new BattleInputController(
+            this.inputManager, 
+            this.uiState, 
+            this.handlers
+        );
+
         this.currentHandler = null;
         this.boundHandlePanelClick = null;
-
-        // this.modalHandlers は直接インポートしたものを使用するため、ここでは保持しないか、参照のみ持つ
-        this.handlers = modalHandlers;
         
         this.bindWorldEvents();
         
@@ -51,33 +59,15 @@ export class ActionPanelSystem extends System {
     }
 
     update(deltaTime) {
-        if (!this.currentHandler || this.uiState.isWaitingForAnimation || !this.inputManager) return;
+        // モーダルが表示されていない、またはアニメーション待機中の場合は入力を受け付けない
+        if (!this.uiState.currentModalType || this.uiState.isWaitingForAnimation) return;
+        
         this._handleInput();
     }
 
     _handleInput() {
         const ctx = this._createHandlerContext();
-
-        if (this.currentHandler.handleNavigation) {
-            const navKeys = [
-                { key: 'ArrowUp', direction: 'arrowup' },
-                { key: 'ArrowDown', direction: 'arrowdown' },
-                { key: 'ArrowLeft', direction: 'arrowleft' },
-                { key: 'ArrowRight', direction: 'arrowright' }
-            ];
-
-            for (const { key, direction } of navKeys) {
-                if (this.inputManager.wasKeyJustPressed(key)) {
-                    this.currentHandler.handleNavigation(ctx, direction);
-                }
-            }
-        }
-        if (this.inputManager.wasKeyJustPressed('z')) {
-            this.currentHandler.handleConfirm?.(ctx, this.uiState.currentModalData);
-        }
-        if (this.inputManager.wasKeyJustPressed('x')) {
-            this.currentHandler.handleCancel?.(ctx, this.uiState.currentModalData);
-        }
+        this.inputController.handleInput(ctx);
     }
 
     /**

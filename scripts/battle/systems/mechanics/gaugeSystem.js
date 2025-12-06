@@ -2,7 +2,6 @@ import { Gauge, GameState } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import { BattleContext } from '../../context/index.js';
 import { BattlePhase } from '../../common/constants.js';
-import { PartInfo } from '../../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';
 import { CombatCalculator } from '../../utils/combatFormulas.js';
@@ -35,8 +34,6 @@ export class GaugeSystem extends System {
         }
 
         // 行動選択待ちのアクターがいる場合も停止（従来通り）
-        // ※ ここはPhaseSystem等でフラグ制御してもいいが、
-        // 全体停止条件として残しておく
         const entitiesWithState = this.getEntities(GameState);
         const hasActionQueued = entitiesWithState.some(entityId => {
             const gameState = this.world.getComponent(entityId, GameState);
@@ -51,20 +48,15 @@ export class GaugeSystem extends System {
         const entities = this.getEntities(Gauge, Parts);
 
         for (const entityId of entities) {
-            const parts = this.world.getComponent(entityId, Parts);
-
-            // 頭部破壊時は動かない（これはStateSystemでisActive=falseにされるべきだが、念のため）
-            if (parts[PartInfo.HEAD.key]?.isBroken) {
-                continue;
-            }
-
             const gauge = this.world.getComponent(entityId, Gauge);
             
             // isActiveフラグのみで判定
+            // 頭部破壊などの状態管理はPlayerStatusServiceがisActiveをfalseにすることで責務を持つ
             if (!gauge.isActive) {
                 continue;
             }
 
+            const parts = this.world.getComponent(entityId, Parts);
             const mobility = parts.legs?.mobility || 0;
             const propulsion = parts.legs?.propulsion || 0;
             const speedMultiplier = gauge.speedMultiplier || 1.0;
