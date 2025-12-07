@@ -1,3 +1,7 @@
+/**
+ * @file EntityFactory.js
+ * @description バトルシーンにおけるエンティティ生成を担当するファクトリ。
+ */
 import { CONFIG } from '../common/config.js';
 import * as BattleComponents from '../components/index.js';
 import * as CommonComponents from '../../components/index.js';

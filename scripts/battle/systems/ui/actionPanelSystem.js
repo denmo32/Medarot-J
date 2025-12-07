@@ -1,17 +1,16 @@
 /**
  * @file ActionPanelSystem.js
  * @description アクションパネルおよびモーダル表示を管理するシステム。
- * DOM操作はBattleUIManagerに委譲し、入力処理はBattleInputControllerに委譲する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { ModalType } from '../../common/constants.js';
 import { InputManager } from '../../../../engine/input/InputManager.js';
-import { UIManager } from '../../../../engine/ui/UIManager.js'; // エンジンのUIManager
+import { UIManager } from '../../../../engine/ui/UIManager.js'; 
 import { BattleUIManager } from '../../ui/BattleUIManager.js';
 import { BattleInputController } from '../../ui/BattleInputController.js';
 import { BattleUIState } from '../../components/index.js';
-import { modalHandlers } from '../../ui/modalHandlers.js'; // 静的定義をインポート
+import { modalHandlers } from '../../ui/modalHandlers.js'; 
 import { PlayerInfo } from '../../../components/index.js';
 import { TaskType } from '../../tasks/BattleTasks.js';
 

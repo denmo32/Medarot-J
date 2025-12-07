@@ -1,12 +1,11 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの制御を行うシステム。
- * ロジックはActionSequenceServiceに委譲し、タスクの実行管理に集中する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType } from '../../common/constants.js';
-import { BattleContext } from '../../context/index.js';
+import { BattleContext } from '../../components/BattleContext.js'; // 修正
 import { GameState, Action } from '../../components/index.js';
 import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { ActionSequenceService } from '../../services/ActionSequenceService.js';

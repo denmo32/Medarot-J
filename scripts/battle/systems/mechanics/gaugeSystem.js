@@ -1,6 +1,6 @@
 import { Gauge, GameState } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
-import { BattleContext } from '../../context/index.js';
+import { BattleContext } from '../../components/BattleContext.js'; // 修正
 import { BattlePhase } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';

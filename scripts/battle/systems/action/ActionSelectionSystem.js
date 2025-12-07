@@ -1,5 +1,5 @@
 import { System } from '../../../../engine/core/System.js';
-import { BattleContext } from '../../context/index.js';
+import { BattleContext } from '../../components/BattleContext.js'; // 修正
 import { BattlePhase, PlayerStateType } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';

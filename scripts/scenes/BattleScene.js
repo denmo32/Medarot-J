@@ -3,7 +3,10 @@
  */
 import { Scene } from '../../engine/scene/Scene.js';
 import { GameEvents } from '../common/events.js';
-import { initializeSystems, createPlayers, BattleContext } from '../battle/context/index.js';
+// 修正: context/index.js への参照を setup/ への個別参照に変更
+import { initializeSystems } from '../battle/setup/SystemInitializer.js';
+import { createPlayers } from '../battle/setup/EntityFactory.js';
+import { BattleContext } from '../battle/components/BattleContext.js';
 
 export class BattleScene extends Scene {
     constructor(world, sceneManager) {

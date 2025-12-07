@@ -3,7 +3,7 @@ import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { TeamID } from '../../../common/constants.js';
 import { BattlePhase } from '../../common/constants.js';
-import { BattleContext } from '../../context/index.js';
+import { BattleContext } from '../../components/BattleContext.js'; // 修正
 import { TargetingService } from '../../services/TargetingService.js';
 
 export class WinConditionSystem extends System {

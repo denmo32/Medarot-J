@@ -1,4 +1,8 @@
-import { BattleContext } from './BattleContext.js';
+/**
+ * @file SystemInitializer.js
+ * @description バトルシーンで使用するSystemの初期化・登録を行う。
+ */
+import { BattleContext } from '../components/BattleContext.js';
 import { BattleUIState } from '../components/index.js';
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';

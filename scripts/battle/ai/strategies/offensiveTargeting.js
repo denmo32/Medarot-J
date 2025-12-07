@@ -2,8 +2,7 @@
  * @file AI攻撃系ターゲティング戦略
  */
 import { PlayerInfo, Parts } from '../../../components/index.js';
-import { BattleLog } from '../../components/index.js';
-import { BattleContext } from '../../context/index.js';
+import { BattleLog, BattleContext } from '../../components/index.js'; // BattleContextをcomponentsからインポート
 import { 
     selectRandomPart, 
     getAllPartsFromCandidates 

@@ -1,5 +1,6 @@
 /**
  * @file BattleContext.js
+ * @description バトルシーン全体の進行状態を保持するシングルトンコンポーネント。
  */
 import { BattlePhase } from '../common/constants.js';
 import { TeamID } from '../../common/constants.js';
