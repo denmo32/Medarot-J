@@ -51,7 +51,6 @@ export class GaugeSystem extends System {
             const gauge = this.world.getComponent(entityId, Gauge);
             
             // isActiveフラグのみで判定
-            // 頭部破壊などの状態管理はPlayerStatusServiceがisActiveをfalseにすることで責務を持つ
             if (!gauge.isActive) {
                 continue;
             }

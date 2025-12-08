@@ -1,17 +1,19 @@
 /**
- * @file BattleResolver.js
- * @description 戦闘の計算ロジック。
- * EffectRegistryを利用して計算・適用フローを制御する。
+ * @file BattleResolutionService.js
+ * @description 戦闘の計算・解決フローを制御するサービス。
+ * Worldから情報を収集し、Logic(CombatCalculator)に計算させ、結果をまとめる。
+ * (旧 BattleResolver.js)
  */
 import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
 import { EffectType } from '../../common/constants.js';
-import { CombatCalculator } from './CombatCalculator.js';
+import { CombatCalculator } from '../logic/CombatCalculator.js';
 import { EffectRegistry } from '../definitions/EffectRegistry.js'; 
-import { TargetingService } from '../services/TargetingService.js';
-import { QueryService } from '../services/QueryService.js';
+import { TargetingService } from './TargetingService.js';
+import { QueryService } from './QueryService.js';
+import { EffectService } from './EffectService.js';
 
-export class BattleResolver {
+export class BattleResolutionService {
     constructor(world) {
         this.world = world;
     }
@@ -92,18 +94,64 @@ export class BattleResolver {
     }
 
     _calculateHitOutcome(ctx) {
-        const { attackingPart } = ctx;
-        const mainEffect = attackingPart.effects?.find(e => e.type === EffectType.DAMAGE);
-        const calcParams = mainEffect?.calculation || {};
+        const { attackingPart, attackerId, attackerParts, finalTargetId, targetLegs } = ctx;
+        
+        // ターゲットがいない場合は計算スキップ（結果はデフォルトでfalse）
+        if (!finalTargetId || !targetLegs) {
+            ctx.outcome = CombatCalculator.resolveHitOutcome({
+                isSupport: ctx.isSupport,
+                evasionChance: 0,
+                criticalChance: 0,
+                defenseChance: 0,
+                initialTargetPartKey: ctx.finalTargetPartKey,
+                bestDefensePartKey: null
+            });
+            return;
+        }
 
+        // 計算に必要なパラメータの準備 (Service層の責務)
+        const calcParams = attackingPart.effects?.find(e => e.type === EffectType.DAMAGE)?.calculation || {};
+        const baseStatKey = calcParams.baseStat || 'success';
+        const defenseStatKey = calcParams.defenseStat || 'armor';
+
+        // 1. 回避率の計算パラメータ
+        const attackerSuccess = EffectService.getStatModifier(this.world, attackerId, baseStatKey, { 
+            attackingPart: attackingPart, 
+            attackerLegs: attackerParts.legs 
+        }) + (attackingPart[baseStatKey] || 0);
+
+        const targetMobility = (targetLegs.mobility || 0); // 必要ならEffectService経由で補正取得
+
+        const evasionChance = CombatCalculator.calculateEvasionChance({
+            mobility: targetMobility,
+            attackerSuccess: attackerSuccess
+        });
+
+        // 2. クリティカル率の計算パラメータ
+        const bonusChance = EffectService.getCriticalChanceModifier(attackingPart);
+        const criticalChance = CombatCalculator.calculateCriticalChance({
+            success: attackerSuccess,
+            mobility: targetMobility,
+            bonusChance: bonusChance
+        });
+
+        // 3. 防御率の計算パラメータ
+        const targetArmor = (targetLegs[defenseStatKey] || 0); // 必要ならEffectService経由で補正取得
+        const defenseChance = CombatCalculator.calculateDefenseChance({
+            armor: targetArmor
+        });
+        
+        // 防御時の身代わりパーツ検索
+        const bestDefensePartKey = QueryService.findBestDefensePart(this.world, finalTargetId);
+
+        // Logic呼び出し
         ctx.outcome = CombatCalculator.resolveHitOutcome({
-            world: this.world,
-            attackerId: ctx.attackerId,
-            targetId: ctx.finalTargetId,
-            attackingPart: ctx.attackingPart,
-            targetLegs: ctx.targetLegs,
+            isSupport: ctx.isSupport,
+            evasionChance,
+            criticalChance,
+            defenseChance,
             initialTargetPartKey: ctx.finalTargetPartKey,
-            calcParams: calcParams
+            bestDefensePartKey
         });
     }
 

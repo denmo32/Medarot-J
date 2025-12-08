@@ -1,11 +1,10 @@
 /**
  * @file ActionSequenceService.js
  * @description アクション実行シーケンスのロジック制御を担当するサービス。
- * Systemからロジックを分離し、計算・解決・タスク生成の一連の流れを管理する。
  */
-import { BattleResolver } from '../logic/BattleResolver.js';
+import { BattleResolutionService } from './BattleResolutionService.js';
 import { TimelineBuilder } from '../tasks/TimelineBuilder.js';
-import { EffectApplier } from '../logic/EffectApplier.js';
+import { EffectApplyService } from './EffectApplyService.js';
 import { CooldownService } from './CooldownService.js';
 import { CancellationService } from './CancellationService.js';
 import { PlayerStatusService } from './PlayerStatusService.js';
@@ -18,7 +17,7 @@ import { PlayerStateType } from '../common/constants.js';
 export class ActionSequenceService {
     constructor(world) {
         this.world = world;
-        this.battleResolver = new BattleResolver(world);
+        this.battleResolver = new BattleResolutionService(world);
         this.timelineBuilder = new TimelineBuilder(world);
     }
 
@@ -62,7 +61,7 @@ export class ActionSequenceService {
         const resultData = this.battleResolver.resolve(actorId);
 
         // 4. Logicデータの即時更新 (副作用の適用)
-        EffectApplier.applyResult(this.world, resultData);
+        EffectApplyService.applyResult(this.world, resultData);
         
         // 外部への通知
         this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);

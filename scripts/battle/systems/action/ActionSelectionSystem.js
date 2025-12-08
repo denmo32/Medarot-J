@@ -6,6 +6,7 @@ import { PlayerInfo, Parts } from '../../../components/index.js';
 import { Action, GameState, Gauge } from '../../components/index.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { PlayerStatusService } from '../../services/PlayerStatusService.js';
+import { EffectService } from '../../services/EffectService.js';
 
 export class ActionSelectionSystem extends System {
     constructor(world) {
@@ -77,12 +78,16 @@ export class ActionSelectionSystem extends System {
         
         gauge.value = 0;
         gauge.currentSpeed = 0;
-        // 修正: world, entityId を渡す
+        
+        // 補正値の取得
+        const modifier = EffectService.getSpeedMultiplierModifier(this.world, entityId, selectedPart);
+        
+        // 純粋な値渡し
         gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ 
-            world: this.world, 
-            entityId, 
-            part: selectedPart, 
-            factorType: 'charge' 
+            might: selectedPart.might,
+            success: selectedPart.success,
+            factorType: 'charge',
+            modifier: modifier
         });
     }
 }

@@ -1,16 +1,14 @@
 /**
- * @file EffectApplier.js
- * @description 戦闘計算結果に基づいてWorldにイベントを発行する。
- * 実際のデータ更新責務は各EffectDefinitionのapplyフェーズに移動したため、
- * ここではイベントのディスパッチが主な役割となる。
+ * @file EffectApplyService.js
+ * @description 戦闘計算結果に基づいてWorldにイベントを発行するサービス。
+ * (旧 EffectApplier.js)
  */
-import { EffectRegistry } from '../definitions/EffectRegistry.js';
 
-export class EffectApplier {
+export class EffectApplyService {
     /**
      * 計算済みの効果のイベントをWorldに適用する
      * @param {World} world 
-     * @param {object} resultData BattleResolverの計算結果
+     * @param {object} resultData BattleResolutionServiceの計算結果
      */
     static applyResult(world, resultData) {
         const { appliedEffects } = resultData;

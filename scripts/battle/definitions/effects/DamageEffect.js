@@ -11,6 +11,7 @@ import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { createUiAnimationTask, createDialogTask } from '../../tasks/BattleTasks.js';
 import { PartKeyToInfoMap } from '../../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
+import { EffectService } from '../../services/EffectService.js';
 
 export const DamageEffect = {
     type: EffectType.DAMAGE,
@@ -25,16 +26,37 @@ export const DamageEffect = {
         if (!targetParts) return null;
 
         const calcParams = effect.calculation || {};
+        const baseStatKey = calcParams.baseStat || 'success';
+        const powerStatKey = calcParams.powerStat || 'might';
+        const defenseStatKey = calcParams.defenseStat || 'armor';
 
+        // 1. 補正込みステータス値を準備 (Service層の役割だが、現状の構造上EffectDefinition内で解決)
+        
+        // 攻撃側ステータス
+        const effectiveBaseVal = EffectService.getStatModifier(world, sourceId, baseStatKey, { 
+            attackingPart: part, 
+            attackerLegs: partOwner.parts.legs 
+        }) + (part[baseStatKey] || 0);
+
+        const effectivePowerVal = EffectService.getStatModifier(world, sourceId, powerStatKey, { 
+            attackingPart: part, 
+            attackerLegs: partOwner.parts.legs 
+        }) + (part[powerStatKey] || 0);
+
+        // 防御側ステータス
+        const mobility = targetParts.legs?.mobility || 0;
+        const defenseBase = targetParts.legs?.[defenseStatKey] || 0;
+        const stabilityDefenseBonus = Math.floor((targetParts.legs?.stability || 0) / 2);
+        const totalDefense = defenseBase + stabilityDefenseBonus;
+
+        // 2. 純粋なLogicへ委譲
         const finalDamage = CombatCalculator.calculateDamage({
-            world: world,
-            attackerId: sourceId,
-            attackingPart: part,
-            attackerLegs: partOwner.parts.legs,
-            targetLegs: targetParts.legs,
+            effectiveBaseVal,
+            effectivePowerVal,
+            mobility,
+            totalDefense,
             isCritical: outcome.isCritical,
-            isDefenseBypassed: !outcome.isCritical && outcome.isDefended,
-            calcParams: calcParams
+            isDefenseBypassed: !outcome.isCritical && outcome.isDefended
         });
 
         return {
@@ -122,7 +144,7 @@ export const DamageEffect = {
             oldHp, 
             newHp, 
             isPartBroken, 
-            isPlayerBroken,
+            isPlayerBroken, 
             isGuardBroken, 
             overkillDamage: overkillDamage,
             events: events

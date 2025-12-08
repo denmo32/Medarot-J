@@ -9,6 +9,7 @@ import { PlayerStateType } from '../common/constants.js';
 import { EffectType } from '../../common/constants.js';
 import { CombatCalculator } from '../logic/CombatCalculator.js';
 import { PlayerStatusService } from './PlayerStatusService.js';
+import { EffectService } from './EffectService.js';
 
 export class CooldownService {
     /**
@@ -34,12 +35,15 @@ export class CooldownService {
         if (action && action.partKey && parts && gauge) {
             const usedPart = parts[action.partKey];
             if (usedPart) {
-                // 修正: world, entityId を渡す
+                // 補正値を取得
+                const modifier = EffectService.getSpeedMultiplierModifier(world, entityId, usedPart);
+                
+                // 純粋な値を渡す
                 gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ 
-                    world, 
-                    entityId, 
-                    part: usedPart, 
-                    factorType: 'cooldown' 
+                    might: usedPart.might,
+                    success: usedPart.success,
+                    factorType: 'cooldown',
+                    modifier: modifier
                 });
             }
         } else if (gauge) {
