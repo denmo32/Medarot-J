@@ -9,8 +9,8 @@ import { Visual, Position } from '../../components/index.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { TeamID } from '../../../common/constants.js';
-import { PlayerRenderer } from '../../renderers/PlayerRenderer.js';
-import { EffectRenderer } from '../../renderers/EffectRenderer.js';
+import { PlayerRenderer } from './renderers/PlayerRenderer.js';
+import { EffectRenderer } from './renderers/EffectRenderer.js';
 
 export class RenderSystem extends System {
     constructor(world) {

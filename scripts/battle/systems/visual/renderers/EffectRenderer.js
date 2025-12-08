@@ -1,8 +1,9 @@
 /**
  * @file EffectRenderer.js
  * @description エフェクトエンティティのDOM生成・更新を担当するレンダラー
+ * (旧 scripts/battle/renderers/EffectRenderer.js)
  */
-import { el } from '../../../engine/utils/DOMUtils.js';
+import { el } from '../../../../../engine/utils/DOMUtils.js';
 
 export class EffectRenderer {
     constructor(battlefield, uiManager) {

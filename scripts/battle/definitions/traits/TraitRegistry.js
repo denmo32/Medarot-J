@@ -2,6 +2,7 @@
  * @file TraitRegistry.js
  * @description 特性（Trait）や攻撃タイプ（Type）固有の動的ロジックを管理するレジストリ。
  * 静的なパラメータ定義だけでは表現できない動的な補正計算を提供する。
+ * (旧 scripts/battle/logic/traits/TraitRegistry.js)
  */
 
 const traits = {

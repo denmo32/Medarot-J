@@ -7,7 +7,7 @@ import { ActiveEffects } from '../components/index.js';
 import { EffectType } from '../../common/constants.js';
 import { TypeDefinitions } from '../../data/typeDefinitions.js';
 import { TraitDefinitions } from '../../data/traitDefinitions.js';
-import { TraitRegistry } from '../logic/traits/TraitRegistry.js';
+import { TraitRegistry } from '../definitions/traits/TraitRegistry.js';
 
 export class EffectService {
     

@@ -1,14 +1,16 @@
 /**
  * @file PlayerRenderer.js
  * @description プレイヤーエンティティのDOM生成・更新を担当するレンダラー
+ * (旧 scripts/battle/renderers/PlayerRenderer.js)
  */
-import { el } from '../../../engine/utils/DOMUtils.js';
-// 修正: scripts/battle/common/config.js への正しい相対パス
-import { CONFIG } from '../common/config.js';
-import { TeamID, PartKeyToInfoMap, PartInfo, EffectType } from '../../common/constants.js';
-import { PlayerStateType } from '../common/constants.js';
-import { GameState, ActiveEffects } from '../components/index.js';
-import { Parts, PlayerInfo } from '../../components/index.js';
+import { el } from '../../../../../engine/utils/DOMUtils.js';
+import { CONFIG } from '../../../common/config.js';
+// 共通定数: scripts/common/constants.js
+import { TeamID, PartKeyToInfoMap, PartInfo, EffectType } from '../../../../common/constants.js';
+// バトル固有定数: scripts/battle/common/constants.js
+import { PlayerStateType } from '../../../common/constants.js';
+import { GameState, ActiveEffects } from '../../../components/index.js';
+import { Parts, PlayerInfo } from '../../../../components/index.js';
 
 export class PlayerRenderer {
     constructor(world, battlefield, teamContainers, uiManager) {
