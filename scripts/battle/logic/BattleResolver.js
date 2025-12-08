@@ -6,8 +6,8 @@
 import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
 import { EffectType } from '../../common/constants.js';
-import { CombatCalculator } from '../utils/combatFormulas.js';
-import { EffectRegistry } from '../definitions/EffectRegistry.js'; // 変更
+import { CombatCalculator } from './CombatCalculator.js';
+import { EffectRegistry } from '../definitions/EffectRegistry.js'; 
 import { TargetingService } from '../services/TargetingService.js';
 import { findRandomPenetrationTarget } from '../utils/queryUtils.js';
 

@@ -1,10 +1,10 @@
 import { Gauge, GameState } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
-import { BattleContext } from '../../components/BattleContext.js'; // 修正
+import { BattleContext } from '../../components/BattleContext.js'; 
 import { BattlePhase } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';
-import { CombatCalculator } from '../../utils/combatFormulas.js';
+import { CombatCalculator } from '../../logic/CombatCalculator.js';
 
 export class GaugeSystem extends System {
     constructor(world) {

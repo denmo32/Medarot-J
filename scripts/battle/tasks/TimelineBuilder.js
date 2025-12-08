@@ -9,14 +9,14 @@ import {
 } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
-import { MessageGenerator } from '../utils/MessageGenerator.js';
+import { MessageService } from '../services/MessageService.js';
 import { CooldownService } from '../services/CooldownService.js';
 import { EffectRegistry } from '../definitions/EffectRegistry.js';
 
 export class TimelineBuilder {
     constructor(world) {
         this.world = world;
-        this.messageGenerator = new MessageGenerator(world);
+        this.messageGenerator = new MessageService(world);
     }
 
     buildAttackSequence(resultData) {

@@ -1,10 +1,12 @@
 /**
- * @file 戦闘計算式ユーティリティ
+ * @file CombatCalculator.js
+ * @description 戦闘計算式ロジック
  * Strategyパターンを用いて計算ロジックを抽象化。
+ * 元 scripts/battle/utils/combatFormulas.js
  */
 
 import { CONFIG } from '../common/config.js';
-import { findBestDefensePart } from './queryUtils.js';
+import { findBestDefensePart } from '../utils/queryUtils.js';
 import { GameError, ErrorType } from '../../../engine/utils/ErrorHandler.js';
 import { clamp } from '../../../engine/utils/MathUtils.js';
 import { EffectService } from '../services/EffectService.js';

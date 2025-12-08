@@ -8,7 +8,7 @@ import { GameState, Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
 import { PlayerStateType, ActionCancelReason, ModalType } from '../common/constants.js';
 import { MessageKey } from '../../data/messageRepository.js';
-import { MessageGenerator } from '../utils/MessageGenerator.js';
+import { MessageService } from './MessageService.js';
 
 const cancelReasonToMessageKey = {
     [ActionCancelReason.PART_BROKEN]: MessageKey.CANCEL_PART_BROKEN,
@@ -65,7 +65,7 @@ export class CancellationService {
      * @param {string} reason 
      */
     static executeCancel(world, entityId, reason) {
-        const messageGenerator = new MessageGenerator(world);
+        const messageService = new MessageService(world);
 
         // 1. システムへの通知
         world.emit(GameEvents.ACTION_CANCELLED, { entityId, reason });
@@ -74,7 +74,7 @@ export class CancellationService {
         const actorInfo = world.getComponent(entityId, PlayerInfo);
         if (actorInfo) {
             const messageKey = cancelReasonToMessageKey[reason] || MessageKey.CANCEL_INTERRUPTED;
-            const message = messageGenerator.format(messageKey, { actorName: actorInfo.name });
+            const message = messageService.format(messageKey, { actorName: actorInfo.name });
             
             world.emit(GameEvents.SHOW_MODAL, {
                 type: ModalType.MESSAGE,

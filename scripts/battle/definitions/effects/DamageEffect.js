@@ -7,7 +7,7 @@ import { Parts, PlayerInfo } from '../../../components/index.js';
 import { GameState, ActiveEffects } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, ModalType } from '../../common/constants.js';
-import { CombatCalculator } from '../../utils/combatFormulas.js';
+import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { createUiAnimationTask, createDialogTask } from '../../tasks/BattleTasks.js';
 import { PartKeyToInfoMap } from '../../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';

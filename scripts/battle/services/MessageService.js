@@ -1,13 +1,14 @@
 /**
- * @file MessageGenerator.js
- * @description メッセージフォーマットのユーティリティ。
+ * @file MessageService.js
+ * @description メッセージフォーマットのサービス。
  * 各EffectDefinitionから呼び出されるヘルパーメソッドを提供する。
+ * 元 scripts/battle/utils/MessageGenerator.js
  */
 
 import { MessageTemplates, MessageKey } from '../../data/messageRepository.js';
 import { PlayerInfo } from '../../components/index.js';
 
-export class MessageGenerator {
+export class MessageService {
     constructor(world) {
         this.world = world;
     }

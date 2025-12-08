@@ -7,7 +7,7 @@ import { Action, GameState, Gauge, ActiveEffects } from '../components/index.js'
 import { Parts } from '../../components/index.js';
 import { PlayerStateType } from '../common/constants.js';
 import { EffectType } from '../../common/constants.js';
-import { CombatCalculator } from '../utils/combatFormulas.js';
+import { CombatCalculator } from '../logic/CombatCalculator.js';
 import { PlayerStatusService } from './PlayerStatusService.js';
 
 export class CooldownService {
