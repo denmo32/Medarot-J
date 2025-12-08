@@ -3,7 +3,7 @@ import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { ModalType } from '../../common/constants.js';
 import { EffectScope } from '../../../common/constants.js';
-import { getAllActionParts } from '../../utils/queryUtils.js';
+import { QueryService } from '../../services/QueryService.js';
 import { ActionService } from '../../services/ActionService.js';
 import { AiDecisionService } from '../../services/AiDecisionService.js';
 
@@ -30,7 +30,7 @@ export class InputSystem extends System {
 
         // 候補に基づきアクションプランを生成（ターゲット割り当て）
         const actionPlans = this.aiService.generateActionPlans(entityId, targetCandidates);
-        const allPossibleParts = getAllActionParts(this.world, entityId);
+        const allPossibleParts = QueryService.getAllActionParts(this.world, entityId);
 
         const buttonsData = allPossibleParts.map(([partKey, part]) => {
             const plan = actionPlans.find(p => p.partKey === partKey);

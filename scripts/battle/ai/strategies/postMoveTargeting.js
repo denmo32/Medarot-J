@@ -1,9 +1,7 @@
 /**
  * @file AI移動後ターゲティング戦略
  */
-import { 
-    selectRandomPart
-} from '../../utils/queryUtils.js';
+import { QueryService } from '../../services/QueryService.js';
 import { TargetingService } from '../../services/TargetingService.js';
 import { TargetingStrategyKey } from '../strategyKeys.js';
 import { Position } from '../../components/index.js';
@@ -32,7 +30,7 @@ export const postMoveStrategies = {
     [TargetingStrategyKey.NEAREST_ENEMY]: ({ world, attackerId }) => {
         const nearestEnemyId = findNearestEnemy(world, attackerId);
         if (nearestEnemyId !== null) {
-            return selectRandomPart(world, nearestEnemyId);
+            return QueryService.selectRandomPart(world, nearestEnemyId);
         }
         return null;
     },

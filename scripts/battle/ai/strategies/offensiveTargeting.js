@@ -2,11 +2,8 @@
  * @file AI攻撃系ターゲティング戦略
  */
 import { PlayerInfo, Parts } from '../../../components/index.js';
-import { BattleLog, BattleContext } from '../../components/index.js'; // BattleContextをcomponentsからインポート
-import { 
-    selectRandomPart, 
-    getAllPartsFromCandidates 
-} from '../../utils/queryUtils.js';
+import { BattleLog, BattleContext } from '../../components/index.js';
+import { QueryService } from '../../services/QueryService.js';
 import { TargetingService } from '../../services/TargetingService.js';
 import { TargetingStrategyKey } from '../strategyKeys.js';
 import { PartInfo } from '../../../common/constants.js';
@@ -22,7 +19,7 @@ const createEnemyTargetingStrategy = (logicFn) => {
 };
 
 const createSortedPartsStrategy = (sortFn) => createEnemyTargetingStrategy(({ world, candidates }) => {
-    const allParts = getAllPartsFromCandidates(world, candidates);
+    const allParts = QueryService.getAllPartsFromCandidates(world, candidates);
     if (allParts.length === 0) return null;
     allParts.sort(sortFn);
     const weights = [4, 3, 1];
@@ -33,7 +30,7 @@ const createSortedPartsStrategy = (sortFn) => createEnemyTargetingStrategy(({ wo
 });
 
 const createUniformWeightStrategy = () => createEnemyTargetingStrategy(({ world, candidates }) => {
-    const allParts = getAllPartsFromCandidates(world, candidates);
+    const allParts = QueryService.getAllPartsFromCandidates(world, candidates);
     if (allParts.length === 0) return null;
     return allParts.map(p => ({
         target: { targetId: p.entityId, targetPartKey: p.partKey },
@@ -44,7 +41,7 @@ const createUniformWeightStrategy = () => createEnemyTargetingStrategy(({ world,
 const createTargetedEntityStrategy = (findTargetIdFn) => createEnemyTargetingStrategy(({ world, candidates }) => {
     const targetId = findTargetIdFn({ world, candidates });
     if (targetId) {
-        const allParts = getAllPartsFromCandidates(world, [targetId]);
+        const allParts = QueryService.getAllPartsFromCandidates(world, [targetId]);
         return allParts.map(p => ({
             target: { targetId: p.entityId, targetPartKey: p.partKey },
             weight: 1
@@ -56,7 +53,7 @@ const createTargetedEntityStrategy = (findTargetIdFn) => createEnemyTargetingStr
 const createSingleEntityStrategy = (findTargetIdFn) => ({ world, attackerId }) => {
     const targetId = findTargetIdFn({ world, attackerId });
     if (targetId && TargetingService.isValidTarget(world, targetId)) {
-        const allParts = getAllPartsFromCandidates(world, [targetId]);
+        const allParts = QueryService.getAllPartsFromCandidates(world, [targetId]);
         return allParts.map(p => ({
             target: { targetId: p.entityId, targetPartKey: p.partKey },
             weight: 1
@@ -106,7 +103,7 @@ export const offensiveStrategies = {
                     weight: weights[index] || 0.5
                 });
             } else {
-                const randomPart = selectRandomPart(world, id);
+                const randomPart = QueryService.selectRandomPart(world, id);
                 if (randomPart) {
                     targetCandidates.push({ target: randomPart, weight: 0.5 });
                 }

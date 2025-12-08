@@ -1,9 +1,9 @@
 import { System } from '../../../../engine/core/System.js';
 import { GameState } from '../../components/index.js';
-import { BattleContext } from '../../components/BattleContext.js'; // 修正
+import { BattleContext } from '../../components/BattleContext.js'; 
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
-import { compareByPropulsion } from '../../utils/queryUtils.js';
+import { QueryService } from '../../services/QueryService.js';
 
 export class TurnSystem extends System {
     constructor(world) {
@@ -33,7 +33,7 @@ export class TurnSystem extends System {
             if (this.battleContext.phase === BattlePhase.INITIAL_SELECTION) {
                 this.pendingQueue.sort((a, b) => a - b);
             } else {
-                this.pendingQueue.sort(compareByPropulsion(this.world));
+                this.pendingQueue.sort(QueryService.compareByPropulsion(this.world));
             }
             
             this.battleContext.turn.actionQueue.push(...this.pendingQueue);

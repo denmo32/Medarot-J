@@ -9,7 +9,7 @@ import { EffectType } from '../../common/constants.js';
 import { CombatCalculator } from './CombatCalculator.js';
 import { EffectRegistry } from '../definitions/EffectRegistry.js'; 
 import { TargetingService } from '../services/TargetingService.js';
-import { findRandomPenetrationTarget } from '../utils/queryUtils.js';
+import { QueryService } from '../services/QueryService.js';
 
 export class BattleResolver {
     constructor(world) {
@@ -160,7 +160,7 @@ export class BattleResolver {
                 // --- 貫通処理 ---
                 if (result.isPartBroken && result.overkillDamage > 0 && result.penetrates) {
                     
-                    const nextTargetPartKey = findRandomPenetrationTarget(this.world, result.targetId, result.partKey);
+                    const nextTargetPartKey = QueryService.findRandomPenetrationTarget(this.world, result.targetId, result.partKey);
                     
                     if (nextTargetPartKey) {
                         const nextEffect = {

@@ -10,10 +10,10 @@ import { CooldownService } from './CooldownService.js';
 import { CancellationService } from './CancellationService.js';
 import { PlayerStatusService } from './PlayerStatusService.js';
 import { TargetingService } from './TargetingService.js';
+import { QueryService } from './QueryService.js';
 import { GameEvents } from '../../common/events.js';
 import { GameState, Action } from '../components/index.js';
 import { PlayerStateType } from '../common/constants.js';
-import { compareByPropulsion } from '../utils/queryUtils.js';
 
 export class ActionSequenceService {
     constructor(world) {
@@ -32,7 +32,7 @@ export class ActionSequenceService {
             return state.state === PlayerStateType.READY_EXECUTE;
         });
 
-        readyEntities.sort(compareByPropulsion(this.world));
+        readyEntities.sort(QueryService.compareByPropulsion(this.world));
         return readyEntities;
     }
 

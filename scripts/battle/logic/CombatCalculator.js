@@ -2,11 +2,10 @@
  * @file CombatCalculator.js
  * @description 戦闘計算式ロジック
  * Strategyパターンを用いて計算ロジックを抽象化。
- * 元 scripts/battle/utils/combatFormulas.js
  */
 
 import { CONFIG } from '../common/config.js';
-import { findBestDefensePart } from '../utils/queryUtils.js';
+import { QueryService } from '../services/QueryService.js';
 import { GameError, ErrorType } from '../../../engine/utils/ErrorHandler.js';
 import { clamp } from '../../../engine/utils/MathUtils.js';
 import { EffectService } from '../services/EffectService.js';
@@ -219,7 +218,7 @@ class DefaultCombatStrategy extends CombatStrategy {
         const isDefended = Math.random() < defenseChance;
 
         if (isDefended) {
-            const defensePartKey = findBestDefensePart(world, targetId);
+            const defensePartKey = QueryService.findBestDefensePart(world, targetId);
             if (defensePartKey) {
                 return { ...defaultOutcome, isHit: true, isDefended: true, finalTargetPartKey: defensePartKey };
             }

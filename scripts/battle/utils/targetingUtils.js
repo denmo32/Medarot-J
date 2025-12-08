@@ -1,7 +1,7 @@
 /**
  * @file ターゲット決定および行動計画ユーティリティ
  */
-import { getAttackableParts } from './queryUtils.js';
+import { QueryService } from '../services/QueryService.js';
 import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
 // scripts/battle/utils/ -> ../../common/constants.js
 import { TargetTiming as CommonTargetTiming } from '../../common/constants.js';
@@ -11,7 +11,7 @@ export function determineActionPlans({ world, entityId, targetCandidates }) {
         return [];
     }
     
-    const availableParts = getAttackableParts(world, entityId);
+    const availableParts = QueryService.getAttackableParts(world, entityId);
     if (availableParts.length === 0) {
         return [];
     }
