@@ -2,11 +2,14 @@
  * @file AiDecisionService.js
  * @description AIの意思決定ロジックを提供するサービス。
  * 性格に基づくターゲット選定や、行動プランの評価・選択を行う。
+ * targetingUtils.js のロジックを統合。
  */
 import { determineTargetCandidatesByPersonality, selectBestActionPlan } from '../ai/aiDecisionUtils.js';
-import { determineActionPlans } from '../utils/targetingUtils.js';
 import { GameEvents } from '../../common/events.js';
 import { ActionService } from './ActionService.js';
+import { QueryService } from './QueryService.js';
+import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
+import { TargetTiming as CommonTargetTiming } from '../../common/constants.js';
 
 export class AiDecisionService {
     constructor(world) {
@@ -30,7 +33,7 @@ export class AiDecisionService {
         }
 
         // 2. 実行可能な行動プランを列挙
-        const actionPlans = determineActionPlans({ ...context, targetCandidates });
+        const actionPlans = this.generateActionPlans(entityId, targetCandidates);
         
         if (actionPlans.length === 0) {
             // 有効なアクションがない場合（全パーツ破壊など）
@@ -70,7 +73,42 @@ export class AiDecisionService {
      */
     generateActionPlans(entityId, targetCandidates) {
         const context = { world: this.world, entityId };
-        return determineActionPlans({ ...context, targetCandidates });
+        return this._determineActionPlans({ ...context, targetCandidates });
+    }
+
+    /**
+     * 行動プラン生成ロジック (旧 targetingUtils.determineActionPlans)
+     * @param {object} params { world, entityId, targetCandidates }
+     * @returns {object[]}
+     */
+    _determineActionPlans({ world, entityId, targetCandidates }) {
+        if (!targetCandidates || targetCandidates.length === 0) {
+            return [];
+        }
+        
+        const availableParts = QueryService.getAttackableParts(world, entityId);
+        if (availableParts.length === 0) {
+            return [];
+        }
+
+        const actionPlans = [];
+        for (const [partKey, part] of availableParts) {
+            let selectedTarget = null;
+
+            if (part.targetTiming === CommonTargetTiming.PRE_MOVE) {
+                const selectedCandidate = selectItemByProbability(targetCandidates);
+                if (selectedCandidate) {
+                    selectedTarget = selectedCandidate.target;
+                }
+            }
+
+            actionPlans.push({
+                partKey,
+                part,
+                target: selectedTarget,
+            });
+        }
+        return actionPlans;
     }
 
     _executePlan(entityId, plan, strategyKey) {
