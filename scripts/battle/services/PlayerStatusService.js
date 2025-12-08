@@ -1,12 +1,14 @@
 /**
  * @file PlayerStatusService.js
  * @description プレイヤーの状態遷移とそれに伴う副作用（ゲージ制御、位置補正など）を一元管理するサービス。
+ * 位置補正ロジック(positionUtils)を統合。
  */
 import { GameEvents } from '../../common/events.js';
-import { Gauge, GameState, Action } from '../components/index.js';
+import { Gauge, GameState, Action, Position } from '../components/index.js';
 import { PlayerInfo } from '../../components/index.js';
 import { PlayerStateType } from '../common/constants.js';
-import { snapToActionLine } from '../utils/positionUtils.js';
+import { TeamID } from '../../common/constants.js';
+import { CONFIG } from '../common/config.js';
 
 // ゲージを加算すべき状態のリスト
 const ACTIVE_GAUGE_STATES = new Set([
@@ -42,7 +44,7 @@ export class PlayerStatusService {
 
         // 副作用2: 位置スナップ（アクションラインへの移動）
         if (newState === PlayerStateType.GUARDING || newState === PlayerStateType.READY_EXECUTE) {
-            snapToActionLine(world, entityId);
+            this.snapToActionLine(world, entityId);
         }
     }
 
@@ -83,5 +85,37 @@ export class PlayerStatusService {
         else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
             this.transitionTo(world, entityId, PlayerStateType.READY_EXECUTE);
         }
+    }
+
+    /**
+     * エンティティの位置をアクションラインにスナップさせる
+     * @param {World} world 
+     * @param {number} entityId 
+     */
+    static snapToActionLine(world, entityId) {
+        const position = world.getComponent(entityId, Position);
+        const playerInfo = world.getComponent(entityId, PlayerInfo);
+
+        if (!position || !playerInfo) return;
+
+        position.x = playerInfo.teamId === TeamID.TEAM1
+            ? CONFIG.BATTLEFIELD.ACTION_LINE_TEAM1
+            : CONFIG.BATTLEFIELD.ACTION_LINE_TEAM2;
+    }
+
+    /**
+     * エンティティの位置をホームポジションにスナップさせる
+     * @param {World} world 
+     * @param {number} entityId 
+     */
+    static snapToHomePosition(world, entityId) {
+        const position = world.getComponent(entityId, Position);
+        const playerInfo = world.getComponent(entityId, PlayerInfo);
+
+        if (!position || !playerInfo) return;
+
+        position.x = playerInfo.teamId === TeamID.TEAM1
+            ? CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM1
+            : CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM2;
     }
 }

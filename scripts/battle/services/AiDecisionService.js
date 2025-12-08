@@ -6,7 +6,7 @@
 import { determineTargetCandidatesByPersonality, selectBestActionPlan } from '../ai/aiDecisionUtils.js';
 import { determineActionPlans } from '../utils/targetingUtils.js';
 import { GameEvents } from '../../common/events.js';
-import { decideAndEmitAction } from '../utils/actionUtils.js';
+import { ActionService } from './ActionService.js';
 
 export class AiDecisionService {
     constructor(world) {
@@ -82,12 +82,12 @@ export class AiDecisionService {
                 target: plan.target,
             });
         }
-        decideAndEmitAction(this.world, entityId, plan.partKey, plan.target);
+        ActionService.decideAndEmit(this.world, entityId, plan.partKey, plan.target);
     }
 
     _executeRandomFallback(entityId, actionPlans) {
         if (actionPlans.length === 0) return;
         const randomPlan = actionPlans[Math.floor(Math.random() * actionPlans.length)];
-        decideAndEmitAction(this.world, entityId, randomPlan.partKey, randomPlan.target);
+        ActionService.decideAndEmit(this.world, entityId, randomPlan.partKey, randomPlan.target);
     }
 }

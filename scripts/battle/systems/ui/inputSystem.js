@@ -4,7 +4,7 @@ import { PlayerInfo } from '../../../components/index.js';
 import { ModalType } from '../../common/constants.js';
 import { EffectScope } from '../../../common/constants.js';
 import { getAllActionParts } from '../../utils/queryUtils.js';
-import { decideAndEmitAction } from '../../utils/actionUtils.js';
+import { ActionService } from '../../services/ActionService.js';
 import { AiDecisionService } from '../../services/AiDecisionService.js';
 
 export class InputSystem extends System {
@@ -65,6 +65,6 @@ export class InputSystem extends System {
 
     onPartSelected(detail) {
         const { entityId, partKey, target } = detail;
-        decideAndEmitAction(this.world, entityId, partKey, target);
+        ActionService.decideAndEmit(this.world, entityId, partKey, target);
     }
 }
