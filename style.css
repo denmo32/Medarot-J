@@ -28,72 +28,124 @@
 }
 
 body {
-            font-family: 'Inter', sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100vw; /* 画面全体の幅に */
-            height: 100vh; /* 画面全体の高さに */
-            min-width: 1024px; /* ゲームの最小幅 */
-            min-height: 576px; /* ゲームの最小高さ */
-            background-color: var(--color-background);
-            color: var(--color-text-primary);
-            margin: 0;
-            padding: 0; /* スケーリングのためpaddingを削除 */
-            box-sizing: border-box;
-            overflow: hidden; /* スクロールバーを非表示に */
-        }
-        
-        #battle-container, #map-container {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-        }
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+    min-width: 1024px;
+    min-height: 576px;
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+}
 
-        .main-container {
-            background-color: var(--color-background-panel);
-            padding: 20px;
-            border-radius: 12px;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
-            gap: 20px;
-            align-items: stretch;
-            transform-origin: center center; /* スケーリングの基点を中央に設定 */
-        }
+#battle-container, #map-container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
 
-        /* バトルフィールド */
-        .battlefield {
-            flex-grow: 1;
-            height: 356px;
-            background-color: var(--color-background-panel-inner);
-            border: 2px solid var(--color-border-primary);
-            border-radius: 8px;
-            position: relative;
-            overflow: hidden;
-        }
+.main-container {
+    background-color: var(--color-background-panel);
+    padding: 20px;
+    border-radius: 12px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: stretch;
+    transform-origin: center center;
+}
 
-        /* アクションライン */
-        .action-line-1 {
-            position: absolute;
-            left: 45%;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background-color: rgba(255, 255, 255, 0.2);
-            transform: translateX(-50%);
-        }
-        .action-line-2 {
-            position: absolute;
-            left: 55%;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background-color: rgba(255, 255, 255, 0.2);
-            transform: translateX(-50%);
-        }
+/* バトルフィールド */
+.battlefield {
+    flex-grow: 1; 
+    height: 356px; /* 高さ固定 */
+    background-color: var(--color-background-panel-inner);
+    border: 2px solid var(--color-border-primary);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    min-width: 400px; 
+}
+
+/* 情報表示エリア */
+.team-info-panel {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 8px;
+    flex-basis: 160px; 
+    flex-shrink: 0;
+    height: 356px; /* バトルフィールドと高さを揃える */
+}
+
+/* チーム内のプレイヤーを縦に並べるためのコンテナ */
+.team-players-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* 上端と下端を揃え、均等配置 */
+    gap: 16px;
+    margin-top: 0px;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+/* プレイヤー情報を縦に並べる */
+.player-info {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0px;
+    font-size: 0.9em;
+    border: 1px solid var(--color-border-secondary);
+    padding: 4px; /* パディングを縮小 */
+    border-radius: 8px;
+    background-color: var(--color-background-panel-inner);
+    width: 100%;
+    box-sizing: border-box;
+    /* 高さを均等に分配 */
+    flex: 1; 
+    justify-content: center; /* 内部要素を中央寄せ */
+}
+
+.player-info > game-health-bar + game-health-bar {
+    margin-top: 0px; /* マージン削除 */
+}
+
+.player-name {
+    font-weight: normal;
+    font-size: 0.75em; /* フォントサイズ縮小 */
+    text-align: center;
+    margin-bottom: 2px; /* 下マージン縮小 */
+    line-height: 1.2;
+}
+
+/* アクションライン */
+.action-line-1 {
+    position: absolute;
+    left: 45%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: rgba(255, 255, 255, 0.2);
+    transform: translateX(-50%);
+}
+.action-line-2 {
+    position: absolute;
+    left: 55%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: rgba(255, 255, 255, 0.2);
+    transform: translateX(-50%);
+}
 
 /* 「ロボトルファイト！」テキスト */
 .battle-start-text {
@@ -130,48 +182,45 @@ body {
     }
 }
 
-        /* ホームポジションマーカー */
-        .home-marker {
-            position: absolute;
-            width: 44px; /* アイコンサイズに合わせて縮小 */
-            height: 44px; /* アイコンサイズに合わせて縮小 */
-            border-radius: 50%;
-            border: 2px dashed rgba(255, 255, 255, 0.3);
-            transform: translate(-50%, -50%);
-        }
+/* ホームポジションマーカー */
+.home-marker {
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+}
 
-        /* プレイヤーアイコン */
-        .player-icon {
-            width: 44px; /* アイコンサイズを縮小 */
-            height: 44px; /* アイコンサイズを縮小 */
-            border-radius: 50%;
-            position: absolute;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: var(--color-background);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-            /* 枠線の色変化もアニメーション対象に追加 */
-            transition: left 0.1s linear, transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
-            cursor: pointer;
-            /* 状態表示用の枠線を追加 */
-            border: 4px solid var(--color-border-primary);
-            z-index: 10;
-        }
+/* プレイヤーアイコン */
+.player-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: var(--color-background);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+    transition: left 0.1s linear, transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+    cursor: pointer;
+    border: 4px solid var(--color-border-primary);
+    z-index: 10;
+}
 
-        /* 攻撃実行時の強調表示 */
-        .player-icon.attacker-active {
-            /* 拡大なし、発光のみ */
-            box-shadow: 0 0 15px 5px rgba(255, 255, 255, 0.8);
-            z-index: 50;
-            border-color: var(--color-white) !important;
-        }
+/* 攻撃実行時の強調表示 */
+.player-icon.attacker-active {
+    box-shadow: 0 0 15px 5px rgba(255, 255, 255, 0.8);
+    z-index: 50;
+    border-color: var(--color-white) !important;
+}
 
 /* ガードインジケーター */
 .guard-indicator {
     position: absolute;
-    top: -20px; /* アイコンの上部に配置 */
+    top: -20px;
     left: 50%;
     transform: translateX(-50%);
     background-color: var(--color-guard-indicator);
@@ -181,177 +230,94 @@ body {
     font-size: 0.8em;
     font-weight: bold;
     white-space: nowrap;
-    display: none; /* 初期状態は非表示 */
+    display: none;
     z-index: 10;
     border: 1px solid var(--color-white);
 }
         
-        /* プレイヤーアイコンの状態 */
-        .player-icon.broken {
-            background-color: var(--color-disabled) !important;
-            color: var(--color-text-secondary);
-            box-shadow: none;
-            filter: grayscale(1);
-        }
+/* プレイヤーアイコンの状態 */
+.player-icon.broken {
+    background-color: var(--color-disabled) !important;
+    color: var(--color-text-secondary);
+    box-shadow: none;
+    filter: grayscale(1);
+}
 
-        
+/* アクションパネル */
+.action-panel {
+    flex-basis: 100%;
+    width: 100%;
+    height: 160px;
+    background-color: var(--color-background-panel-inner);
+    border-radius: 8px;
+    padding: 15px;
+    box-sizing: border-box;
+    transition: opacity 0.3s ease;
+    position: relative;
+}
+.action-panel.clickable {
+    cursor: pointer;
+}
+.action-panel-owner {
+    position: absolute;
+    top: 10px;
+    left: 15px;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: var(--color-text-secondary);
+}
+.action-panel-content {
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+}
+.action-panel-title {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+.action-panel-actor {
+    font-size: 1.1em;
+    margin-bottom: 15px;
+    min-height: 1.2em;
+}
+.action-panel-title:empty,
+.action-panel-actor:empty {
+    display: none;
+}
+.action-panel-button {
+    background: var(--color-confirm);
+    color: var(--color-background);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: none;
+}
+.action-panel-button:hover {
+    background: var(--color-confirm-hover);
+}
 
-        /* 情報表示エリア */
-        .team-info-panel {
-            background-color: transparent;
-            padding: 0;
-            border-radius: 8px;
-        }
-        /* チーム内のプレイヤーを縦に並べるためのコンテナ */
-        .team-players-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            gap: 15px;
-            margin-top: 0px;
-            height: 100%;
-            box-sizing: border-box;
-        }
-        /* プレイヤー情報を縦に並べる */
-        .player-info {
-            display: flex;
-            flex-direction: column;
-            align-items: center; /* 中央揃え */
-            gap: 0px; /* HPバー同士の間隔を小さく */
-            font-size: 0.9em;
-            border: 1px solid var(--color-border-secondary); /* 枠線を追加 */
-            padding: 6px; /* 枠内の余白を調整 */
-            border-radius: 8px; /* 角を少し丸く */
-            background-color: var(--color-background-panel-inner); /* 背景色を統一 */
-        }
-        .player-info > .part-hp + .part-hp {
-            margin-top: -4px;
-        }
+/* 汎用パーツアクションボタンのスタイル */
+.part-action-button { background: var(--color-primary); color: var(--color-white); padding: 4px 15px; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease; border:none; }
+.part-action-button:hover:not(:disabled) { background: var(--color-primary-hover); }
+.part-action-button:disabled { background: var(--color-disabled); cursor: not-allowed; opacity: 0.6; }
 
-        .player-name {
-            font-weight: normal; /* 太字を解除 */
-            font-size: 0.8em; /* テキストを小さく */
-        }
-        /* parts-container は削除 */
-        .part-hp { display: flex; align-items: center; gap: 0px; width: 100%; padding-left: 0px; }
-        .part-hp-bar-container {
-            width: 80px;
-            height: 12px; /* 高さを調整 */
-            background-color: var(--color-background-panel);
-            border-radius: 6px;
-            border: 1px solid var(--color-border-secondary);
-            padding: 1px;
-            box-sizing: border-box;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);
-        }
-        /* HP数値のスタイル */
-        .part-hp-value {
-            font-size: 0.75em;
-            font-weight: bold; /* 太字 */
-            color: var(--color-text-primary); /* 白に近い色 */
-            font-family: 'Roboto Mono', monospace; /* 数字が見やすいフォントに */
-            width: 40px; /* HP数値表示のための幅を固定 */
-            text-align: right; /* 右寄せにして桁数の変動に対応 */
-            flex-shrink: 0; /* flexコンテナ内で縮まないように設定 */
-        }
-        .part-hp-bar {
-            height: 100%;
-            border-radius: 4px;
-            /* transitionを削除し、JSで制御するように変更 */
-            position: relative;
-        }
-        .part-hp-bar::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 50%;
-            background: linear-gradient(to bottom, rgba(255,255,255,0.3), rgba(255,255,255,0.05));
-            border-radius: 4px 4px 0 0;
-        }
-        .part-hp.broken .part-name { text-decoration: line-through; color: var(--color-text-secondary); }
+/* 汎用hiddenクラス */
+.hidden { display: none !important; }
 
-        /* アクションパネル */
-        .action-panel {
-            flex-basis: 100%;
-            width: 100%;
-            height: 160px; /* パネルの高さを固定 */
-            background-color: var(--color-background-panel-inner);
-            border-radius: 8px;
-            /* margin-top: 20px; 上の要素とのマージン */
-            padding: 15px; /* パディングを少し調整 */
-            box-sizing: border-box;
-            transition: opacity 0.3s ease;
-            position: relative; /* 子要素の絶対配置のため */
-        }
-        /* クリック可能なアクションパネル */
-        .action-panel.clickable {
-            cursor: pointer;
-        }
-        /* アクションパネル左上の所有者表示 */
-        .action-panel-owner {
-            position: absolute;
-            top: 10px;
-            left: 15px;
-            font-size: 1.1em;
-            font-weight: bold;
-            color: var(--color-text-secondary); /* 少し薄い色に */
-        }
-        .action-panel-content {
-            width: 100%;
-            height: 100%; /* 親要素の高さ全体を使う */
-            text-align: center;
-            /* flexboxで内部要素を中央揃えにし、はみ出しを防ぐ */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center; /* コンテンツを中央揃えに固定 */
-            overflow-y: auto; /* 内容が多い場合はスクロールバーを表示 */
-        }        .action-panel-title {
-            font-size: 1.5em; /* モーダルより少し小さく調整 */
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .action-panel-actor {
-            font-size: 1.1em; /* モーダルより少し小さく調整 */
-            margin-bottom: 15px;
-            min-height: 1.2em; /* メッセージがない時も高さを保つ */
-        }
-        /* 空のタイトルとメッセージ要素をレイアウトから除外する */
-        .action-panel-title:empty,
-        .action-panel-actor:empty {
-            display: none;
-        }
-        .action-panel-button {
-            background: var(--color-confirm);
-            color: var(--color-background);
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 1em;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            border: none;
-        }
-        .action-panel-button:hover {
-            background: var(--color-confirm-hover);
-        }
+/* ボタン */
+.buttons-center { display: flex; justify-content: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+button { background-color: var(--color-primary); color: var(--color-white); padding: 10px 20px; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; transition: background-color 0.3s; }
+button:hover { background-color: var(--color-primary-hover); }
+button:disabled { background-color: var(--color-text-secondary); cursor: not-allowed; }
 
-        /* 汎用パーツアクションボタンのスタイル (モーダルから流用) */
-        .part-action-button { background: var(--color-primary); color: var(--color-white); padding: 4px 15px; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease; border:none; } /* ★変更: 上下パディングを縮小 */
-        .part-action-button:hover:not(:disabled) { background: var(--color-primary-hover); }
-        .part-action-button:disabled { background: var(--color-disabled); cursor: not-allowed; opacity: 0.6; }
-        
-        /* 汎用hiddenクラス */
-        .hidden { display: none !important; }
-        
-        /* ボタン */
-        .buttons-center { display: flex; justify-content: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-        button { background-color: var(--color-primary); color: var(--color-white); padding: 10px 20px; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; transition: background-color 0.3s; }
-        button:hover { background-color: var(--color-primary-hover); }
-        button:disabled { background-color: var(--color-text-secondary); cursor: not-allowed; }
-
-/* クリック可能を示すインジケーター */
 .action-panel-indicator {
     position: absolute;
     bottom: 10px;
@@ -366,7 +332,6 @@ body {
     50% { opacity: 0.3; }
 }
 
-/* ボタンの三角配置用スタイル */
 .triangle-layout {
     width: 100%;
     max-width: 1000px;
@@ -377,37 +342,37 @@ body {
     justify-content: center;
 }
 .bottom-row {
-    justify-content: space-between; /* 両端に寄せる */
+    justify-content: space-between;
     margin-top: 5px;
 }
 
 /* --- Map System Styles --- */
-        .map-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative; /* 追加 */
-            transform-origin: center center; /* スケーリングの基点を中央に設定 */
-        }
+.map-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    transform-origin: center center;
+}
 #game-canvas {
     width: 100%;
     height: 100%;
     border: 2px solid var(--color-white);
-    background-color: #2a8a2a; /* Grass background color */
+    background-color: #2a8a2a;
 }
 
 /* --- Message Window Styles --- */
 .message-window {
     position: absolute;
-    top: unset; /* リセット */
-    left: unset; /* リセット */
-    transform: unset; /* リセット */
+    top: unset;
+    left: unset;
+    transform: unset;
     background-color: var(--color-background-panel);
     border: 2px solid var(--color-border-primary);
     border-radius: 8px;
     padding: 20px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-    z-index: 1000; /* 他の要素より前面に表示 */
+    z-index: 1000;
 }
 
 .message-window-content {
@@ -450,7 +415,6 @@ body {
     outline-offset: 2px;
 }
 
-/* キャンセルボタンのスタイル (オプション) */
 #cancel-battle-button {
     background-color: var(--color-cancel);
 }
@@ -460,16 +424,15 @@ body {
 }
 
 .part-action-button.focused {
-    box-shadow: 0 0 0 3px var(--color-focus-outline); /* 青いアウトライン */
-    background-color: var(--color-primary-hover); /* 少し濃い背景色 */
+    box-shadow: 0 0 0 3px var(--color-focus-outline);
+    background-color: var(--color-primary-hover);
 }
 
-/* タイトル画面 */
+/* Title Screen */
 .title-container {
-    position: fixed; /* absolute -> fixed に変更 */
-    top: 50%; /* 0 -> 50% に変更 */
-    left: 50%; /* 0 -> 50% に変更 */
-    /* width, height は JS で制御される */
+    position: fixed;
+    top: 50%;
+    left: 50%;
     background-color: var(--color-background);
     display: flex;
     flex-direction: column;
@@ -513,7 +476,7 @@ body {
     outline-offset: 2px;
 }
 
-/* マップシーン用のポーズメニュー */
+/* Map Menu */
 .map-menu {
     position: absolute;
     top: 20px;
@@ -521,10 +484,10 @@ body {
     background-color: var(--color-background-panel);
     border: 2px solid var(--color-border-primary);
     border-radius: 8px;
-    padding: 20px; /* 余白を広げて三角マークの配置に余裕を確保 */
+    padding: 20px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
     z-index: 1000;
-    width: 220px; /* 横幅を広げて三角マークの左側に余白を確保 */
+    width: 220px;
     max-height: 300px;
     overflow-y: auto;
 }
@@ -532,10 +495,10 @@ body {
 .map-menu-content {
     display: flex;
     flex-direction: column;
-    align-items: flex-start; /* 左揃えに変更 */
+    align-items: flex-start;
     gap: 10px;
-    position: relative; /* 三角(▶)の位置を調整するために追加 */
-    padding-left: 20px; /* 三角(▶)のためのスペースを確保 */
+    position: relative;
+    padding-left: 20px;
 }
 
 .map-menu p {
@@ -556,30 +519,28 @@ body {
     transition: background-color 0.3s;
     width: 100%;
     margin-bottom: 5px;
-    position: relative; /* ::before の基準点 */
+    position: relative;
 }
 
 .map-menu-button:hover {
     background-color: var(--color-primary-hover);
 }
 
-/* フォーカスされたボタンの前に三角マークを表示 */
 .map-menu-button.focused::before {
     content: '▶';
     color: #ffd700;
     position: absolute;
-    left: -15px; /* ボタンの少し左に配置 */
+    left: -15px;
     top: 50%;
     transform: translateY(-50%);
     font-size: 0.9em;
 }
 
-/* カスタマイズ画面 */
+/* Customize Screen */
 .customize-container {
     position: fixed;
     top: 50%;
     left: 50%;
-    /* width, height, transform はJSで設定される */
     background-color: var(--color-background);
     display: flex;
     flex-direction: column;
@@ -611,7 +572,7 @@ body {
 
 .customize-center-column {
     display: grid;
-    grid-template-rows: auto 1fr; /* 上パネルは自動高さ、下パネルが残り全部 */
+    grid-template-rows: auto 1fr;
     gap: 20px;
     overflow: hidden;
 }
@@ -624,7 +585,6 @@ body {
     flex-direction: column;
 }
 
-/* スクロールする中身を持つパネルにだけ overflow:hidden を設定 */
 #customize-medarot-select-panel,
 #customize-parts-list-panel,
 #customize-part-details-panel {
@@ -650,23 +610,18 @@ body {
     align-items: center;
 }
 
-
-
-/* リストのスタイル */
 #medarot-select-list, #equipped-parts-list, #equipped-medal-list, #parts-list {
     list-style: none;
     padding: 0;
     margin: 0;
 }
 
-/* スクロールが必要なリストにのみ overflow を設定 */
 #medarot-select-list, #parts-list {
     overflow-y: auto;
 }
 
-/* 装備メダルリストのスタイル */
 #equipped-medal-list {
-    margin-bottom: 10px; /* パーツリストとの間にスペース */
+    margin-bottom: 10px;
     flex-grow: 0;
     flex-shrink: 0;
 }
@@ -698,7 +653,6 @@ body {
     color: #bee3f8;
 }
 
-/* パーツ詳細パネル */
 #part-details-content {
     padding-top: 10px;
     font-size: 0.95em;
@@ -725,7 +679,6 @@ body {
     flex-grow: 1;
 }
 
-/* ターゲットインジケーター */
 .target-indicator {
     position: absolute;
     top: 50%;
@@ -737,13 +690,11 @@ body {
     pointer-events: none;
 }
 
-/* 選択中のループアニメーション */
 .target-indicator.active {
     opacity: 1;
     animation: radar-zoom-loop 1.5s infinite ease-in-out;
 }
 
-/* 攻撃ヒット時のロックオン（収束）アニメーション */
 .target-indicator.lockon {
     opacity: 1;
     animation: radar-zoom-lockon 0.6s ease-out forwards;

@@ -1,7 +1,6 @@
 /**
  * @file BattleSequenceSystem.js
- * @description アクション実行シーケンスの制御を行うシステム。
- * 非同期フロー制御により、計算→適用→演出の流れを一元管理する。
+ * @description イベント発行をここで行うように修正。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -21,17 +20,15 @@ export class BattleSequenceSystem extends System {
         this.service = new ActionSequenceService(world);
         this.taskRunner = new TaskRunner(world);
         
-        // 実行キュー (Actor Entity ID のリスト)
         this.executionQueue = [];
         this.isLoopRunning = false;
 
+        // イベントリスナーの登録
+        // this.onActionExecutionRequested が確実に存在することを確認
         this.on(GameEvents.ACTION_EXECUTION_REQUESTED, this.onActionExecutionRequested.bind(this));
         
-        // 補助的なイベントリスナー
         this.on(GameEvents.REQUEST_RESET_TO_COOLDOWN, this.onRequestResetToCooldown.bind(this));
         this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
-        
-        // シーケンス強制中断用（ゲームオーバー時など）
         this.on(GameEvents.GAME_OVER, this.abortSequence.bind(this));
     }
 
@@ -83,29 +80,26 @@ export class BattleSequenceSystem extends System {
         }
     }
 
-    /**
-     * 単一アクターのアクションシーケンス（計算〜演出）を実行
-     */
     async executeActorSequence(actorId) {
-        // ロジック計算 & 演出タスク生成
-        // executeSequence内部でキャンセル判定やCooldownリセットもハンドリングされる想定だが、
-        // 戻り値で制御フローを決定する。
-        const { tasks, isCancelled } = this.service.executeSequence(actorId);
+        const { tasks, isCancelled, eventsToEmit } = this.service.executeSequence(actorId);
+
+        // 副作用(イベント発行)を一括実行
+        if (eventsToEmit) {
+            eventsToEmit.forEach(event => {
+                this.world.emit(event.type, event.payload);
+            });
+        }
 
         if (isCancelled) {
-            // キャンセルされた場合も、キャンセル演出などがtasksに含まれている可能性があるなら実行する。
-            // 現状のService実装ではキャンセル時はtasks空配列なので即終了する。
             return;
         }
 
         if (tasks.length > 0) {
-            // タスクランナーで演出を実行（完了を待機）
             await this.taskRunner.run(tasks);
         }
     }
 
     isValidState() {
-        // ゲームオーバーやポーズ状態など、シーケンスを中断すべき状態かチェック
         return this.battleContext.phase !== 'GAME_OVER';
     }
 
@@ -120,8 +114,6 @@ export class BattleSequenceSystem extends System {
         // TaskRunnerのフレーム更新（MoveTaskなどのため）
         this.taskRunner.update(deltaTime);
     }
-
-    // --- 補助メソッド ---
 
     onRequestResetToCooldown(detail) {
         const { entityId, options } = detail;

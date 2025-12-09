@@ -1,10 +1,11 @@
 /**
  * @file ActionSequenceService.js
- * @description アクション実行シーケンスのロジック制御を担当するサービス。
+ * @description アクション実行シーケンスのロジック制御。
+ * 戻り値としてイベントリストを返し、System側でemitする。
  */
 import { BattleResolutionService } from './BattleResolutionService.js';
 import { TimelineBuilder } from '../tasks/TimelineBuilder.js';
-import { EffectApplyService } from './EffectApplyService.js';
+// EffectApplyServiceは不要になる（BattleResolutionServiceが適用済み、イベントは戻り値に含まれる）
 import { CooldownService } from './CooldownService.js';
 import { CancellationService } from './CancellationService.js';
 import { PlayerStatusService } from './PlayerStatusService.js';
@@ -22,8 +23,7 @@ export class ActionSequenceService {
     }
 
     /**
-     * 実行待ち状態のエンティティ一覧を取得し、行動順（推進が高い順）にソートして返す
-     * @returns {number[]} entityIdの配列
+     * @returns {number[]}
      */
     getSortedReadyEntities() {
         const readyEntities = this.world.getEntitiesWith(GameState).filter(id => {
@@ -36,39 +36,36 @@ export class ActionSequenceService {
     }
 
     /**
-     * 指定されたアクターのアクションシーケンスを実行（計算・適用・演出生成）する
      * @param {number} actorId 
-     * @returns {{ tasks: Array, isCancelled: boolean }}
+     * @returns {{ tasks: Array, isCancelled: boolean, eventsToEmit: Array }}
      */
     executeSequence(actorId) {
         // 状態遷移: アニメーション待機へ
         PlayerStatusService.transitionTo(this.world, actorId, PlayerStateType.AWAITING_ANIMATION);
 
-        // 1. 実行直前のキャンセルチェック
+        // 1. キャンセルチェック
         const cancelCheck = CancellationService.checkCancellation(this.world, actorId);
         if (cancelCheck.shouldCancel) {
             CancellationService.executeCancel(this.world, actorId, cancelCheck.reason);
             CooldownService.resetEntityStateToCooldown(this.world, actorId, { interrupted: true });
-            return { tasks: [], isCancelled: true };
+            return { tasks: [], isCancelled: true, eventsToEmit: [] };
         }
 
         const actionComp = this.world.getComponent(actorId, Action);
 
-        // 2. 移動後ターゲット決定 (TargetingServiceに委譲)
+        // 2. 移動後ターゲット決定
         TargetingService.resolvePostMoveTarget(this.world, actorId, actionComp);
 
-        // 3. 戦闘結果の計算 (Logic)
+        // 3. 戦闘結果の計算 (副作用なし、イベントリスト含む)
         const resultData = this.battleResolver.resolve(actorId);
 
-        // 4. Logicデータの即時更新 (副作用の適用)
-        EffectApplyService.applyResult(this.world, resultData);
-        
-        // 外部への通知
-        this.world.emit(GameEvents.COMBAT_SEQUENCE_RESOLVED, resultData);
-
-        // 5. 演出タスクの構築
+        // 4. 演出タスクの構築
         const tasks = this.timelineBuilder.buildAttackSequence(resultData);
 
-        return { tasks, isCancelled: false };
+        return { 
+            tasks, 
+            isCancelled: false, 
+            eventsToEmit: resultData.eventsToEmit || [] 
+        };
     }
 }

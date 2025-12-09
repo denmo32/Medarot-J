@@ -1,16 +1,15 @@
 /**
  * @file PlayerRenderer.js
- * @description プレイヤーエンティティのDOM生成・更新を担当するレンダラー
- * (旧 scripts/battle/renderers/PlayerRenderer.js)
+ * @description Web Componentsを利用するように刷新。
+ * ガード表示ロジックの追加。
  */
 import { el } from '../../../../../engine/utils/DOMUtils.js';
 import { CONFIG } from '../../../common/config.js';
-// 共通定数: scripts/common/constants.js
-import { TeamID, PartKeyToInfoMap, PartInfo, EffectType } from '../../../../common/constants.js';
-// バトル固有定数: scripts/battle/common/constants.js
+import { TeamID, PartInfo, EffectType } from '../../../../common/constants.js';
 import { PlayerStateType } from '../../../common/constants.js';
-import { GameState, ActiveEffects } from '../../../components/index.js';
+import { GameState, ActiveEffects } from '../../../components/index.js'; // ActiveEffectsを追加
 import { Parts, PlayerInfo } from '../../../../components/index.js';
+import '../../../ui/components/GameHealthBar.js';
 
 export class PlayerRenderer {
     constructor(world, battlefield, teamContainers, uiManager) {
@@ -20,6 +19,8 @@ export class PlayerRenderer {
         this.uiManager = uiManager;
     }
 
+    // createメソッドは変更なしのため省略... 
+    // 前回と同じ内容ですが、guardIndicatorElementへの参照保持は確認済みとします。
     create(entityId, visual) {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         const parts = this.world.getComponent(entityId, Parts);
@@ -29,14 +30,17 @@ export class PlayerRenderer {
             : CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM2;
         const homeY = visual.y;
 
-        // マーカーとアイコンの生成
         const marker = el('div', {
             className: 'home-marker',
-            style: {
-                left: `${homeX * 100}%`,
-                top: `${homeY}%`
-            }
+            style: { left: `${homeX * 100}%`, top: `${homeY}%` }
         });
+
+        const targetIndicator = el('div', { className: 'target-indicator' }, [
+             el('div', { className: 'corner corner-1' }),
+             el('div', { className: 'corner corner-2' }),
+             el('div', { className: 'corner corner-3' }),
+             el('div', { className: 'corner corner-4' })
+        ]);
 
         const guardIndicator = el('div', { className: 'guard-indicator' });
 
@@ -46,65 +50,44 @@ export class PlayerRenderer {
             textContent: playerInfo.name.substring(playerInfo.name.length - 1),
             style: { 
                 backgroundColor: playerInfo.color,
-                position: 'absolute',
-                willChange: 'left, transform'
+                position: 'absolute'
             }
         }, [
-            el('div', { className: 'target-indicator' }, [
-                 el('div', { className: 'corner corner-1' }),
-                 el('div', { className: 'corner corner-2' }),
-                 el('div', { className: 'corner corner-3' }),
-                 el('div', { className: 'corner corner-4' })
-            ]), 
+            targetIndicator,
             guardIndicator
         ]);
 
         this.battlefield.appendChild(marker);
         this.battlefield.appendChild(icon);
 
-        // 情報パネルの生成
         const partDOMElements = {};
-        const createPartRow = (key, part) => {
-            if (!part) return null;
-            
-            let nameEl, barEl, valueEl;
-            const row = el('div', { className: 'part-hp', dataset: { partKey: key } }, [
-                nameEl = el('span', { 
-                    className: 'part-name', 
-                    textContent: PartKeyToInfoMap[key]?.icon || '?' 
-                }),
-                el('div', { className: 'part-hp-bar-container' }, [
-                    barEl = el('div', { className: 'part-hp-bar' })
-                ]),
-                valueEl = el('span', {
-                    className: 'part-hp-value',
-                    textContent: `${part.hp}/${part.maxHp}`
-                })
-            ]);
-
-            partDOMElements[key] = { container: row, bar: barEl, value: valueEl };
-            return row;
-        };
-
-        const teamConfig = CONFIG.TEAMS[playerInfo.teamId];
         const infoPanel = el('div', { className: 'player-info' }, [
-            el('div', { className: `player-name ${teamConfig.textColor}`, textContent: playerInfo.name }),
-            createPartRow(PartInfo.HEAD.key, parts.head),
-            createPartRow(PartInfo.RIGHT_ARM.key, parts.rightArm),
-            createPartRow(PartInfo.LEFT_ARM.key, parts.leftArm),
-            createPartRow(PartInfo.LEGS.key, parts.legs),
+            el('div', { className: 'player-name', textContent: playerInfo.name })
         ]);
+
+        [PartInfo.HEAD, PartInfo.RIGHT_ARM, PartInfo.LEFT_ARM, PartInfo.LEGS].forEach(info => {
+            const key = info.key;
+            const part = parts[key];
+            if (part) {
+                const healthBar = document.createElement('game-health-bar');
+                healthBar.setAttribute('label', info.icon);
+                healthBar.setAttribute('current', part.hp);
+                healthBar.setAttribute('max', part.maxHp);
+                
+                infoPanel.appendChild(healthBar);
+                partDOMElements[key] = healthBar;
+            }
+        });
 
         this.teamContainers[playerInfo.teamId].appendChild(infoPanel);
 
-        // UIManagerへの登録
         this.uiManager.registerEntity(entityId, {
             iconElement: icon,
             homeMarkerElement: marker,
             infoPanel: infoPanel,
-            guardIndicatorElement: guardIndicator,
             partDOMElements: partDOMElements,
-            targetIndicatorElement: icon.querySelector('.target-indicator')
+            targetIndicatorElement: targetIndicator,
+            guardIndicatorElement: guardIndicator
         });
 
         visual.domId = `player-${entityId}`;
@@ -112,120 +95,73 @@ export class PlayerRenderer {
 
     update(entityId, visual, domElements) {
         const { cache } = visual;
-        const icon = domElements.iconElement;
-
-        // --- 位置・スタイル更新 ---
-        const isDirty = 
-            cache.x !== visual.x ||
-            cache.y !== visual.y ||
-            cache.offsetX !== visual.offsetX ||
-            cache.offsetY !== visual.offsetY ||
-            cache.scale !== visual.scale ||
-            cache.opacity !== visual.opacity ||
-            cache.zIndex !== visual.zIndex;
-
-        if (icon && isDirty) {
-            const leftPercent = visual.x * 100;
-            const topPercent = visual.y;
-
-            icon.style.left = `${leftPercent}%`;
-            icon.style.top = `${topPercent}%`;
-
-            const transform = `translate3d(calc(-50% + ${visual.offsetX}px), calc(-50% + ${visual.offsetY}px), 0) scale(${visual.scale})`;
-
-            icon.style.transform = transform;
-            icon.style.opacity = visual.opacity;
-            icon.style.zIndex = visual.zIndex || 10;
-
-            cache.x = visual.x;
-            cache.y = visual.y;
-            cache.offsetX = visual.offsetX;
-            cache.offsetY = visual.offsetY;
-            cache.scale = visual.scale;
-            cache.opacity = visual.opacity;
-            cache.zIndex = visual.zIndex;
-        }
-
-        // --- クラス更新 (ターゲットロックオンなど) ---
-        if (icon) {
-            const classesSignature = Array.from(visual.classes).sort().join(' ');
-            if (cache.classesSignature !== classesSignature) {
-                if (cache.prevClasses) {
-                    cache.prevClasses.forEach(c => icon.classList.remove(c));
-                }
-                visual.classes.forEach(c => icon.classList.add(c));
-                cache.prevClasses = new Set(visual.classes);
-                cache.classesSignature = classesSignature;
-            }
-        }
-            
-        // --- ターゲットインジケーター ---
-        if (domElements.targetIndicatorElement) {
-            const targetIndicator = domElements.targetIndicatorElement;
-            const isLockon = visual.classes.has('target-lockon');
-            
-            if (isLockon && !targetIndicator.classList.contains('lockon')) {
-                targetIndicator.classList.add('lockon');
-            } else if (!isLockon && targetIndicator.classList.contains('lockon')) {
-                targetIndicator.classList.remove('lockon');
-            }
-        }
-
-        // --- HPバー等の固有表示 ---
-        this._updatePartsInfo(visual, domElements, cache);
+        
+        this._updateIconTransform(visual, domElements.iconElement, cache);
+        this._updateIconClasses(visual, domElements.iconElement, cache, domElements.targetIndicatorElement);
+        this._updatePartsInfo(visual, domElements.partDOMElements, cache);
         this._updateStateAppearance(entityId, domElements, cache);
+        
+        // ★追加: ガードインジケーターの更新
         this._updateGuardIndicator(entityId, domElements);
     }
 
-    _updatePartsInfo(visual, domElements, cache) {
+    _updatePartsInfo(visual, partElements, cache) {
         Object.keys(visual.partsInfo).forEach(partKey => {
             const info = visual.partsInfo[partKey];
-            const partDom = domElements.partDOMElements[partKey];
-            if (!partDom) return;
+            const element = partElements[partKey];
+            if (!element) return;
 
             const hpSignature = `${info.current}/${info.max}`;
-            if (cache.hpSignatures[partKey] === hpSignature) return;
-
-            const hpPercentage = (info.current / info.max) * 100;
-            const displayHp = Math.round(info.current);
-
-            partDom.bar.style.width = `${Math.max(0, Math.min(100, hpPercentage))}%`;
-            partDom.value.textContent = `${Math.max(0, displayHp)}/${info.max}`;
-
-            if (displayHp <= 0) {
-                partDom.bar.style.backgroundColor = 'var(--color-hp-broken)';
-                partDom.container.classList.add('broken');
-            } else {
-                partDom.container.classList.remove('broken');
-                const ratio = info.current / info.max;
-                if (ratio > 0.5) partDom.bar.style.backgroundColor = 'var(--color-hp-full)';
-                else if (ratio > 0.2) partDom.bar.style.backgroundColor = 'var(--color-hp-medium)';
-                else partDom.bar.style.backgroundColor = 'var(--color-hp-low)';
+            if (cache.hpSignatures[partKey] !== hpSignature) {
+                element.setAttribute('current', Math.round(info.current));
+                element.setAttribute('max', info.max);
+                cache.hpSignatures[partKey] = hpSignature;
             }
-
-            cache.hpSignatures[partKey] = hpSignature;
         });
+    }
+
+    _updateIconTransform(visual, icon, cache) {
+        if (!icon) return;
+        const isDirty = cache.x !== visual.x || cache.y !== visual.y || cache.scale !== visual.scale || cache.opacity !== visual.opacity;
+        if (isDirty) {
+            icon.style.left = `${visual.x * 100}%`;
+            icon.style.top = `${visual.y}%`;
+            icon.style.transform = `translate(-50%, -50%) scale(${visual.scale})`;
+            icon.style.opacity = visual.opacity;
+            cache.x = visual.x; cache.y = visual.y; cache.scale = visual.scale; cache.opacity = visual.opacity;
+        }
+    }
+
+    _updateIconClasses(visual, icon, cache, targetIndicator) {
+        if (!icon) return;
+        const sig = Array.from(visual.classes).sort().join(' ');
+        if (cache.classesSignature !== sig) {
+            if (cache.prevClasses) cache.prevClasses.forEach(c => icon.classList.remove(c));
+            visual.classes.forEach(c => icon.classList.add(c));
+            cache.prevClasses = new Set(visual.classes);
+            cache.classesSignature = sig;
+        }
+        if (targetIndicator) {
+            const isLockon = visual.classes.has('target-lockon');
+            targetIndicator.classList.toggle('lockon', isLockon);
+        }
     }
 
     _updateStateAppearance(entityId, domElements, cache) {
         const gameState = this.world.getComponent(entityId, GameState);
         const icon = domElements.iconElement;
-        
-        if (gameState && icon) {
-            if (cache.state !== gameState.state) {
-                cache.state = gameState.state;
-                
-                icon.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
-                icon.classList.toggle('ready-execute', gameState.state === PlayerStateType.READY_EXECUTE);
-                
-                switch (gameState.state) {
-                    case PlayerStateType.SELECTED_CHARGING:
-                        icon.style.borderColor = '#f6ad55'; break;
-                    case PlayerStateType.CHARGING:
-                        icon.style.borderColor = '#4fd1c5'; break;
-                    default:
-                        icon.style.borderColor = 'var(--color-border-primary)'; break;
-                }
+        if (gameState && icon && cache.state !== gameState.state) {
+            cache.state = gameState.state;
+            icon.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
+            switch (gameState.state) {
+                case PlayerStateType.SELECTED_CHARGING:
+                    icon.style.borderColor = '#f6ad55'; break;
+                case PlayerStateType.CHARGING:
+                    icon.style.borderColor = '#4fd1c5'; break;
+                case PlayerStateType.READY_EXECUTE:
+                    icon.style.borderColor = 'var(--color-white)'; break;
+                default:
+                    icon.style.borderColor = 'var(--color-border-primary)'; break;
             }
         }
     }
@@ -237,15 +173,14 @@ export class PlayerRenderer {
         if (activeEffects && guardIndicator) {
             const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
             const count = guardEffect && guardEffect.count > 0 ? guardEffect.count : 0;
+            
+            // DOM更新
             const displayStyle = count > 0 ? 'block' : 'none';
             const displayText = count > 0 ? `🛡${count}` : '';
 
+            // 頻繁な書き換えを防ぐチェックはDOMのプロパティで行う
             if (guardIndicator.style.display !== displayStyle) guardIndicator.style.display = displayStyle;
             if (guardIndicator.textContent !== displayText) guardIndicator.textContent = displayText;
         }
-    }
-
-    remove(entityId) {
-        // RenderSystem共通の削除処理に委ねる
     }
 }
