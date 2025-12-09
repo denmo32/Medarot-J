@@ -1,87 +1,72 @@
 /**
  * @file TaskRunner.js
- * @description タスクキューを管理し、順次実行するクラス。
- * ポリモーフィズム導入により実装を簡素化。
+ * @description タスクキューを順次実行するクラス。Async/Await対応版。
  */
 export class TaskRunner {
     constructor(world) {
         this.world = world;
-        this.queue = [];
         this.currentTask = null;
         this.isProcessing = false;
+        // 実行中断用のフラグ
+        this.abortController = null;
     }
 
     /**
-     * タスクリストを追加して実行開始
+     * タスクリストを順次実行する。
+     * このメソッドは非同期であり、全てのタスクが完了するまでPromiseを返さない。
      * @param {Array} tasks 
      */
-    addTasks(tasks) {
-        this.queue.push(...tasks);
-    }
-
-    /**
-     * キューをクリアして停止
-     */
-    clear() {
-        this.queue = [];
-        this.currentTask = null;
-        this.isProcessing = false;
-    }
-
-    update(deltaTime) {
-        // 現在のタスクがあれば更新
-        if (this.currentTask) {
-            this.currentTask.update(deltaTime);
-            return;
-        }
-
-        // タスクがなく、キューに残っていれば次を開始
-        if (!this.isProcessing && this.queue.length > 0) {
-            this._startNextTask();
-        }
-    }
-
-    _startNextTask() {
-        if (this.queue.length === 0) {
-            this.isProcessing = false;
+    async run(tasks) {
+        if (this.isProcessing) {
+            console.warn('TaskRunner is already running. Parallel execution is not supported.');
             return;
         }
 
         this.isProcessing = true;
-        this.currentTask = this.queue.shift();
+        this.abortController = new AbortController(); // キャンセル用
 
-        // タスク実行 (完了コールバックを渡す)
         try {
-            this.currentTask.execute(this.world, () => {
-                this._completeTask();
-            });
+            for (const task of tasks) {
+                if (this.abortController.signal.aborted) {
+                    break;
+                }
+                
+                this.currentTask = task;
+                
+                // タスクの実行と待機
+                await task.execute(this.world);
+                
+                this.currentTask = null;
+            }
         } catch (error) {
-            console.error("Error executing task:", error, this.currentTask);
-            this._completeTask(); // エラー時はスキップ
+            console.error('Error during task execution:', error);
+        } finally {
+            this.isProcessing = false;
+            this.currentTask = null;
+            this.abortController = null;
         }
     }
 
-    _completeTask() {
-        this.currentTask = null;
-        // isProcessingは維持し、次のupdateループで即座に次へ進むか、
-        // あるいはここで再帰的に _startNextTask を呼ぶか。
-        // スタックオーバーフロー防止のため、フラグ管理にとどめ次のupdateを待つのが安全。
-        // ただし、1フレームに複数タスク消化したい場合（イベント発行など）はループが必要。
-        // ここではシンプルに「updateごとに進行」または「同期タスクは即時完了して次へ」の挙動を
-        // Task.complete() -> callback -> _completeTask のフローで制御する。
-        
-        // 同期的に完了した場合、このメソッド内で this.currentTask が null になる。
-        // 連続実行を許可する場合:
-        if (this.queue.length > 0) {
-            // setTimeout(() => this._startNextTask(), 0); // 非同期で次へ
-            // または
-            this._startNextTask(); // 同期的に次へ（スタック注意だがパフォーマンス良）
-        } else {
-            this.isProcessing = false;
+    /**
+     * 実行中のタスクシーケンスを強制停止する
+     */
+    abort() {
+        if (this.abortController) {
+            this.abortController.abort();
         }
+        this.isProcessing = false;
+        this.currentTask = null;
     }
     
     get isIdle() {
-        return !this.isProcessing && !this.currentTask && this.queue.length === 0;
+        return !this.isProcessing;
+    }
+
+    update(deltaTime) {
+        // 現在実行中のタスクがあれば更新処理を呼ぶ
+        // (MoveTaskなど、requestAnimationFrameを使わずdeltaTimeで制御する場合用)
+        if (this.currentTask && typeof this.currentTask.update === 'function') {
+            this.currentTask.update(deltaTime);
+        }
     }
 }

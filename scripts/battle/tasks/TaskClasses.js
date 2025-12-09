@@ -1,7 +1,7 @@
 /**
  * @file TaskClasses.js
  * @description バトルタスクのクラス定義。
- * 各タスクは自身の実行ロジック(execute, update)をカプセル化する。
+ * async/await ベースの実装へ刷新。
  */
 import { TaskType } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
@@ -14,37 +14,27 @@ export class BattleTask {
     constructor(type) {
         this.type = type;
         this.id = Math.random().toString(36).substr(2, 9);
-        this._onComplete = null;
     }
 
     /**
      * タスクの実行を開始する
      * @param {World} world 
-     * @param {Function} onComplete 完了時に呼ぶコールバック
+     * @returns {Promise<void>}
      */
-    execute(world, onComplete) {
-        this._onComplete = onComplete;
+    async execute(world) {
         // サブクラスで実装
-        // 同期処理なら即座に this.complete() を呼ぶ
     }
 
     /**
      * 毎フレームの更新（必要な場合）
+     * TaskRunnerがawaitしている間、並行してupdateを呼び出す場合に使用するが、
+     * 基本的にPromise内で完結させる設計とする。
+     * アニメーションなどフレームごとの更新が必要な場合は、Promise内でrequestAnimationFrameループ等を回すか、
+     * 外部システムに委譲して完了イベントを待つ。
      * @param {number} deltaTime 
      */
     update(deltaTime) {
-        // サブクラスで実装
-    }
-
-    /**
-     * タスク完了を通知する
-     */
-    complete() {
-        if (this._onComplete) {
-            const callback = this._onComplete;
-            this._onComplete = null;
-            callback();
-        }
+        // 必要ならサブクラスで実装
     }
 }
 
@@ -55,30 +45,17 @@ export class WaitTask extends BattleTask {
     constructor(duration) {
         super(TaskType.WAIT);
         this.duration = duration;
-        this.elapsed = 0;
     }
 
-    execute(world, onComplete) {
-        super.execute(world, onComplete);
-        this.elapsed = 0;
-        // durationが0以下の場合は即時完了
-        if (this.duration <= 0) {
-            this.complete();
-        }
-    }
-
-    update(deltaTime) {
-        if (!this._onComplete) return;
-        
-        this.elapsed += deltaTime;
-        if (this.elapsed >= this.duration) {
-            this.complete();
-        }
+    execute(world) {
+        return new Promise(resolve => setTimeout(resolve, this.duration));
     }
 }
 
 /**
- * エンティティを移動させるタスク
+ * エンティティを移動させるタスク (簡易実装: JS制御)
+ * 本格的なアニメーションはAnimationSystemへ委譲することを推奨するが、
+ * 簡易的な補間ロジックとしてここに残す。
  */
 export class MoveTask extends BattleTask {
     constructor(entityId, targetX, targetY, duration) {
@@ -87,46 +64,41 @@ export class MoveTask extends BattleTask {
         this.targetX = targetX;
         this.targetY = targetY;
         this.duration = duration;
-        
-        // 実行時状態
-        this.elapsed = 0;
-        this.startX = 0;
-        this.startY = 0;
-        this.world = null; // updateでコンポーネント取得するため保持
     }
 
-    execute(world, onComplete) {
-        super.execute(world, onComplete);
-        this.world = world;
-        this.elapsed = 0;
+    execute(world) {
+        return new Promise(resolve => {
+            const pos = world.getComponent(this.entityId, Position);
+            if (!pos) {
+                resolve();
+                return;
+            }
 
-        const pos = world.getComponent(this.entityId, Position);
-        if (pos) {
-            this.startX = pos.x;
-            this.startY = pos.y;
-        } else {
-            // Positionがない場合は即完了
-            this.complete();
-        }
-    }
+            const startX = pos.x;
+            const startY = pos.y;
+            let elapsed = 0;
+            let lastTime = performance.now();
 
-    update(deltaTime) {
-        if (!this._onComplete) return;
+            const loop = (currentTime) => {
+                const dt = currentTime - lastTime;
+                lastTime = currentTime;
+                elapsed += dt;
 
-        this.elapsed += deltaTime;
-        const progress = Math.min(this.elapsed / this.duration, 1.0);
-        // Ease Out Quad
-        const t = 1 - (1 - progress) * (1 - progress);
+                const progress = Math.min(elapsed / this.duration, 1.0);
+                // Ease Out Quad
+                const t = 1 - (1 - progress) * (1 - progress);
 
-        const pos = this.world.getComponent(this.entityId, Position);
-        if (pos) {
-            pos.x = this.startX + (this.targetX - this.startX) * t;
-            pos.y = this.startY + (this.targetY - this.startY) * t;
-        }
+                pos.x = startX + (this.targetX - startX) * t;
+                pos.y = startY + (this.targetY - startY) * t;
 
-        if (progress >= 1.0) {
-            this.complete();
-        }
+                if (progress < 1.0) {
+                    requestAnimationFrame(loop);
+                } else {
+                    resolve();
+                }
+            };
+            requestAnimationFrame(loop);
+        });
     }
 }
 
@@ -139,11 +111,10 @@ export class ApplyStateTask extends BattleTask {
         this.applyFn = applyFn;
     }
 
-    execute(world, onComplete) {
+    async execute(world) {
         if (this.applyFn) {
             this.applyFn(world);
         }
-        onComplete();
     }
 }
 
@@ -157,9 +128,8 @@ export class EventTask extends BattleTask {
         this.detail = detail;
     }
 
-    execute(world, onComplete) {
+    async execute(world) {
         world.emit(this.eventName, this.detail);
-        onComplete();
     }
 }
 
@@ -172,35 +142,46 @@ export class CustomTask extends BattleTask {
         this.executeFn = executeFn;
     }
 
-    async execute(world, onComplete) {
+    async execute(world) {
         if (this.executeFn) {
             await this.executeFn(world);
         }
-        onComplete();
     }
 }
 
 /**
  * 外部システムへ処理を委譲するタスク (演出系)
- * VisualDirectorSystem等がイベントを受け取って処理し、onCompleteを呼ぶまで待機する
+ * イベントを発行し、完了イベントが返ってくるのを待つ。
  */
 export class DelegateTask extends BattleTask {
     constructor(type, params = {}) {
         super(type);
-        // paramsの内容をthisに展開（システム側が task.attackerId 等でアクセスするため）
         Object.assign(this, params);
+        // デフォルトの完了イベント名（システム側でこれをemitすることを期待）
+        this.completionEvent = GameEvents.TASK_EXECUTION_COMPLETED;
     }
 
-    execute(world, onComplete) {
-        super.execute(world, onComplete);
-        
-        // システム側に実行要求イベントを発行
-        // Taskオブジェクト自体(this)にonCompleteが含まれている必要がある
-        // (VisualDirectorSystemの実装依存: task.onComplete() を呼ぶ)
-        this.onComplete = () => {
-            this.complete();
-        };
+    execute(world) {
+        return new Promise((resolve, reject) => {
+            // 完了イベントの待機
+            // payload.taskId が一致するものだけを拾う
+            world.waitFor(
+                this.completionEvent,
+                (detail) => detail && detail.taskId === this.id,
+                10000 // タイムアウト(10秒)
+            ).then(() => {
+                resolve();
+            }).catch(err => {
+                console.warn(`Task ${this.type} (${this.id}) timed out or failed:`, err);
+                resolve(); // エラーでも進行を止めない
+            });
 
-        world.emit(GameEvents.REQUEST_TASK_EXECUTION, this);
+            // 実行要求イベントの発行
+            world.emit(GameEvents.REQUEST_TASK_EXECUTION, {
+                task: this,
+                taskId: this.id, // システム側が返送するためにIDを明示
+                ...this // paramsを展開
+            });
+        });
     }
 }

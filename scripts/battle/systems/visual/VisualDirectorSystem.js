@@ -1,7 +1,7 @@
 /**
  * @file VisualDirectorSystem.js
  * @description バトル中の視覚演出を一元管理する監督システム。
- * TaskRunnerからのコールバックを受け取り、完了時に実行する。
+ * Task経由のリクエストを受け、処理完了後に完了イベントを返す。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -14,48 +14,45 @@ export class VisualDirectorSystem extends System {
         this.on(GameEvents.REQUEST_TASK_EXECUTION, this.onRequestTaskExecution.bind(this));
     }
 
-    onRequestTaskExecution(task) {
-        // onCompleteコールバックが存在しない場合は即時終了扱いにする防御的記述
-        const onComplete = task.onComplete || (() => {});
+    onRequestTaskExecution(detail) {
+        const { task, taskId } = detail;
+        
+        // 完了報告用ヘルパー
+        const complete = () => {
+            this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId });
+        };
 
         switch (task.type) {
             case TaskType.ANIMATE:
-                // AnimationSystemが処理するためここでは何もしない
-                // (重複処理を防ぐため)
+                // AnimationSystemが処理するので無視
                 break;
+                
             case TaskType.VFX:
-                this._handleVfx(task, onComplete);
+                // VFX処理 (仮実装)
+                console.log(`[VisualDirector] Play VFX: ${task.effectName}`);
+                complete();
                 break;
+                
             case TaskType.CAMERA:
-                this._handleCamera(task, onComplete);
+                // Camera処理 (仮実装)
+                console.log(`[VisualDirector] Camera Action: ${task.action}`);
+                complete();
                 break;
+                
             case TaskType.DIALOG:
-                this._handleDialog(task, onComplete);
+                this._handleDialog(task, complete);
                 break;
+                
             case TaskType.UI_ANIMATION:
-                this._handleUiAnimation(task, onComplete);
-                break;
-            case 'MESSAGE': 
-                // Legacy support (ActionPanelSystem might handle, or we wrap it)
+                this._handleUiAnimation(task, complete);
                 break;
         }
     }
 
-    _handleVfx(task, onComplete) {
-        console.log(`[VisualDirector] Play VFX: ${task.effectName}`);
-        // TODO: VfxSystemの実装。現状はログのみで即完了。
-        onComplete();
-    }
-
-    _handleCamera(task, onComplete) {
-        console.log(`[VisualDirector] Camera Action: ${task.action}`);
-        // TODO: CameraSystemの実装。現状はログのみで即完了。
-        onComplete();
-    }
-
     _handleDialog(task, onComplete) {
-        // ActionPanelSystem (UI) に表示を要求
-        // onComplete をモーダルデータに含めて渡す
+        // モーダル表示を要求
+        // ActionPanelSystemがモーダルを閉じたタイミングでコールバックを呼んでもらう必要がある
+        // 現状のActionPanelSystemは onComplete コールバックをサポートしているので、それを渡す。
         const modalData = {
             type: task.options.modalType || ModalType.MESSAGE,
             data: { 
@@ -63,7 +60,7 @@ export class VisualDirectorSystem extends System {
                 ...task.options 
             },
             messageSequence: [{ text: task.text }],
-            onComplete: onComplete // 完了時にActionPanelSystemに呼んでもらう
+            onComplete: onComplete 
         };
 
         this.world.emit(GameEvents.SHOW_MODAL, modalData);
@@ -74,14 +71,10 @@ export class VisualDirectorSystem extends System {
             // HPバーアニメーション要求
             this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, task.data);
             
-            // アニメーション完了を待つ (AnimationSystemからの完了イベントを購読)
-            // ここはまだイベントベースだが、AnimationSystemを全面的に書き換えるリスクを抑えるため
-            // 局所的なイベントリスナーで対応する
-            const completionHandler = () => {
-                this.world.off(GameEvents.HP_BAR_ANIMATION_COMPLETED, completionHandler);
-                onComplete();
-            };
-            this.world.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, completionHandler);
+            // 完了イベントを待機
+            this.world.waitFor(GameEvents.HP_BAR_ANIMATION_COMPLETED, null, 2000)
+                .then(() => onComplete())
+                .catch(() => onComplete()); // タイムアウトしても完了扱いにして進める
 
         } else {
             onComplete();
