@@ -1,7 +1,6 @@
 /**
  * @file EffectRegistry.js
- * @description 全てのアクション効果定義（計算・適用・演出ロジック）を集約管理するレジストリ。
- * 新規ディレクトリ scripts/battle/definitions/ に配置してください。
+ * @description 全てのアクション効果定義（計算・適用・演出・更新ロジック）を集約管理するレジストリ。
  */
 import { EffectType } from '../../common/constants.js';
 import { DamageEffect } from './effects/DamageEffect.js';
@@ -71,5 +70,19 @@ export class EffectRegistry {
             return def.createTasks(context);
         }
         return [];
+    }
+
+    /**
+     * 時間経過フェーズ: 効果の時間経過処理を行う
+     * @param {string} type EffectType
+     * @param {object} context { world, entityId, effect, deltaTime }
+     * @returns {object|null} 更新結果 (ダメージ発生時などはオブジェクトを返す)
+     */
+    static update(type, context) {
+        const def = this.get(type);
+        if (def && typeof def.update === 'function') {
+            return def.update(context);
+        }
+        return null;
     }
 }

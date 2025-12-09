@@ -17,7 +17,6 @@ export class GaugeSystem extends System {
     }
 
     update(deltaTime) {
-        // シーケンス実行中はゲージ更新を停止
         if (this.battleContext.isSequenceRunning) {
             return;
         }
@@ -33,11 +32,9 @@ export class GaugeSystem extends System {
             return;
         }
 
-        // 行動選択待ちのアクターがいる場合も停止（従来通り）
         const entitiesWithState = this.getEntities(GameState);
         const hasActionQueued = entitiesWithState.some(entityId => {
             const gameState = this.world.getComponent(entityId, GameState);
-            // READY_SELECT/READY_EXECUTE は「待ち」状態なので全体時間を止める
             return gameState.state === 'ready_select' || gameState.state === 'ready_execute';
         });
 
@@ -50,8 +47,13 @@ export class GaugeSystem extends System {
         for (const entityId of entities) {
             const gauge = this.world.getComponent(entityId, Gauge);
             
-            // isActiveフラグのみで判定
-            if (!gauge.isActive) {
+            // 行動ゲージ以外は無視 (汎用性確保)
+            if (gauge.type !== 'ACTION') {
+                continue;
+            }
+
+            // フリーズチェック (拡張性確保)
+            if (!gauge.isActive || gauge.isFrozen()) {
                 continue;
             }
 

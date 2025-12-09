@@ -4,11 +4,54 @@ import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType } from '../../common/constants.js';
 import { EffectType } from '../../../common/constants.js';
 import { CooldownService } from '../../services/CooldownService.js';
+import { EffectRegistry } from '../../definitions/EffectRegistry.js';
 
 export class EffectSystem extends System {
     constructor(world) {
         super(world);
         this.on(GameEvents.TURN_END, this.onTurnEnd.bind(this));
+    }
+
+    /**
+     * 毎フレームの更新処理
+     * @param {number} deltaTime 
+     */
+    update(deltaTime) {
+        const entities = this.getEntities(ActiveEffects);
+        
+        for (const entityId of entities) {
+            const activeEffects = this.world.getComponent(entityId, ActiveEffects);
+            
+            // 各エフェクトに対して更新処理を委譲
+            activeEffects.effects.forEach(effect => {
+                const result = EffectRegistry.update(effect.type, {
+                    world: this.world,
+                    entityId,
+                    effect,
+                    deltaTime
+                });
+
+                // 時間経過処理による副作用のハンドリング
+                if (result) {
+                    if (result.damage > 0) {
+                        this.world.emit(GameEvents.HP_UPDATED, {
+                            entityId,
+                            partKey: effect.partKey,
+                            change: -result.damage,
+                            isHeal: false,
+                            ...result // oldHp, newHpなどが含まれる場合
+                        });
+                    }
+                    if (result.message) {
+                        this.world.emit(GameEvents.SHOW_MODAL, {
+                            type: 'MESSAGE',
+                            data: { message: result.message },
+                            immediate: true
+                        });
+                    }
+                }
+            });
+        }
     }
 
     onTurnEnd(detail) {
@@ -36,7 +79,6 @@ export class EffectSystem extends System {
                 
                 const gameState = this.world.getComponent(entityId, GameState);
                 if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
-                    // ガード効果切れの際、クールダウンへ戻す (Service直接呼び出し)
                     CooldownService.resetEntityStateToCooldown(this.world, entityId, {});
                 }
             }

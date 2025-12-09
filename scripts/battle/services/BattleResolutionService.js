@@ -1,8 +1,7 @@
 /**
  * @file BattleResolutionService.js
  * @description 戦闘の計算・解決フローを制御するサービス。
- * Worldから情報を収集し、Logic(CombatCalculator)に計算させ、結果をまとめる。
- * (旧 BattleResolver.js)
+ * HookRegistryを利用して、拡張性と処理順序の安全性を確保する。
  */
 import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
@@ -12,29 +11,51 @@ import { EffectRegistry } from '../definitions/EffectRegistry.js';
 import { TargetingService } from './TargetingService.js';
 import { QueryService } from './QueryService.js';
 import { EffectService } from './EffectService.js';
+import { HookPhase } from '../definitions/HookRegistry.js';
+import { BattleContext } from '../components/BattleContext.js';
 
 export class BattleResolutionService {
     constructor(world) {
         this.world = world;
+        this.battleContext = world.getSingletonComponent(BattleContext);
     }
 
     resolve(attackerId) {
+        // 1. コンテキスト初期化
         const ctx = this._initializeContext(attackerId);
         if (!ctx) {
             return { attackerId, isCancelled: true, cancelReason: 'INTERRUPTED' };
         }
 
+        // 2. ターゲット解決
         this._resolveTarget(ctx);
         if (ctx.shouldCancel) {
             return { attackerId, isCancelled: true, cancelReason: 'TARGET_LOST' };
         }
 
+        // ★フック: 攻撃開始直前 (トラップ、カウンターなど)
+        this.battleContext.hookRegistry.execute(HookPhase.BEFORE_COMBAT_CALCULATION, ctx);
+        if (ctx.shouldCancel) return this._buildResult(ctx);
+
+        // 3. 命中・クリティカル等の判定
         this._calculateHitOutcome(ctx);
 
+        // ★フック: 命中判定後 (絶対回避、ヒット時スキルなど)
+        this.battleContext.hookRegistry.execute(HookPhase.AFTER_HIT_CALCULATION, ctx);
+
+        // 4. 効果値（ダメージ量など）の計算
         this._calculateEffects(ctx);
 
-        this._resolveApplications(ctx);
+        // ★フック: 効果適用前 (ダメージ軽減、属性バリアなど)
+        this.battleContext.hookRegistry.execute(HookPhase.BEFORE_EFFECT_APPLICATION, ctx);
 
+        // 5. 最終的な適用処理 (HP減算、ステート変更など)
+        this._resolveApplications(ctx);
+        
+        // ★フック: 効果適用後 (反撃、追撃など)
+        this.battleContext.hookRegistry.execute(HookPhase.AFTER_EFFECT_APPLICATION, ctx);
+
+        // 6. 結果構築
         return this._buildResult(ctx);
     }
 
@@ -51,6 +72,7 @@ export class BattleResolutionService {
         if (!attackingPart) return null;
 
         return {
+            world: this.world,
             attackerId,
             action,
             attackerInfo,
@@ -66,7 +88,9 @@ export class BattleResolutionService {
             outcome: null,
             rawEffects: [],
             appliedEffects: [],
-            shouldCancel: false
+            shouldCancel: false,
+            interruptions: [], 
+            customData: {} 
         };
     }
 
@@ -96,7 +120,6 @@ export class BattleResolutionService {
     _calculateHitOutcome(ctx) {
         const { attackingPart, attackerId, attackerParts, finalTargetId, targetLegs } = ctx;
         
-        // ターゲットがいない場合は計算スキップ（結果はデフォルトでfalse）
         if (!finalTargetId || !targetLegs) {
             ctx.outcome = CombatCalculator.resolveHitOutcome({
                 isSupport: ctx.isSupport,
@@ -109,25 +132,22 @@ export class BattleResolutionService {
             return;
         }
 
-        // 計算に必要なパラメータの準備 (Service層の責務)
         const calcParams = attackingPart.effects?.find(e => e.type === EffectType.DAMAGE)?.calculation || {};
         const baseStatKey = calcParams.baseStat || 'success';
         const defenseStatKey = calcParams.defenseStat || 'armor';
 
-        // 1. 回避率の計算パラメータ
         const attackerSuccess = EffectService.getStatModifier(this.world, attackerId, baseStatKey, { 
             attackingPart: attackingPart, 
             attackerLegs: attackerParts.legs 
         }) + (attackingPart[baseStatKey] || 0);
 
-        const targetMobility = (targetLegs.mobility || 0); // 必要ならEffectService経由で補正取得
+        const targetMobility = (targetLegs.mobility || 0);
 
         const evasionChance = CombatCalculator.calculateEvasionChance({
             mobility: targetMobility,
             attackerSuccess: attackerSuccess
         });
 
-        // 2. クリティカル率の計算パラメータ
         const bonusChance = EffectService.getCriticalChanceModifier(attackingPart);
         const criticalChance = CombatCalculator.calculateCriticalChance({
             success: attackerSuccess,
@@ -135,16 +155,13 @@ export class BattleResolutionService {
             bonusChance: bonusChance
         });
 
-        // 3. 防御率の計算パラメータ
-        const targetArmor = (targetLegs[defenseStatKey] || 0); // 必要ならEffectService経由で補正取得
+        const targetArmor = (targetLegs[defenseStatKey] || 0);
         const defenseChance = CombatCalculator.calculateDefenseChance({
             armor: targetArmor
         });
         
-        // 防御時の身代わりパーツ検索
         const bestDefensePartKey = QueryService.findBestDefensePart(this.world, finalTargetId);
 
-        // Logic呼び出し
         ctx.outcome = CombatCalculator.resolveHitOutcome({
             isSupport: ctx.isSupport,
             evasionChance,
@@ -163,7 +180,6 @@ export class BattleResolutionService {
         }
 
         for (const effectDef of attackingPart.effects || []) {
-            // EffectRegistryを利用して計算
             const result = EffectRegistry.process(effectDef.type, {
                 world: this.world,
                 sourceId: ctx.attackerId,
@@ -184,7 +200,6 @@ export class BattleResolutionService {
     }
 
     _resolveApplications(ctx) {
-        // 1. ガード消費の追加
         if (ctx.guardianInfo) {
             ctx.rawEffects.push({
                 type: EffectType.CONSUME_GUARD,
@@ -193,21 +208,17 @@ export class BattleResolutionService {
             });
         }
 
-        // 2. 各効果の適用計算
         const effectQueue = [...ctx.rawEffects];
 
         while (effectQueue.length > 0) {
             const effect = effectQueue.shift();
             
-            // EffectRegistryを利用して適用
             const result = EffectRegistry.apply(effect.type, { world: this.world, effect });
 
             if (result) {
                 ctx.appliedEffects.push(result);
 
-                // --- 貫通処理 ---
                 if (result.isPartBroken && result.overkillDamage > 0 && result.penetrates) {
-                    
                     const nextTargetPartKey = QueryService.findRandomPenetrationTarget(this.world, result.targetId, result.partKey);
                     
                     if (nextTargetPartKey) {
@@ -221,7 +232,6 @@ export class BattleResolutionService {
                             calculation: result.calculation,
                             isCritical: result.isCritical
                         };
-                        
                         effectQueue.unshift(nextEffect);
                     }
                 }
@@ -242,10 +252,11 @@ export class BattleResolutionService {
             attackingPart: ctx.attackingPart,
             isSupport: ctx.isSupport,
             guardianInfo: ctx.guardianInfo,
-            outcome: ctx.outcome,
+            outcome: ctx.outcome || { isHit: false },
             appliedEffects: ctx.appliedEffects,
             summary, 
-            isCancelled: false
+            isCancelled: ctx.shouldCancel, 
+            interruptions: ctx.interruptions 
         };
     }
 }

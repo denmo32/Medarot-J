@@ -4,6 +4,7 @@
  */
 import { BattlePhase } from '../common/constants.js';
 import { TeamID } from '../../common/constants.js';
+import { HookRegistry } from '../definitions/HookRegistry.js';
 
 export class BattleContext {
     constructor() {
@@ -33,5 +34,8 @@ export class BattleContext {
         };
 
         this.winningTeam = null;
+
+        // フックレジストリ（処理介入用）
+        this.hookRegistry = new HookRegistry();
     }
 }

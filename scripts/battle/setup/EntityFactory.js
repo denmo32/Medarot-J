@@ -102,7 +102,8 @@ function createPlayerEntity(world, teamId, index, totalId, medarotData = null) {
     const yPos = CONFIG.BATTLEFIELD.PLAYER_INITIAL_Y + index * CONFIG.BATTLEFIELD.PLAYER_Y_STEP;
 
     world.addComponent(entityId, new CommonComponents.PlayerInfo(name, teamId, isLeader));
-    world.addComponent(entityId, new BattleComponents.Gauge());
+    // 行動ゲージとして初期化
+    world.addComponent(entityId, new BattleComponents.Gauge('ACTION'));
     world.addComponent(entityId, new BattleComponents.GameState());
     world.addComponent(entityId, new CommonComponents.Parts(
         initializedParts.head, 
