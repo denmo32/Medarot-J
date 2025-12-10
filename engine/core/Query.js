@@ -1,6 +1,7 @@
 /**
  * @file ECSクエリクラス
  * @description 特定のコンポーネントの組み合わせを持つエンティティのセットを常に最新の状態に保ちます。
+ * キャッシュ配列によるアロケーション削減版。
  */
 export class Query {
     /**
@@ -11,6 +12,10 @@ export class Query {
         this.world = world;
         this.componentClasses = new Set(componentClasses);
         this.entities = new Set();
+        
+        // 配列キャッシュ
+        this._entitiesCache = null;
+        this._isCacheDirty = true;
         
         // 初期化時に既存のエンティティをスキャン
         for (const [entityId] of world.entities) {
@@ -40,10 +45,15 @@ export class Query {
      * @param {number} entityId 
      */
     onEntityUpdated(entityId) {
-        if (this.matches(entityId)) {
+        const isMatch = this.matches(entityId);
+        const hasEntity = this.entities.has(entityId);
+
+        if (isMatch && !hasEntity) {
             this.entities.add(entityId);
-        } else {
+            this._isCacheDirty = true;
+        } else if (!isMatch && hasEntity) {
             this.entities.delete(entityId);
+            this._isCacheDirty = true;
         }
     }
 
@@ -52,14 +62,22 @@ export class Query {
      * @param {number} entityId 
      */
     onEntityRemoved(entityId) {
-        this.entities.delete(entityId);
+        if (this.entities.has(entityId)) {
+            this.entities.delete(entityId);
+            this._isCacheDirty = true;
+        }
     }
 
     /**
      * 条件を満たすエンティティのリストを取得
+     * 参照を返すため、呼び出し元でこの配列を変更してはならない。
      * @returns {number[]}
      */
     getEntities() {
-        return Array.from(this.entities);
+        if (this._isCacheDirty) {
+            this._entitiesCache = Array.from(this.entities);
+            this._isCacheDirty = false;
+        }
+        return this._entitiesCache;
     }
 }

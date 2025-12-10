@@ -1,7 +1,7 @@
 /**
  * @file ECS (Entity-Component-System) の中核クラス
  * @description エンティティ、コンポーネント、システムの管理とオーケストレーションを行います。
- * Queryシステム導入によるパフォーマンス最適化版。
+ * Queryシステム導入によるパフォーマンス最適化版。Mapによるクエリキャッシュに対応。
  */
 import { EventEmitter } from '../event/EventEmitter.js';
 import { Query } from './Query.js';
@@ -21,7 +21,8 @@ export class World extends EventEmitter {
         this.systems = [];
 
         // --- Query Storage ---
-        this.queries = [];
+        // key: querySignature (string), value: Query
+        this.queries = new Map();
     }
 
     // === Entity and Component Methods ===
@@ -41,6 +42,9 @@ export class World extends EventEmitter {
             return;
         }
 
+        // 既に持っている場合は上書きだが、構成変更ではないのでクエリ更新は不要かも？
+        // ただしインスタンスが変わるため、念のため更新する。
+        const isNew = !entityComponents.has(componentClass);
         entityComponents.add(componentClass);
 
         if (!this.components.has(componentClass)) {
@@ -58,15 +62,16 @@ export class World extends EventEmitter {
 
     removeComponent(entityId, componentClass) {
         const entityComponents = this.entities.get(entityId);
-        if (entityComponents) {
+        if (entityComponents && entityComponents.has(componentClass)) {
             entityComponents.delete(componentClass);
+            
+            if (this.components.has(componentClass)) {
+                this.components.get(componentClass).delete(entityId);
+            }
+            
+            // クエリの更新
+            this._updateQueries(entityId);
         }
-        if (this.components.has(componentClass)) {
-            this.components.get(componentClass).delete(entityId);
-        }
-        
-        // クエリの更新
-        this._updateQueries(entityId);
     }
 
     getSingletonComponent(componentClass) {
@@ -79,25 +84,26 @@ export class World extends EventEmitter {
 
     /**
      * コンポーネントの組み合わせを指定してエンティティを取得します。
-     * 内部でQueryオブジェクトを生成・キャッシュするため、
-     * 頻繁に呼び出しても高速に動作します。
+     * O(1) でキャッシュされたクエリを取得します。
      * @param  {...Function} componentClasses
      * @returns {number[]}
      */
     getEntitiesWith(...componentClasses) {
-        // 既存のクエリを探す
-        let query = this.queries.find(q => {
-            if (q.componentClasses.size !== componentClasses.length) return false;
-            for (const cls of componentClasses) {
-                if (!q.componentClasses.has(cls)) return false;
-            }
-            return true;
-        });
+        // クエリ署名の生成 (クラス名をソートして結合)
+        // ※クラス名が衝突する可能性は低い前提。厳密にはSymbolやUnique IDを使うべきだが、
+        //   JSのクラスオブジェクト自体をMapのキーにするのは組み合わせだと難しい。
+        //   ここではクラス名のソート済み文字列をキーとする。
+        const signature = componentClasses
+            .map(c => c.name)
+            .sort()
+            .join('|');
+
+        let query = this.queries.get(signature);
 
         // なければ作成
         if (!query) {
             query = new Query(this, componentClasses);
-            this.queries.push(query);
+            this.queries.set(signature, query);
         }
 
         return query.getEntities();
@@ -113,13 +119,13 @@ export class World extends EventEmitter {
         this.entities.delete(entityId);
 
         // クエリから削除
-        for (const query of this.queries) {
+        for (const query of this.queries.values()) {
             query.onEntityRemoved(entityId);
         }
     }
 
     _updateQueries(entityId) {
-        for (const query of this.queries) {
+        for (const query of this.queries.values()) {
             query.onEntityUpdated(entityId);
         }
     }
@@ -151,7 +157,7 @@ export class World extends EventEmitter {
         this.systems = [];
         this.entities.clear();
         this.components.clear();
-        this.queries = []; // クエリもリセット
+        this.queries.clear();
         this.nextEntityId = 0;
     }
 }
