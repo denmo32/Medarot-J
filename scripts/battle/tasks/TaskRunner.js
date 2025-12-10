@@ -1,72 +1,81 @@
 /**
  * @file TaskRunner.js
- * @description タスクキューを順次実行するクラス。Async/Await対応版。
+ * @description タスクキューをECSのアップデートサイクルに合わせて処理するランナー。
+ * async/awaitを排除し、毎フレーム update() でタスクの進行を管理する。
  */
 export class TaskRunner {
     constructor(world) {
         this.world = world;
+        this.taskQueue = [];
         this.currentTask = null;
-        this.isProcessing = false;
-        // 実行中断用のフラグ
-        this.abortController = null;
+        this.currentActorId = null; // タスク実行の主体（いれば）
+        this.isPaused = false;
     }
 
     /**
-     * タスクリストを順次実行する。
-     * このメソッドは非同期であり、全てのタスクが完了するまでPromiseを返さない。
+     * 新しいタスクシーケンスを設定する
      * @param {Array} tasks 
+     * @param {number|null} actorId 
      */
-    async run(tasks) {
-        if (this.isProcessing) {
-            console.warn('TaskRunner is already running. Parallel execution is not supported.');
+    setSequence(tasks, actorId = null) {
+        this.abort(); // 既存タスクがあれば中断
+        this.taskQueue = [...tasks];
+        this.currentActorId = actorId;
+        this.currentTask = null;
+    }
+
+    /**
+     * タスクを追加する
+     * @param {Object} task 
+     */
+    addTask(task) {
+        this.taskQueue.push(task);
+    }
+
+    /**
+     * 強制停止
+     */
+    abort() {
+        if (this.currentTask) {
+            this.currentTask.abort(this.world);
+        }
+        this.taskQueue = [];
+        this.currentTask = null;
+        this.currentActorId = null;
+    }
+
+    /**
+     * 毎フレームの更新
+     * @param {number} deltaTime 
+     */
+    update(deltaTime) {
+        if (this.isPaused) return;
+
+        // タスクがない場合
+        if (!this.currentTask && this.taskQueue.length === 0) {
             return;
         }
 
-        this.isProcessing = true;
-        this.abortController = new AbortController(); // キャンセル用
+        // 新しいタスクの開始
+        if (!this.currentTask) {
+            this.currentTask = this.taskQueue.shift();
+            // 開始処理
+            this.currentTask.start(this.world, this.currentActorId);
+        }
 
-        try {
-            for (const task of tasks) {
-                if (this.abortController.signal.aborted) {
-                    break;
-                }
-                
-                this.currentTask = task;
-                
-                // タスクの実行と待機
-                await task.execute(this.world);
-                
+        // タスクの更新
+        if (this.currentTask) {
+            this.currentTask.update(this.world, deltaTime);
+
+            // 完了チェック
+            if (this.currentTask.isCompleted) {
                 this.currentTask = null;
+                // 次のフレームで次のタスクを開始
             }
-        } catch (error) {
-            console.error('Error during task execution:', error);
-        } finally {
-            this.isProcessing = false;
-            this.currentTask = null;
-            this.abortController = null;
         }
     }
 
-    /**
-     * 実行中のタスクシーケンスを強制停止する
-     */
-    abort() {
-        if (this.abortController) {
-            this.abortController.abort();
-        }
-        this.isProcessing = false;
-        this.currentTask = null;
-    }
-    
     get isIdle() {
-        return !this.isProcessing;
-    }
-
-    update(deltaTime) {
-        // 現在実行中のタスクがあれば更新処理を呼ぶ
-        // (MoveTaskなど、requestAnimationFrameを使わずdeltaTimeで制御する場合用)
-        if (this.currentTask && typeof this.currentTask.update === 'function') {
-            this.currentTask.update(deltaTime);
-        }
+        return !this.currentTask && this.taskQueue.length === 0;
     }
 }

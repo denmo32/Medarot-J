@@ -1,13 +1,12 @@
 /**
  * @file AnimationSystem.js
  * @description ビジュアルコンポーネントのアニメーション制御。
- * TaskRunnerからの依頼(イベント)に対して処理を行い、完了イベントを返す。
+ * AnimationRequestコンポーネントを監視して処理する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { Visual } from '../../components/index.js';
+import { Visual, AnimationRequest, UiAnimationRequest } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
-import { TaskType } from '../../tasks/BattleTasks.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
 import { EffectType } from '../../../common/constants.js';
 import { Tween } from '../../../../engine/utils/Tween.js';
@@ -22,17 +21,16 @@ export class AnimationSystem extends System {
     bindWorldEvents() {
         this.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this));
         
-        // HPバーアニメーション要求は直接処理するが、Task経由のものはREQUEST_TASK_EXECUTIONで来る
+        // HPバーアニメーションはイベント経由でもTask経由でも動くようにするが、
+        // 基本的にはコンポーネント監視に寄せる。
+        // イベントハンドラは互換性のために残すが、内部ロジックは共有する。
         this.on(GameEvents.HP_BAR_ANIMATION_REQUESTED, this.onHpBarAnimationRequested.bind(this));
-        
-        // DelegateTaskからの実行要求
-        this.on(GameEvents.REQUEST_TASK_EXECUTION, this.onRequestTaskExecution.bind(this));
-        
         this.on(GameEvents.REFRESH_UI, this.onRefreshUI.bind(this));
         this.on(GameEvents.ACTION_SEQUENCE_COMPLETED, this.onActionSequenceCompleted.bind(this));
     }
 
     update(deltaTime) {
+        // 1. Tween更新
         if (this.activeTweens.size > 0) {
             const finishedTweens = [];
             for (const tween of this.activeTweens) {
@@ -43,64 +41,91 @@ export class AnimationSystem extends System {
             }
             finishedTweens.forEach(t => this.activeTweens.delete(t));
         }
-    }
 
-    /**
-     * タスク実行要求ハンドラ
-     * 処理完了後、TASK_EXECUTION_COMPLETED を emit して TaskRunner (DelegateTask) に通知する
-     */
-    onRequestTaskExecution(detail) {
-        const { task, taskId } = detail;
-        if (task.type !== TaskType.ANIMATE) return;
+        // 2. AnimationRequestの処理
+        const animRequests = this.getEntities(AnimationRequest);
+        for (const entityId of animRequests) {
+            this._processAnimationRequest(entityId, deltaTime);
+        }
 
-        // 完了時のコールバック
-        const complete = () => {
-            this.world.emit(GameEvents.TASK_EXECUTION_COMPLETED, { taskId });
-        };
-
-        if (task.animationType === 'attack') {
-            this._playAttackAnimation(task.attackerId, task.targetId).then(complete);
-        } else if (task.animationType === 'support') {
-            setTimeout(complete, UI_CONFIG.ANIMATION.DURATION || 300);
-        } else {
-            setTimeout(complete, UI_CONFIG.ANIMATION.DURATION);
+        // 3. UiAnimationRequestの処理 (HPバーなど)
+        const uiRequests = this.getEntities(UiAnimationRequest);
+        for (const entityId of uiRequests) {
+            this._processUiAnimationRequest(entityId, deltaTime);
         }
     }
 
-    _playAttackAnimation(attackerId, targetId) {
-        return new Promise((resolve) => {
-            const visualAttacker = this.world.getComponent(attackerId, Visual);
-            const visualTarget = this.world.getComponent(targetId, Visual);
-
-            if (visualAttacker) {
-                visualAttacker.classes.add('attacker-active');
+    _processAnimationRequest(entityId, deltaTime) {
+        const request = this.world.getComponent(entityId, AnimationRequest);
+        
+        // 初期化（開始）処理
+        if (!request.startTime) {
+            request.startTime = performance.now(); // 簡易的なタイムスタンプ
+            request.duration = 0;
+            
+            if (request.type === 'attack') {
+                this._startAttackAnimation(entityId, request.targetId);
+                request.duration = 600; // ロックオン時間含む
+            } else if (request.type === 'support') {
+                request.duration = UI_CONFIG.ANIMATION.DURATION || 300;
+            } else {
+                request.duration = UI_CONFIG.ANIMATION.DURATION || 300;
             }
+        }
 
-            setTimeout(() => {
-                if (visualTarget) {
-                    visualTarget.classes.add('target-lockon');
-                    // ロックオン演出時間
-                    setTimeout(() => resolve(), 600); 
-                } else {
-                    resolve();
+        // 経過時間チェック
+        if (!request.elapsed) request.elapsed = 0;
+        request.elapsed += deltaTime;
+
+        if (request.elapsed >= request.duration) {
+            // 完了 -> コンポーネント削除
+            this.world.removeComponent(entityId, AnimationRequest);
+        }
+    }
+
+    _startAttackAnimation(attackerId, targetId) {
+        const visualAttacker = this.world.getComponent(attackerId, Visual);
+        const visualTarget = this.world.getComponent(targetId, Visual);
+
+        if (visualAttacker) {
+            visualAttacker.classes.add('attacker-active');
+        }
+
+        if (visualTarget) {
+            // 簡易対応: 即時付与
+            visualTarget.classes.add('target-lockon');
+        }
+    }
+
+    _processUiAnimationRequest(entityId, deltaTime) {
+        const request = this.world.getComponent(entityId, UiAnimationRequest);
+        
+        if (request.targetType === 'HP_BAR') {
+            if (!request.initialized) {
+                // HPバーアニメーション開始（Tween登録）
+                this.onHpBarAnimationRequested(request.data);
+                request.initialized = true;
+                // Tween完了まで待つためのタイマー設定
+                request.waitTimer = UI_CONFIG.ANIMATION.HP_BAR.DURATION + 50;
+            }
+            
+            if (request.initialized) {
+                request.waitTimer -= deltaTime;
+                if (request.waitTimer <= 0) {
+                    this.world.removeComponent(entityId, UiAnimationRequest);
                 }
-            }, 400); 
-        });
+            }
+        } else {
+            // 未知のタイプは即削除
+            this.world.removeComponent(entityId, UiAnimationRequest);
+        }
     }
 
     onHpBarAnimationRequested(detail) {
-        // これはTask経由ではなく、Dialog表示中などに個別に呼ばれるケースがあるため、
-        // 完了イベントは HP_BAR_ANIMATION_COMPLETED を返す（既存仕様維持）
-        // ただし TaskType.UI_ANIMATION 経由の場合は onRequestTaskExecution で処理すべきだが
-        // 互換性のためここでも処理できる構造にしておく
-
         const appliedEffects = detail.appliedEffects || detail.effects;
         if (!appliedEffects || appliedEffects.length === 0) {
-            this.world.emit(GameEvents.HP_BAR_ANIMATION_COMPLETED, { appliedEffects: [] });
             return;
         }
-
-        let hasAnimation = false;
 
         for (const effect of appliedEffects) {
             if (effect.type !== EffectType.DAMAGE && effect.type !== EffectType.HEAL) continue;
@@ -127,23 +152,9 @@ export class AnimationSystem extends System {
                 duration: UI_CONFIG.ANIMATION.HP_BAR.DURATION,
                 easing: UI_CONFIG.ANIMATION.HP_BAR.EASING,
             }));
-
-            hasAnimation = true;
-        }
-
-        const finish = () => {
-            this.world.emit(GameEvents.HP_BAR_ANIMATION_COMPLETED, { appliedEffects });
-        };
-
-        if (!hasAnimation) {
-            finish();
-        } else {
-            // アニメーション時間 + バッファ
-            setTimeout(finish, UI_CONFIG.ANIMATION.HP_BAR.DURATION + 50);
         }
     }
 
-    // ... (onRefreshUI, onActionSequenceCompleted, _syncHpValue, onShowBattleStartAnimation は変更なし)
     onRefreshUI() {
         const entities = this.getEntities(Parts, Visual);
         for (const entityId of entities) {
@@ -183,6 +194,7 @@ export class AnimationSystem extends System {
         textVisual.y = 50;
         textVisual.classes.add('battle-start-text');
         this.world.addComponent(textId, textVisual);
+        
         setTimeout(() => {
             this.world.destroyEntity(textId);
             this.world.emit('BATTLE_ANIMATION_COMPLETED');

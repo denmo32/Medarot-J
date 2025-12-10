@@ -1,11 +1,13 @@
 /**
  * @file TimelineBuilder.js
  * @description 戦闘アクションの実行シーケンス（タスクリスト）を構築する。
- * EffectRegistry導入により、演出生成ロジックを委譲。
  */
 import { 
-    createAnimateTask, createEventTask, createCustomTask,
-    createDialogTask
+    createAnimateTask, 
+    createEventTask, 
+    createCustomTask,
+    createDialogTask,
+    createUiAnimationTask
 } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
@@ -36,13 +38,12 @@ export class TimelineBuilder {
         }
 
         // 2. 攻撃宣言メッセージ
-        // 修正: 複数のメッセージがある場合に対応 (ガーディアン発動メッセージなど)
         const declarationSeq = this.messageGenerator.createDeclarationSequence(resultData);
         declarationSeq.forEach(msg => {
             tasks.push(createDialogTask(msg.text, { modalType: ModalType.ATTACK_DECLARATION }));
         });
 
-        // 3. 結果演出 (EffectRegistryに委譲)
+        // 3. 結果演出
         if (appliedEffects && appliedEffects.length > 0) {
             const mainEffectType = appliedEffects[0].type;
             const resultTasks = EffectRegistry.createTasks(mainEffectType, {

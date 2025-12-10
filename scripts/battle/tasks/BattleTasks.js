@@ -1,23 +1,19 @@
 /**
  * @file BattleTasks.js
- * @description バトルシーンで使用するタスク（コマンド）のファクトリ関数。
- * TaskClassesの実装を利用してインスタンスを生成する。
+ * @description バトルタスクのファクトリ関数。
+ * 新しいクラス定義に合わせて更新。
  */
 import { 
-    WaitTask, MoveTask, ApplyStateTask, EventTask, CustomTask, DelegateTask 
+    WaitTask, MoveTask, ApplyStateTask, EventTask, CustomTask,
+    AnimateTask, VfxTask, CameraTask, DialogTask, UiAnimationTask
 } from './TaskClasses.js';
 
 export const TaskType = {
-    // 基本制御
     WAIT: 'WAIT',
     EVENT: 'EVENT',
     CUSTOM: 'CUSTOM',
-    
-    // ロジック制御
     APPLY_STATE: 'APPLY_STATE',
-    
-    // 演出・UI制御 (DelegateTaskを使用)
-    MOVE: 'MOVE', // Moveはロジックで制御するがTaskClassesに実装済み
+    MOVE: 'MOVE',
     ANIMATE: 'ANIMATE',      
     VFX: 'VFX',              
     CAMERA: 'CAMERA',        
@@ -25,72 +21,28 @@ export const TaskType = {
     UI_ANIMATION: 'UI_ANIMATION'
 };
 
-/**
- * 指定時間待機するタスク
- */
-export const createWaitTask = (durationMs) => {
-    return new WaitTask(durationMs);
-};
+export const createWaitTask = (durationMs) => new WaitTask(durationMs);
 
-/**
- * エンティティを指定位置へ移動させるタスク
- */
-export const createMoveTask = (entityId, targetX, targetY, durationMs = 300) => {
-    return new MoveTask(entityId, targetX, targetY, durationMs);
-};
+export const createMoveTask = (entityId, targetX, targetY, durationMs = 300) => 
+    new MoveTask(entityId, targetX, targetY, durationMs);
 
-/**
- * ユニットのアニメーションを再生するタスク
- */
-export const createAnimateTask = (attackerId, targetId, animationType = 'attack') => {
-    return new DelegateTask(TaskType.ANIMATE, { attackerId, targetId, animationType });
-};
+export const createAnimateTask = (attackerId, targetId, animationType = 'attack') => 
+    new AnimateTask(attackerId, targetId, animationType);
 
-/**
- * 汎用的な視覚効果(VFX)を再生するタスク
- */
-export const createVfxTask = (effectName, position) => {
-    return new DelegateTask(TaskType.VFX, { effectName, position });
-};
+export const createVfxTask = (effectName, position) => 
+    new VfxTask(effectName, position);
 
-/**
- * カメラを制御するタスク
- */
-export const createCameraTask = (action, params = {}) => {
-    return new DelegateTask(TaskType.CAMERA, { action, params });
-};
+export const createCameraTask = (action, params = {}) => 
+    new CameraTask(action, params);
 
-/**
- * ダイアログ（メッセージ）を表示するタスク
- */
-export const createDialogTask = (text, options = {}) => {
-    return new DelegateTask(TaskType.DIALOG, { text, options });
-};
+export const createDialogTask = (text, options = {}) => 
+    new DialogTask(text, options);
 
-/**
- * UI要素のアニメーションを実行するタスク
- */
-export const createUiAnimationTask = (targetType, data) => {
-    return new DelegateTask(TaskType.UI_ANIMATION, { targetType, data });
-};
+export const createUiAnimationTask = (targetType, data) => 
+    new UiAnimationTask(targetType, data);
 
-/**
- * 状態変化を適用するタスク（ロジック用）
- */
-export const createApplyStateTask = (applyFn) => {
-    return new ApplyStateTask(applyFn);
-};
+export const createApplyStateTask = (applyFn) => new ApplyStateTask(applyFn);
 
-/**
- * 任意のイベントを発行するタスク
- */
-export const createEventTask = (eventName, detail) => {
-    return new EventTask(eventName, detail);
-};
+export const createEventTask = (eventName, detail) => new EventTask(eventName, detail);
 
-/**
- * 任意の非同期処理を実行するタスク
- */
-export const createCustomTask = (asyncFn) => {
-    return new CustomTask(asyncFn);
-};
+export const createCustomTask = (asyncFn) => new CustomTask(asyncFn);

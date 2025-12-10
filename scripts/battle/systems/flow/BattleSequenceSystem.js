@@ -1,6 +1,7 @@
 /**
  * @file BattleSequenceSystem.js
- * @description イベント発行をここで行うように修正。
+ * @description アクションシーケンスの進行管理。
+ * TaskRunnerのステートマシン化に伴い、updateループ内での監視ロジックへ変更。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -21,21 +22,24 @@ export class BattleSequenceSystem extends System {
         this.taskRunner = new TaskRunner(world);
         
         this.executionQueue = [];
-        this.isLoopRunning = false;
+        
+        // ステート管理用
+        this.state = 'IDLE'; // IDLE, PROCESSING_QUEUE, EXECUTING_TASK
+        this.currentActorId = null;
 
-        // イベントリスナーの登録
-        // this.onActionExecutionRequested が確実に存在することを確認
         this.on(GameEvents.ACTION_EXECUTION_REQUESTED, this.onActionExecutionRequested.bind(this));
         
         this.on(GameEvents.REQUEST_RESET_TO_COOLDOWN, this.onRequestResetToCooldown.bind(this));
         this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
         this.on(GameEvents.GAME_OVER, this.abortSequence.bind(this));
+        
+        // ポーズ対応
+        this.on(GameEvents.GAME_PAUSED, () => { this.taskRunner.isPaused = true; });
+        this.on(GameEvents.GAME_RESUMED, () => { this.taskRunner.isPaused = false; });
     }
 
-    async onActionExecutionRequested() {
-        if (this.isLoopRunning || this.executionQueue.length > 0) {
-            return;
-        }
+    onActionExecutionRequested() {
+        if (this.state !== 'IDLE') return;
 
         // 実行対象の収集とソート
         this.executionQueue = this.service.getSortedReadyEntities();
@@ -45,42 +49,61 @@ export class BattleSequenceSystem extends System {
             return;
         }
 
-        this.isLoopRunning = true;
+        this.state = 'PROCESSING_QUEUE';
         this.battleContext.isSequenceRunning = true;
+    }
 
-        try {
-            await this.processExecutionQueue();
-        } finally {
-            this.isLoopRunning = false;
-            this.battleContext.isSequenceRunning = false;
-            // 全ての処理が完了
-            this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
+    update(deltaTime) {
+        // 1. TaskRunnerの更新
+        this.taskRunner.update(deltaTime);
+
+        // 2. シーケンス進行管理
+        if (this.state === 'IDLE') return;
+
+        if (!this.isValidState()) {
+            this.abortSequence();
+            return;
+        }
+
+        switch (this.state) {
+            case 'PROCESSING_QUEUE':
+                this._processQueueNext();
+                break;
+                
+            case 'EXECUTING_TASK':
+                if (this.taskRunner.isIdle) {
+                    // アクターのタスク完了
+                    this.battleContext.turn.currentActorId = null;
+                    this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: this.currentActorId });
+                    this.currentActorId = null;
+                    this.state = 'PROCESSING_QUEUE';
+                }
+                break;
         }
     }
 
-    /**
-     * キュー内の全アクターのアクションを順次処理する
-     */
-    async processExecutionQueue() {
-        while (this.executionQueue.length > 0) {
-            // シーン遷移などで中断されていたらループを抜ける
-            if (!this.isValidState()) break;
-
-            const actorId = this.executionQueue.shift();
-
-            // エンティティが既に削除されている等の場合はスキップ
-            if (!this.isValidEntity(actorId)) continue;
-            
-            this.battleContext.turn.currentActorId = actorId;
-
-            await this.executeActorSequence(actorId);
-
-            this.battleContext.turn.currentActorId = null;
-            this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: actorId });
+    _processQueueNext() {
+        if (this.executionQueue.length === 0) {
+            this._finishSequence();
+            return;
         }
+
+        const actorId = this.executionQueue.shift();
+
+        // 無効なエンティティはスキップ
+        if (!this.isValidEntity(actorId)) {
+            // 次のフレームで再試行
+            return;
+        }
+
+        this.currentActorId = actorId;
+        this.battleContext.turn.currentActorId = actorId;
+        
+        this._startActorSequence(actorId);
+        this.state = 'EXECUTING_TASK';
     }
 
-    async executeActorSequence(actorId) {
+    _startActorSequence(actorId) {
         const { tasks, isCancelled, eventsToEmit } = this.service.executeSequence(actorId);
 
         // 副作用(イベント発行)を一括実行
@@ -91,12 +114,23 @@ export class BattleSequenceSystem extends System {
         }
 
         if (isCancelled) {
+            // タスクなしで完了扱いにする
+            this.taskRunner.setSequence([], actorId); 
+            // 次フレームでisIdle検知されて完了処理が走る
             return;
         }
 
         if (tasks.length > 0) {
-            await this.taskRunner.run(tasks);
+            this.taskRunner.setSequence(tasks, actorId);
+        } else {
+             this.taskRunner.setSequence([], actorId);
         }
+    }
+
+    _finishSequence() {
+        this.state = 'IDLE';
+        this.battleContext.isSequenceRunning = false;
+        this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
     }
 
     isValidState() {
@@ -106,13 +140,9 @@ export class BattleSequenceSystem extends System {
     abortSequence() {
         this.executionQueue = [];
         this.taskRunner.abort();
-        this.isLoopRunning = false;
+        this.state = 'IDLE';
+        this.currentActorId = null;
         this.battleContext.isSequenceRunning = false;
-    }
-
-    update(deltaTime) {
-        // TaskRunnerのフレーム更新（MoveTaskなどのため）
-        this.taskRunner.update(deltaTime);
     }
 
     onRequestResetToCooldown(detail) {
