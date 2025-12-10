@@ -1,0 +1,27 @@
+/**
+ * @file TurnEndState.js
+ * @description ターン終了フェーズ。
+ */
+import { BaseState } from './BaseState.js';
+import { BattlePhase } from '../../../common/constants.js';
+import { GameEvents } from '../../../../common/events.js';
+import { TurnStartState } from './TurnStartState.js';
+
+export class TurnEndState extends BaseState {
+    enter() {
+        this.battleContext.phase = BattlePhase.TURN_END;
+        
+        this.battleContext.turn.number++;
+        
+        // ターン終了イベント発行 (EffectSystemなどがリッスン)
+        this.world.emit(GameEvents.TURN_END, { turnNumber: this.battleContext.turn.number - 1 });
+        
+        // ターン開始イベント発行
+        this.world.emit(GameEvents.TURN_START, { turnNumber: this.battleContext.turn.number });
+    }
+
+    update(deltaTime) {
+        // 次のターンへ
+        return new TurnStartState(this.system);
+    }
+}

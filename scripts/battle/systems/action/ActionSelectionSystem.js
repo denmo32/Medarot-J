@@ -1,9 +1,9 @@
 import { System } from '../../../../engine/core/System.js';
 import { BattleContext } from '../../components/BattleContext.js'; 
-import { BattlePhase, PlayerStateType } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
-import { Action, GameState, Gauge } from '../../components/index.js';
+import { Action, Gauge } from '../../components/index.js';
+import { PlayerStateType } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
 
@@ -17,19 +17,8 @@ export class ActionSelectionSystem extends System {
     }
 
     update(deltaTime) {
-        const activePhases = [
-            BattlePhase.ACTION_SELECTION,
-            BattlePhase.INITIAL_SELECTION 
-        ];
-        if (!activePhases.includes(this.battleContext.phase)) {
-            return;
-        }
-
-        if (this.battleContext.turn.currentActorId === null && this.battleContext.turn.actionQueue.length === 0) {
-            if (this.battleContext.phase === BattlePhase.ACTION_SELECTION) {
-                this.world.emit(GameEvents.ACTION_SELECTION_COMPLETED);
-            }
-        }
+        // ポーリングによる完了チェックは削除
+        // 完了判定は ActionSelectionState に移譲されたため
     }
 
     onNextActorDetermined(detail) {
@@ -57,7 +46,6 @@ export class ActionSelectionSystem extends System {
 
         const action = this.world.getComponent(entityId, Action);
         const parts = this.world.getComponent(entityId, Parts);
-        const gauge = this.world.getComponent(entityId, Gauge);
 
         if (!partKey || !parts?.[partKey] || parts[partKey].isBroken) {
             console.warn(`ActionSelectionSystem: Invalid or broken part selected for entity ${entityId}. Re-queueing.`, detail);
@@ -73,7 +61,6 @@ export class ActionSelectionSystem extends System {
         action.targetPartKey = targetPartKey;
         action.targetTiming = selectedPart.targetTiming;
 
-        // PlayerStatusService.transitionTo の代わりにコマンド発行
         const modifier = EffectService.getSpeedMultiplierModifier(this.world, entityId, selectedPart);
         const speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ 
             might: selectedPart.might,
@@ -99,5 +86,8 @@ export class ActionSelectionSystem extends System {
                 }
             }
         ]);
+        
+        // 完了通知は不要（Stateがポーリングするため）
+        // this.world.emit(GameEvents.ACTION_SELECTION_COMPLETED);
     }
 }

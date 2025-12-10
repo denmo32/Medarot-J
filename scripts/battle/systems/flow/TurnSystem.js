@@ -40,6 +40,9 @@ export class TurnSystem extends System {
             this.pendingQueue = [];
         }
 
+        // フェーズチェックを削除（または現在のフェーズがアクション受付可能かだけチェック）
+        // 厳密には ActionSelectionState がアクティブな時だけ処理したいが、
+        // システム間結合を疎にするため、ここではフェーズ定数でのチェックに留める。
         const activePhases = [
             BattlePhase.ACTION_SELECTION,
             BattlePhase.INITIAL_SELECTION 
