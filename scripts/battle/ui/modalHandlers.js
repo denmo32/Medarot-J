@@ -1,11 +1,10 @@
 /**
  * @file modalHandlers.js
- * @description モーダルごとの表示内容と挙動定義。
- * Systemへの直接依存を排除し、コンテキストオブジェクトを通じて操作を行う。
+ * @description モーダルごとの挙動（入力ハンドリング）定義。
+ * Viewロジック（DOM生成）を排除し、Controllerとしての責務に専念する。
  */
 import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
-import { el } from '../../../engine/utils/DOMUtils.js';
 import { PartInfo } from '../../common/constants.js';
 import { CONFIG } from '../common/config.js';
 
@@ -29,100 +28,25 @@ const NAVIGATION_MAP = {
 
 /**
  * @typedef {object} ModalHandlerContext
- * @property {object} data - モーダルデータ
- * @property {object} uiState - 現在のUI状態
- * @property {string|null} focusedButtonKey - 現在フォーカスされているボタンキー
- * @property {Function} emit - イベント発行 (eventName, detail)
- * @property {Function} close - モーダルを閉じる
- * @property {Function} proceed - 次のシーケンスへ進む
- * @property {Function} updateTargetHighlight - ターゲットハイライト更新 (targetId, show)
- * @property {Function} setButtonFocus - ボタンフォーカス更新 (key, focused)
- * @property {Function} triggerButtonClick - ボタンクリック発火 (key)
+ * @property {object} data
+ * @property {object} uiState
+ * @property {string|null} focusedButtonKey
+ * @property {Function} emit
+ * @property {Function} close
+ * @property {Function} proceed
+ * @property {Function} updateTargetHighlight
+ * @property {Function} setButtonFocus
+ * @property {Function} triggerButtonClick
  */
 
 export const modalHandlers = {
     [ModalType.START_CONFIRM]: {
         getActorName: () => 'ロボトルを開始しますか？',
-        /**
-         * @param {ModalHandlerContext} ctx 
-         */
-        createContent: (ctx) => {
-            return el('div', { className: 'buttons-center' }, [
-                el('button', {
-                    textContent: 'OK',
-                    className: 'action-panel-button',
-                    onclick: () => {
-                        ctx.emit(GameEvents.GAME_START_CONFIRMED);
-                        ctx.close();
-                    }
-                }),
-                el('button', {
-                    textContent: 'キャンセル',
-                    className: 'action-panel-button bg-red-500 hover:bg-red-600',
-                    onclick: () => ctx.close()
-                })
-            ]);
-        }
+        // createContent は削除
     },
     [ModalType.SELECTION]: {
         getOwnerName: (data) => data.ownerName,
-        /**
-         * @param {ModalHandlerContext} ctx 
-         * @param {object} data 
-         */
-        createContent: (ctx, data) => {
-            const buttonsData = data.buttons;
-            const getBtnData = (key) => buttonsData.find(b => b.partKey === key);
-            const headBtnData = getBtnData(PartInfo.HEAD.key);
-            const rArmBtnData = getBtnData(PartInfo.RIGHT_ARM.key);
-            const lArmBtnData = getBtnData(PartInfo.LEFT_ARM.key);
-
-            const updateHighlight = (partKey, show) => {
-                const buttonData = getBtnData(partKey);
-                if (buttonData?.target?.targetId) {
-                    ctx.updateTargetHighlight(buttonData.target.targetId, show);
-                }
-            };
-
-            const createButton = (btnData) => {
-                if (!btnData) {
-                    return el('div', { style: { width: '100px', height: '35px' } });
-                }
-
-                const attributes = {
-                    id: `panelBtn-${btnData.partKey}`,
-                    className: 'part-action-button',
-                    textContent: btnData.text
-                };
-
-                if (btnData.isBroken) {
-                    attributes.disabled = true;
-                } else {
-                    attributes.onclick = () => {
-                        ctx.emit(GameEvents.PART_SELECTED, {
-                            entityId: data.entityId,
-                            partKey: btnData.partKey,
-                            target: btnData.target,
-                        });
-                        ctx.close();
-                    };
-
-                    if (btnData.target) {
-                        attributes.onmouseover = () => updateHighlight(btnData.partKey, true);
-                        attributes.onmouseout = () => updateHighlight(btnData.partKey, false);
-                    }
-                }
-                return el('button', attributes);
-            };
-
-            return el('div', { className: 'triangle-layout' }, [
-                el('div', { className: 'top-row' }, createButton(headBtnData)),
-                el('div', { className: 'bottom-row' }, [
-                    createButton(rArmBtnData),
-                    createButton(lArmBtnData)
-                ])
-            ]);
-        },
+        
         /**
          * @param {ModalHandlerContext} ctx 
          * @param {string} key 
@@ -167,6 +91,7 @@ export const modalHandlers = {
                 }
             }
         },
+        
         /**
          * @param {ModalHandlerContext} ctx 
          */
@@ -174,6 +99,7 @@ export const modalHandlers = {
             if (!ctx.focusedButtonKey) return;
             ctx.triggerButtonClick(ctx.focusedButtonKey);
         },
+        
         /**
          * @param {ModalHandlerContext} ctx 
          * @param {object} data 
@@ -184,24 +110,11 @@ export const modalHandlers = {
                                     available.find(b => b.partKey === PartInfo.RIGHT_ARM.key)?.partKey ||
                                     available.find(b => b.partKey === PartInfo.LEFT_ARM.key)?.partKey;
             
-            // 初期フォーカスの設定ロジックをNavigationハンドラに委譲
-            // ここでは直接フォーカス設定を行わず、システム側で呼び出されることを期待するか、
-            // コンテキスト経由で設定する
             if (initialFocusKey) {
-                // setTimeoutはUI更新待ちのために必要だが、コンテキストからは隠蔽したい。
-                // ただし、DOM構築直後である保証がないため、ここではロジックのみ示す。
-                // 実際にはActionPanelSystem側でinit後にNavigationを呼ぶか、ctx.setButtonFocusを呼ぶ。
-                // 互換性のためNavigationロジックを利用する
-                
-                // system.currentHandler.handleNavigation(system, initialFocusKey) 相当の処理
-                // 自分自身のhandleNavigationを呼ぶ
-                modalHandlers[ModalType.SELECTION].handleNavigation(ctx, initialFocusKey); // ダミーキーは不要だがロジック上 updateFocus が呼ばれるようにする
-                
-                // handleNavigationはキー入力を前提としているため、初期化用としては不適切かもしれない。
-                // ここでは直接 ctx.setButtonFocus を呼ぶ方が適切。
+                // 自分自身のhandleNavigationを呼び出してハイライト処理等を共有
+                modalHandlers[ModalType.SELECTION].handleNavigation(ctx, initialFocusKey);
                 ctx.setButtonFocus(initialFocusKey, true);
                 
-                // 初期ハイライト
                 const buttonData = data.buttons.find(b => b.partKey === initialFocusKey);
                 if (buttonData?.target?.targetId) {
                     ctx.updateTargetHighlight(buttonData.target.targetId, true);

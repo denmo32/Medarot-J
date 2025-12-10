@@ -1,8 +1,13 @@
 /**
  * @file BattleUIManager.js
- * @description バトルシーン固有のUI要素（主にアクションパネル）のDOM操作を担当するクラス。
- * ActionPanelSystemからViewロジックを分離。
+ * @description バトルシーン固有のUI要素のDOM操作を担当するクラス。
+ * DOM生成ロジック（View）を集約。
  */
+import { el } from '../../../../engine/utils/DOMUtils.js';
+import { ModalType } from '../common/constants.js';
+import { PartInfo } from '../../common/constants.js';
+import { GameEvents } from '../../common/events.js';
+
 export class BattleUIManager {
     constructor() {
         this.dom = {
@@ -17,37 +22,113 @@ export class BattleUIManager {
         this._currentClickListener = null;
     }
 
-    /**
-     * パネルのテキスト情報を更新する
-     * @param {string} ownerName オーナー名（左上）
-     * @param {string} title タイトル（中央大）
-     * @param {string} actorName アクター/メッセージ（中央小）
-     */
     updatePanelText(ownerName, title, actorName) {
         this.dom.actionPanelOwner.textContent = ownerName || '';
         this.dom.actionPanelTitle.textContent = title || '';
         this.dom.actionPanelActor.innerHTML = actorName || '';
     }
 
-    /**
-     * ボタンエリアの内容をクリアする
-     */
     clearButtons() {
         this.dom.actionPanelButtons.innerHTML = '';
     }
 
     /**
-     * ボタンエリアにコンテンツを追加する
-     * @param {HTMLElement} element 
+     * モーダルタイプに応じたコンテンツ（ボタン等）を描画する
+     * @param {string} modalType 
+     * @param {object} ctx - ModalHandlerContext (イベント発行用)
+     * @param {object} data - モーダルデータ
      */
-    addButtonContent(element) {
-        this.dom.actionPanelButtons.appendChild(element);
+    renderContent(modalType, ctx, data) {
+        this.clearButtons();
+        let content = null;
+
+        switch (modalType) {
+            case ModalType.START_CONFIRM:
+                content = this._renderStartConfirm(ctx);
+                break;
+            case ModalType.SELECTION:
+                content = this._renderSelection(ctx, data);
+                break;
+            // 他のタイプで特定のボタン表示が必要な場合はここに追加
+        }
+
+        if (content) {
+            this.dom.actionPanelButtons.appendChild(content);
+        }
     }
 
-    /**
-     * パネルのクリック可能状態を設定する
-     * @param {boolean} clickable 
-     */
+    _renderStartConfirm(ctx) {
+        return el('div', { className: 'buttons-center' }, [
+            el('button', {
+                textContent: 'OK',
+                className: 'action-panel-button',
+                onclick: () => {
+                    ctx.emit(GameEvents.GAME_START_CONFIRMED);
+                    ctx.close();
+                }
+            }),
+            el('button', {
+                textContent: 'キャンセル',
+                className: 'action-panel-button bg-red-500 hover:bg-red-600',
+                onclick: () => ctx.close()
+            })
+        ]);
+    }
+
+    _renderSelection(ctx, data) {
+        const buttonsData = data.buttons;
+        const getBtnData = (key) => buttonsData.find(b => b.partKey === key);
+        const headBtnData = getBtnData(PartInfo.HEAD.key);
+        const rArmBtnData = getBtnData(PartInfo.RIGHT_ARM.key);
+        const lArmBtnData = getBtnData(PartInfo.LEFT_ARM.key);
+
+        const updateHighlight = (partKey, show) => {
+            const buttonData = getBtnData(partKey);
+            if (buttonData?.target?.targetId) {
+                ctx.updateTargetHighlight(buttonData.target.targetId, show);
+            }
+        };
+
+        const createButton = (btnData) => {
+            if (!btnData) {
+                return el('div', { style: { width: '100px', height: '35px' } });
+            }
+
+            const attributes = {
+                id: `panelBtn-${btnData.partKey}`,
+                className: 'part-action-button',
+                textContent: btnData.text
+            };
+
+            if (btnData.isBroken) {
+                attributes.disabled = true;
+            } else {
+                attributes.onclick = () => {
+                    ctx.emit(GameEvents.PART_SELECTED, {
+                        entityId: data.entityId,
+                        partKey: btnData.partKey,
+                        target: btnData.target,
+                    });
+                    ctx.close();
+                };
+
+                if (btnData.target) {
+                    attributes.onmouseover = () => updateHighlight(btnData.partKey, true);
+                    attributes.onmouseout = () => updateHighlight(btnData.partKey, false);
+                }
+            }
+            return el('button', attributes);
+        };
+
+        return el('div', { className: 'triangle-layout' }, [
+            el('div', { className: 'top-row' }, createButton(headBtnData)),
+            el('div', { className: 'bottom-row' }, [
+                createButton(rArmBtnData),
+                createButton(lArmBtnData)
+            ])
+        ]);
+    }
+
     setPanelClickable(clickable) {
         if (clickable) {
             this.dom.actionPanel.classList.add('clickable');
@@ -56,12 +137,7 @@ export class BattleUIManager {
         }
     }
 
-    /**
-     * パネルのクリックイベントリスナーを設定する
-     * @param {Function} callback 
-     */
     setPanelClickListener(callback) {
-        // 既存のリスナーがあれば削除
         if (this._currentClickListener) {
             this.dom.actionPanel.removeEventListener('click', this._currentClickListener);
         }
@@ -81,23 +157,14 @@ export class BattleUIManager {
         this._currentClickListener = null;
     }
 
-    /**
-     * インジケーター（▼）を表示する
-     */
     showIndicator() {
         this.dom.actionPanelIndicator.classList.remove('hidden');
     }
 
-    /**
-     * インジケーター（▼）を非表示にする
-     */
     hideIndicator() {
         this.dom.actionPanelIndicator.classList.add('hidden');
     }
 
-    /**
-     * パネルの状態をリセットする（テキストクリア、ボタン削除、イベント解除）
-     */
     resetPanel() {
         this.updatePanelText('', '', '待機中...');
         this.clearButtons();
@@ -106,11 +173,6 @@ export class BattleUIManager {
         this.setPanelClickListener(null);
     }
 
-    /**
-     * 指定されたキーを持つボタンのフォーカス状態を切り替える
-     * @param {string} buttonKey 
-     * @param {boolean} isFocused 
-     */
     setButtonFocus(buttonKey, isFocused) {
         const button = this.dom.actionPanelButtons.querySelector(`#panelBtn-${buttonKey}`);
         if (button) {
@@ -122,10 +184,6 @@ export class BattleUIManager {
         }
     }
 
-    /**
-     * 指定されたキーを持つボタンをクリックする（プログラム的実行）
-     * @param {string} buttonKey 
-     */
     triggerButtonClick(buttonKey) {
         const button = this.dom.actionPanelButtons.querySelector(`#panelBtn-${buttonKey}`);
         if (button && !button.disabled) {
@@ -133,9 +191,6 @@ export class BattleUIManager {
         }
     }
 
-    /**
-     * ボタンラッパー要素（.action-panel-buttons）自体への参照を取得
-     */
     get buttonsContainer() {
         return this.dom.actionPanelButtons;
     }

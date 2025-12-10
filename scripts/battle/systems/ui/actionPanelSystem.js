@@ -1,6 +1,7 @@
 /**
  * @file ActionPanelSystem.js
  * @description アクションパネルおよびモーダル表示を管理するシステム。
+ * レンダリングロジックをBattleUIManagerへ委譲。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -17,19 +18,13 @@ import { TaskType } from '../../tasks/BattleTasks.js';
 export class ActionPanelSystem extends System {
     constructor(world) {
         super(world);
-        // エンジンのUIManager (エンティティとDOMの紐付け用)
         this.engineUIManager = this.world.getSingletonComponent(UIManager);
-        
         this.inputManager = this.world.getSingletonComponent(InputManager);
         this.uiState = this.world.getSingletonComponent(BattleUIState);
         
-        // バトル専用UIマネージャ (パネル操作用)
         this.battleUI = new BattleUIManager();
-
-        // モーダルハンドラ定義への参照
         this.handlers = modalHandlers;
 
-        // 入力コントローラー (入力判定ロジックの分離)
         this.inputController = new BattleInputController(
             this.inputManager, 
             this.uiState, 
@@ -40,8 +35,6 @@ export class ActionPanelSystem extends System {
         this.boundHandlePanelClick = null;
         
         this.bindWorldEvents();
-        
-        // 初期化時にパネルを非表示
         this.hideActionPanel();
     }
     
@@ -58,9 +51,7 @@ export class ActionPanelSystem extends System {
     }
 
     update(deltaTime) {
-        // モーダルが表示されていない、またはアニメーション待機中の場合は入力を受け付けない
         if (!this.uiState.currentModalType || this.uiState.isWaitingForAnimation) return;
-        
         this._handleInput();
     }
 
@@ -69,10 +60,6 @@ export class ActionPanelSystem extends System {
         this.inputController.handleInput(ctx);
     }
 
-    /**
-     * ハンドラに渡すコンテキストオブジェクトを生成する
-     * @returns {object} ModalHandlerContext
-     */
     _createHandlerContext() {
         return {
             data: this.uiState.currentModalData,
@@ -104,15 +91,11 @@ export class ActionPanelSystem extends System {
     }
 
     onRequestTaskExecution(task) {
-        if (task.type !== TaskType.MESSAGE) return;
-        
-        this.queueModal({
-            type: task.modalType,
-            data: task.data,
-            messageSequence: task.messageSequence,
-            taskId: task.id,
-            onComplete: task.onComplete
-        });
+        if (task.type !== TaskType.DIALOG) return;
+        // DialogRequestもTaskType.DIALOGとして来るが、中身はSHOW_MODALと同じような構造
+        // VisualDirectorSystem が処理しているのでここでは本来受け取らないはずだが、
+        // もし直接TaskRunnerが発行してきた場合のフォールバックとして残すなら以下の通り
+        // ただし現状は VisualDirectorSystem が処理し、SHOW_MODALを発行している。
     }
 
     onShowModal(detail) {
@@ -181,6 +164,12 @@ export class ActionPanelSystem extends System {
             modalType: currentModalType,
             originalData: currentModalData,
         });
+        
+        // MODAL_CLOSEDイベントも発行（VisualDirectorSystemがRequestを削除するために必要）
+        this.world.emit(GameEvents.MODAL_CLOSED, {
+            modalType: currentModalType,
+            taskId: this.uiState.currentTaskId
+        });
 
         if (typeof currentModalCallback === 'function') {
             currentModalCallback();
@@ -204,7 +193,6 @@ export class ActionPanelSystem extends System {
         
         this.uiState.isWaitingForAnimation = false;
         
-        // UI更新はBattleUIManagerに委譲
         this.battleUI.resetPanel();
         
         const handler = this.currentHandler;
@@ -217,7 +205,22 @@ export class ActionPanelSystem extends System {
         this.battleUI.updatePanelText(ownerName, title, actorName);
         
         const ctx = this._createHandlerContext();
-        this._updatePanelButtons(handler, ctx, displayData);
+        
+        // DOM生成をBattleUIManagerへ委譲
+        this.battleUI.renderContent(this.uiState.currentModalType, ctx, displayData);
+
+        if (handler.isClickable) {
+            this.battleUI.showIndicator();
+            this.battleUI.setPanelClickable(true);
+            
+            if (!this.boundHandlePanelClick) {
+                this.boundHandlePanelClick = () => {
+                    const clickCtx = this._createHandlerContext();
+                    handler.handleConfirm?.(clickCtx, this.uiState.currentModalData);
+                };
+            }
+            this.battleUI.setPanelClickListener(this.boundHandlePanelClick);
+        }
         
         if (handler.init) {
             handler.init(ctx, displayData);
@@ -231,36 +234,6 @@ export class ActionPanelSystem extends System {
         
         const effectsToAnimate = step.effects || this.uiState.currentModalData.appliedEffects || [];
         this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { appliedEffects: effectsToAnimate });
-    }
-
-    _updatePanelButtons(handler, ctx, displayData) {
-        this.battleUI.clearButtons();
-        
-        if (typeof handler.createContent === 'function') {
-            const contentElement = handler.createContent(ctx, displayData);
-            if (contentElement instanceof HTMLElement) {
-                this.battleUI.addButtonContent(contentElement);
-            }
-        }
-
-        if (handler.isClickable) {
-            this.battleUI.showIndicator();
-            this.battleUI.setPanelClickable(true);
-            
-            if (!this.boundHandlePanelClick) {
-                // コンテキストを都度生成するため、クロージャ内でその時点のctxを使用するか、
-                // click発生時に再生成するか検討が必要。
-                // ここではシンプルに、click発生時に_handleInput同様に処理を委譲する形をとるか、
-                // ハンドラ実行用のヘルパーを呼ぶ。
-                this.boundHandlePanelClick = () => {
-                    // クリックイベント発生時点のコンテキストで実行
-                    const clickCtx = this._createHandlerContext();
-                    handler.handleConfirm?.(clickCtx, this.uiState.currentModalData);
-                };
-            }
-            // リスナーを再設定（同じ関数インスタンスなら重複しないが、念のためresetPanelで解除済み）
-            this.battleUI.setPanelClickListener(this.boundHandlePanelClick);
-        }
     }
     
     hideActionPanel() {
