@@ -11,6 +11,8 @@ import { GameState, Action } from '../../components/index.js';
 import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { ActionSequenceService } from '../../services/ActionSequenceService.js';
 import { CancellationService } from '../../services/CancellationService.js';
+import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
+import { BattleResolutionService } from '../../services/BattleResolutionService.js'; // インポートを追加
 
 // 内部ステート定義
 const SequenceState = {
@@ -27,7 +29,9 @@ export class BattleSequenceSystem extends System {
         this.battleContext = this.world.getSingletonComponent(BattleContext);
         
         this.service = new ActionSequenceService(world);
+        this.timelineBuilder = new TimelineBuilder(world);
         this.taskRunner = new TaskRunner(world);
+        this.battleResolver = new BattleResolutionService(world); // 初期化処理を追加
         
         this.executionQueue = [];
         this.internalState = SequenceState.IDLE;
@@ -55,7 +59,6 @@ export class BattleSequenceSystem extends System {
         // メインステートマシン
         switch (this.internalState) {
             case SequenceState.IDLE:
-                // BattleContextのフェーズを監視して起動
                 if (this.battleContext.phase === BattlePhase.ACTION_EXECUTION && !this.battleContext.isSequenceRunning) {
                     this._startExecutionPhase();
                 }
@@ -115,31 +118,29 @@ export class BattleSequenceSystem extends System {
     }
 
     _startActorSequence(actorId) {
-        const { tasks, isCancelled, eventsToEmit, stateUpdates } = this.service.executeSequence(actorId);
-
+        // --- 1. ロジック解決と適用 ---
+        const resultData = this.battleResolver.resolve(actorId);
+        
         // 状態変更コマンドを即時発行
-        if (stateUpdates && stateUpdates.length > 0) {
-            this.world.emit(GameEvents.EXECUTE_COMMANDS, stateUpdates);
+        if (resultData.stateUpdates && resultData.stateUpdates.length > 0) {
+            this.world.emit(GameEvents.EXECUTE_COMMANDS, resultData.stateUpdates);
         }
         
-        // イベント発行 (ログ出力やUI通知用)
-        if (eventsToEmit) {
-            eventsToEmit.forEach(event => {
+        // 副作用イベントを発行 (ログ出力やUI通知用)
+        if (resultData.eventsToEmit) {
+            resultData.eventsToEmit.forEach(event => {
                 this.world.emit(event.type, event.payload);
             });
         }
-
-        if (isCancelled) {
+        
+        if (resultData.isCancelled) {
             this.taskRunner.setSequence([], actorId); 
-            // キャンセルされた場合もタスク完了扱いとして即座にアイドルに戻る
             return;
         }
 
-        if (tasks.length > 0) {
-            this.taskRunner.setSequence(tasks, actorId);
-        } else {
-             this.taskRunner.setSequence([], actorId);
-        }
+        // --- 2. 演出シーケンスの構築と実行 ---
+        const visualTasks = this.timelineBuilder.buildVisualSequence(resultData.visualSequence);
+        this.taskRunner.setSequence(visualTasks, actorId);
     }
 
     _onTaskCompleted() {
@@ -156,7 +157,6 @@ export class BattleSequenceSystem extends System {
         this.internalState = SequenceState.IDLE;
         this.battleContext.isSequenceRunning = false;
         
-        // 完了通知イベント
         this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
     }
 
@@ -178,7 +178,6 @@ export class BattleSequenceSystem extends System {
     }
     
     onCheckActionCancellation() {
-        // システム内で完結させるべきだが、イベント経由での呼び出しも維持
         const actors = this.getEntities(GameState, Action);
         for (const actorId of actors) {
             const gameState = this.world.getComponent(actorId, GameState);

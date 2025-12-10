@@ -8,7 +8,6 @@ import { PlayerInfo } from '../../../components/index.js';
 import { GameState } from '../../components/index.js';
 import { PlayerStateType, ModalType, ActionCancelReason } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
-import { createDialogTask } from '../../tasks/BattleTasks.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 
 export const GlitchEffect = {
@@ -56,15 +55,19 @@ export const GlitchEffect = {
         return { ...effect, events, stateUpdates };
     },
 
-    createTasks: ({ world, effects, messageGenerator }) => {
-        const tasks = [];
+    createVisuals: ({ world, effects, messageGenerator }) => {
+        const visuals = [];
         for (const effect of effects) {
             const targetInfo = world.getComponent(effect.targetId, PlayerInfo);
             const key = effect.wasSuccessful ? MessageKey.INTERRUPT_GLITCH_SUCCESS : MessageKey.INTERRUPT_GLITCH_FAILED;
             const message = messageGenerator.format(key, { targetName: targetInfo?.name || '相手' });
             
-            tasks.push(createDialogTask(message, { modalType: ModalType.EXECUTION_RESULT }));
+            visuals.push({
+                type: 'DIALOG',
+                text: message,
+                options: { modalType: ModalType.EXECUTION_RESULT }
+            });
         }
-        return tasks;
+        return visuals;
     }
 };

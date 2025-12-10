@@ -99,14 +99,21 @@ export class AiDecisionService {
                 const selectedCandidate = selectItemByProbability(targetCandidates);
                 if (selectedCandidate) {
                     selectedTarget = selectedCandidate.target;
+                    // ターゲットが取れたPRE_MOVEアクションのみプランに追加
+                    actionPlans.push({
+                        partKey,
+                        part,
+                        target: selectedTarget,
+                    });
                 }
+            } else {
+                // POST_MOVEやSELFなどはターゲットnullでプランに追加
+                actionPlans.push({
+                    partKey,
+                    part,
+                    target: null,
+                });
             }
-
-            actionPlans.push({
-                partKey,
-                part,
-                target: selectedTarget,
-            });
         }
         return actionPlans;
     }

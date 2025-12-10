@@ -46,10 +46,15 @@ export class EffectRegistry {
         return { ...context.effect, events: [], stateUpdates: [] };
     }
 
-    static createTasks(type, context) {
+    /**
+     * 演出指示データ生成フェーズ
+     * 適用済みの効果を元に、どのような演出（ダイアログ、UIアニメーション等）が必要かを示す
+     * データオブジェクトの配列を生成して返す。
+     */
+    static createVisuals(type, context) {
         const def = this.get(type);
-        if (def && typeof def.createTasks === 'function') {
-            return def.createTasks(context);
+        if (def && typeof def.createVisuals === 'function') {
+            return def.createVisuals(context);
         }
         return [];
     }

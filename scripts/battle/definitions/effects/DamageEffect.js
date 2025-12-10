@@ -9,7 +9,6 @@ import { GameState, ActiveEffects } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, ModalType } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
-import { createUiAnimationTask, createDialogTask } from '../../tasks/BattleTasks.js';
 import { PartKeyToInfoMap } from '../../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 import { EffectService } from '../../services/EffectService.js';
@@ -129,9 +128,11 @@ export const DamageEffect = {
                         type: GameEvents.GUARD_BROKEN,
                         payload: { entityId: targetId }
                     });
-                    events.push({
-                        type: GameEvents.REQUEST_RESET_TO_COOLDOWN,
-                        payload: { entityId: targetId, options: {} }
+                    // コマンドを発行してリセット
+                    stateUpdates.push({
+                        type: 'RESET_TO_COOLDOWN',
+                        targetId: targetId,
+                        options: {}
                     });
                 }
             }
@@ -153,9 +154,9 @@ export const DamageEffect = {
         };
     },
 
-    // --- 演出フェーズ ---
-    createTasks: ({ world, effects, guardianInfo, messageGenerator }) => {
-        const tasks = [];
+    // --- 演出指示データ生成フェーズ ---
+    createVisuals: ({ world, effects, guardianInfo, messageGenerator }) => {
+        const visuals = [];
         const messageLines = [];
         const firstEffect = effects[0];
         let prefix = firstEffect.isCritical ? messageGenerator.format(MessageKey.CRITICAL_HIT) : '';
@@ -191,15 +192,27 @@ export const DamageEffect = {
         });
 
         if (messageLines.length > 0) {
-            tasks.push(createDialogTask(messageLines[0], { modalType: ModalType.EXECUTION_RESULT }));
+            visuals.push({
+                type: 'DIALOG',
+                text: messageLines[0],
+                options: { modalType: ModalType.EXECUTION_RESULT }
+            });
             if (effects.some(e => e.value > 0)) {
-                tasks.push(createUiAnimationTask('HP_BAR', { effects: effects }));
+                visuals.push({
+                    type: 'UI_ANIMATION',
+                    targetType: 'HP_BAR',
+                    data: { effects }
+                });
             }
             for (let i = 1; i < messageLines.length; i++) {
-                tasks.push(createDialogTask(messageLines[i], { modalType: ModalType.EXECUTION_RESULT }));
+                visuals.push({
+                    type: 'DIALOG',
+                    text: messageLines[i],
+                    options: { modalType: ModalType.EXECUTION_RESULT }
+                });
             }
         }
 
-        return tasks;
+        return visuals;
     }
 };

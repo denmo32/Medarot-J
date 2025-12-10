@@ -6,7 +6,6 @@
 import { BattleResolutionService } from './BattleResolutionService.js';
 import { TimelineBuilder } from '../tasks/TimelineBuilder.js';
 import { CancellationService } from './CancellationService.js';
-import { TargetingService } from './TargetingService.js';
 import { GameEvents } from '../../common/events.js';
 import { GameState, Action } from '../components/index.js';
 import { PlayerStateType } from '../common/constants.js';
@@ -42,22 +41,20 @@ export class ActionSequenceService {
             return { tasks: [], isCancelled: true, eventsToEmit: [], stateUpdates };
         }
 
-        const actionComp = this.world.getComponent(actorId, Action);
-
-        // 2. 移動後ターゲット決定
-        TargetingService.resolvePostMoveTarget(this.world, actorId, actionComp);
-
-        // 3. 戦闘結果の計算 (純粋計算、副作用指示書を含む)
+        // 2. 戦闘結果の計算 (POST_MOVEターゲット解決もここに含まれる)
         const resultData = this.battleResolver.resolve(actorId);
 
-        // 4. 演出タスクの構築
-        const tasks = this.timelineBuilder.buildAttackSequence(resultData);
+        // 3. 演出タスクの構築
+        const tasks = this.timelineBuilder.buildVisualSequence(resultData.visualSequence);
+
+        // 状態変更コマンドを結果にマージ
+        const finalStateUpdates = [...stateUpdates, ...(resultData.stateUpdates || [])];
 
         return { 
             tasks, 
             isCancelled: false, 
             eventsToEmit: resultData.eventsToEmit || [],
-            stateUpdates: [...stateUpdates, ...(resultData.stateUpdates || [])]
+            stateUpdates: finalStateUpdates
         };
     }
     

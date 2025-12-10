@@ -7,6 +7,7 @@
 
 import { MessageTemplates, MessageKey } from '../../data/messageRepository.js';
 import { PlayerInfo } from '../../components/index.js';
+import { ModalType } from '../common/constants.js';
 
 export class MessageService {
     constructor(world) {
@@ -15,10 +16,10 @@ export class MessageService {
 
     /**
      * 攻撃宣言時のメッセージシーケンスを生成します。
-     * (これは汎用的なのでここに残す)
+     * @returns {Array<object>} 演出指示データの配列
      */
     createDeclarationSequence(detail) {
-        const { attackerId, targetId, attackingPart, isSupport, guardianInfo } = detail;
+        const { attackerId, finalTargetId, attackingPart, isSupport, guardianInfo } = detail;
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         
         if (!attackerInfo) return [];
@@ -34,17 +35,23 @@ export class MessageService {
 
         if (isSupport) {
             mainMessageKey = MessageKey.SUPPORT_DECLARATION;
-        } else if (!targetId) {
+        } else if (finalTargetId === null || finalTargetId === undefined) { // finalTargetId を参照するように修正
             mainMessageKey = MessageKey.ATTACK_MISSED;
         } else {
             mainMessageKey = MessageKey.ATTACK_DECLARATION;
         }
 
-        sequence.push({ text: this.format(mainMessageKey, params) });
+        sequence.push({
+            type: 'DIALOG',
+            text: this.format(mainMessageKey, params),
+            options: { modalType: ModalType.ATTACK_DECLARATION }
+        });
 
         if (guardianInfo) {
             sequence.push({
-                text: this.format(MessageKey.GUARDIAN_TRIGGERED, { guardianName: guardianInfo.name })
+                type: 'DIALOG',
+                text: this.format(MessageKey.GUARDIAN_TRIGGERED, { guardianName: guardianInfo.name }),
+                options: { modalType: ModalType.ATTACK_DECLARATION }
             });
         }
 
@@ -53,7 +60,7 @@ export class MessageService {
 
     /**
      * 回避時のメッセージシーケンスを生成します。
-     * (Effectが発生しないケース用)
+     * @returns {Array<object>} 演出指示データの配列
      */
     createResultSequence(detail) {
         const { targetId, outcome } = detail;
@@ -61,7 +68,9 @@ export class MessageService {
         if (!outcome.isHit && targetId) {
             const targetName = this.world.getComponent(targetId, PlayerInfo)?.name || '相手';
             return [{ 
-                text: this.format(MessageKey.ATTACK_EVADED, { targetName }) 
+                type: 'DIALOG',
+                text: this.format(MessageKey.ATTACK_EVADED, { targetName }),
+                options: { modalType: ModalType.EXECUTION_RESULT }
             }];
         }
         return [];

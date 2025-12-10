@@ -1,7 +1,6 @@
 /**
  * @file TimelineBuilder.js
- * @description 戦闘アクションの実行シーケンス（タスクリスト）を構築する。
- * Phase 2: ApplyStateTaskへのデータ渡し
+ * @description 演出指示データから、実行可能なタスクのリストを構築する。
  */
 import { 
     createAnimateTask, 
@@ -9,75 +8,49 @@ import {
     createCustomTask,
     createDialogTask,
     createUiAnimationTask,
-    createApplyStateTask
+    createVfxTask,
+    createCameraTask
 } from './BattleTasks.js';
-import { GameEvents } from '../../common/events.js';
-import { ModalType } from '../common/constants.js';
-import { MessageService } from '../services/MessageService.js';
-import { EffectRegistry } from '../definitions/EffectRegistry.js';
 
 export class TimelineBuilder {
     constructor(world) {
         this.world = world;
-        this.messageGenerator = new MessageService(world);
     }
 
-    buildAttackSequence(resultData) {
+    /**
+     * 演出指示データの配列をタスクの配列に変換する
+     * @param {Array<object>} visualSequence - 演出指示データの配列
+     * @returns {Array<BattleTask>}
+     */
+    buildVisualSequence(visualSequence) {
         const tasks = [];
-        const { attackerId, intendedTargetId, targetId, isCancelled, appliedEffects, guardianInfo, stateUpdates } = resultData;
-
-        if (isCancelled) {
-            return [];
-        }
-
-        const animationTargetId = intendedTargetId || targetId;
-        if (animationTargetId) {
-            tasks.push(createAnimateTask(attackerId, animationTargetId, 'attack'));
-        } else {
-            tasks.push(createAnimateTask(attackerId, attackerId, 'support'));
-        }
-
-        const declarationSeq = this.messageGenerator.createDeclarationSequence(resultData);
-        declarationSeq.forEach(msg => {
-            tasks.push(createDialogTask(msg.text, { modalType: ModalType.ATTACK_DECLARATION }));
-        });
-
-        // 状態更新タスクの生成 (コマンドデータ配列をそのまま渡す)
-        if (stateUpdates && stateUpdates.length > 0) {
-            // ApplyStateTaskは即時実行されるため、ここでは不要かもしれない。
-            // ActionSequenceService側でコマンドを発行し、演出と並行して状態が更新される。
-            // しかし、演出の途中で状態を更新したい場合（例：ダメージ表示の前にHPを減らす）は
-            // ApplyStateTaskが有効になる。現状はActionSequenceServiceで実行しているのでコメントアウト。
-            // tasks.push(createApplyStateTask(stateUpdates));
-        }
-
-        if (appliedEffects && appliedEffects.length > 0) {
-            const mainEffectType = appliedEffects[0].type;
-            const resultTasks = EffectRegistry.createTasks(mainEffectType, {
-                world: this.world,
-                effects: appliedEffects,
-                guardianInfo,
-                messageGenerator: this.messageGenerator
-            });
-            tasks.push(...resultTasks);
-
-        } else if (!resultData.outcome.isHit && resultData.intendedTargetId) {
-             const resultSeq = this.messageGenerator.createResultSequence(resultData);
-             if (resultSeq.length > 0 && resultSeq[0].text) {
-                 tasks.push(createDialogTask(resultSeq[0].text, { modalType: ModalType.EXECUTION_RESULT }));
-             }
-        }
-
-        // カスタムタスクでコマンドを発行
-        tasks.push(createCustomTask((world) => {
-            world.emit(GameEvents.EXECUTE_COMMANDS, [{
-                type: 'TRANSITION_TO_COOLDOWN',
-                targetId: attackerId
-            }]);
-        }));
+        if (!visualSequence) return tasks;
         
-        tasks.push(createEventTask(GameEvents.REFRESH_UI, {}));
-        tasks.push(createEventTask(GameEvents.CHECK_ACTION_CANCELLATION, {}));
+        for (const visual of visualSequence) {
+            switch (visual.type) {
+                case 'ANIMATE':
+                    tasks.push(createAnimateTask(visual.attackerId, visual.targetId, visual.animationType));
+                    break;
+                case 'DIALOG':
+                    tasks.push(createDialogTask(visual.text, visual.options));
+                    break;
+                case 'UI_ANIMATION':
+                    tasks.push(createUiAnimationTask(visual.targetType, visual.data));
+                    break;
+                case 'VFX':
+                    tasks.push(createVfxTask(visual.effectName, visual.position));
+                    break;
+                case 'CAMERA':
+                    tasks.push(createCameraTask(visual.action, visual.params));
+                    break;
+                case 'EVENT':
+                    tasks.push(createEventTask(visual.eventName, visual.detail));
+                    break;
+                case 'CUSTOM':
+                    tasks.push(createCustomTask(visual.executeFn));
+                    break;
+            }
+        }
 
         return tasks;
     }

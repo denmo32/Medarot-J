@@ -7,7 +7,6 @@ import { EffectType } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { ActiveEffects } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { createDialogTask } from '../../tasks/BattleTasks.js';
 import { ModalType } from '../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 
@@ -55,17 +54,21 @@ export const ConsumeGuardEffect = {
         return { ...effect, isExpired, events, stateUpdates };
     },
 
-    createTasks: ({ world, effects, messageGenerator }) => {
-        const tasks = [];
+    createVisuals: ({ world, effects, messageGenerator }) => {
+        const visuals = [];
         for (const effect of effects) {
             if (effect.isExpired) {
                 const actorInfo = world.getComponent(effect.targetId, PlayerInfo);
                 const message = messageGenerator.format(MessageKey.GUARD_EXPIRED, { 
                     actorName: actorInfo?.name || '???' 
                 });
-                tasks.push(createDialogTask(message, { modalType: ModalType.MESSAGE }));
+                visuals.push({
+                    type: 'DIALOG',
+                    text: message,
+                    options: { modalType: ModalType.MESSAGE }
+                });
             }
         }
-        return tasks;
+        return visuals;
     }
 };

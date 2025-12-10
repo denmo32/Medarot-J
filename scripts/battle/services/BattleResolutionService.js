@@ -5,7 +5,7 @@
  */
 import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
-import { EffectType } from '../../common/constants.js';
+import { EffectType, TargetTiming } from '../../common/constants.js'; // TargetTimingを追加
 import { CombatCalculator } from '../logic/CombatCalculator.js';
 import { EffectRegistry } from '../definitions/EffectRegistry.js'; 
 import { TargetingService } from './TargetingService.js';
@@ -14,16 +14,20 @@ import { EffectService } from './EffectService.js';
 import { HookPhase } from '../definitions/HookRegistry.js';
 import { BattleContext } from '../components/BattleContext.js';
 import { GameEvents } from '../../common/events.js';
+import { MessageService } from './MessageService.js';
+import { targetingStrategies } from '../ai/targetingStrategies.js'; // targetingStrategiesを追加
 
 export class BattleResolutionService {
     constructor(world) {
         this.world = world;
         this.battleContext = world.getSingletonComponent(BattleContext);
+        this.messageGenerator = new MessageService(world);
     }
 
     resolve(attackerId) {
         const eventsToEmit = [];
-        const allStateUpdates = []; // 全ての副作用指示書
+        const allStateUpdates = []; 
+        let visualSequence = [];
         
         // 1. コンテキスト初期化
         const ctx = this._initializeContext(attackerId);
@@ -33,11 +37,15 @@ export class BattleResolutionService {
                 isCancelled: true, 
                 cancelReason: 'INTERRUPTED', 
                 eventsToEmit,
-                stateUpdates: []
+                stateUpdates: [],
+                visualSequence: []
             };
         }
+        
+        // 2. 移動後ターゲット解決 (POST_MOVE)
+        this._resolvePostMoveTarget(ctx);
 
-        // 2. ターゲット解決
+        // 3. 最終ターゲット解決 (ガード判定など)
         this._resolveTarget(ctx);
         if (ctx.shouldCancel) {
             return { 
@@ -45,34 +53,38 @@ export class BattleResolutionService {
                 isCancelled: true, 
                 cancelReason: 'TARGET_LOST', 
                 eventsToEmit,
-                stateUpdates: []
+                stateUpdates: [],
+                visualSequence: []
             };
         }
 
         // ★フック: 攻撃開始直前
         this.battleContext.hookRegistry.execute(HookPhase.BEFORE_COMBAT_CALCULATION, ctx);
-        if (ctx.shouldCancel) return this._buildResult(ctx, eventsToEmit, allStateUpdates);
+        if (ctx.shouldCancel) return this._buildResult(ctx, eventsToEmit, allStateUpdates, visualSequence);
 
-        // 3. 命中・クリティカル等の判定
+        // 4. 命中・クリティカル等の判定
         this._calculateHitOutcome(ctx);
 
         // ★フック: 命中判定後
         this.battleContext.hookRegistry.execute(HookPhase.AFTER_HIT_CALCULATION, ctx);
 
-        // 4. 効果値計算
+        // 5. 効果値計算
         this._calculateEffects(ctx);
 
         // ★フック: 効果適用前
         this.battleContext.hookRegistry.execute(HookPhase.BEFORE_EFFECT_APPLICATION, ctx);
 
-        // 5. 適用データ生成 (副作用なし)
+        // 6. 適用データ生成 (副作用なし)
         this._resolveApplications(ctx, eventsToEmit, allStateUpdates);
         
         // ★フック: 効果適用後
         this.battleContext.hookRegistry.execute(HookPhase.AFTER_EFFECT_APPLICATION, ctx);
 
-        // 6. 結果構築
-        return this._buildResult(ctx, eventsToEmit, allStateUpdates);
+        // 7. 演出指示データ生成
+        visualSequence = this._createVisuals(ctx);
+
+        // 8. 結果構築
+        return this._buildResult(ctx, eventsToEmit, allStateUpdates, visualSequence);
     }
 
     _initializeContext(attackerId) {
@@ -106,6 +118,23 @@ export class BattleResolutionService {
             interruptions: [], 
             customData: {} 
         };
+    }
+
+    _resolvePostMoveTarget(ctx) {
+        const { attackingPart, action, attackerId } = ctx;
+        if (attackingPart && attackingPart.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
+            const strategy = targetingStrategies[attackingPart.postMoveTargeting];
+            if (strategy) {
+                const targetData = strategy({ world: this.world, attackerId });
+                if (targetData) {
+                    // Actionコンポーネントとコンテキストの両方を更新
+                    action.targetId = targetData.targetId;
+                    action.targetPartKey = targetData.targetPartKey;
+                    ctx.intendedTargetId = targetData.targetId;
+                    ctx.intendedTargetPartKey = targetData.targetPartKey;
+                }
+            }
+        }
     }
 
     _resolveTarget(ctx) {
@@ -228,25 +257,14 @@ export class BattleResolutionService {
         while (effectQueue.length > 0) {
             const effect = effectQueue.shift();
             
-            // Applyは副作用(World書き換え)を行わず、diffを返す
             const result = EffectRegistry.apply(effect.type, { world: this.world, effect });
 
             if (result) {
                 ctx.appliedEffects.push(result);
 
-                // 発生したイベントを収集
-                if (result.events) {
-                    eventsToEmit.push(...result.events);
-                }
+                if (result.events) eventsToEmit.push(...result.events);
+                if (result.stateUpdates) allStateUpdates.push(...result.stateUpdates);
 
-                // 更新指示書を収集
-                if (result.stateUpdates) {
-                    allStateUpdates.push(...result.stateUpdates);
-                }
-
-                // 貫通処理 (ロジック内での再帰)
-                // ※重要: 状態更新が遅延されるため、貫通判定に必要な「HPが0になったか」などの情報は
-                //   result.isPartBroken (予測値) を信頼して処理する。
                 if (result.isPartBroken && result.overkillDamage > 0 && result.penetrates) {
                     const nextTargetPartKey = QueryService.findRandomPenetrationTarget(this.world, result.targetId, result.partKey);
                     
@@ -268,7 +286,40 @@ export class BattleResolutionService {
         }
     }
 
-    _buildResult(ctx, eventsToEmit, stateUpdates) {
+    _createVisuals(ctx) {
+        let visuals = [];
+        
+        const { attackerId, intendedTargetId, finalTargetId, guardianInfo, appliedEffects } = ctx;
+
+        const animationTargetId = intendedTargetId || finalTargetId;
+        visuals.push({
+            type: 'ANIMATE',
+            animationType: animationTargetId ? 'attack' : 'support',
+            attackerId,
+            targetId: animationTargetId
+        });
+        
+        visuals.push(...this.messageGenerator.createDeclarationSequence(ctx));
+        
+        if (appliedEffects && appliedEffects.length > 0) {
+            const mainEffectType = appliedEffects[0].type;
+            visuals.push(...EffectRegistry.createVisuals(mainEffectType, {
+                world: this.world,
+                effects: appliedEffects,
+                guardianInfo,
+                messageGenerator: this.messageGenerator
+            }));
+        } else if (!ctx.outcome.isHit && ctx.intendedTargetId) {
+            visuals.push(...this.messageGenerator.createResultSequence(ctx));
+        }
+        
+        visuals.push({ type: 'EVENT', eventName: GameEvents.REFRESH_UI });
+        visuals.push({ type: 'EVENT', eventName: GameEvents.CHECK_ACTION_CANCELLATION });
+        
+        return visuals;
+    }
+
+    _buildResult(ctx, eventsToEmit, stateUpdates, visualSequence) {
         const summary = {
             isGuardBroken: ctx.appliedEffects.some(e => e.isGuardBroken),
             isGuardExpired: ctx.appliedEffects.some(e => e.isExpired && e.type === EffectType.CONSUME_GUARD),
@@ -281,6 +332,12 @@ export class BattleResolutionService {
                 appliedEffects: ctx.appliedEffects,
                 attackingPart: ctx.attackingPart
             }
+        });
+
+        // クールダウンへの移行コマンドを追加
+        stateUpdates.push({
+            type: 'TRANSITION_TO_COOLDOWN',
+            targetId: ctx.attackerId
         });
 
         return {
@@ -296,7 +353,8 @@ export class BattleResolutionService {
             isCancelled: ctx.shouldCancel, 
             interruptions: ctx.interruptions,
             eventsToEmit,
-            stateUpdates // 副作用の塊
+            stateUpdates,
+            visualSequence
         };
     }
 }

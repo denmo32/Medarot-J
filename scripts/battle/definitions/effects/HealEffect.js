@@ -7,7 +7,6 @@ import { EffectType } from '../../../common/constants.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
 import { Action } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { createUiAnimationTask, createDialogTask } from '../../tasks/BattleTasks.js';
 import { ModalType } from '../../common/constants.js';
 import { PartKeyToInfoMap } from '../../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
@@ -91,8 +90,8 @@ export const HealEffect = {
         };
     },
 
-    createTasks: ({ world, effects, messageGenerator }) => {
-        const tasks = [];
+    createVisuals: ({ world, effects, messageGenerator }) => {
+        const visuals = [];
         const messageLines = [];
 
         effects.forEach(effect => {
@@ -110,15 +109,27 @@ export const HealEffect = {
         });
 
         if (messageLines.length > 0) {
-            tasks.push(createDialogTask(messageLines[0], { modalType: ModalType.EXECUTION_RESULT }));
+            visuals.push({
+                type: 'DIALOG',
+                text: messageLines[0],
+                options: { modalType: ModalType.EXECUTION_RESULT }
+            });
             if (effects.some(e => e.value > 0)) {
-                tasks.push(createUiAnimationTask('HP_BAR', { effects: effects }));
+                visuals.push({
+                    type: 'UI_ANIMATION',
+                    targetType: 'HP_BAR',
+                    data: { effects }
+                });
             }
             for (let i = 1; i < messageLines.length; i++) {
-                tasks.push(createDialogTask(messageLines[i], { modalType: ModalType.EXECUTION_RESULT }));
+                visuals.push({
+                    type: 'DIALOG',
+                    text: messageLines[i],
+                    options: { modalType: ModalType.EXECUTION_RESULT }
+                });
             }
         }
 
-        return tasks;
+        return visuals;
     }
 };

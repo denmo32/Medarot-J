@@ -6,7 +6,6 @@
 import { EffectType } from '../../../common/constants.js';
 import { ActiveEffects } from '../../components/index.js';
 import { PlayerStateType, ModalType } from '../../common/constants.js';
-import { createDialogTask } from '../../tasks/BattleTasks.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 
 export const GuardEffect = {
@@ -59,12 +58,16 @@ export const GuardEffect = {
         return { ...effect, events: [], stateUpdates };
     },
 
-    createTasks: ({ world, effects, messageGenerator }) => {
-        const tasks = [];
+    createVisuals: ({ world, effects, messageGenerator }) => {
+        const visuals = [];
         for (const effect of effects) {
             const message = messageGenerator.format(MessageKey.DEFEND_GUARD_SUCCESS, { guardCount: effect.value });
-            tasks.push(createDialogTask(message, { modalType: ModalType.EXECUTION_RESULT }));
+            visuals.push({
+                type: 'DIALOG',
+                text: message,
+                options: { modalType: ModalType.EXECUTION_RESULT }
+            });
         }
-        return tasks;
+        return visuals;
     }
 };

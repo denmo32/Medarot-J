@@ -7,7 +7,6 @@ import { EffectType, EffectScope } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { ActiveEffects } from '../../components/index.js';
 import { TargetingService } from '../../services/TargetingService.js';
-import { createDialogTask } from '../../tasks/BattleTasks.js';
 import { ModalType } from '../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 
@@ -64,16 +63,20 @@ export const ScanEffect = {
         return { ...effect, events: [], stateUpdates };
     },
 
-    createTasks: ({ world, effects, messageGenerator }) => {
-        const tasks = [];
+    createVisuals: ({ world, effects, messageGenerator }) => {
+        const visuals = [];
         if (effects.length > 0) {
             const effect = effects[0];
             const message = messageGenerator.format(MessageKey.SUPPORT_SCAN_SUCCESS, { 
                 scanBonus: effect.value, 
                 duration: effect.duration 
             });
-            tasks.push(createDialogTask(message, { modalType: ModalType.EXECUTION_RESULT }));
+            visuals.push({
+                type: 'DIALOG',
+                text: message,
+                options: { modalType: ModalType.EXECUTION_RESULT }
+            });
         }
-        return tasks;
+        return visuals;
     }
 };
