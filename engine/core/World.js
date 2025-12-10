@@ -2,6 +2,7 @@
  * @file ECS (Entity-Component-System) の中核クラス
  * @description エンティティ、コンポーネント、システムの管理とオーケストレーションを行います。
  * Queryシステム導入によるパフォーマンス最適化版。Mapによるクエリキャッシュに対応。
+ * Phase 1: コンポーネントID管理によるMinification耐性強化
  */
 import { EventEmitter } from '../event/EventEmitter.js';
 import { Query } from './Query.js';
@@ -23,6 +24,25 @@ export class World extends EventEmitter {
         // --- Query Storage ---
         // key: querySignature (string), value: Query
         this.queries = new Map();
+
+        // --- Component ID Management (Minification Safety) ---
+        // key: ComponentClass, value: number (unique ID)
+        this.componentIdMap = new Map();
+        this.nextComponentId = 0;
+    }
+
+    // === Component ID Management ===
+
+    /**
+     * コンポーネントクラスに対する一意な内部IDを取得または発行する
+     * @param {Function} componentClass 
+     * @returns {number}
+     */
+    _getComponentId(componentClass) {
+        if (!this.componentIdMap.has(componentClass)) {
+            this.componentIdMap.set(componentClass, this.nextComponentId++);
+        }
+        return this.componentIdMap.get(componentClass);
     }
 
     // === Entity and Component Methods ===
@@ -42,8 +62,6 @@ export class World extends EventEmitter {
             return;
         }
 
-        // 既に持っている場合は上書きだが、構成変更ではないのでクエリ更新は不要かも？
-        // ただしインスタンスが変わるため、念のため更新する。
         const isNew = !entityComponents.has(componentClass);
         entityComponents.add(componentClass);
 
@@ -89,13 +107,12 @@ export class World extends EventEmitter {
      * @returns {number[]}
      */
     getEntitiesWith(...componentClasses) {
-        // クエリ署名の生成 (クラス名をソートして結合)
-        // ※クラス名が衝突する可能性は低い前提。厳密にはSymbolやUnique IDを使うべきだが、
-        //   JSのクラスオブジェクト自体をMapのキーにするのは組み合わせだと難しい。
-        //   ここではクラス名のソート済み文字列をキーとする。
+        // クエリ署名の生成
+        // クラス名(c.name)ではなく、実行時に割り当てた一意なIDを使用する。
+        // これによりMinificationでクラス名が変わっても、同一実行環境内での一意性が保たれる。
         const signature = componentClasses
-            .map(c => c.name)
-            .sort()
+            .map(c => this._getComponentId(c))
+            .sort((a, b) => a - b) // IDで数値ソート
             .join('|');
 
         let query = this.queries.get(signature);
@@ -159,5 +176,7 @@ export class World extends EventEmitter {
         this.components.clear();
         this.queries.clear();
         this.nextEntityId = 0;
+        this.componentIdMap.clear();
+        this.nextComponentId = 0;
     }
 }

@@ -2,6 +2,7 @@
  * @file ECSクエリクラス
  * @description 特定のコンポーネントの組み合わせを持つエンティティのセットを常に最新の状態に保ちます。
  * キャッシュ配列によるアロケーション削減版。
+ * Phase 1: キャッシュ汚染対策 (Safe Copy Return)
  */
 export class Query {
     /**
@@ -70,7 +71,7 @@ export class Query {
 
     /**
      * 条件を満たすエンティティのリストを取得
-     * 参照を返すため、呼び出し元でこの配列を変更してはならない。
+     * 呼び出し元での破壊的変更（sort等）による汚染を防ぐため、キャッシュのシャローコピーを返す。
      * @returns {number[]}
      */
     getEntities() {
@@ -78,6 +79,7 @@ export class Query {
             this._entitiesCache = Array.from(this.entities);
             this._isCacheDirty = false;
         }
-        return this._entitiesCache;
+        // キャッシュの保護: 参照ではなくコピーを返す
+        return this._entitiesCache.slice();
     }
 }

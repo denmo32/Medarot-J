@@ -1,7 +1,7 @@
 /**
  * @file ConsumeGuardEffect.js
  * @description ガード回数消費効果の定義
- * 副作用排除版。
+ * Phase 2: データ駆動化
  */
 import { EffectType } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
@@ -14,26 +14,23 @@ import { MessageKey } from '../../../data/messageRepository.js';
 export const ConsumeGuardEffect = {
     type: EffectType.CONSUME_GUARD,
 
-    // 計算フェーズ
     process: () => null,
 
-    // 適用データ生成フェーズ
     apply: ({ world, effect }) => {
         const activeEffects = world.getComponent(effect.targetId, ActiveEffects);
         if (!activeEffects) return { ...effect, events: [], stateUpdates: [] };
 
-        // 状態更新をシミュレーションして結果を予測
         const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD && e.partKey === effect.partKey);
         let isExpired = false;
         const events = [];
         const stateUpdates = [];
 
         if (guardEffect) {
-            // 更新ロジックの定義
             stateUpdates.push({
+                type: 'CUSTOM_UPDATE',
                 targetId: effect.targetId,
                 componentType: ActiveEffects,
-                updateFn: (ae) => {
+                customHandler: (ae) => {
                     const ge = ae.effects.find(e => e.type === EffectType.APPLY_GUARD && e.partKey === effect.partKey);
                     if (ge) {
                         ge.count = Math.max(0, ge.count - 1);
@@ -44,7 +41,6 @@ export const ConsumeGuardEffect = {
                 }
             });
 
-            // 予測に基づくイベント生成
             if (guardEffect.count - 1 <= 0) {
                 isExpired = true;
                 events.push({
@@ -57,7 +53,6 @@ export const ConsumeGuardEffect = {
         return { ...effect, isExpired, events, stateUpdates };
     },
 
-    // 演出フェーズ
     createTasks: ({ world, effects, messageGenerator }) => {
         const tasks = [];
         for (const effect of effects) {

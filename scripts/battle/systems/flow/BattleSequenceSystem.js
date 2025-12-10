@@ -1,17 +1,26 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクションシーケンスの進行管理。
- * 状態更新の一括適用を廃止し、Task内での実行に委ねる。
+ * Phase 3: ステートマシン強化とイベント依存の削減
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerStateType } from '../../common/constants.js';
+import { PlayerStateType, BattlePhase } from '../../common/constants.js';
 import { BattleContext } from '../../components/BattleContext.js';
 import { GameState, Action } from '../../components/index.js';
 import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { ActionSequenceService } from '../../services/ActionSequenceService.js';
 import { CooldownService } from '../../services/CooldownService.js';
 import { CancellationService } from '../../services/CancellationService.js';
+
+// 内部ステート定義
+const SequenceState = {
+    IDLE: 'IDLE',
+    PREPARING: 'PREPARING',
+    PROCESSING_QUEUE: 'PROCESSING_QUEUE',
+    EXECUTING_TASK: 'EXECUTING_TASK',
+    FINISHING: 'FINISHING'
+};
 
 export class BattleSequenceSystem extends System {
     constructor(world) {
@@ -22,11 +31,10 @@ export class BattleSequenceSystem extends System {
         this.taskRunner = new TaskRunner(world);
         
         this.executionQueue = [];
-        this.state = 'IDLE'; 
+        this.internalState = SequenceState.IDLE;
         this.currentActorId = null;
 
-        this.on(GameEvents.ACTION_EXECUTION_REQUESTED, this.onActionExecutionRequested.bind(this));
-        
+        // イベントは入力トリガーとしてのみ使用
         this.on(GameEvents.REQUEST_RESET_TO_COOLDOWN, this.onRequestResetToCooldown.bind(this));
         this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
         this.on(GameEvents.GAME_OVER, this.abortSequence.bind(this));
@@ -35,71 +43,82 @@ export class BattleSequenceSystem extends System {
         this.on(GameEvents.GAME_RESUMED, () => { this.taskRunner.isPaused = false; });
     }
 
-    onActionExecutionRequested() {
-        if (this.state !== 'IDLE') return;
-
-        this.executionQueue = this.service.getSortedReadyEntities();
-        
-        if (this.executionQueue.length === 0) {
-            this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
-            return;
-        }
-
-        this.state = 'PROCESSING_QUEUE';
-        this.battleContext.isSequenceRunning = true;
-    }
-
     update(deltaTime) {
+        // TaskRunnerは常に更新
         this.taskRunner.update(deltaTime);
 
-        if (this.state === 'IDLE') return;
-
-        if (!this.isValidState()) {
-            this.abortSequence();
+        // ゲームオーバー時は処理しない
+        if (this.battleContext.phase === BattlePhase.GAME_OVER) {
+            if (this.internalState !== SequenceState.IDLE) this.abortSequence();
             return;
         }
 
-        switch (this.state) {
-            case 'PROCESSING_QUEUE':
+        // メインステートマシン
+        switch (this.internalState) {
+            case SequenceState.IDLE:
+                // BattleContextのフェーズを監視して起動
+                if (this.battleContext.phase === BattlePhase.ACTION_EXECUTION && !this.battleContext.isSequenceRunning) {
+                    this._startExecutionPhase();
+                }
+                break;
+
+            case SequenceState.PREPARING:
+                this._prepareQueue();
+                break;
+
+            case SequenceState.PROCESSING_QUEUE:
                 this._processQueueNext();
                 break;
                 
-            case 'EXECUTING_TASK':
+            case SequenceState.EXECUTING_TASK:
                 if (this.taskRunner.isIdle) {
-                    this.battleContext.turn.currentActorId = null;
-                    this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: this.currentActorId });
-                    this.currentActorId = null;
-                    this.state = 'PROCESSING_QUEUE';
+                    this._onTaskCompleted();
                 }
                 break;
+                
+            case SequenceState.FINISHING:
+                this._finishSequence();
+                break;
+        }
+    }
+
+    _startExecutionPhase() {
+        this.internalState = SequenceState.PREPARING;
+        this.battleContext.isSequenceRunning = true;
+    }
+
+    _prepareQueue() {
+        this.executionQueue = this.service.getSortedReadyEntities();
+        
+        if (this.executionQueue.length === 0) {
+            this.internalState = SequenceState.FINISHING;
+        } else {
+            this.internalState = SequenceState.PROCESSING_QUEUE;
         }
     }
 
     _processQueueNext() {
         if (this.executionQueue.length === 0) {
-            this._finishSequence();
+            this.internalState = SequenceState.FINISHING;
             return;
         }
 
         const actorId = this.executionQueue.shift();
         if (!this.isValidEntity(actorId)) {
-            return;
+            return; // 次のループで再試行
         }
 
         this.currentActorId = actorId;
         this.battleContext.turn.currentActorId = actorId;
         
         this._startActorSequence(actorId);
-        this.state = 'EXECUTING_TASK';
+        this.internalState = SequenceState.EXECUTING_TASK;
     }
 
     _startActorSequence(actorId) {
         const { tasks, isCancelled, eventsToEmit } = this.service.executeSequence(actorId);
 
-        // stateUpdates の一括適用は廃止し、TimelineBuilderが生成した ApplyStateTask に任せる。
-        // これにより、演出上の適切なタイミングでステータスが更新される。
-
-        // イベント発行
+        // イベント発行 (ログ出力やUI通知用)
         if (eventsToEmit) {
             eventsToEmit.forEach(event => {
                 this.world.emit(event.type, event.payload);
@@ -108,6 +127,7 @@ export class BattleSequenceSystem extends System {
 
         if (isCancelled) {
             this.taskRunner.setSequence([], actorId); 
+            // キャンセルされた場合もタスク完了扱いとして即座にアイドルに戻る
             return;
         }
 
@@ -118,20 +138,28 @@ export class BattleSequenceSystem extends System {
         }
     }
 
-    _finishSequence() {
-        this.state = 'IDLE';
-        this.battleContext.isSequenceRunning = false;
-        this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
+    _onTaskCompleted() {
+        if (this.currentActorId) {
+            this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: this.currentActorId });
+        }
+        
+        this.currentActorId = null;
+        this.battleContext.turn.currentActorId = null;
+        this.internalState = SequenceState.PROCESSING_QUEUE;
     }
 
-    isValidState() {
-        return this.battleContext.phase !== 'GAME_OVER';
+    _finishSequence() {
+        this.internalState = SequenceState.IDLE;
+        this.battleContext.isSequenceRunning = false;
+        
+        // 完了通知イベント
+        this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
     }
 
     abortSequence() {
         this.executionQueue = [];
         this.taskRunner.abort();
-        this.state = 'IDLE';
+        this.internalState = SequenceState.IDLE;
         this.currentActorId = null;
         this.battleContext.isSequenceRunning = false;
     }
@@ -142,6 +170,7 @@ export class BattleSequenceSystem extends System {
     }
     
     onCheckActionCancellation() {
+        // システム内で完結させるべきだが、イベント経由での呼び出しも維持
         const actors = this.getEntities(GameState, Action);
         for (const actorId of actors) {
             const gameState = this.world.getComponent(actorId, GameState);

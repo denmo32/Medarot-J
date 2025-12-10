@@ -1,7 +1,7 @@
 /**
  * @file ScanEffect.js
  * @description スキャン効果の定義
- * 副作用排除版。
+ * Phase 2: データ駆動化 (ActiveEffects配列操作はCUSTOM_UPDATEを使用)
  */
 import { EffectType, EffectScope } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
@@ -14,7 +14,6 @@ import { MessageKey } from '../../../data/messageRepository.js';
 export const ScanEffect = {
     type: EffectType.APPLY_SCAN,
 
-    // 計算フェーズ
     process: ({ world, sourceId, effect, part }) => {
         const sourceInfo = world.getComponent(sourceId, PlayerInfo);
         if (!sourceInfo) return null;
@@ -36,7 +35,6 @@ export const ScanEffect = {
         };
     },
 
-    // 適用データ生成フェーズ
     apply: ({ world, effect }) => {
         if (!effect.scope?.endsWith('_TEAM')) return { ...effect, events: [], stateUpdates: [] };
         
@@ -44,10 +42,13 @@ export const ScanEffect = {
         const stateUpdates = [];
 
         allies.forEach(targetId => {
+            // 配列操作は複雑なため、CUSTOM_UPDATE を使用するが、
+            // ハンドラ自体は純粋関数的に振る舞わせる（Worldを書き換えるロジックをApplyStateTaskに任せる）
             stateUpdates.push({
+                type: 'CUSTOM_UPDATE',
                 targetId,
                 componentType: ActiveEffects,
-                updateFn: (activeEffects) => {
+                customHandler: (activeEffects) => {
                     // 重複排除して追加
                     activeEffects.effects = activeEffects.effects.filter(e => e.type !== effect.type);
                     activeEffects.effects.push({
@@ -63,7 +64,6 @@ export const ScanEffect = {
         return { ...effect, events: [], stateUpdates };
     },
 
-    // 演出フェーズ
     createTasks: ({ world, effects, messageGenerator }) => {
         const tasks = [];
         if (effects.length > 0) {

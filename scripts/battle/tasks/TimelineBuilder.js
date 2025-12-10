@@ -1,7 +1,7 @@
 /**
  * @file TimelineBuilder.js
  * @description 戦闘アクションの実行シーケンス（タスクリスト）を構築する。
- * ApplyStateTaskを用いて副作用の適用タイミングを制御。
+ * Phase 2: ApplyStateTaskへのデータ渡し
  */
 import { 
     createAnimateTask, 
@@ -9,7 +9,7 @@ import {
     createCustomTask,
     createDialogTask,
     createUiAnimationTask,
-    createApplyStateTask // 追加
+    createApplyStateTask
 } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
@@ -31,7 +31,6 @@ export class TimelineBuilder {
             return [];
         }
 
-        // 1. ターゲットアニメーション
         const animationTargetId = intendedTargetId || targetId;
         if (animationTargetId) {
             tasks.push(createAnimateTask(attackerId, animationTargetId, 'attack'));
@@ -39,23 +38,14 @@ export class TimelineBuilder {
             tasks.push(createAnimateTask(attackerId, attackerId, 'support'));
         }
 
-        // 2. 攻撃宣言メッセージ
         const declarationSeq = this.messageGenerator.createDeclarationSequence(resultData);
         declarationSeq.forEach(msg => {
             tasks.push(createDialogTask(msg.text, { modalType: ModalType.ATTACK_DECLARATION }));
         });
 
-        // 3. 結果演出と状態適用の同期
-        // 状態更新（ダメージ適用など）は、HPバー演出の前に行う必要がある。
-        // ここで ApplyStateTask を挿入。
+        // 状態更新タスクの生成 (コマンドデータ配列をそのまま渡す)
         if (stateUpdates && stateUpdates.length > 0) {
-            tasks.push(createApplyStateTask((world) => {
-                stateUpdates.forEach(update => {
-                    const { targetId, componentType, updateFn } = update;
-                    const component = world.getComponent(targetId, componentType);
-                    if (component) updateFn(component);
-                });
-            }));
+            tasks.push(createApplyStateTask(stateUpdates));
         }
 
         if (appliedEffects && appliedEffects.length > 0) {
@@ -75,12 +65,10 @@ export class TimelineBuilder {
              }
         }
 
-        // 4. クールダウンへの移行
         tasks.push(createCustomTask((world) => {
             CooldownService.transitionToCooldown(world, attackerId);
         }));
         
-        // 5. UI更新とキャンセルチェック
         tasks.push(createEventTask(GameEvents.REFRESH_UI, {}));
         tasks.push(createEventTask(GameEvents.CHECK_ACTION_CANCELLATION, {}));
 

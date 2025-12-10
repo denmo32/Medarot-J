@@ -1,9 +1,9 @@
 /**
  * @file HealEffect.js
  * @description 回復効果の定義
- * 副作用排除版。
+ * Phase 2: データ駆動化
  */
-import { EffectType, PartInfo } from '../../../common/constants.js';
+import { EffectType } from '../../../common/constants.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
 import { Action } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
@@ -15,13 +15,9 @@ import { MessageKey } from '../../../data/messageRepository.js';
 export const HealEffect = {
     type: EffectType.HEAL,
 
-    // 計算フェーズ
     process: ({ world, sourceId, targetId, effect, part }) => {
         if (targetId === null || targetId === undefined) {
-            return {
-                type: EffectType.HEAL,
-                value: 0,
-            };
+            return { type: EffectType.HEAL, value: 0 };
         }
 
         const targetParts = world.getComponent(targetId, Parts);
@@ -41,7 +37,6 @@ export const HealEffect = {
         };
     },
 
-    // 適用データ生成フェーズ
     apply: ({ world, effect }) => {
         const { targetId, partKey, value } = effect;
         if (!targetId) return effect;
@@ -60,14 +55,13 @@ export const HealEffect = {
             newHp = Math.min(part.maxHp, part.hp + value);
             actualHealAmount = newHp - oldHp;
             
-            // HP更新リクエスト
+            // データ駆動更新
             stateUpdates.push({
+                type: 'UPDATE_COMPONENT',
                 targetId,
                 componentType: Parts,
-                updateFn: (partsComp) => {
-                    if (partsComp[partKey]) {
-                        partsComp[partKey].hp = newHp;
-                    }
+                updates: {
+                    [partKey]: { hp: newHp }
                 }
             });
             
@@ -97,7 +91,6 @@ export const HealEffect = {
         };
     },
 
-    // 演出フェーズ
     createTasks: ({ world, effects, messageGenerator }) => {
         const tasks = [];
         const messageLines = [];
@@ -118,11 +111,9 @@ export const HealEffect = {
 
         if (messageLines.length > 0) {
             tasks.push(createDialogTask(messageLines[0], { modalType: ModalType.EXECUTION_RESULT }));
-            
             if (effects.some(e => e.value > 0)) {
                 tasks.push(createUiAnimationTask('HP_BAR', { effects: effects }));
             }
-            
             for (let i = 1; i < messageLines.length; i++) {
                 tasks.push(createDialogTask(messageLines[i], { modalType: ModalType.EXECUTION_RESULT }));
             }

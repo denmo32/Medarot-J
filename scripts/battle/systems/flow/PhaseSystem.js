@@ -1,7 +1,7 @@
 import { System } from '../../../../engine/core/System.js';
-import { BattleContext } from '../../components/BattleContext.js'; // 修正
+import { BattleContext } from '../../components/BattleContext.js';
 import { GameState, Gauge, Action } from '../../components/index.js';
-import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
+import { BattlePhase, PlayerStateType } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStatusService } from '../../services/PlayerStatusService.js';
 
@@ -47,7 +47,6 @@ export class PhaseSystem extends System {
             if (gauge) gauge.value = 0;
 
             if (gameState.state !== PlayerStateType.BROKEN) {
-                // 初期選択状態へ遷移 (Service使用)
                 PlayerStatusService.transitionTo(this.world, id, PlayerStateType.READY_SELECT);
                 
                 gauge.value = gauge.max;
@@ -69,12 +68,13 @@ export class PhaseSystem extends System {
     }
 
     onActionSelectionCompleted() {
+        // アクション選択完了 -> 即実行フェーズへ移行するか判定
         if (this.battleContext.phase !== BattlePhase.ACTION_SELECTION) return;
         
         if (this.isAnyEntityInCharging()) {
              if (this.isAnyEntityReadyToExecute()) {
                 this.battleContext.phase = BattlePhase.ACTION_EXECUTION;
-                this.world.emit(GameEvents.ACTION_EXECUTION_REQUESTED);
+                // REQUESTED イベントの発行は不要になる (SequenceSystemがPhaseを監視するため)
              }
         } else {
              this.battleContext.phase = BattlePhase.TURN_END;
@@ -94,11 +94,14 @@ export class PhaseSystem extends System {
     update(deltaTime) {
         if (!this.battleContext) return;
 
-        const activePhases = [BattlePhase.TURN_START, BattlePhase.ACTION_SELECTION, BattlePhase.TURN_END];
-        if (activePhases.includes(this.battleContext.phase)) {
+        // フェーズ遷移の監視
+        if (this.battleContext.phase === BattlePhase.TURN_START || 
+            this.battleContext.phase === BattlePhase.ACTION_SELECTION || 
+            this.battleContext.phase === BattlePhase.TURN_END) {
+            
             if (this.isAnyEntityReadyToExecute()) {
                 this.battleContext.phase = BattlePhase.ACTION_EXECUTION;
-                this.world.emit(GameEvents.ACTION_EXECUTION_REQUESTED);
+                // SequenceSystemがこれを見て起動する
                 return;
             }
         }
@@ -112,15 +115,8 @@ export class PhaseSystem extends System {
                 this.handleBattleStartConfirm();
                 break;
 
-            case BattlePhase.BATTLE_START:
-                break;
-
             case BattlePhase.TURN_START:
                 this.battleContext.phase = BattlePhase.ACTION_SELECTION;
-                break;
-
-            case BattlePhase.ACTION_SELECTION:
-            case BattlePhase.ACTION_EXECUTION:
                 break;
             
             case BattlePhase.TURN_END:

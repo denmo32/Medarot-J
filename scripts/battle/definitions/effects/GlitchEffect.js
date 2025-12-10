@@ -1,7 +1,7 @@
 /**
  * @file GlitchEffect.js
  * @description 妨害効果の定義
- * 副作用排除版。
+ * Phase 2: データ駆動化 (といっても更新はないのでそのまま)
  */
 import { EffectType } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
@@ -14,7 +14,6 @@ import { MessageKey } from '../../../data/messageRepository.js';
 export const GlitchEffect = {
     type: EffectType.APPLY_GLITCH,
 
-    // 計算フェーズ
     process: ({ world, targetId }) => {
         if (targetId === null || targetId === undefined) return null;
 
@@ -23,7 +22,6 @@ export const GlitchEffect = {
         if (!targetInfo || !targetState) return null;
 
         let wasSuccessful = false;
-
         if (targetState.state === PlayerStateType.SELECTED_CHARGING || targetState.state === PlayerStateType.GUARDING) {
             wasSuccessful = true;
         }
@@ -35,13 +33,11 @@ export const GlitchEffect = {
         };
     },
 
-    // 適用データ生成フェーズ
     apply: ({ world, effect }) => {
         const events = [];
         const stateUpdates = [];
         
         if (effect.wasSuccessful) {
-            // イベントの発行は System で処理されるため、データとして返す
             events.push({
                 type: GameEvents.ACTION_CANCELLED,
                 payload: { 
@@ -56,16 +52,12 @@ export const GlitchEffect = {
                     options: { interrupted: true }
                 }
             });
-            // 状態更新は REQUEST_RESET_TO_COOLDOWN イベントを受けたシステムが行うため
-            // ここでの stateUpdates は空でも動作するが、イベントの発行順序に依存する。
-            // 厳密にはここでの状態更新ロジックを stateUpdates に含めるべきだが、
-            // 既存の CooldownService を利用するイベントベースのフローを維持する。
+            // 状態更新はイベントリスナー側で行われるため、ここではコマンドなし
         }
         
         return { ...effect, events, stateUpdates };
     },
 
-    // 演出フェーズ
     createTasks: ({ world, effects, messageGenerator }) => {
         const tasks = [];
         for (const effect of effects) {

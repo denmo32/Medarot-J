@@ -1,7 +1,7 @@
 /**
  * @file DamageEffect.js
  * @description ダメージ効果の定義 (計算・適用・演出)
- * 副作用を排除し、純粋なデータ変換として再実装。
+ * Phase 2: データ駆動化 (副作用のコマンド化)
  */
 import { EffectType, PartInfo } from '../../../common/constants.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
@@ -31,7 +31,6 @@ export const DamageEffect = {
         const powerStatKey = calcParams.powerStat || 'might';
         const defenseStatKey = calcParams.defenseStat || 'armor';
 
-        // 1. 補正込みステータス値を準備
         const effectiveBaseVal = EffectService.getStatModifier(world, sourceId, baseStatKey, { 
             attackingPart: part, 
             attackerLegs: partOwner.parts.legs 
@@ -42,13 +41,11 @@ export const DamageEffect = {
             attackerLegs: partOwner.parts.legs 
         }) + (part[powerStatKey] || 0);
 
-        // 防御側ステータス
         const mobility = targetParts.legs?.mobility || 0;
         const defenseBase = targetParts.legs?.[defenseStatKey] || 0;
         const stabilityDefenseBonus = Math.floor((targetParts.legs?.stability || 0) / 2);
         const totalDefense = defenseBase + stabilityDefenseBonus;
 
-        // 2. 純粋なLogicへ委譲
         const finalDamage = CombatCalculator.calculateDamage({
             effectiveBaseVal,
             effectivePowerVal,
@@ -69,7 +66,6 @@ export const DamageEffect = {
     },
 
     // --- 適用データ生成フェーズ ---
-    // Worldの状態を参照するが、変更はしない。変更内容(diff)を返す。
     apply: ({ world, effect }) => {
         const { targetId, partKey, value } = effect;
         const part = world.getComponent(targetId, Parts)?.[partKey];
@@ -84,19 +80,16 @@ export const DamageEffect = {
         let isGuardBroken = false;
 
         const events = [];
-        const stateUpdates = []; // 状態更新リクエスト
+        const stateUpdates = [];
 
         // HP更新リクエスト
+        // Partsコンポーネントの構造に合わせ、ディープマージを利用して更新
         stateUpdates.push({
+            type: 'UPDATE_COMPONENT',
             targetId,
             componentType: Parts,
-            updateFn: (partsComp) => {
-                if (partsComp[partKey]) {
-                    partsComp[partKey].hp = newHp;
-                    if (isPartBroken) {
-                        partsComp[partKey].isBroken = true;
-                    }
-                }
+            updates: {
+                [partKey]: { hp: newHp, isBroken: isPartBroken ? true : part.isBroken }
             }
         });
 
@@ -123,7 +116,6 @@ export const DamageEffect = {
                 isPlayerBroken = true;
             }
 
-            // ガード破壊判定
             const targetState = world.getComponent(targetId, GameState);
             const activeEffects = world.getComponent(targetId, ActiveEffects);
             
@@ -149,7 +141,7 @@ export const DamageEffect = {
 
         return { 
             ...effect, 
-            value: actualDamage,
+            value: actualDamage, 
             oldHp, 
             newHp, 
             isPartBroken, 
@@ -157,22 +149,17 @@ export const DamageEffect = {
             isGuardBroken, 
             overkillDamage: overkillDamage,
             events: events,
-            stateUpdates: stateUpdates // 呼び出し元で適用する
+            stateUpdates: stateUpdates 
         };
     },
 
     // --- 演出フェーズ ---
     createTasks: ({ world, effects, guardianInfo, messageGenerator }) => {
         const tasks = [];
-        
-        // メッセージ生成
         const messageLines = [];
         const firstEffect = effects[0];
-
-        // プレフィックス (クリティカル)
         let prefix = firstEffect.isCritical ? messageGenerator.format(MessageKey.CRITICAL_HIT) : '';
 
-        // 各効果のメッセージ生成
         effects.forEach((effect, index) => {
             const targetInfo = world.getComponent(effect.targetId, PlayerInfo);
             const partName = PartKeyToInfoMap[effect.partKey]?.name || '不明部位';
@@ -193,7 +180,6 @@ export const DamageEffect = {
                     messageLines.push(prefix + messageGenerator.format(MessageKey.DAMAGE_APPLIED, params));
                 }
             } else {
-                // 貫通など
                 if (effect.isPenetration) {
                      messageLines.push(messageGenerator.format(MessageKey.PENETRATION_DAMAGE, params));
                 }
@@ -205,15 +191,10 @@ export const DamageEffect = {
         });
 
         if (messageLines.length > 0) {
-            // 最初の行を表示
             tasks.push(createDialogTask(messageLines[0], { modalType: ModalType.EXECUTION_RESULT }));
-
-            // HPバーアニメーション
             if (effects.some(e => e.value > 0)) {
                 tasks.push(createUiAnimationTask('HP_BAR', { effects: effects }));
             }
-
-            // 残りの行を表示
             for (let i = 1; i < messageLines.length; i++) {
                 tasks.push(createDialogTask(messageLines[i], { modalType: ModalType.EXECUTION_RESULT }));
             }
