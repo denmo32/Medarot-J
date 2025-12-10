@@ -1,7 +1,7 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクションシーケンスの進行管理。
- * stateUpdates (副作用) の適用処理を追加。
+ * 状態更新の一括適用を廃止し、Task内での実行に委ねる。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -94,19 +94,12 @@ export class BattleSequenceSystem extends System {
     }
 
     _startActorSequence(actorId) {
-        // stateUpdates を受け取る
-        const { tasks, isCancelled, eventsToEmit, stateUpdates } = this.service.executeSequence(actorId);
+        const { tasks, isCancelled, eventsToEmit } = this.service.executeSequence(actorId);
 
-        // 1. 副作用（状態更新）を一括適用
-        // これによりHP等が実際に減る。タスク開始前に反映させることで
-        // HPバーアニメーション等が「現在の値」として新しい値を参照できるようになる（演出によるが）。
-        // もし「ダメージ演出の瞬間にHPを減らしたい」場合は、Taskの中にこの更新処理を組み込む必要があるが、
-        // 多くのRPGでは計算確定時に内部パラメータは更新し、UIだけアニメーションさせるのが一般的。
-        if (stateUpdates) {
-            this._applyStateUpdates(stateUpdates);
-        }
+        // stateUpdates の一括適用は廃止し、TimelineBuilderが生成した ApplyStateTask に任せる。
+        // これにより、演出上の適切なタイミングでステータスが更新される。
 
-        // 2. イベント発行
+        // イベント発行
         if (eventsToEmit) {
             eventsToEmit.forEach(event => {
                 this.world.emit(event.type, event.payload);
@@ -123,16 +116,6 @@ export class BattleSequenceSystem extends System {
         } else {
              this.taskRunner.setSequence([], actorId);
         }
-    }
-
-    _applyStateUpdates(updates) {
-        updates.forEach(update => {
-            const { targetId, componentType, updateFn } = update;
-            const component = this.world.getComponent(targetId, componentType);
-            if (component) {
-                updateFn(component);
-            }
-        });
     }
 
     _finishSequence() {

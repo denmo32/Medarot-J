@@ -1,13 +1,15 @@
 /**
  * @file TimelineBuilder.js
  * @description 戦闘アクションの実行シーケンス（タスクリスト）を構築する。
+ * ApplyStateTaskを用いて副作用の適用タイミングを制御。
  */
 import { 
     createAnimateTask, 
     createEventTask, 
     createCustomTask,
     createDialogTask,
-    createUiAnimationTask
+    createUiAnimationTask,
+    createApplyStateTask // 追加
 } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
@@ -23,7 +25,7 @@ export class TimelineBuilder {
 
     buildAttackSequence(resultData) {
         const tasks = [];
-        const { attackerId, intendedTargetId, targetId, isCancelled, appliedEffects, guardianInfo } = resultData;
+        const { attackerId, intendedTargetId, targetId, isCancelled, appliedEffects, guardianInfo, stateUpdates } = resultData;
 
         if (isCancelled) {
             return [];
@@ -43,7 +45,19 @@ export class TimelineBuilder {
             tasks.push(createDialogTask(msg.text, { modalType: ModalType.ATTACK_DECLARATION }));
         });
 
-        // 3. 結果演出
+        // 3. 結果演出と状態適用の同期
+        // 状態更新（ダメージ適用など）は、HPバー演出の前に行う必要がある。
+        // ここで ApplyStateTask を挿入。
+        if (stateUpdates && stateUpdates.length > 0) {
+            tasks.push(createApplyStateTask((world) => {
+                stateUpdates.forEach(update => {
+                    const { targetId, componentType, updateFn } = update;
+                    const component = world.getComponent(targetId, componentType);
+                    if (component) updateFn(component);
+                });
+            }));
+        }
+
         if (appliedEffects && appliedEffects.length > 0) {
             const mainEffectType = appliedEffects[0].type;
             const resultTasks = EffectRegistry.createTasks(mainEffectType, {
@@ -55,7 +69,6 @@ export class TimelineBuilder {
             tasks.push(...resultTasks);
 
         } else if (!resultData.outcome.isHit && resultData.intendedTargetId) {
-             // 回避メッセージ
              const resultSeq = this.messageGenerator.createResultSequence(resultData);
              if (resultSeq.length > 0 && resultSeq[0].text) {
                  tasks.push(createDialogTask(resultSeq[0].text, { modalType: ModalType.EXECUTION_RESULT }));
