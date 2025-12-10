@@ -126,6 +126,17 @@ export const GameEvents = {
      * @event REFRESH_UI
      */
     REFRESH_UI: 'REFRESH_UI',
+    /**
+     * UIの状態が変化したことを通知 (ModalSystem -> ActionPanelSystem)
+     * @event UI_STATE_CHANGED
+     */
+    UI_STATE_CHANGED: 'UI_STATE_CHANGED',
+
+    // --- UI入力イベント (UIInputSystem -> ModalSystem) ---
+    UI_CONFIRM: 'UI_CONFIRM',
+    UI_CANCEL: 'UI_CANCEL',
+    UI_NAVIGATE: 'UI_NAVIGATE',
+
 
     // --- カスタマイズ画面イベント ---
     CUST_CONFIRM_INPUT: 'CUST_CONFIRM_INPUT',
@@ -144,5 +155,4 @@ export const GameEvents = {
     NPC_INTERACTED: 'NPC_INTERACTED',
     MENU_TOGGLE_REQUESTED: 'MENU_TOGGLE_REQUESTED',
     GAME_SAVE_REQUESTED: 'GAME_SAVE_REQUESTED',
-    UI_STATE_CHANGED: 'UI_STATE_CHANGED',
 };

@@ -1,7 +1,7 @@
 /**
  * @file modalHandlers.js
  * @description モーダルごとの挙動（入力ハンドリング）定義。
- * Viewロジック（DOM生成）を排除し、Controllerとしての責務に専念する。
+ * 副作用を起こさず、実行すべきアクションを記述したオブジェクトを返す。
  */
 import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
@@ -28,144 +28,94 @@ const NAVIGATION_MAP = {
 
 /**
  * @typedef {object} ModalHandlerContext
- * @property {object} data
- * @property {object} uiState
- * @property {string|null} focusedButtonKey
- * @property {Function} emit
- * @property {Function} close
- * @property {Function} proceed
- * @property {Function} updateTargetHighlight
- * @property {Function} setButtonFocus
- * @property {Function} triggerButtonClick
+ * @property {object} data - モーダルの元データ
+ * @property {object} uiState - 現在のBattleUIState
  */
 
 export const modalHandlers = {
     [ModalType.START_CONFIRM]: {
         getActorName: () => 'ロボトルを開始しますか？',
-        // createContent は削除
     },
     [ModalType.SELECTION]: {
         getOwnerName: (data) => data.ownerName,
         
-        /**
-         * @param {ModalHandlerContext} ctx 
-         * @param {string} key 
-         */
-        handleNavigation: (ctx, key) => {
-            const _updateHighlight = (partKey, show) => {
-                const buttonData = ctx.data?.buttons.find(b => b.partKey === partKey);
-                if (buttonData?.target?.targetId) {
-                    ctx.updateTargetHighlight(buttonData.target.targetId, show);
-                }
-            };
-
-            const updateFocus = (newKey) => {
-                if (ctx.focusedButtonKey === newKey) return;
-                
-                if (ctx.focusedButtonKey) {
-                    _updateHighlight(ctx.focusedButtonKey, false);
-                    ctx.setButtonFocus(ctx.focusedButtonKey, false);
-                }
-                
-                _updateHighlight(newKey, true);
-                ctx.setButtonFocus(newKey, true);
-            };
-
-            const availableButtons = ctx.data?.buttons.filter(b => !b.isBroken);
-            if (!availableButtons || availableButtons.length === 0) return;
-
-            if (!ctx.focusedButtonKey) {
-                const defaultKey = availableButtons.find(b => b.partKey === PartInfo.HEAD.key)?.partKey || availableButtons[0].partKey;
-                updateFocus(defaultKey);
-                return;
-            }
-
-            const candidates = NAVIGATION_MAP[ctx.focusedButtonKey]?.[key];
-            if (candidates) {
-                const nextKey = candidates.find(candidateKey => 
-                    availableButtons.some(b => b.partKey === candidateKey)
-                );
-                
-                if (nextKey) {
-                    updateFocus(nextKey);
-                }
-            }
-        },
-        
-        /**
-         * @param {ModalHandlerContext} ctx 
-         */
-        handleConfirm: (ctx) => {
-            if (!ctx.focusedButtonKey) return;
-            ctx.triggerButtonClick(ctx.focusedButtonKey);
-        },
-        
-        /**
-         * @param {ModalHandlerContext} ctx 
-         * @param {object} data 
-         */
-        init: (ctx, data) => {
+        init: ({ data }) => {
             const available = data.buttons.filter(b => !b.isBroken);
             const initialFocusKey = available.find(b => b.partKey === PartInfo.HEAD.key)?.partKey ||
                                     available.find(b => b.partKey === PartInfo.RIGHT_ARM.key)?.partKey ||
                                     available.find(b => b.partKey === PartInfo.LEFT_ARM.key)?.partKey;
             
-            if (initialFocusKey) {
-                // 自分自身のhandleNavigationを呼び出してハイライト処理等を共有
-                modalHandlers[ModalType.SELECTION].handleNavigation(ctx, initialFocusKey);
-                ctx.setButtonFocus(initialFocusKey, true);
-                
-                const buttonData = data.buttons.find(b => b.partKey === initialFocusKey);
-                if (buttonData?.target?.targetId) {
-                    ctx.updateTargetHighlight(buttonData.target.targetId, true);
+            return { action: 'UPDATE_FOCUS', key: initialFocusKey };
+        },
+
+        handleNavigation: ({ data, uiState }, direction) => {
+            const availableButtons = data.buttons.filter(b => !b.isBroken);
+            if (!availableButtons || availableButtons.length === 0) return null;
+
+            let currentFocus = uiState.focusedButtonKey;
+
+            if (!currentFocus) {
+                const defaultKey = availableButtons[0].partKey;
+                return { action: 'UPDATE_FOCUS', key: defaultKey };
+            }
+
+            const candidates = NAVIGATION_MAP[currentFocus]?.[direction];
+            if (candidates) {
+                const nextKey = candidates.find(candidateKey => 
+                    availableButtons.some(b => b.partKey === candidateKey)
+                );
+                if (nextKey) {
+                    return { action: 'UPDATE_FOCUS', key: nextKey };
                 }
             }
-        }
+            return null;
+        },
+        
+        handleConfirm: ({ data, uiState }) => {
+            if (!uiState.focusedButtonKey) return null;
+
+            const buttonData = data.buttons.find(b => b.partKey === uiState.focusedButtonKey);
+            if (!buttonData) return null;
+            
+            return { 
+                action: 'EMIT_AND_CLOSE', 
+                eventName: GameEvents.PART_SELECTED, 
+                detail: {
+                    entityId: data.entityId,
+                    partKey: buttonData.partKey,
+                    target: buttonData.target,
+                }
+            };
+        },
     },
     [ModalType.ATTACK_DECLARATION]: {
-        getActorName: (data) => data.currentMessage?.text || '',
         isClickable: true,
-        handleConfirm: (ctx) => {
-            ctx.proceed();
-        }
+        handleConfirm: () => ({ action: 'PROCEED_SEQUENCE' })
     },
     [ModalType.EXECUTION_RESULT]: {
-        getActorName: (data) => data.currentMessage?.text || '',
         isClickable: true,
-        handleConfirm: (ctx) => {
-            ctx.proceed();
-        }
+        handleConfirm: () => ({ action: 'PROCEED_SEQUENCE' })
     },
     [ModalType.BATTLE_START_CONFIRM]: {
-        getActorName: () => '合意と見てよろしいですね！？',
         isClickable: true,
-        handleConfirm: (ctx) => {
-            ctx.emit(GameEvents.BATTLE_START_CONFIRMED, {});
-            ctx.close();
-        },
-        handleCancel: (ctx) => {
-            ctx.emit(GameEvents.BATTLE_START_CANCELLED, {});
-            ctx.close();
-        }
+        getActorName: () => '合意と見てよろしいですね！？',
+        handleConfirm: () => ({ action: 'EMIT', eventName: GameEvents.BATTLE_START_CONFIRMED }),
+        handleCancel: () => ({ action: 'EMIT', eventName: GameEvents.BATTLE_START_CANCELLED })
     },
     [ModalType.MESSAGE]: {
-        getActorName: (data) => data?.currentMessage?.text || data?.message || '',
         isClickable: true,
-        handleConfirm: (ctx) => {
-            if (ctx.uiState.currentMessageSequence && ctx.uiState.currentMessageSequence.length > 1) {
-                ctx.proceed();
+        handleConfirm: ({ uiState }) => {
+            if (uiState.currentMessageSequence && uiState.currentMessageSequence.length > 1) {
+                return { action: 'PROCEED_SEQUENCE' };
             } else {
-                ctx.close();
+                return { action: 'CLOSE_MODAL' };
             }
         },
     },
     [ModalType.GAME_OVER]: {
+        isClickable: true,
         getTitle: (data) => `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`,
         getActorName: () => 'ロボトル終了！',
-        isClickable: true,
-        handleConfirm: (ctx) => {
-            ctx.emit(GameEvents.RESET_BUTTON_CLICKED);
-            ctx.close();
-        }
+        handleConfirm: () => ({ action: 'EMIT_AND_CLOSE', eventName: GameEvents.RESET_BUTTON_CLICKED })
     }
 };

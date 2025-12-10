@@ -18,8 +18,6 @@ export class BattleUIManager {
             actionPanelButtons: document.getElementById('action-panel-buttons'),
             actionPanelIndicator: document.getElementById('action-panel-indicator')
         };
-
-        this._currentClickListener = null;
     }
 
     updatePanelText(ownerName, title, actorName) {
@@ -35,19 +33,19 @@ export class BattleUIManager {
     /**
      * モーダルタイプに応じたコンテンツ（ボタン等）を描画する
      * @param {string} modalType 
-     * @param {object} ctx - ModalHandlerContext (イベント発行用)
-     * @param {object} data - モーダルデータ
+     * @param {object} data - ボタン描画用のデータ
+     * @param {object} context - イベント発行用のコンテキスト
      */
-    renderContent(modalType, ctx, data) {
+    renderContent(modalType, data, context) {
         this.clearButtons();
         let content = null;
 
         switch (modalType) {
             case ModalType.START_CONFIRM:
-                content = this._renderStartConfirm(ctx);
+                content = this._renderStartConfirm(context);
                 break;
             case ModalType.SELECTION:
-                content = this._renderSelection(ctx, data);
+                content = this._renderSelection(data, context);
                 break;
             // 他のタイプで特定のボタン表示が必要な場合はここに追加
         }
@@ -57,37 +55,27 @@ export class BattleUIManager {
         }
     }
 
-    _renderStartConfirm(ctx) {
+    _renderStartConfirm(context) {
         return el('div', { className: 'buttons-center' }, [
             el('button', {
                 textContent: 'OK',
                 className: 'action-panel-button',
-                onclick: () => {
-                    ctx.emit(GameEvents.GAME_START_CONFIRMED);
-                    ctx.close();
-                }
+                onclick: () => context.emit(GameEvents.GAME_START_CONFIRMED)
             }),
             el('button', {
                 textContent: 'キャンセル',
                 className: 'action-panel-button bg-red-500 hover:bg-red-600',
-                onclick: () => ctx.close()
+                onclick: () => context.emit(GameEvents.HIDE_MODAL)
             })
         ]);
     }
 
-    _renderSelection(ctx, data) {
-        const buttonsData = data.buttons;
+    _renderSelection(data, context) {
+        const buttonsData = data; // dataが直接buttonsData配列
         const getBtnData = (key) => buttonsData.find(b => b.partKey === key);
         const headBtnData = getBtnData(PartInfo.HEAD.key);
         const rArmBtnData = getBtnData(PartInfo.RIGHT_ARM.key);
         const lArmBtnData = getBtnData(PartInfo.LEFT_ARM.key);
-
-        const updateHighlight = (partKey, show) => {
-            const buttonData = getBtnData(partKey);
-            if (buttonData?.target?.targetId) {
-                ctx.updateTargetHighlight(buttonData.target.targetId, show);
-            }
-        };
 
         const createButton = (btnData) => {
             if (!btnData) {
@@ -97,26 +85,14 @@ export class BattleUIManager {
             const attributes = {
                 id: `panelBtn-${btnData.partKey}`,
                 className: 'part-action-button',
-                textContent: btnData.text
+                textContent: btnData.text,
+                'data-key': btnData.partKey // クリックイベントで識別するため
             };
 
             if (btnData.isBroken) {
                 attributes.disabled = true;
-            } else {
-                attributes.onclick = () => {
-                    ctx.emit(GameEvents.PART_SELECTED, {
-                        entityId: data.entityId,
-                        partKey: btnData.partKey,
-                        target: btnData.target,
-                    });
-                    ctx.close();
-                };
-
-                if (btnData.target) {
-                    attributes.onmouseover = () => updateHighlight(btnData.partKey, true);
-                    attributes.onmouseout = () => updateHighlight(btnData.partKey, false);
-                }
             }
+            // onclick は削除
             return el('button', attributes);
         };
 
@@ -128,33 +104,17 @@ export class BattleUIManager {
             ])
         ]);
     }
-
-    setPanelClickable(clickable) {
-        if (clickable) {
-            this.dom.actionPanel.classList.add('clickable');
-        } else {
-            this.dom.actionPanel.classList.remove('clickable');
-        }
-    }
-
-    setPanelClickListener(callback) {
-        if (this._currentClickListener) {
-            this.dom.actionPanel.removeEventListener('click', this._currentClickListener);
-        }
-        
-        if (callback) {
-            this._currentClickListener = callback;
-            this.dom.actionPanel.addEventListener('click', callback);
-        } else {
-            this._currentClickListener = null;
-        }
-    }
     
-    removePanelClickListener(callback) {
-        if (callback) {
-            this.dom.actionPanel.removeEventListener('click', callback);
-        }
-        this._currentClickListener = null;
+    showPanel() {
+        this.dom.actionPanel.classList.remove('hidden');
+    }
+
+    hidePanel() {
+        this.dom.actionPanel.classList.add('hidden');
+    }
+
+    setPanelClickable(isClickable) {
+        this.dom.actionPanel.classList.toggle('clickable', isClickable);
     }
 
     showIndicator() {
@@ -170,28 +130,13 @@ export class BattleUIManager {
         this.clearButtons();
         this.hideIndicator();
         this.setPanelClickable(false);
-        this.setPanelClickListener(null);
     }
-
-    setButtonFocus(buttonKey, isFocused) {
-        const button = this.dom.actionPanelButtons.querySelector(`#panelBtn-${buttonKey}`);
-        if (button) {
-            if (isFocused) {
-                button.classList.add('focused');
-            } else {
-                button.classList.remove('focused');
-            }
-        }
-    }
-
-    triggerButtonClick(buttonKey) {
-        const button = this.dom.actionPanelButtons.querySelector(`#panelBtn-${buttonKey}`);
-        if (button && !button.disabled) {
-            button.click();
-        }
-    }
-
-    get buttonsContainer() {
-        return this.dom.actionPanelButtons;
+    
+    updateAllButtonFocus(focusedKey) {
+        const buttons = this.dom.actionPanelButtons.querySelectorAll('button');
+        buttons.forEach(button => {
+            const key = button.dataset.key;
+            button.classList.toggle('focused', key === focusedKey);
+        });
     }
 }
