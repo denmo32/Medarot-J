@@ -10,7 +10,6 @@ import { BattleContext } from '../../components/BattleContext.js';
 import { GameState, Action } from '../../components/index.js';
 import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { ActionSequenceService } from '../../services/ActionSequenceService.js';
-import { CooldownService } from '../../services/CooldownService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 
 // 内部ステート定義
@@ -116,8 +115,13 @@ export class BattleSequenceSystem extends System {
     }
 
     _startActorSequence(actorId) {
-        const { tasks, isCancelled, eventsToEmit } = this.service.executeSequence(actorId);
+        const { tasks, isCancelled, eventsToEmit, stateUpdates } = this.service.executeSequence(actorId);
 
+        // 状態変更コマンドを即時発行
+        if (stateUpdates && stateUpdates.length > 0) {
+            this.world.emit(GameEvents.EXECUTE_COMMANDS, stateUpdates);
+        }
+        
         // イベント発行 (ログ出力やUI通知用)
         if (eventsToEmit) {
             eventsToEmit.forEach(event => {
@@ -166,7 +170,11 @@ export class BattleSequenceSystem extends System {
 
     onRequestResetToCooldown(detail) {
         const { entityId, options } = detail;
-        CooldownService.resetEntityStateToCooldown(this.world, entityId, options);
+        this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
+            type: 'RESET_TO_COOLDOWN',
+            targetId: entityId,
+            options: options
+        }]);
     }
     
     onCheckActionCancellation() {
@@ -179,7 +187,11 @@ export class BattleSequenceSystem extends System {
             const check = CancellationService.checkCancellation(this.world, actorId);
             if (check.shouldCancel) {
                 CancellationService.executeCancel(this.world, actorId, check.reason);
-                CooldownService.resetEntityStateToCooldown(this.world, actorId, { interrupted: true });
+                this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
+                    type: 'RESET_TO_COOLDOWN',
+                    targetId: actorId,
+                    options: { interrupted: true }
+                }]);
             }
         }
     }

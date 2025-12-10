@@ -6,7 +6,6 @@
 import { EffectType } from '../../../common/constants.js';
 import { ActiveEffects } from '../../components/index.js';
 import { PlayerStateType, ModalType } from '../../common/constants.js';
-import { PlayerStatusService } from '../../services/PlayerStatusService.js';
 import { createDialogTask } from '../../tasks/BattleTasks.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 
@@ -32,18 +31,19 @@ export const GuardEffect = {
     apply: ({ world, effect }) => {
         const stateUpdates = [];
 
+        // 状態遷移コマンドを追加
+        stateUpdates.push({
+            type: 'TRANSITION_STATE',
+            targetId: effect.targetId,
+            newState: PlayerStateType.GUARDING
+        });
+
+        // ActiveEffectsの更新コマンドを追加
         stateUpdates.push({
             type: 'CUSTOM_UPDATE',
             targetId: effect.targetId,
             componentType: ActiveEffects,
-            customHandler: (activeEffects, worldInstance) => {
-                // ガード状態への遷移ロジック
-                // Service呼び出しは副作用を含むが、ApplyStateTask内で実行されるため
-                // 実行タイミングは制御されている。
-                if (worldInstance) {
-                    PlayerStatusService.transitionTo(worldInstance, effect.targetId, PlayerStateType.GUARDING);
-                }
-
+            customHandler: (activeEffects) => {
                 // エフェクト配列の更新
                 activeEffects.effects = activeEffects.effects.filter(e => e.type !== EffectType.APPLY_GUARD);
                 activeEffects.effects.push({

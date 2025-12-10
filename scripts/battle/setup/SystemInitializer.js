@@ -23,6 +23,7 @@ import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.j
 import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
 import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
+import { CommandSystem } from '../systems/flow/CommandSystem.js'; // 新規インポート
 
 import { UIManager } from '../../../engine/ui/UIManager.js';
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
@@ -56,12 +57,14 @@ export function initializeSystems(world, gameDataManager) {
     const battleSequenceSystem = new BattleSequenceSystem(world); 
     const timerSystem = new TimerSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
+    const commandSystem = new CommandSystem(world); // 新規
 
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
     }
     
     // --- システムの登録 ---
+    world.registerSystem(commandSystem); // コマンドを最初に処理
     world.registerSystem(gameFlowSystem);
     world.registerSystem(winConditionSystem);
     world.registerSystem(phaseSystem);

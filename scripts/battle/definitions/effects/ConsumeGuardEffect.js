@@ -43,9 +43,11 @@ export const ConsumeGuardEffect = {
 
             if (guardEffect.count - 1 <= 0) {
                 isExpired = true;
-                events.push({
-                    type: GameEvents.REQUEST_RESET_TO_COOLDOWN,
-                    payload: { entityId: effect.targetId, options: {} }
+                // REQUEST_RESET_TO_COOLDOWN イベントの代わりにコマンドを生成
+                stateUpdates.push({
+                    type: 'RESET_TO_COOLDOWN',
+                    targetId: effect.targetId,
+                    options: {}
                 });
             }
         }

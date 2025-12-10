@@ -5,9 +5,7 @@
  */
 import { BattleResolutionService } from './BattleResolutionService.js';
 import { TimelineBuilder } from '../tasks/TimelineBuilder.js';
-import { CooldownService } from './CooldownService.js';
 import { CancellationService } from './CancellationService.js';
-import { PlayerStatusService } from './PlayerStatusService.js';
 import { TargetingService } from './TargetingService.js';
 import { GameEvents } from '../../common/events.js';
 import { GameState, Action } from '../components/index.js';
@@ -25,15 +23,23 @@ export class ActionSequenceService {
      * @returns {{ tasks: Array, isCancelled: boolean, eventsToEmit: Array, stateUpdates: Array }}
      */
     executeSequence(actorId) {
-        // 状態遷移: アニメーション待機へ (これは演出シーケンス前の即時反映が必要なためここで実行)
-        PlayerStatusService.transitionTo(this.world, actorId, PlayerStateType.AWAITING_ANIMATION);
+        // 副作用をコマンドとして定義
+        const stateUpdates = [{
+            type: 'TRANSITION_STATE',
+            targetId: actorId,
+            newState: PlayerStateType.AWAITING_ANIMATION
+        }];
 
         // 1. キャンセルチェック
         const cancelCheck = CancellationService.checkCancellation(this.world, actorId);
         if (cancelCheck.shouldCancel) {
             CancellationService.executeCancel(this.world, actorId, cancelCheck.reason);
-            CooldownService.resetEntityStateToCooldown(this.world, actorId, { interrupted: true });
-            return { tasks: [], isCancelled: true, eventsToEmit: [], stateUpdates: [] };
+            stateUpdates.push({
+                type: 'RESET_TO_COOLDOWN',
+                targetId: actorId,
+                options: { interrupted: true }
+            });
+            return { tasks: [], isCancelled: true, eventsToEmit: [], stateUpdates };
         }
 
         const actionComp = this.world.getComponent(actorId, Action);
@@ -51,7 +57,7 @@ export class ActionSequenceService {
             tasks, 
             isCancelled: false, 
             eventsToEmit: resultData.eventsToEmit || [],
-            stateUpdates: resultData.stateUpdates || []
+            stateUpdates: [...stateUpdates, ...(resultData.stateUpdates || [])]
         };
     }
     

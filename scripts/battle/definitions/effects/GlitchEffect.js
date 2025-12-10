@@ -45,14 +45,12 @@ export const GlitchEffect = {
                     reason: ActionCancelReason.INTERRUPTED 
                 }
             });
-            events.push({
-                type: GameEvents.REQUEST_RESET_TO_COOLDOWN,
-                payload: {
-                    entityId: effect.targetId,
-                    options: { interrupted: true }
-                }
+            // REQUEST_RESET_TO_COOLDOWN イベントの代わりにコマンドを生成
+            stateUpdates.push({
+                type: 'RESET_TO_COOLDOWN',
+                targetId: effect.targetId,
+                options: { interrupted: true }
             });
-            // 状態更新はイベントリスナー側で行われるため、ここではコマンドなし
         }
         
         return { ...effect, events, stateUpdates };

@@ -14,6 +14,7 @@ import {
     UiAnimationRequest, 
     CameraRequest 
 } from '../components/VisualRequest.js';
+import { executeCommands } from '../logic/commandExecutor.js'; // 新規インポート
 
 export class BattleTask {
     constructor(type) {
@@ -238,8 +239,6 @@ export class ApplyStateTask extends InstantTask {
     }
 
     init(commands) {
-        // コマンド配列は参照渡しされることが多いが、プールされたタスクが保持し続けるのを防ぐため
-        // start実行後は速やかに参照を切るか、呼び出し元で新しい配列を渡す必要がある。
         this.commands = commands || [];
         return this;
     }
@@ -250,36 +249,10 @@ export class ApplyStateTask extends InstantTask {
     }
 
     start(world, entityId) {
-        super.start(world, entityId);
-        for (const cmd of this.commands) {
-            this._executeCommand(world, cmd);
-        }
+        // InstantTaskのstartは呼ばず、ここで完結させる
+        this.isStarted = true;
+        executeCommands(world, this.commands);
         this.isCompleted = true;
-    }
-
-    _executeCommand(world, cmd) {
-        if (cmd.type === 'UPDATE_COMPONENT') {
-            const component = world.getComponent(cmd.targetId, cmd.componentType);
-            if (component) {
-                this._deepMerge(component, cmd.updates);
-            }
-        }
-        else if (cmd.type === 'CUSTOM_UPDATE' && cmd.customHandler) {
-             const component = world.getComponent(cmd.targetId, cmd.componentType);
-             if (component) {
-                 cmd.customHandler(component, world);
-             }
-        }
-    }
-
-    _deepMerge(target, source) {
-        for (const key in source) {
-            if (source[key] instanceof Object && key in target && target[key] instanceof Object) {
-                this._deepMerge(target[key], source[key]);
-            } else {
-                target[key] = source[key];
-            }
-        }
     }
 }
 

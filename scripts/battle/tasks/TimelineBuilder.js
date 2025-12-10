@@ -14,7 +14,6 @@ import {
 import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
 import { MessageService } from '../services/MessageService.js';
-import { CooldownService } from '../services/CooldownService.js';
 import { EffectRegistry } from '../definitions/EffectRegistry.js';
 
 export class TimelineBuilder {
@@ -45,7 +44,11 @@ export class TimelineBuilder {
 
         // 状態更新タスクの生成 (コマンドデータ配列をそのまま渡す)
         if (stateUpdates && stateUpdates.length > 0) {
-            tasks.push(createApplyStateTask(stateUpdates));
+            // ApplyStateTaskは即時実行されるため、ここでは不要かもしれない。
+            // ActionSequenceService側でコマンドを発行し、演出と並行して状態が更新される。
+            // しかし、演出の途中で状態を更新したい場合（例：ダメージ表示の前にHPを減らす）は
+            // ApplyStateTaskが有効になる。現状はActionSequenceServiceで実行しているのでコメントアウト。
+            // tasks.push(createApplyStateTask(stateUpdates));
         }
 
         if (appliedEffects && appliedEffects.length > 0) {
@@ -65,8 +68,12 @@ export class TimelineBuilder {
              }
         }
 
+        // カスタムタスクでコマンドを発行
         tasks.push(createCustomTask((world) => {
-            CooldownService.transitionToCooldown(world, attackerId);
+            world.emit(GameEvents.EXECUTE_COMMANDS, [{
+                type: 'TRANSITION_TO_COOLDOWN',
+                targetId: attackerId
+            }]);
         }));
         
         tasks.push(createEventTask(GameEvents.REFRESH_UI, {}));

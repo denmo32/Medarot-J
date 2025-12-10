@@ -3,7 +3,6 @@ import { ActiveEffects, GameState } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType } from '../../common/constants.js';
 import { EffectType } from '../../../common/constants.js';
-import { CooldownService } from '../../services/CooldownService.js';
 import { EffectRegistry } from '../../definitions/EffectRegistry.js';
 
 export class EffectSystem extends System {
@@ -79,7 +78,11 @@ export class EffectSystem extends System {
                 
                 const gameState = this.world.getComponent(entityId, GameState);
                 if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
-                    CooldownService.resetEntityStateToCooldown(this.world, entityId, {});
+                    this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
+                        type: 'RESET_TO_COOLDOWN',
+                        targetId: entityId,
+                        options: {}
+                    }]);
                 }
             }
         }

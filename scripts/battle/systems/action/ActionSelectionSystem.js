@@ -5,7 +5,6 @@ import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { Action, GameState, Gauge } from '../../components/index.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
-import { PlayerStatusService } from '../../services/PlayerStatusService.js';
 import { EffectService } from '../../services/EffectService.js';
 
 export class ActionSelectionSystem extends System {
@@ -74,20 +73,31 @@ export class ActionSelectionSystem extends System {
         action.targetPartKey = targetPartKey;
         action.targetTiming = selectedPart.targetTiming;
 
-        PlayerStatusService.transitionTo(this.world, entityId, PlayerStateType.SELECTED_CHARGING);
-        
-        gauge.value = 0;
-        gauge.currentSpeed = 0;
-        
-        // 補正値の取得
+        // PlayerStatusService.transitionTo の代わりにコマンド発行
         const modifier = EffectService.getSpeedMultiplierModifier(this.world, entityId, selectedPart);
-        
-        // 純粋な値渡し
-        gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ 
+        const speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ 
             might: selectedPart.might,
             success: selectedPart.success,
             factorType: 'charge',
             modifier: modifier
         });
+
+        this.world.emit(GameEvents.EXECUTE_COMMANDS, [
+            {
+                type: 'TRANSITION_STATE',
+                targetId: entityId,
+                newState: PlayerStateType.SELECTED_CHARGING
+            },
+            {
+                type: 'UPDATE_COMPONENT',
+                targetId: entityId,
+                componentType: Gauge,
+                updates: {
+                    value: 0,
+                    currentSpeed: 0,
+                    speedMultiplier: speedMultiplier
+                }
+            }
+        ]);
     }
 }

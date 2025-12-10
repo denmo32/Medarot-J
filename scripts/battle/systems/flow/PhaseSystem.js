@@ -3,7 +3,6 @@ import { BattleContext } from '../../components/BattleContext.js';
 import { GameState, Gauge, Action } from '../../components/index.js';
 import { BattlePhase, PlayerStateType } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerStatusService } from '../../services/PlayerStatusService.js';
 
 export class PhaseSystem extends System {
     constructor(world) {
@@ -40,21 +39,44 @@ export class PhaseSystem extends System {
         this.battleContext.phase = BattlePhase.INITIAL_SELECTION;
 
         const players = this.getEntities(GameState, Gauge);
+        const commands = [];
         players.forEach(id => {
             const gameState = this.world.getComponent(id, GameState);
             const gauge = this.world.getComponent(id, Gauge);
             
-            if (gauge) gauge.value = 0;
+            commands.push({
+                type: 'UPDATE_COMPONENT',
+                targetId: id,
+                componentType: Gauge,
+                updates: { value: 0 }
+            });
 
             if (gameState.state !== PlayerStateType.BROKEN) {
-                PlayerStatusService.transitionTo(this.world, id, PlayerStateType.READY_SELECT);
-                
-                gauge.value = gauge.max;
-                gauge.speedMultiplier = 1.0;
-                this.world.addComponent(id, new Action());
+                commands.push({
+                    type: 'TRANSITION_STATE',
+                    targetId: id,
+                    newState: PlayerStateType.READY_SELECT
+                });
+                commands.push({
+                    type: 'UPDATE_COMPONENT',
+                    targetId: id,
+                    componentType: Gauge,
+                    updates: { value: gauge.max, speedMultiplier: 1.0 }
+                });
+                commands.push({
+                    type: 'UPDATE_COMPONENT',
+                    targetId: id,
+                    componentType: Action,
+                    updates: new Action() // reset
+                });
+
                 this.world.emit(GameEvents.ACTION_QUEUE_REQUEST, { entityId: id });
             }
         });
+        
+        if (commands.length > 0) {
+            this.world.emit(GameEvents.EXECUTE_COMMANDS, commands);
+        }
     }
 
     onBattleAnimationCompleted() {

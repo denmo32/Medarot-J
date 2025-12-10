@@ -76,6 +76,12 @@ export const GameEvents = {
     // --- その他イベント ---
     COMBAT_SEQUENCE_RESOLVED: 'COMBAT_SEQUENCE_RESOLVED',
     COMBAT_RESOLUTION_DISPLAYED: 'COMBAT_RESOLUTION_DISPLAYED',
+    /**
+     * 状態変更コマンドの実行を要求 (Any -> CommandSystem)
+     * @event EXECUTE_COMMANDS
+     */
+    EXECUTE_COMMANDS: 'EXECUTE_COMMANDS',
+
 
     // --- 状態 & ターン管理イベント ---
     /**
