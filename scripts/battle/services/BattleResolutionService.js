@@ -1,7 +1,7 @@
 /**
  * @file BattleResolutionService.js
  * @description 戦闘の計算・解決フローを制御するサービス。
- * 完全ステートレス化: world.emitを行わず、発生すべきイベントリストを返す。
+ * Worldへの副作用（書き換え）を完全に排除し、結果データ(BattleResult)の生成に専念する。
  */
 import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
@@ -23,6 +23,7 @@ export class BattleResolutionService {
 
     resolve(attackerId) {
         const eventsToEmit = [];
+        const allStateUpdates = []; // 全ての副作用指示書
         
         // 1. コンテキスト初期化
         const ctx = this._initializeContext(attackerId);
@@ -31,7 +32,8 @@ export class BattleResolutionService {
                 attackerId, 
                 isCancelled: true, 
                 cancelReason: 'INTERRUPTED', 
-                eventsToEmit 
+                eventsToEmit,
+                stateUpdates: []
             };
         }
 
@@ -42,13 +44,14 @@ export class BattleResolutionService {
                 attackerId, 
                 isCancelled: true, 
                 cancelReason: 'TARGET_LOST', 
-                eventsToEmit 
+                eventsToEmit,
+                stateUpdates: []
             };
         }
 
         // ★フック: 攻撃開始直前
         this.battleContext.hookRegistry.execute(HookPhase.BEFORE_COMBAT_CALCULATION, ctx);
-        if (ctx.shouldCancel) return this._buildResult(ctx, eventsToEmit);
+        if (ctx.shouldCancel) return this._buildResult(ctx, eventsToEmit, allStateUpdates);
 
         // 3. 命中・クリティカル等の判定
         this._calculateHitOutcome(ctx);
@@ -62,22 +65,17 @@ export class BattleResolutionService {
         // ★フック: 効果適用前
         this.battleContext.hookRegistry.execute(HookPhase.BEFORE_EFFECT_APPLICATION, ctx);
 
-        // 5. 適用処理 & イベント収集
-        this._resolveApplications(ctx, eventsToEmit);
+        // 5. 適用データ生成 (副作用なし)
+        this._resolveApplications(ctx, eventsToEmit, allStateUpdates);
         
         // ★フック: 効果適用後
         this.battleContext.hookRegistry.execute(HookPhase.AFTER_EFFECT_APPLICATION, ctx);
 
         // 6. 結果構築
-        return this._buildResult(ctx, eventsToEmit);
+        return this._buildResult(ctx, eventsToEmit, allStateUpdates);
     }
 
-    // ... (_initializeContext, _resolveTarget, _calculateHitOutcome, _calculateEffects は変更なし) ...
-    // 省略: 前回のコードと同じロジックだが、副作用がない部分はそのまま
-    // _resolveTarget, _calculateHitOutcome, _calculateEffects は内部状態(ctx)を変更するだけで外部副作用がないため変更不要
-
     _initializeContext(attackerId) {
-        // (前回と同じ実装)
         const action = this.world.getComponent(attackerId, Action);
         const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
         const attackerParts = this.world.getComponent(attackerId, Parts);
@@ -215,7 +213,7 @@ export class BattleResolutionService {
         }
     }
 
-    _resolveApplications(ctx, eventsToEmit) {
+    _resolveApplications(ctx, eventsToEmit, allStateUpdates) {
         // ガード消費
         if (ctx.guardianInfo) {
             ctx.rawEffects.push({
@@ -230,7 +228,7 @@ export class BattleResolutionService {
         while (effectQueue.length > 0) {
             const effect = effectQueue.shift();
             
-            // Applyは副作用(World書き換え)を含むが、イベントは戻り値に含まれる
+            // Applyは副作用(World書き換え)を行わず、diffを返す
             const result = EffectRegistry.apply(effect.type, { world: this.world, effect });
 
             if (result) {
@@ -241,7 +239,14 @@ export class BattleResolutionService {
                     eventsToEmit.push(...result.events);
                 }
 
+                // 更新指示書を収集
+                if (result.stateUpdates) {
+                    allStateUpdates.push(...result.stateUpdates);
+                }
+
                 // 貫通処理 (ロジック内での再帰)
+                // ※重要: 状態更新が遅延されるため、貫通判定に必要な「HPが0になったか」などの情報は
+                //   result.isPartBroken (予測値) を信頼して処理する。
                 if (result.isPartBroken && result.overkillDamage > 0 && result.penetrates) {
                     const nextTargetPartKey = QueryService.findRandomPenetrationTarget(this.world, result.targetId, result.partKey);
                     
@@ -263,20 +268,18 @@ export class BattleResolutionService {
         }
     }
 
-    _buildResult(ctx, eventsToEmit) {
+    _buildResult(ctx, eventsToEmit, stateUpdates) {
         const summary = {
             isGuardBroken: ctx.appliedEffects.some(e => e.isGuardBroken),
             isGuardExpired: ctx.appliedEffects.some(e => e.isExpired && e.type === EffectType.CONSUME_GUARD),
         };
 
-        // メインの戦闘解決イベントもリストに追加
         eventsToEmit.push({
             type: GameEvents.COMBAT_SEQUENCE_RESOLVED,
             payload: {
                 attackerId: ctx.attackerId,
                 appliedEffects: ctx.appliedEffects,
                 attackingPart: ctx.attackingPart
-                // 他に必要なデータがあれば追加
             }
         });
 
@@ -292,7 +295,8 @@ export class BattleResolutionService {
             summary, 
             isCancelled: ctx.shouldCancel, 
             interruptions: ctx.interruptions,
-            eventsToEmit // 呼び出し元でemitする
+            eventsToEmit,
+            stateUpdates // 副作用の塊
         };
     }
 }

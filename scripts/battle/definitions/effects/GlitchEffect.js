@@ -1,6 +1,7 @@
 /**
  * @file GlitchEffect.js
  * @description 妨害効果の定義
+ * 副作用排除版。
  */
 import { EffectType } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
@@ -23,7 +24,6 @@ export const GlitchEffect = {
 
         let wasSuccessful = false;
 
-        // 充填中またはガード中の相手にのみ成功
         if (targetState.state === PlayerStateType.SELECTED_CHARGING || targetState.state === PlayerStateType.GUARDING) {
             wasSuccessful = true;
         }
@@ -35,11 +35,13 @@ export const GlitchEffect = {
         };
     },
 
-    // 適用フェーズ
+    // 適用データ生成フェーズ
     apply: ({ world, effect }) => {
         const events = [];
+        const stateUpdates = [];
         
         if (effect.wasSuccessful) {
+            // イベントの発行は System で処理されるため、データとして返す
             events.push({
                 type: GameEvents.ACTION_CANCELLED,
                 payload: { 
@@ -47,7 +49,6 @@ export const GlitchEffect = {
                     reason: ActionCancelReason.INTERRUPTED 
                 }
             });
-            // 冷却へ強制移行
             events.push({
                 type: GameEvents.REQUEST_RESET_TO_COOLDOWN,
                 payload: {
@@ -55,9 +56,13 @@ export const GlitchEffect = {
                     options: { interrupted: true }
                 }
             });
+            // 状態更新は REQUEST_RESET_TO_COOLDOWN イベントを受けたシステムが行うため
+            // ここでの stateUpdates は空でも動作するが、イベントの発行順序に依存する。
+            // 厳密にはここでの状態更新ロジックを stateUpdates に含めるべきだが、
+            // 既存の CooldownService を利用するイベントベースのフローを維持する。
         }
         
-        return { ...effect, events };
+        return { ...effect, events, stateUpdates };
     },
 
     // 演出フェーズ

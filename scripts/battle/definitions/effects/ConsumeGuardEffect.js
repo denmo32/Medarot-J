@@ -1,6 +1,7 @@
 /**
  * @file ConsumeGuardEffect.js
  * @description ガード回数消費効果の定義
+ * 副作用排除版。
  */
 import { EffectType } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
@@ -13,27 +14,39 @@ import { MessageKey } from '../../../data/messageRepository.js';
 export const ConsumeGuardEffect = {
     type: EffectType.CONSUME_GUARD,
 
-    // 計算フェーズ（消費自体はResolver内で動的に生成されるため、processは基本使用しないが互換性のため定義）
+    // 計算フェーズ
     process: () => null,
 
-    // 適用フェーズ
+    // 適用データ生成フェーズ
     apply: ({ world, effect }) => {
         const activeEffects = world.getComponent(effect.targetId, ActiveEffects);
-        const events = [];
+        if (!activeEffects) return { ...effect, events: [], stateUpdates: [] };
 
-        if (!activeEffects) return { ...effect, events };
-
+        // 状態更新をシミュレーションして結果を予測
         const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD && e.partKey === effect.partKey);
         let isExpired = false;
-        
+        const events = [];
+        const stateUpdates = [];
+
         if (guardEffect) {
-            guardEffect.count = Math.max(0, guardEffect.count - 1);
-            if (guardEffect.count === 0) {
-                // 回数切れで削除
-                activeEffects.effects = activeEffects.effects.filter(e => e !== guardEffect);
+            // 更新ロジックの定義
+            stateUpdates.push({
+                targetId: effect.targetId,
+                componentType: ActiveEffects,
+                updateFn: (ae) => {
+                    const ge = ae.effects.find(e => e.type === EffectType.APPLY_GUARD && e.partKey === effect.partKey);
+                    if (ge) {
+                        ge.count = Math.max(0, ge.count - 1);
+                        if (ge.count === 0) {
+                            ae.effects = ae.effects.filter(e => e !== ge);
+                        }
+                    }
+                }
+            });
+
+            // 予測に基づくイベント生成
+            if (guardEffect.count - 1 <= 0) {
                 isExpired = true;
-                
-                // クールダウンへ戻すリクエストのみイベントとして発行
                 events.push({
                     type: GameEvents.REQUEST_RESET_TO_COOLDOWN,
                     payload: { entityId: effect.targetId, options: {} }
@@ -41,13 +54,12 @@ export const ConsumeGuardEffect = {
             }
         }
 
-        return { ...effect, isExpired, events };
+        return { ...effect, isExpired, events, stateUpdates };
     },
 
     // 演出フェーズ
     createTasks: ({ world, effects, messageGenerator }) => {
         const tasks = [];
-        // 消費自体の演出はなく、期限切れ（isExpired）の場合のみメッセージを表示
         for (const effect of effects) {
             if (effect.isExpired) {
                 const actorInfo = world.getComponent(effect.targetId, PlayerInfo);

@@ -1,6 +1,7 @@
 /**
  * @file HealEffect.js
  * @description 回復効果の定義
+ * 副作用排除版。
  */
 import { EffectType, PartInfo } from '../../../common/constants.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
@@ -40,7 +41,7 @@ export const HealEffect = {
         };
     },
 
-    // 適用フェーズ
+    // 適用データ生成フェーズ
     apply: ({ world, effect }) => {
         const { targetId, partKey, value } = effect;
         if (!targetId) return effect;
@@ -52,13 +53,23 @@ export const HealEffect = {
         let oldHp = part.hp;
         let newHp = part.hp;
         const events = [];
+        const stateUpdates = [];
 
         if (!part.isBroken) {
             oldHp = part.hp;
             newHp = Math.min(part.maxHp, part.hp + value);
             actualHealAmount = newHp - oldHp;
             
-            part.hp = newHp; // HP更新
+            // HP更新リクエスト
+            stateUpdates.push({
+                targetId,
+                componentType: Parts,
+                updateFn: (partsComp) => {
+                    if (partsComp[partKey]) {
+                        partsComp[partKey].hp = newHp;
+                    }
+                }
+            });
             
             if (actualHealAmount > 0) {
                 events.push({
@@ -81,7 +92,8 @@ export const HealEffect = {
             value: actualHealAmount, 
             oldHp,
             newHp,
-            events 
+            events,
+            stateUpdates
         };
     },
 

@@ -1,7 +1,7 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクションシーケンスの進行管理。
- * TaskRunnerのステートマシン化に伴い、updateループ内での監視ロジックへ変更。
+ * stateUpdates (副作用) の適用処理を追加。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -22,9 +22,7 @@ export class BattleSequenceSystem extends System {
         this.taskRunner = new TaskRunner(world);
         
         this.executionQueue = [];
-        
-        // ステート管理用
-        this.state = 'IDLE'; // IDLE, PROCESSING_QUEUE, EXECUTING_TASK
+        this.state = 'IDLE'; 
         this.currentActorId = null;
 
         this.on(GameEvents.ACTION_EXECUTION_REQUESTED, this.onActionExecutionRequested.bind(this));
@@ -33,7 +31,6 @@ export class BattleSequenceSystem extends System {
         this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
         this.on(GameEvents.GAME_OVER, this.abortSequence.bind(this));
         
-        // ポーズ対応
         this.on(GameEvents.GAME_PAUSED, () => { this.taskRunner.isPaused = true; });
         this.on(GameEvents.GAME_RESUMED, () => { this.taskRunner.isPaused = false; });
     }
@@ -41,7 +38,6 @@ export class BattleSequenceSystem extends System {
     onActionExecutionRequested() {
         if (this.state !== 'IDLE') return;
 
-        // 実行対象の収集とソート
         this.executionQueue = this.service.getSortedReadyEntities();
         
         if (this.executionQueue.length === 0) {
@@ -54,10 +50,8 @@ export class BattleSequenceSystem extends System {
     }
 
     update(deltaTime) {
-        // 1. TaskRunnerの更新
         this.taskRunner.update(deltaTime);
 
-        // 2. シーケンス進行管理
         if (this.state === 'IDLE') return;
 
         if (!this.isValidState()) {
@@ -72,7 +66,6 @@ export class BattleSequenceSystem extends System {
                 
             case 'EXECUTING_TASK':
                 if (this.taskRunner.isIdle) {
-                    // アクターのタスク完了
                     this.battleContext.turn.currentActorId = null;
                     this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: this.currentActorId });
                     this.currentActorId = null;
@@ -89,10 +82,7 @@ export class BattleSequenceSystem extends System {
         }
 
         const actorId = this.executionQueue.shift();
-
-        // 無効なエンティティはスキップ
         if (!this.isValidEntity(actorId)) {
-            // 次のフレームで再試行
             return;
         }
 
@@ -104,9 +94,19 @@ export class BattleSequenceSystem extends System {
     }
 
     _startActorSequence(actorId) {
-        const { tasks, isCancelled, eventsToEmit } = this.service.executeSequence(actorId);
+        // stateUpdates を受け取る
+        const { tasks, isCancelled, eventsToEmit, stateUpdates } = this.service.executeSequence(actorId);
 
-        // 副作用(イベント発行)を一括実行
+        // 1. 副作用（状態更新）を一括適用
+        // これによりHP等が実際に減る。タスク開始前に反映させることで
+        // HPバーアニメーション等が「現在の値」として新しい値を参照できるようになる（演出によるが）。
+        // もし「ダメージ演出の瞬間にHPを減らしたい」場合は、Taskの中にこの更新処理を組み込む必要があるが、
+        // 多くのRPGでは計算確定時に内部パラメータは更新し、UIだけアニメーションさせるのが一般的。
+        if (stateUpdates) {
+            this._applyStateUpdates(stateUpdates);
+        }
+
+        // 2. イベント発行
         if (eventsToEmit) {
             eventsToEmit.forEach(event => {
                 this.world.emit(event.type, event.payload);
@@ -114,9 +114,7 @@ export class BattleSequenceSystem extends System {
         }
 
         if (isCancelled) {
-            // タスクなしで完了扱いにする
             this.taskRunner.setSequence([], actorId); 
-            // 次フレームでisIdle検知されて完了処理が走る
             return;
         }
 
@@ -125,6 +123,16 @@ export class BattleSequenceSystem extends System {
         } else {
              this.taskRunner.setSequence([], actorId);
         }
+    }
+
+    _applyStateUpdates(updates) {
+        updates.forEach(update => {
+            const { targetId, componentType, updateFn } = update;
+            const component = this.world.getComponent(targetId, componentType);
+            if (component) {
+                updateFn(component);
+            }
+        });
     }
 
     _finishSequence() {

@@ -1,6 +1,7 @@
 /**
  * @file DamageEffect.js
  * @description ダメージ効果の定義 (計算・適用・演出)
+ * 副作用を排除し、純粋なデータ変換として再実装。
  */
 import { EffectType, PartInfo } from '../../../common/constants.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
@@ -30,9 +31,7 @@ export const DamageEffect = {
         const powerStatKey = calcParams.powerStat || 'might';
         const defenseStatKey = calcParams.defenseStat || 'armor';
 
-        // 1. 補正込みステータス値を準備 (Service層の役割だが、現状の構造上EffectDefinition内で解決)
-        
-        // 攻撃側ステータス
+        // 1. 補正込みステータス値を準備
         const effectiveBaseVal = EffectService.getStatModifier(world, sourceId, baseStatKey, { 
             attackingPart: part, 
             attackerLegs: partOwner.parts.legs 
@@ -69,7 +68,8 @@ export const DamageEffect = {
         };
     },
 
-    // --- 適用フェーズ ---
+    // --- 適用データ生成フェーズ ---
+    // Worldの状態を参照するが、変更はしない。変更内容(diff)を返す。
     apply: ({ world, effect }) => {
         const { targetId, partKey, value } = effect;
         const part = world.getComponent(targetId, Parts)?.[partKey];
@@ -84,6 +84,22 @@ export const DamageEffect = {
         let isGuardBroken = false;
 
         const events = [];
+        const stateUpdates = []; // 状態更新リクエスト
+
+        // HP更新リクエスト
+        stateUpdates.push({
+            targetId,
+            componentType: Parts,
+            updateFn: (partsComp) => {
+                if (partsComp[partKey]) {
+                    partsComp[partKey].hp = newHp;
+                    if (isPartBroken) {
+                        partsComp[partKey].isBroken = true;
+                    }
+                }
+            }
+        });
+
         events.push({
             type: GameEvents.HP_UPDATED,
             payload: { 
@@ -117,7 +133,6 @@ export const DamageEffect = {
                 );
                 if (isGuardPart) {
                     isGuardBroken = true;
-                    // ガード解除イベントとクールダウン移行リクエストを発行
                     events.push({
                         type: GameEvents.GUARD_BROKEN,
                         payload: { entityId: targetId }
@@ -132,12 +147,6 @@ export const DamageEffect = {
 
         const overkillDamage = value - actualDamage;
 
-        // 状態更新
-        part.hp = newHp;
-        if (isPartBroken) {
-            part.isBroken = true;
-        }
-
         return { 
             ...effect, 
             value: actualDamage,
@@ -147,7 +156,8 @@ export const DamageEffect = {
             isPlayerBroken, 
             isGuardBroken, 
             overkillDamage: overkillDamage,
-            events: events
+            events: events,
+            stateUpdates: stateUpdates // 呼び出し元で適用する
         };
     },
 

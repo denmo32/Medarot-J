@@ -1,6 +1,7 @@
 /**
  * @file ScanEffect.js
  * @description スキャン効果の定義
+ * 副作用排除版。
  */
 import { EffectType, EffectScope } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
@@ -35,34 +36,36 @@ export const ScanEffect = {
         };
     },
 
-    // 適用フェーズ
+    // 適用データ生成フェーズ
     apply: ({ world, effect }) => {
-        if (!effect.scope?.endsWith('_TEAM')) return { ...effect, events: [] };
+        if (!effect.scope?.endsWith('_TEAM')) return { ...effect, events: [], stateUpdates: [] };
         
-        // チーム全体への適用処理
         const allies = TargetingService.getValidAllies(world, effect.targetId, true);
-        
+        const stateUpdates = [];
+
         allies.forEach(targetId => {
-            const activeEffects = world.getComponent(targetId, ActiveEffects);
-            if (!activeEffects) return;
-            
-            // 重複排除して追加
-            activeEffects.effects = activeEffects.effects.filter(e => e.type !== effect.type);
-            activeEffects.effects.push({
-                type: effect.type,
-                value: effect.value,
-                duration: effect.duration,
-                partKey: effect.partKey
+            stateUpdates.push({
+                targetId,
+                componentType: ActiveEffects,
+                updateFn: (activeEffects) => {
+                    // 重複排除して追加
+                    activeEffects.effects = activeEffects.effects.filter(e => e.type !== effect.type);
+                    activeEffects.effects.push({
+                        type: effect.type,
+                        value: effect.value,
+                        duration: effect.duration,
+                        partKey: effect.partKey
+                    });
+                }
             });
         });
         
-        return { ...effect, events: [] };
+        return { ...effect, events: [], stateUpdates };
     },
 
     // 演出フェーズ
     createTasks: ({ world, effects, messageGenerator }) => {
         const tasks = [];
-        // Scanはチーム全体にかかるが、メッセージは1回だけ表示するのが一般的
         if (effects.length > 0) {
             const effect = effects[0];
             const message = messageGenerator.format(MessageKey.SUPPORT_SCAN_SUCCESS, { 
