@@ -1,7 +1,6 @@
 /**
  * @file GameHealthBar.js
  * @description Web ComponentsによるHPバーの実装。
- * 高さ圧縮版。
  */
 export class GameHealthBar extends HTMLElement {
     static get observedAttributes() {

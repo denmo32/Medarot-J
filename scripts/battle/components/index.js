@@ -8,5 +8,4 @@ export { ActiveEffects } from './ActiveEffects.js';
 export { Visual } from './Visual.js';
 export { BattleUIState } from './BattleUIState.js';
 export { BattleContext } from './BattleContext.js';
-// 新規追加
 export * from './VisualRequest.js';

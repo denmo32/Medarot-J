@@ -1,7 +1,6 @@
 /**
  * @file シーン基底クラス
  * @description すべてのシーンクラスの基底となる抽象クラス。
- * (旧 BaseScene.js)
  */
 export class Scene {
     /**

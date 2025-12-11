@@ -58,7 +58,6 @@ export class ActionSequenceService {
         };
     }
     
-    // getSortedReadyEntities は変更なし
     getSortedReadyEntities() {
         return this.world.getEntitiesWith(GameState).filter(id => {
             const state = this.world.getComponent(id, GameState);

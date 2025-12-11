@@ -1,7 +1,6 @@
 /**
  * @file BattleTasks.js
  * @description バトルタスクのファクトリ関数。
- * Phase 4: ObjectPoolの適用
  */
 import { ObjectPool } from '../../../engine/core/ObjectPool.js';
 import { 

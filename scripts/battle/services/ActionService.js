@@ -1,7 +1,6 @@
 /**
  * @file 行動決定サービス
  * @description アクションの妥当性を検証し、イベントを発行する。
- * 元 scripts/battle/utils/actionUtils.js
  */
 import { GameEvents } from '../../common/events.js';
 import { Parts as CommonParts } from '../../components/index.js';

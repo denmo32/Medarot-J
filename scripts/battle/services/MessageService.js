@@ -2,7 +2,6 @@
  * @file MessageService.js
  * @description メッセージフォーマットのサービス。
  * 各EffectDefinitionから呼び出されるヘルパーメソッドを提供する。
- * 元 scripts/battle/utils/MessageGenerator.js
  */
 
 import { MessageTemplates, MessageKey } from '../../data/messageRepository.js';

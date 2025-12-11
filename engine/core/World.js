@@ -2,7 +2,6 @@
  * @file ECS (Entity-Component-System) の中核クラス
  * @description エンティティ、コンポーネント、システムの管理とオーケストレーションを行います。
  * Queryシステム導入によるパフォーマンス最適化版。Mapによるクエリキャッシュに対応。
- * Phase 1: コンポーネントID管理によるMinification耐性強化
  */
 import { EventEmitter } from '../event/EventEmitter.js';
 import { Query } from './Query.js';

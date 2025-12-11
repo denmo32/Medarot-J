@@ -1,7 +1,6 @@
 /**
  * @file GlitchEffect.js
  * @description 妨害効果の定義
- * Phase 2: データ駆動化 (といっても更新はないのでそのまま)
  */
 import { EffectType } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';

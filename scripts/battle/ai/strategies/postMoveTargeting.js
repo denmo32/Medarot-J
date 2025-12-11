@@ -6,8 +6,7 @@ import { TargetingService } from '../../services/TargetingService.js';
 import { TargetingStrategyKey } from '../strategyKeys.js';
 import { Position } from '../../components/index.js';
 
-// findNearestEnemy は queryUtils から削除されたため、ここでローカルまたはTargetingServiceを使って再実装する。
-// ここではTargetingServiceを利用して有効な敵を取得し、距離計算を行うロジックとする。
+// TargetingServiceを利用して有効な敵を取得し、距離計算を行うロジック
 const findNearestEnemy = (world, attackerId) => {
     const attackerPos = world.getComponent(attackerId, Position);
     if (!attackerPos) return null;

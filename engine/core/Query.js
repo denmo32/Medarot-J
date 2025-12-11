@@ -2,7 +2,6 @@
  * @file ECSクエリクラス
  * @description 特定のコンポーネントの組み合わせを持つエンティティのセットを常に最新の状態に保ちます。
  * キャッシュ配列によるアロケーション削減版。
- * Phase 1: キャッシュ汚染対策 (Safe Copy Return)
  */
 export class Query {
     /**

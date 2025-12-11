@@ -1,6 +1,5 @@
 /**
  * @file 数学・確率計算ユーティリティ
- * (旧 mathUtils.js)
  */
 
 export function selectItemByProbability(weightedItems) {

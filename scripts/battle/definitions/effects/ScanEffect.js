@@ -1,7 +1,6 @@
 /**
  * @file ScanEffect.js
  * @description スキャン効果の定義
- * Phase 2: データ駆動化 (ActiveEffects配列操作はCUSTOM_UPDATEを使用)
  */
 import { EffectType, EffectScope } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';

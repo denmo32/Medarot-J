@@ -17,7 +17,6 @@ export const CONFIG = {
     // クリティカルヒット関連の定数
     CRITICAL_HIT: {
         DIFFERENCE_FACTOR: 200, 
-        // TYPE_BONUS は TypeDefinitions へ移動したため削除
     },
     
     // 時間調整関連の定数

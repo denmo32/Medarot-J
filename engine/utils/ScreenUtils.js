@@ -1,6 +1,5 @@
 /**
  * @file 画面サイズ調整ユーティリティ
- * (旧 screenUtils.js)
  */
 
 export function adjustGameScale(gameContainer, baseWidth, baseHeight) {

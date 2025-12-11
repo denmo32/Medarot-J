@@ -1,7 +1,6 @@
 /**
  * @file EffectApplyService.js
  * @description 戦闘計算結果に基づいてWorldにイベントを発行するサービス。
- * (旧 EffectApplier.js)
  */
 
 export class EffectApplyService {

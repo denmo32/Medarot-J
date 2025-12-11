@@ -1,13 +1,13 @@
 /**
  * @file PlayerRenderer.js
  * @description Web Componentsを利用するように刷新。
- * ガード表示ロジックの追加。
+ * ガード表示ロジック。
  */
 import { el } from '../../../../../engine/utils/DOMUtils.js';
 import { CONFIG } from '../../../common/config.js';
 import { TeamID, PartInfo, EffectType } from '../../../../common/constants.js';
 import { PlayerStateType } from '../../../common/constants.js';
-import { GameState, ActiveEffects } from '../../../components/index.js'; // ActiveEffectsを追加
+import { GameState, ActiveEffects } from '../../../components/index.js';
 import { Parts, PlayerInfo } from '../../../../components/index.js';
 import '../../../ui/components/GameHealthBar.js';
 
@@ -19,8 +19,7 @@ export class PlayerRenderer {
         this.uiManager = uiManager;
     }
 
-    // createメソッドは変更なしのため省略... 
-    // 前回と同じ内容ですが、guardIndicatorElementへの参照保持は確認済みとします。
+    // guardIndicatorElementへの参照保持は確認済みとします。
     create(entityId, visual) {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         const parts = this.world.getComponent(entityId, Parts);
@@ -101,7 +100,7 @@ export class PlayerRenderer {
         this._updatePartsInfo(visual, domElements.partDOMElements, cache);
         this._updateStateAppearance(entityId, domElements, cache);
         
-        // ★追加: ガードインジケーターの更新
+        // ガードインジケーターの更新
         this._updateGuardIndicator(entityId, domElements);
     }
 

@@ -1,7 +1,6 @@
 /**
  * @file TaskClasses.js
  * @description バトルタスクのクラス定義。
- * Phase 4: オブジェクトプール対応 (resetメソッドの実装)
  */
 import { TaskType } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
@@ -14,7 +13,7 @@ import {
     UiAnimationRequest, 
     CameraRequest 
 } from '../components/VisualRequest.js';
-import { executeCommands } from '../logic/commandExecutor.js'; // 新規インポート
+import { executeCommands } from '../logic/commandExecutor.js';
 
 export class BattleTask {
     constructor(type) {

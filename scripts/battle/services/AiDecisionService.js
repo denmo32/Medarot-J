@@ -2,7 +2,6 @@
  * @file AiDecisionService.js
  * @description AIの意思決定ロジックを提供するサービス。
  * 性格に基づくターゲット選定や、行動プランの評価・選択を行う。
- * targetingUtils.js のロジックを統合。
  */
 import { determineTargetCandidatesByPersonality, selectBestActionPlan } from '../ai/aiDecisionUtils.js';
 import { GameEvents } from '../../common/events.js';

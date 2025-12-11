@@ -29,7 +29,6 @@ export class CustomizeScene extends Scene {
     }
 
     _setupSystems() {
-        // GameDataManagerをSystemに注入する
         this.world.registerSystem(new CustomizeUISystem(this.world, this.gameDataManager));
         this.world.registerSystem(new CustomizeInputSystem(this.world));
         this.world.registerSystem(new CustomizeLogicSystem(this.world, this.gameDataManager));

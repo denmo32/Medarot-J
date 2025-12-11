@@ -1,7 +1,6 @@
 /**
  * @file DamageEffect.js
  * @description ダメージ効果の定義 (計算・適用・演出)
- * Phase 2: データ駆動化 (副作用のコマンド化)
  */
 import { EffectType, PartInfo } from '../../../common/constants.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';

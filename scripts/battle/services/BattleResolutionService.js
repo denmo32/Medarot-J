@@ -5,7 +5,7 @@
  */
 import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
-import { EffectType, TargetTiming } from '../../common/constants.js'; // TargetTimingを追加
+import { EffectType, TargetTiming } from '../../common/constants.js';
 import { CombatCalculator } from '../logic/CombatCalculator.js';
 import { EffectRegistry } from '../definitions/EffectRegistry.js'; 
 import { TargetingService } from './TargetingService.js';
@@ -15,7 +15,7 @@ import { HookPhase } from '../definitions/HookRegistry.js';
 import { BattleContext } from '../components/BattleContext.js';
 import { GameEvents } from '../../common/events.js';
 import { MessageService } from './MessageService.js';
-import { targetingStrategies } from '../ai/targetingStrategies.js'; // targetingStrategiesを追加
+import { targetingStrategies } from '../ai/targetingStrategies.js';
 
 export class BattleResolutionService {
     constructor(world) {
@@ -58,26 +58,26 @@ export class BattleResolutionService {
             };
         }
 
-        // ★フック: 攻撃開始直前
+        // フック: 攻撃開始直前
         this.battleContext.hookRegistry.execute(HookPhase.BEFORE_COMBAT_CALCULATION, ctx);
         if (ctx.shouldCancel) return this._buildResult(ctx, eventsToEmit, allStateUpdates, visualSequence);
 
         // 4. 命中・クリティカル等の判定
         this._calculateHitOutcome(ctx);
 
-        // ★フック: 命中判定後
+        // フック: 命中判定後
         this.battleContext.hookRegistry.execute(HookPhase.AFTER_HIT_CALCULATION, ctx);
 
         // 5. 効果値計算
         this._calculateEffects(ctx);
 
-        // ★フック: 効果適用前
+        // フック: 効果適用前
         this.battleContext.hookRegistry.execute(HookPhase.BEFORE_EFFECT_APPLICATION, ctx);
 
         // 6. 適用データ生成 (副作用なし)
         this._resolveApplications(ctx, eventsToEmit, allStateUpdates);
         
-        // ★フック: 効果適用後
+        // フック: 効果適用後
         this.battleContext.hookRegistry.execute(HookPhase.AFTER_EFFECT_APPLICATION, ctx);
 
         // 7. 演出指示データ生成

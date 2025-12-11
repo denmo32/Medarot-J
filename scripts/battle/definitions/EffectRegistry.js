@@ -1,7 +1,7 @@
 /**
  * @file EffectRegistry.js
  * @description 全てのアクション効果定義を集約管理するレジストリ。
- * apply メソッドは World を変更せず、更新データ(diff)を返すように変更。
+ * apply メソッドは World を変更せず、更新データ(diff)を返す。
  */
 import { EffectType } from '../../common/constants.js';
 import { DamageEffect } from './effects/DamageEffect.js';

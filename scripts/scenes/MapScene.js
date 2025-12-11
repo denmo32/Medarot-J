@@ -85,7 +85,6 @@ export class MapScene extends Scene {
         const mapPlayerData = gameDataManager.getPlayerDataForMap();
         
         this.world.addComponent(playerEntityId, new MapComponents.Position(mapPlayerData.position.x, mapPlayerData.position.y));
-        // グリッド移動に戻したためVelocityは不要
         this.world.addComponent(playerEntityId, new MapComponents.Renderable('circle', 'gold', MAP_CONFIG.PLAYER_SIZE));
         this.world.addComponent(playerEntityId, new MapComponents.PlayerControllable());
         this.world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));

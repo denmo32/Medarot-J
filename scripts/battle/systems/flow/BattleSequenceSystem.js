@@ -1,7 +1,6 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクションシーケンスの進行管理。
- * Phase 3: ステートマシン強化とイベント依存の削減
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';

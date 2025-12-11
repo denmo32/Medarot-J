@@ -1,7 +1,6 @@
 /**
  * @file GuardEffect.js
  * @description ガード効果の定義
- * Phase 2: データ駆動化 & 副作用の制御
  */
 import { EffectType } from '../../../common/constants.js';
 import { ActiveEffects } from '../../components/index.js';

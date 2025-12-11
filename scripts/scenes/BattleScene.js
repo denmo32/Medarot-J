@@ -3,7 +3,6 @@
  */
 import { Scene } from '../../engine/scene/Scene.js';
 import { GameEvents } from '../common/events.js';
-// 修正: context/index.js への参照を setup/ への個別参照に変更
 import { initializeSystems } from '../battle/setup/SystemInitializer.js';
 import { createPlayers } from '../battle/setup/EntityFactory.js';
 import { BattleContext } from '../battle/components/BattleContext.js';

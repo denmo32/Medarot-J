@@ -1,6 +1,5 @@
 /**
  * @file DOM操作ユーティリティ
- * (旧 domUtils.js)
  */
 
 export const el = (tag, attributes = {}, children = []) => {

@@ -1,7 +1,6 @@
 /**
  * @file ConsumeGuardEffect.js
  * @description ガード回数消費効果の定義
- * Phase 2: データ駆動化
  */
 import { EffectType } from '../../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';

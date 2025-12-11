@@ -1,7 +1,6 @@
 /**
  * @file TaskRunner.js
  * @description タスクキューをECSのアップデートサイクルに合わせて処理するランナー。
- * Phase 4: タスクのプール返却処理を追加
  */
 import { releaseTask } from './BattleTasks.js';
 

@@ -13,7 +13,7 @@ export const MessageTemplates = {
     GUARDIAN_DAMAGE: '{guardianName}の{partName}に{damage}ダメージ！',
     DEFENSE_SUCCESS: '{targetName}は{partName}で防御！　{partName}に{damage}ダメージ！',
     DAMAGE_APPLIED: '{targetName}の{partName}に{damage}ダメージ！',
-    CRITICAL_HIT: 'クリティカル！ ',
+    CRITICAL_HIT: 'クリティカル！　',
     PENETRATION_DAMAGE: '{partName}に貫通！　{partName}に{damage}ダメージ！',
     HEAL_SUCCESS: '{targetName}の{partName}を{healAmount}回復！',
     HEAL_FAILED: 'リペア失敗！　味方はダメージを受けていない！',

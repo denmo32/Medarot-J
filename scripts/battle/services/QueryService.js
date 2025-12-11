@@ -2,7 +2,6 @@
  * @file QueryService.js
  * @description 戦闘関連のエンティティやコンポーネントを検索・フィルタリングするサービス。
  * ECSのクエリ機能を補完するドメイン特化のヘルパー群。
- * 元 scripts/battle/utils/queryUtils.js
  */
 import { Parts } from '../../components/index.js';
 import { PartInfo } from '../../common/constants.js';

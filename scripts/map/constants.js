@@ -16,7 +16,7 @@ export const CONFIG = {
 export const TILE_TYPES = {
     GRASS: 0,
     WALL: 1,
-    BATTLE_TRIGGER: 2, // ★戦闘発生タイル
+    BATTLE_TRIGGER: 2, // 戦闘発生タイル
 };
 
 // プレイヤーの状態（ステートマシン用）
