@@ -6,8 +6,6 @@ import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { BattleUIState } from '../../components/index.js';
 import { modalHandlers } from '../../ui/modalHandlers.js';
-import { QueryService } from '../../services/QueryService.js';
-import { AiDecisionService } from '../../services/AiDecisionService.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { ModalType } from '../../common/constants.js'; 
 import { ActionService } from '../../services/ActionService.js'; // インポートを追加
@@ -17,7 +15,6 @@ export class ModalSystem extends System {
         super(world);
         this.uiState = this.world.getSingletonComponent(BattleUIState);
         this.handlers = modalHandlers;
-        this.aiService = new AiDecisionService(world);
 
         this.bindEvents();
     }
@@ -192,38 +189,24 @@ export class ModalSystem extends System {
     }
     
     onPlayerInputRequired(detail) {
-        const { entityId } = detail;
-        const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        
-        const targetCandidates = this.aiService.getSuggestionForPlayer(entityId);
-        
-        if (!targetCandidates || targetCandidates.length === 0) {
-            this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
+        const handler = this.handlers[ModalType.SELECTION];
+        if (!handler || !handler.prepareData) {
+            console.error('SELECTION modal handler or prepareData function is not defined.');
             return;
         }
-
-        const actionPlans = this.aiService.generateActionPlans(entityId, targetCandidates);
-        const allPossibleParts = QueryService.getAllActionParts(this.world, entityId);
-
-        const buttonsData = allPossibleParts.map(([partKey, part]) => {
-            const plan = actionPlans.find(p => p.partKey === partKey);
-            return {
-                text: `${part.name} (${part.type})`,
-                partKey: partKey,
-                isBroken: part.isBroken,
-                target: plan ? plan.target : null
-            };
-        });
         
-        this.onShowModal({ 
-            type: ModalType.SELECTION, 
-            data: { 
-                entityId, 
-                ownerName: playerInfo.name,
-                buttons: buttonsData
-            },
-            immediate: true
-        });
+        const modalData = handler.prepareData({ world: this.world, data: detail });
+
+        if (modalData) {
+            this.onShowModal({ 
+                type: ModalType.SELECTION, 
+                data: modalData,
+                immediate: true
+            });
+        } else {
+            // データ準備に失敗した場合（ターゲットがいないなど）
+            this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId: detail.entityId });
+        }
     }
 
     // InputSystemから処理を移譲

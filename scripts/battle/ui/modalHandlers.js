@@ -7,6 +7,9 @@ import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
 import { PartInfo } from '../../common/constants.js';
 import { CONFIG } from '../common/config.js';
+import { AiDecisionService } from '../services/AiDecisionService.js';
+import { QueryService } from '../services/QueryService.js';
+import { PlayerInfo } from '../../components/index.js';
 
 const NAVIGATION_MAP = {
     [PartInfo.HEAD.key]: {
@@ -37,6 +40,40 @@ export const modalHandlers = {
         getActorName: () => 'ロボトルを開始しますか？',
     },
     [ModalType.SELECTION]: {
+        prepareData: ({ world, data: detail }) => {
+            const { entityId } = detail;
+            const playerInfo = world.getComponent(entityId, PlayerInfo);
+            if (!playerInfo) return null;
+
+            // AiDecisionServiceは一時的にインスタンス化して使用
+            const aiService = new AiDecisionService(world);
+            
+            const targetCandidates = aiService.getSuggestionForPlayer(entityId);
+            
+            if (!targetCandidates || targetCandidates.length === 0) {
+                return null; // ターゲット候補がいない場合はモーダルを出さない
+            }
+
+            const actionPlans = aiService.generateActionPlans(entityId, targetCandidates);
+            const allPossibleParts = QueryService.getAllActionParts(world, entityId);
+
+            const buttonsData = allPossibleParts.map(([partKey, part]) => {
+                const plan = actionPlans.find(p => p.partKey === partKey);
+                return {
+                    text: `${part.name} (${part.type})`,
+                    partKey: partKey,
+                    isBroken: part.isBroken,
+                    target: plan ? plan.target : null
+                };
+            });
+
+            return {
+                entityId,
+                ownerName: playerInfo.name,
+                buttons: buttonsData
+            };
+        },
+
         getOwnerName: (data) => data.ownerName,
         
         init: ({ data }) => {
