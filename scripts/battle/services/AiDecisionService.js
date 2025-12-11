@@ -95,25 +95,30 @@ export class AiDecisionService {
         for (const [partKey, part] of availableParts) {
             let selectedTarget = null;
 
+            // 事前ターゲット選択（射撃など）の場合のみ、ここでターゲットを決定する
             if (part.targetTiming === CommonTargetTiming.PRE_MOVE) {
-                const selectedCandidate = selectItemByProbability(targetCandidates);
-                if (selectedCandidate) {
-                    selectedTarget = selectedCandidate.target;
-                    // ターゲットが取れたPRE_MOVEアクションのみプランに追加
-                    actionPlans.push({
-                        partKey,
-                        part,
-                        target: selectedTarget,
-                    });
+                // 単一ターゲットが必要な行動か判定
+                const requiresSingleTarget = part.targetScope?.endsWith('_SINGLE');
+                
+                if (requiresSingleTarget) {
+                    const selectedCandidate = selectItemByProbability(targetCandidates);
+                    if (selectedCandidate) {
+                        selectedTarget = selectedCandidate.target;
+                    } else {
+                        // 有効なターゲットがいない場合、このパーツでの行動はプランに追加しない
+                        continue;
+                    }
                 }
-            } else {
-                // POST_MOVEやSELFなどはターゲットnullでプランに追加
-                actionPlans.push({
-                    partKey,
-                    part,
-                    target: null,
-                });
+                // 'ALLY_TEAM' のような単一ターゲット不要な行動は selectedTarget が null のまま進む
             }
+            
+            // 全ての有効なパーツについてプランを追加
+            // POST_MOVE の場合、target は null になる
+            actionPlans.push({
+                partKey,
+                part,
+                target: selectedTarget,
+            });
         }
         return actionPlans;
     }

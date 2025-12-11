@@ -27,17 +27,9 @@ export class ActionService {
 
         const selectedPart = parts[partKey];
 
-        if (selectedPart.targetTiming === TargetTiming.POST_MOVE) {
-            world.emit(GameEvents.ACTION_SELECTED, {
-                entityId,
-                partKey,
-                targetId: null,
-                targetPartKey: null
-            });
-            return;
-        }
-
-        if (selectedPart.targetScope?.endsWith('_SINGLE') && !TargetingService.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
+        // 単一ターゲットが必要な行動なのに、有効なターゲットが指定されていない場合に警告
+        // PRE_MOVE（事前選択）の場合のみチェック
+        if (selectedPart.targetTiming === TargetTiming.PRE_MOVE && selectedPart.targetScope?.endsWith('_SINGLE') && !TargetingService.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
             console.error(`ActionService: A valid target was expected but not found. Action may fail.`, {entityId, partKey, target});
         }
 
