@@ -7,6 +7,7 @@ import { BattlePhase, PlayerStateType } from '../../../common/constants.js';
 import { GameState, Gauge, Action } from '../../../components/index.js';
 import { GameEvents } from '../../../../common/events.js';
 import { BattleStartState } from './BattleStartState.js';
+import { CommandExecutor, createCommand } from '../../../common/Command.js';
 
 export class InitialSelectionState extends BaseState {
     constructor(system) {
@@ -101,7 +102,8 @@ export class InitialSelectionState extends BaseState {
         });
 
         if (commands.length > 0) {
-            this.world.emit(GameEvents.EXECUTE_COMMANDS, commands);
+            const commandInstances = commands.map(cmd => createCommand(cmd.type, cmd));
+            CommandExecutor.executeCommands(this.world, commandInstances);
         }
     }
 

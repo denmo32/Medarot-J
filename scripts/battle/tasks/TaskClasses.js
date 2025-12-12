@@ -13,7 +13,7 @@ import {
     UiAnimationRequest, 
     CameraRequest 
 } from '../components/VisualRequest.js';
-import { executeCommands } from '../logic/commandExecutor.js';
+import { CommandExecutor, createCommand } from '../common/Command.js';
 
 export class BattleTask {
     constructor(type) {
@@ -250,7 +250,8 @@ export class ApplyStateTask extends InstantTask {
     start(world, entityId) {
         // InstantTaskのstartは呼ばず、ここで完結させる
         this.isStarted = true;
-        executeCommands(world, this.commands);
+        const commandInstances = this.commands.map(cmd => createCommand(cmd.type, cmd));
+        CommandExecutor.executeCommands(world, commandInstances);
         this.isCompleted = true;
     }
 }

@@ -1,11 +1,12 @@
 import { System } from '../../../../engine/core/System.js';
-import { BattleContext } from '../../components/BattleContext.js'; 
+import { BattleContext } from '../../components/BattleContext.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { Action, Gauge } from '../../components/index.js';
 import { PlayerStateType } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
+import { CommandExecutor, createCommand } from '../../common/Command.js';
 
 export class ActionSelectionSystem extends System {
     constructor(world) {
@@ -69,14 +70,12 @@ export class ActionSelectionSystem extends System {
             modifier: modifier
         });
 
-        this.world.emit(GameEvents.EXECUTE_COMMANDS, [
-            {
-                type: 'TRANSITION_STATE',
+        const commands = [
+            createCommand('TRANSITION_STATE', {
                 targetId: entityId,
                 newState: PlayerStateType.SELECTED_CHARGING
-            },
-            {
-                type: 'UPDATE_COMPONENT',
+            }),
+            createCommand('UPDATE_COMPONENT', {
                 targetId: entityId,
                 componentType: Gauge,
                 updates: {
@@ -84,8 +83,9 @@ export class ActionSelectionSystem extends System {
                     currentSpeed: 0,
                     speedMultiplier: speedMultiplier
                 }
-            }
-        ]);
+            })
+        ];
+        CommandExecutor.executeCommands(this.world, commands);
         
         // 完了通知は不要（Stateがポーリングするため）
         // this.world.emit(GameEvents.ACTION_SELECTION_COMPLETED);

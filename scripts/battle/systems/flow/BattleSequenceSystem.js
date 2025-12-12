@@ -14,6 +14,7 @@ import { ActionSequenceService } from '../../services/ActionSequenceService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
 import { BattleResolutionService } from '../../services/BattleResolutionService.js'; // インポートを追加
+import { CommandExecutor, createCommand } from '../../common/Command.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 
 // 内部ステート定義
@@ -154,9 +155,10 @@ export class BattleSequenceSystem extends System {
             }
         }
 
-        // 状態変更コマンドを即時発行
+        // 状態変更コマンドを即時実行
         if (resultData.stateUpdates && resultData.stateUpdates.length > 0) {
-            this.world.emit(GameEvents.EXECUTE_COMMANDS, resultData.stateUpdates);
+            const commands = resultData.stateUpdates.map(cmd => createCommand(cmd.type, cmd));
+            CommandExecutor.executeCommands(this.world, commands);
         }
 
         // 副作用イベントを発行 (ログ出力やUI通知用)
@@ -203,11 +205,8 @@ export class BattleSequenceSystem extends System {
 
     onRequestResetToCooldown(detail) {
         const { entityId, options } = detail;
-        this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
-            type: 'RESET_TO_COOLDOWN',
-            targetId: entityId,
-            options: options
-        }]);
+        const cmd = createCommand('RESET_TO_COOLDOWN', { targetId: entityId, options: options });
+        cmd.execute(this.world);
     }
     
     onCheckActionCancellation() {
@@ -219,11 +218,11 @@ export class BattleSequenceSystem extends System {
             const check = CancellationService.checkCancellation(this.world, actorId);
             if (check.shouldCancel) {
                 CancellationService.executeCancel(this.world, actorId, check.reason);
-                this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
-                    type: 'RESET_TO_COOLDOWN',
+                const cmd = createCommand('RESET_TO_COOLDOWN', {
                     targetId: actorId,
                     options: { interrupted: true }
-                }]);
+                });
+                cmd.execute(this.world);
             }
         }
     }

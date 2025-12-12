@@ -3,13 +3,11 @@
  * @description エンティティ、コンポーネント、システムの管理とオーケストレーションを行います。
  * Queryシステム導入によるパフォーマンス最適化版。Mapによるクエリキャッシュに対応。
  */
-import { EventEmitter } from '../event/EventEmitter.js';
 import { Query } from './Query.js';
+import { EventManager } from '../../scripts/battle/common/EventManager.js';
 
-export class World extends EventEmitter {
+export class World {
     constructor() {
-        super();
-
         // key: entityId, value: Set<ComponentClass>
         this.entities = new Map();
         this.nextEntityId = 0;
@@ -28,6 +26,9 @@ export class World extends EventEmitter {
         // key: ComponentClass, value: number (unique ID)
         this.componentIdMap = new Map();
         this.nextComponentId = 0;
+
+        // --- Event Manager ---
+        this.eventManager = new EventManager();
     }
 
     // === Component ID Management ===
@@ -162,14 +163,30 @@ export class World extends EventEmitter {
         }
     }
 
+    on(eventName, callback) {
+        this.eventManager.on(eventName, callback);
+    }
+
+    emit(eventName, detail) {
+        this.eventManager.emit(eventName, detail);
+    }
+
+    off(eventName, callback) {
+        this.eventManager.off(eventName, callback);
+    }
+
+    waitFor(eventName, predicate = null, timeout = 0) {
+        return this.eventManager.waitFor(eventName, predicate, timeout);
+    }
+
     reset() {
         for (const system of this.systems) {
             if (system.destroy) {
                 system.destroy();
             }
         }
-        
-        this.clearListeners();
+
+        this.eventManager.clear();
         this.systems = [];
         this.entities.clear();
         this.components.clear();

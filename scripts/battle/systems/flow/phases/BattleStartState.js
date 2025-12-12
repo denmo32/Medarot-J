@@ -7,6 +7,7 @@ import { BattlePhase, PlayerStateType } from '../../../common/constants.js';
 import { GameState } from '../../../components/index.js';
 import { GameEvents } from '../../../../common/events.js';
 import { TurnStartState } from './TurnStartState.js';
+import { CommandExecutor, createCommand } from '../../../common/Command.js';
 
 export class BattleStartState extends BaseState {
     constructor(system) {
@@ -40,7 +41,8 @@ export class BattleStartState extends BaseState {
             updates: { value: 0 }
         }));
         if (commands.length > 0) {
-            this.world.emit(GameEvents.EXECUTE_COMMANDS, commands);
+            const commandInstances = commands.map(cmd => createCommand(cmd.type, cmd));
+            CommandExecutor.executeCommands(this.world, commandInstances);
         }
     }
 

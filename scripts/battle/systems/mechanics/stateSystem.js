@@ -2,6 +2,7 @@ import { System } from '../../../../engine/core/System.js';
 import { GameState } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { PartInfo } from '../../../common/constants.js';
+import { CommandExecutor, createCommand } from '../../common/Command.js';
 
 export class StateSystem extends System {
     constructor(world) {
@@ -16,10 +17,8 @@ export class StateSystem extends System {
         
         // 頭部破壊ならプレイヤー破壊（機能停止）
         if (partKey === PartInfo.HEAD.key) {
-            this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
-                type: 'SET_PLAYER_BROKEN',
-                targetId: entityId
-            }]);
+            const cmd = createCommand('SET_PLAYER_BROKEN', { targetId: entityId });
+            cmd.execute(this.world);
         }
         
         // ガード破壊処理はDamageEffect.js内に移動し、イベント(REQUEST_RESET_TO_COOLDOWN)を発行する形に一本化しました。
@@ -32,9 +31,7 @@ export class StateSystem extends System {
     onGaugeFull(detail) {
         const { entityId } = detail;
         // Serviceの代わりにコマンドを発行
-        this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
-            type: 'HANDLE_GAUGE_FULL',
-            targetId: entityId
-        }]);
+        const cmd = createCommand('HANDLE_GAUGE_FULL', { targetId: entityId });
+        cmd.execute(this.world);
     }
 }

@@ -4,6 +4,7 @@ import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType } from '../../common/constants.js';
 import { EffectType } from '../../../common/constants.js';
 import { EffectRegistry } from '../../definitions/EffectRegistry.js';
+import { CommandExecutor, createCommand } from '../../common/Command.js';
 
 export class EffectSystem extends System {
     constructor(world) {
@@ -78,11 +79,11 @@ export class EffectSystem extends System {
                 
                 const gameState = this.world.getComponent(entityId, GameState);
                 if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
-                    this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
-                        type: 'RESET_TO_COOLDOWN',
+                    const cmd = createCommand('RESET_TO_COOLDOWN', {
                         targetId: entityId,
                         options: {}
-                    }]);
+                    });
+                    cmd.execute(this.world);
                 }
             }
         }
