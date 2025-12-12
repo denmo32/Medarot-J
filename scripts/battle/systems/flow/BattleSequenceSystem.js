@@ -5,13 +5,16 @@
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
+import { TargetTiming } from '../../../common/constants.js';
 import { BattleContext } from '../../components/BattleContext.js';
 import { GameState, Action } from '../../components/index.js';
+import { Parts, PlayerInfo } from '../../../components/index.js';
 import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { ActionSequenceService } from '../../services/ActionSequenceService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
 import { BattleResolutionService } from '../../services/BattleResolutionService.js'; // インポートを追加
+import { targetingStrategies } from '../../ai/targetingStrategies.js';
 
 // 内部ステート定義
 const SequenceState = {
@@ -43,6 +46,23 @@ export class BattleSequenceSystem extends System {
         
         this.on(GameEvents.GAME_PAUSED, () => { this.taskRunner.isPaused = true; });
         this.on(GameEvents.GAME_RESUMED, () => { this.taskRunner.isPaused = false; });
+    }
+
+    _resolvePostMoveTargetForWorld(world, attackerId) {
+        const action = world.getComponent(attackerId, Action);
+        const parts = world.getComponent(attackerId, Parts);
+        if (!action || !parts || !action.partKey) return;
+        const attackingPart = parts[action.partKey];
+        if (!attackingPart || attackingPart.targetTiming !== TargetTiming.POST_MOVE || action.targetId !== null) return;
+
+        const strategy = targetingStrategies[attackingPart.postMoveTargeting];
+        if (strategy) {
+            const targetData = strategy({ world, attackerId });
+            if (targetData) {
+                action.targetId = targetData.targetId;
+                action.targetPartKey = targetData.targetPartKey;
+            }
+        }
     }
 
     update(deltaTime) {
@@ -117,14 +137,28 @@ export class BattleSequenceSystem extends System {
     }
 
     _startActorSequence(actorId) {
+        // --- 0. POST_MOVE ターゲットを解決し、Actionコンポーネントを更新 ---
+        this._resolvePostMoveTargetForWorld(this.world, actorId);
+
         // --- 1. ロジック解決と適用 ---
         const resultData = this.battleResolver.resolve(actorId);
-        
+
+        // Actionの更新情報を処理 (他の要因でBattleResolutionServiceが返した場合)
+        // NOTE: POST_MOVEによるAction更新は既に _resolvePostMoveTargetForWorld で適用済み。
+        if (resultData.actionUpdates && resultData.actionUpdates.entityId) {
+            const { entityId, targetId, targetPartKey } = resultData.actionUpdates;
+            const actionComponent = this.world.getComponent(entityId, Action);
+            if (actionComponent) {
+                actionComponent.targetId = targetId;
+                actionComponent.targetPartKey = targetPartKey;
+            }
+        }
+
         // 状態変更コマンドを即時発行
         if (resultData.stateUpdates && resultData.stateUpdates.length > 0) {
             this.world.emit(GameEvents.EXECUTE_COMMANDS, resultData.stateUpdates);
         }
-        
+
         // 副作用イベントを発行 (ログ出力やUI通知用)
         if (resultData.eventsToEmit) {
             resultData.eventsToEmit.forEach(event => {

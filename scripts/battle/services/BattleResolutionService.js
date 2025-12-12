@@ -121,20 +121,8 @@ export class BattleResolutionService {
     }
 
     _resolvePostMoveTarget(ctx) {
-        const { attackingPart, action, attackerId } = ctx;
-        if (attackingPart && attackingPart.targetTiming === TargetTiming.POST_MOVE && action.targetId === null) {
-            const strategy = targetingStrategies[attackingPart.postMoveTargeting];
-            if (strategy) {
-                const targetData = strategy({ world: this.world, attackerId });
-                if (targetData) {
-                    // Actionコンポーネントとコンテキストの両方を更新
-                    action.targetId = targetData.targetId;
-                    action.targetPartKey = targetData.targetPartKey;
-                    ctx.intendedTargetId = targetData.targetId;
-                    ctx.intendedTargetPartKey = targetData.targetPartKey;
-                }
-            }
-        }
+        // POST_MOVEターゲットの解決は、BattleSequenceSystem が resolve() の前に実行する。
+        // このメソッドでは何もしない。
     }
 
     _resolveTarget(ctx) {
@@ -349,8 +337,8 @@ export class BattleResolutionService {
             guardianInfo: ctx.guardianInfo,
             outcome: ctx.outcome || { isHit: false },
             appliedEffects: ctx.appliedEffects,
-            summary, 
-            isCancelled: ctx.shouldCancel, 
+            summary,
+            isCancelled: ctx.shouldCancel,
             interruptions: ctx.interruptions,
             eventsToEmit,
             stateUpdates,

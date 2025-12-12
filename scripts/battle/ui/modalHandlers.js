@@ -40,16 +40,15 @@ export const modalHandlers = {
         getActorName: () => 'ロボトルを開始しますか？',
     },
     [ModalType.SELECTION]: {
-        prepareData: ({ world, data: detail }) => {
+        prepareData: ({ world, data: detail, services }) => {
             const { entityId } = detail;
             const playerInfo = world.getComponent(entityId, PlayerInfo);
             if (!playerInfo) return null;
 
-            // AiDecisionServiceは一時的にインスタンス化して使用
-            const aiService = new AiDecisionService(world);
-            
+            const { aiService } = services;
+
             const targetCandidates = aiService.getSuggestionForPlayer(entityId);
-            
+
             if (!targetCandidates || targetCandidates.length === 0) {
                 return null; // ターゲット候補がいない場合はモーダルを出さない
             }

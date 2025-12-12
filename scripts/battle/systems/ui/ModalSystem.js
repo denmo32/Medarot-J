@@ -7,14 +7,16 @@ import { GameEvents } from '../../../common/events.js';
 import { BattleUIState } from '../../components/index.js';
 import { modalHandlers } from '../../ui/modalHandlers.js';
 import { PlayerInfo } from '../../../components/index.js';
-import { ModalType } from '../../common/constants.js'; 
+import { ModalType } from '../../common/constants.js';
 import { ActionService } from '../../services/ActionService.js'; // インポートを追加
+import { AiDecisionService } from '../../services/AiDecisionService.js';
 
 export class ModalSystem extends System {
     constructor(world) {
         super(world);
         this.uiState = this.world.getSingletonComponent(BattleUIState);
         this.handlers = modalHandlers;
+        this.aiDecisionService = new AiDecisionService(world);
 
         this.bindEvents();
     }
@@ -195,7 +197,7 @@ export class ModalSystem extends System {
             return;
         }
         
-        const modalData = handler.prepareData({ world: this.world, data: detail });
+        const modalData = handler.prepareData({ world: this.world, data: detail, services: { aiService: this.aiDecisionService } });
 
         if (modalData) {
             this.onShowModal({ 
