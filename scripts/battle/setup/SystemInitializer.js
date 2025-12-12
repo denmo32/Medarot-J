@@ -2,7 +2,6 @@
  * @file SystemInitializer.js
  * @description バトルシーンで使用するSystemの初期化・登録を行う。
  */
-import { BattleUIState } from '../components/index.js';
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
 import { VisualDirectorSystem } from '../systems/visual/VisualDirectorSystem.js';
@@ -22,16 +21,12 @@ import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
 import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 import { CommandSystem } from '../systems/flow/CommandSystem.js';
-import { ModalSystem } from '../systems/ui/ModalSystem.js'; 
-import { UIInputSystem } from '../systems/ui/UIInputSystem.js'; 
+import { ModalSystem } from '../systems/ui/ModalSystem.js';
+import { UIInputSystem } from '../systems/ui/UIInputSystem.js';
 
-import { UIManager } from '../../../engine/ui/UIManager.js';
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
 export function initializeSystems(world, gameDataManager) {
-    const contextEntity = world.createEntity();
-    world.addComponent(contextEntity, new BattleUIState());
-    world.addComponent(contextEntity, new UIManager());
 
     // --- UI/Input Systems ---
     const uiInputSystem = new UIInputSystem(world);

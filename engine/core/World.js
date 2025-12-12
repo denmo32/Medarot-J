@@ -92,6 +92,12 @@ export class World {
         }
     }
 
+    /**
+     * 指定されたクラスのコンポーネントを検索し、存在すればそのインスタンスを返します。
+     * 重要: この関数はコンポーネントを自動生成・登録しません。既存のコンポーネントのみを取得します。
+     * @param {Function} componentClass - 取得したいコンポーネントのクラス
+     * @returns {Object|null} コンポーネントのインスタンスまたはnull
+     */
     getSingletonComponent(componentClass) {
         const componentMap = this.components.get(componentClass);
         if (!componentMap || componentMap.size === 0) {
