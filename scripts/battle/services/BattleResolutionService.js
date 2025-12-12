@@ -32,26 +32,23 @@ export class BattleResolutionService {
         // 1. コンテキスト初期化
         const ctx = this._initializeContext(attackerId);
         if (!ctx) {
-            return { 
-                attackerId, 
-                isCancelled: true, 
-                cancelReason: 'INTERRUPTED', 
+            return {
+                attackerId,
+                isCancelled: true,
+                cancelReason: 'INTERRUPTED',
                 eventsToEmit,
                 stateUpdates: [],
                 visualSequence: []
             };
         }
-        
-        // 2. 移動後ターゲット解決 (POST_MOVE)
-        this._resolvePostMoveTarget(ctx);
 
-        // 3. 最終ターゲット解決 (ガード判定など)
+        // 2. 最終ターゲット解決 (ガード判定など)
         this._resolveTarget(ctx);
         if (ctx.shouldCancel) {
-            return { 
-                attackerId, 
-                isCancelled: true, 
-                cancelReason: 'TARGET_LOST', 
+            return {
+                attackerId,
+                isCancelled: true,
+                cancelReason: 'TARGET_LOST',
                 eventsToEmit,
                 stateUpdates: [],
                 visualSequence: []
@@ -62,28 +59,31 @@ export class BattleResolutionService {
         this.hookContext.hookRegistry.execute(HookPhase.BEFORE_COMBAT_CALCULATION, ctx);
         if (ctx.shouldCancel) return this._buildResult(ctx, eventsToEmit, allStateUpdates, visualSequence);
 
-        // 4. 命中・クリティカル等の判定
+        // 3. 命中・クリティカル等の判定
         this._calculateHitOutcome(ctx);
 
         // フック: 命中判定後
         this.hookContext.hookRegistry.execute(HookPhase.AFTER_HIT_CALCULATION, ctx);
 
-        // 5. 効果値計算
+        // 4. 効果値計算
         this._calculateEffects(ctx);
 
         // フック: 効果適用前
         this.hookContext.hookRegistry.execute(HookPhase.BEFORE_EFFECT_APPLICATION, ctx);
 
-        // 6. 適用データ生成 (副作用なし)
-        this._resolveApplications(ctx, eventsToEmit, allStateUpdates);
+        // 5. 適用データ生成 (副作用なし)
+        const { appliedEffects, eventsToEmit: newEvents, stateUpdates: newStateUpdates } = EffectRegistry.applyAll(ctx.rawEffects, ctx);
+        ctx.appliedEffects = appliedEffects;
+        eventsToEmit.push(...newEvents);
+        allStateUpdates.push(...newStateUpdates);
 
         // フック: 効果適用後
         this.hookContext.hookRegistry.execute(HookPhase.AFTER_EFFECT_APPLICATION, ctx);
 
-        // 7. 演出指示データ生成
+        // 6. 演出指示データ生成
         visualSequence = this._createVisuals(ctx);
 
-        // 8. 結果構築
+        // 7. 結果構築
         return this._buildResult(ctx, eventsToEmit, allStateUpdates, visualSequence);
     }
 
@@ -118,11 +118,6 @@ export class BattleResolutionService {
             interruptions: [], 
             customData: {} 
         };
-    }
-
-    _resolvePostMoveTarget(ctx) {
-        // POST_MOVEターゲットの解決は、BattleSequenceSystem が resolve() の前に実行する。
-        // このメソッドでは何もしない。
     }
 
     _resolveTarget(ctx) {
@@ -226,50 +221,6 @@ export class BattleResolutionService {
                 result.penetrates = attackingPart.penetrates || false;
                 result.calculation = effectDef.calculation; 
                 ctx.rawEffects.push(result);
-            }
-        }
-    }
-
-    _resolveApplications(ctx, eventsToEmit, allStateUpdates) {
-        // ガード消費
-        if (ctx.guardianInfo) {
-            ctx.rawEffects.push({
-                type: EffectType.CONSUME_GUARD,
-                targetId: ctx.guardianInfo.id,
-                partKey: ctx.guardianInfo.partKey
-            });
-        }
-
-        const effectQueue = [...ctx.rawEffects];
-
-        while (effectQueue.length > 0) {
-            const effect = effectQueue.shift();
-            
-            const result = EffectRegistry.apply(effect.type, { world: this.world, effect });
-
-            if (result) {
-                ctx.appliedEffects.push(result);
-
-                if (result.events) eventsToEmit.push(...result.events);
-                if (result.stateUpdates) allStateUpdates.push(...result.stateUpdates);
-
-                if (result.isPartBroken && result.overkillDamage > 0 && result.penetrates) {
-                    const nextTargetPartKey = QueryService.findRandomPenetrationTarget(this.world, result.targetId, result.partKey);
-                    
-                    if (nextTargetPartKey) {
-                        const nextEffect = {
-                            type: EffectType.DAMAGE,
-                            targetId: result.targetId,
-                            partKey: nextTargetPartKey,
-                            value: result.overkillDamage,
-                            penetrates: true,
-                            isPenetration: true,
-                            calculation: result.calculation,
-                            isCritical: result.isCritical
-                        };
-                        effectQueue.unshift(nextEffect);
-                    }
-                }
             }
         }
     }

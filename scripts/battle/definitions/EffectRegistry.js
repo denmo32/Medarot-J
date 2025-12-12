@@ -10,6 +10,7 @@ import { ScanEffect } from './effects/ScanEffect.js';
 import { GlitchEffect } from './effects/GlitchEffect.js';
 import { GuardEffect } from './effects/GuardEffect.js';
 import { ConsumeGuardEffect } from './effects/ConsumeGuardEffect.js';
+import { QueryService } from '../services/QueryService.js'; // QueryService をインポート
 
 const registry = {
     [EffectType.DAMAGE]: DamageEffect,
@@ -44,6 +45,62 @@ export class EffectRegistry {
             return def.apply(context);
         }
         return { ...context.effect, events: [], stateUpdates: [] };
+    }
+
+    /**
+     * 複数のエフェクトを順次適用し、ガードや貫通処理も行う。
+     * @param {Array} rawEffects - 適用前のエフェクト配列
+     * @param {object} ctx - バトルコンテキスト
+     * @returns {Object} { appliedEffects, eventsToEmit, stateUpdates }
+     */
+    static applyAll(rawEffects, ctx) {
+        const { world } = ctx;
+        const eventsToEmit = [];
+        const allStateUpdates = [];
+        const appliedEffects = [];
+        // ガード消費
+        if (ctx.guardianInfo) {
+            rawEffects.push({
+                type: EffectType.CONSUME_GUARD,
+                targetId: ctx.guardianInfo.id,
+                partKey: ctx.guardianInfo.partKey
+            });
+        }
+
+        const effectQueue = [...rawEffects];
+
+        while (effectQueue.length > 0) {
+            const effect = effectQueue.shift();
+
+            const result = EffectRegistry.apply(effect.type, { world, effect });
+
+            if (result) {
+                appliedEffects.push(result);
+
+                if (result.events) eventsToEmit.push(...result.events);
+                if (result.stateUpdates) allStateUpdates.push(...result.stateUpdates);
+
+                if (result.isPartBroken && result.overkillDamage > 0 && result.penetrates) {
+                    const nextTargetPartKey = QueryService.findRandomPenetrationTarget(world, result.targetId, result.partKey);
+
+                    if (nextTargetPartKey) {
+                        const nextEffect = {
+                            type: EffectType.DAMAGE,
+                            targetId: result.targetId,
+                            partKey: nextTargetPartKey,
+                            value: result.overkillDamage,
+                            penetrates: true,
+                            isPenetration: true,
+                            calculation: result.calculation,
+                            isCritical: result.isCritical
+                        };
+                        effectQueue.unshift(nextEffect);
+                    }
+                }
+            }
+        }
+
+        return { appliedEffects, eventsToEmit, stateUpdates: allStateUpdates };
     }
 
     /**
