@@ -15,7 +15,7 @@ import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { ActionSequenceService } from '../../services/ActionSequenceService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
-import { BattleResolutionService } from '../../services/BattleResolutionService.js'; // インポートを追加
+import { BattleResolutionService } from '../../services/BattleResolutionService.js'; 
 import { CommandExecutor, createCommand } from '../../common/Command.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 
@@ -38,7 +38,7 @@ export class BattleSequenceSystem extends System {
         this.service = new ActionSequenceService(world);
         this.timelineBuilder = new TimelineBuilder(world);
         this.taskRunner = new TaskRunner(world);
-        this.battleResolver = new BattleResolutionService(world); // 初期化処理を追加
+        this.battleResolver = new BattleResolutionService(world); 
 
         this.executionQueue = [];
         this.internalState = SequenceState.IDLE;
@@ -131,6 +131,7 @@ export class BattleSequenceSystem extends System {
 
         const actorId = this.executionQueue.shift();
         if (!this.isValidEntity(actorId)) {
+            // エンティティが無効になっている場合
             return; // 次のループで再試行
         }
 
@@ -146,10 +147,10 @@ export class BattleSequenceSystem extends System {
         this._resolvePostMoveTargetForWorld(this.world, actorId);
 
         // --- 1. ロジック解決と適用 ---
-        const resultData = this.battleResolver.resolve(actorId);
+        // ActionSequenceServiceからタスクとして結果を受け取る
+        const resultData = this.service.executeSequence(actorId);
 
-        // Actionの更新情報を処理 (他の要因でBattleResolutionServiceが返した場合)
-        // NOTE: POST_MOVEによるAction更新は既に _resolvePostMoveTargetForWorld で適用済み。
+        // Actionの更新情報を処理
         if (resultData.actionUpdates && resultData.actionUpdates.entityId) {
             const { entityId, targetId, targetPartKey } = resultData.actionUpdates;
             const actionComponent = this.world.getComponent(entityId, Action);
@@ -165,7 +166,7 @@ export class BattleSequenceSystem extends System {
             CommandExecutor.executeCommands(this.world, commands);
         }
 
-        // 副作用イベントを発行 (ログ出力やUI通知用)
+        // 副作用イベントを発行
         if (resultData.eventsToEmit) {
             resultData.eventsToEmit.forEach(event => {
                 this.world.emit(event.type, event.payload);
@@ -173,13 +174,18 @@ export class BattleSequenceSystem extends System {
         }
 
         if (resultData.isCancelled) {
-            this.taskRunner.setSequence([], actorId);
+            // キャンセルされた場合でも、タスク（メッセージ表示など）があれば実行する
+            if (resultData.tasks && resultData.tasks.length > 0) {
+                this.taskRunner.setSequence(resultData.tasks, actorId);
+            } else {
+                // タスクがなければ即座に完了扱いとする
+                this.taskRunner.setSequence([], actorId);
+            }
             return;
         }
 
-        // --- 2. 演出シーケンスの構築と実行 ---
-        const visualTasks = this.timelineBuilder.buildVisualSequence(resultData.visualSequence);
-        this.taskRunner.setSequence(visualTasks, actorId);
+        // --- 2. 正常系の演出シーケンス実行 ---
+        this.taskRunner.setSequence(resultData.tasks, actorId);
     }
 
     _onTaskCompleted() {

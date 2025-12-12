@@ -8,7 +8,7 @@ import { BattleUIState } from '../../components/index.js';
 import { modalHandlers } from '../../ui/modalHandlers.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { ModalType } from '../../common/constants.js';
-import { ActionService } from '../../services/ActionService.js'; // インポートを追加
+import { ActionService } from '../../services/ActionService.js'; 
 import { AiDecisionService } from '../../services/AiDecisionService.js';
 
 export class ModalSystem extends System {
@@ -29,7 +29,7 @@ export class ModalSystem extends System {
         this.on(GameEvents.UI_CANCEL, this.onCancel.bind(this));
         this.on(GameEvents.HP_BAR_ANIMATION_COMPLETED, this.onAnimationCompleted.bind(this));
         this.on(GameEvents.PLAYER_INPUT_REQUIRED, this.onPlayerInputRequired.bind(this));
-        this.on(GameEvents.PART_SELECTED, this.onPartSelected.bind(this)); // リッスンを追加
+        this.on(GameEvents.PART_SELECTED, this.onPartSelected.bind(this));
     }
 
     update(deltaTime) {
@@ -165,11 +165,13 @@ export class ModalSystem extends System {
                 this.world.emit(action.eventName, action.detail);
                 break;
             case 'CLOSE_MODAL':
-                this.hideCurrentModal();
+                // 修正: 単に隠すのではなく、完了処理(finish)を行う
+                this.finishCurrentModal();
                 break;
             case 'EMIT_AND_CLOSE':
                 this.world.emit(action.eventName, action.detail);
-                this.hideCurrentModal();
+                // 修正: ここも完了処理を行うべき
+                this.finishCurrentModal();
                 break;
             case 'PROCEED_SEQUENCE':
                 this.proceedToNextSequence();

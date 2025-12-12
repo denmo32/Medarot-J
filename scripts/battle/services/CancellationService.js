@@ -59,26 +59,40 @@ export class CancellationService {
     }
 
     /**
-     * キャンセル処理を実行（イベント発行）
+     * キャンセル理由に対応するメッセージを取得する
+     * @param {World} world 
+     * @param {number} entityId 
+     * @param {string} reason 
+     * @returns {string} フォーマット済みメッセージ
+     */
+    static getCancelMessage(world, entityId, reason) {
+        const messageService = new MessageService(world);
+        const actorInfo = world.getComponent(entityId, PlayerInfo);
+        
+        if (!actorInfo) return '';
+
+        const messageKey = cancelReasonToMessageKey[reason] || MessageKey.CANCEL_INTERRUPTED;
+        return messageService.format(messageKey, { actorName: actorInfo.name });
+    }
+
+    /**
+     * キャンセル処理を実行（即時イベント発行用）
+     * ※チャージ中の割り込みなど、シーケンス外でのキャンセルに使用
      * @param {World} world 
      * @param {number} entityId 
      * @param {string} reason 
      */
     static executeCancel(world, entityId, reason) {
-        const messageService = new MessageService(world);
-
         // 1. システムへの通知
         world.emit(GameEvents.ACTION_CANCELLED, { entityId, reason });
 
         // 2. ユーザーへの通知 (メッセージ表示)
-        const actorInfo = world.getComponent(entityId, PlayerInfo);
-        if (actorInfo) {
-            const messageKey = cancelReasonToMessageKey[reason] || MessageKey.CANCEL_INTERRUPTED;
-            const message = messageService.format(messageKey, { actorName: actorInfo.name });
-            
+        const message = this.getCancelMessage(world, entityId, reason);
+        if (message) {
             world.emit(GameEvents.SHOW_MODAL, {
                 type: ModalType.MESSAGE,
-                data: { message: message }
+                data: { message: message },
+                messageSequence: [{ text: message }]
             });
         }
     }
