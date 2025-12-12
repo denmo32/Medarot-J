@@ -2,7 +2,8 @@
  * @file AI攻撃系ターゲティング戦略
  */
 import { PlayerInfo, Parts } from '../../../components/index.js';
-import { BattleLog, BattleContext } from '../../components/index.js';
+import { BattleLog } from '../../components/index.js';
+import { BattleHistoryContext } from '../../components/BattleHistoryContext.js';
 import { QueryService } from '../../services/QueryService.js';
 import { TargetingService } from '../../services/TargetingService.js';
 import { TargetingStrategyKey } from '../strategyKeys.js';
@@ -125,7 +126,7 @@ export const offensiveStrategies = {
 
     [TargetingStrategyKey.GUARD]: createSingleEntityStrategy(({ world, attackerId }) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
-        const context = world.getSingletonComponent(BattleContext);
+        const context = world.getSingletonComponent(BattleHistoryContext);
         return context?.history.leaderLastAttackedBy?.[attackerInfo.teamId] || null;
     }),
 
@@ -135,7 +136,7 @@ export const offensiveStrategies = {
 
     [TargetingStrategyKey.ASSIST]: createSinglePartStrategy(({ world, attackerId }) => {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
-        const context = world.getSingletonComponent(BattleContext);
+        const context = world.getSingletonComponent(BattleHistoryContext);
         const teamLastAttack = context?.history.teamLastAttack?.[attackerInfo.teamId];
         return (teamLastAttack && teamLastAttack.targetId !== null) ? teamLastAttack : null;
     }),

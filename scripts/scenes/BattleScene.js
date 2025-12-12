@@ -5,7 +5,12 @@ import { Scene } from '../../engine/scene/Scene.js';
 import { GameEvents } from '../common/events.js';
 import { initializeSystems } from '../battle/setup/SystemInitializer.js';
 import { createPlayers } from '../battle/setup/EntityFactory.js';
-import { BattleContext } from '../battle/components/BattleContext.js';
+import { TurnContext } from '../battle/components/TurnContext.js';
+import { PhaseContext } from '../battle/components/PhaseContext.js';
+import { BattleStateContext } from '../battle/components/BattleStateContext.js';
+import { BattleSequenceContext } from '../battle/components/BattleSequenceContext.js';
+import { BattleHistoryContext } from '../battle/components/BattleHistoryContext.js';
+import { HookContext } from '../battle/components/HookContext.js';
 
 export class BattleScene extends Scene {
     constructor(world, sceneManager) {
@@ -16,9 +21,10 @@ export class BattleScene extends Scene {
         console.log("Initializing Battle Scene...");
         const { gameDataManager } = data;
 
-        this._setupSystems(gameDataManager);
         this._setupEntities(gameDataManager);
         this._setupBattleContext();
+        this._setupSystems(gameDataManager);
+
         this._bindEvents(gameDataManager);
 
         this.world.emit(GameEvents.SETUP_UI_REQUESTED);
@@ -35,10 +41,17 @@ export class BattleScene extends Scene {
     }
 
     _setupBattleContext() {
-        const battleContext = this.world.getSingletonComponent(BattleContext);
-        if (battleContext) {
-            battleContext.gameMode = 'battle';
-        }
+        // 新しいContextクラスのインスタンスを登録するための専用エンティティを作成
+        const contextEntity = this.world.createEntity();
+
+        // 各Contextの新しいインスタンスを登録
+        this.world.addComponent(contextEntity, new TurnContext());
+        this.world.addComponent(contextEntity, new PhaseContext());
+        this.world.addComponent(contextEntity, new BattleStateContext());
+        this.world.addComponent(contextEntity, new BattleSequenceContext());
+        this.world.addComponent(contextEntity, new BattleHistoryContext());
+        this.world.addComponent(contextEntity, new HookContext());
+
     }
 
     _bindEvents(gameDataManager) {
@@ -52,7 +65,7 @@ export class BattleScene extends Scene {
         this.world.on(GameEvents.RESET_BUTTON_CLICKED, () => {
             this.world.emit(GameEvents.SCENE_CHANGE_REQUESTED, {
                 sceneName: 'map',
-                data: {} 
+                data: {}
             });
         });
     }

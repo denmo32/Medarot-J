@@ -9,7 +9,7 @@ import { ActionSelectionState } from './ActionSelectionState.js';
 
 export class TurnStartState extends BaseState {
     enter() {
-        this.battleContext.phase = BattlePhase.TURN_START;
+        this.phaseContext.phase = BattlePhase.TURN_START;
         // TurnSystem等は毎フレーム動作しているため、特別な処理は不要。
         // 即座に次のフェーズへ移行するが、拡張性を考慮してステートとして残す。
     }

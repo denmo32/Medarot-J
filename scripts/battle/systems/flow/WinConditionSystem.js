@@ -3,17 +3,17 @@ import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { TeamID } from '../../../common/constants.js';
 import { BattlePhase } from '../../common/constants.js';
-import { BattleContext } from '../../components/BattleContext.js'; // 修正
+import { PhaseContext } from '../../components/PhaseContext.js'; // 修正
 import { TargetingService } from '../../services/TargetingService.js';
 
 export class WinConditionSystem extends System {
     constructor(world) {
         super(world);
-        this.battleContext = this.world.getSingletonComponent(BattleContext);
+        this.phaseContext = this.world.getSingletonComponent(PhaseContext); // 修正
         this.brokenEventsQueue = [];
 
         this.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
-        
+
         // シーケンス完了時に判定を行う
         this.on(GameEvents.ACTION_SEQUENCE_COMPLETED, this.checkWinCondition.bind(this));
         // フェーズ終了時にも念のため
@@ -25,7 +25,7 @@ export class WinConditionSystem extends System {
     }
 
     checkWinCondition() {
-        if (this.battleContext.phase === BattlePhase.GAME_OVER) {
+        if (this.phaseContext.phase === BattlePhase.GAME_OVER) { // 修正
             return;
         }
 
@@ -39,7 +39,7 @@ export class WinConditionSystem extends System {
             const brokenPlayerInfo = this.world.getComponent(brokenEntityId, PlayerInfo);
 
             let isGameOver = false;
-            
+
             // リーダー破壊判定
             if (brokenPlayerInfo && brokenPlayerInfo.isLeader) {
                 isGameOver = true;
@@ -55,11 +55,11 @@ export class WinConditionSystem extends System {
                 const winningTeam = losingTeamId === TeamID.TEAM1 ? TeamID.TEAM2 : TeamID.TEAM1;
                 this.world.emit(GameEvents.GAME_OVER, { winningTeam });
                 // 一度ゲームオーバーになったら以降の判定は不要
-                this.brokenEventsQueue = []; 
+                this.brokenEventsQueue = [];
                 return;
             }
         }
-        
+
         // 処理済みイベントをクリア
         this.brokenEventsQueue = [];
     }

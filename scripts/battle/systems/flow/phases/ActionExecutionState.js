@@ -17,7 +17,7 @@ export class ActionExecutionState extends BaseState {
     }
 
     enter() {
-        this.battleContext.phase = BattlePhase.ACTION_EXECUTION;
+        this.phaseContext.phase = BattlePhase.ACTION_EXECUTION;
         // BattleSequenceSystemがこのフェーズを監視して起動する
         // 完了イベントをリッスンする
         this.world.on(GameEvents.ACTION_EXECUTION_COMPLETED, this._onSequenceCompleted);

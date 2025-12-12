@@ -9,15 +9,15 @@ import { TurnStartState } from './TurnStartState.js';
 
 export class TurnEndState extends BaseState {
     enter() {
-        this.battleContext.phase = BattlePhase.TURN_END;
-        
-        this.battleContext.turn.number++;
-        
+        this.phaseContext.phase = BattlePhase.TURN_END;
+
+        this.turnContext.number++;
+
         // ターン終了イベント発行 (EffectSystemなどがリッスン)
-        this.world.emit(GameEvents.TURN_END, { turnNumber: this.battleContext.turn.number - 1 });
-        
+        this.world.emit(GameEvents.TURN_END, { turnNumber: this.turnContext.number - 1 });
+
         // ターン開始イベント発行
-        this.world.emit(GameEvents.TURN_START, { turnNumber: this.battleContext.turn.number });
+        this.world.emit(GameEvents.TURN_START, { turnNumber: this.turnContext.number });
     }
 
     update(deltaTime) {

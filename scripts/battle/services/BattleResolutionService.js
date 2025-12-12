@@ -12,7 +12,7 @@ import { TargetingService } from './TargetingService.js';
 import { QueryService } from './QueryService.js';
 import { EffectService } from './EffectService.js';
 import { HookPhase } from '../definitions/HookRegistry.js';
-import { BattleContext } from '../components/BattleContext.js';
+import { HookContext } from '../components/HookContext.js';
 import { GameEvents } from '../../common/events.js';
 import { MessageService } from './MessageService.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
@@ -20,7 +20,7 @@ import { targetingStrategies } from '../ai/targetingStrategies.js';
 export class BattleResolutionService {
     constructor(world) {
         this.world = world;
-        this.battleContext = world.getSingletonComponent(BattleContext);
+        this.hookContext = world.getSingletonComponent(HookContext);
         this.messageGenerator = new MessageService(world);
     }
 
@@ -59,26 +59,26 @@ export class BattleResolutionService {
         }
 
         // フック: 攻撃開始直前
-        this.battleContext.hookRegistry.execute(HookPhase.BEFORE_COMBAT_CALCULATION, ctx);
+        this.hookContext.hookRegistry.execute(HookPhase.BEFORE_COMBAT_CALCULATION, ctx);
         if (ctx.shouldCancel) return this._buildResult(ctx, eventsToEmit, allStateUpdates, visualSequence);
 
         // 4. 命中・クリティカル等の判定
         this._calculateHitOutcome(ctx);
 
         // フック: 命中判定後
-        this.battleContext.hookRegistry.execute(HookPhase.AFTER_HIT_CALCULATION, ctx);
+        this.hookContext.hookRegistry.execute(HookPhase.AFTER_HIT_CALCULATION, ctx);
 
         // 5. 効果値計算
         this._calculateEffects(ctx);
 
         // フック: 効果適用前
-        this.battleContext.hookRegistry.execute(HookPhase.BEFORE_EFFECT_APPLICATION, ctx);
+        this.hookContext.hookRegistry.execute(HookPhase.BEFORE_EFFECT_APPLICATION, ctx);
 
         // 6. 適用データ生成 (副作用なし)
         this._resolveApplications(ctx, eventsToEmit, allStateUpdates);
-        
+
         // フック: 効果適用後
-        this.battleContext.hookRegistry.execute(HookPhase.AFTER_EFFECT_APPLICATION, ctx);
+        this.hookContext.hookRegistry.execute(HookPhase.AFTER_EFFECT_APPLICATION, ctx);
 
         // 7. 演出指示データ生成
         visualSequence = this._createVisuals(ctx);

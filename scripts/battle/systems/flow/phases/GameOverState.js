@@ -14,8 +14,8 @@ export class GameOverState extends BaseState {
     }
 
     enter() {
-        this.battleContext.phase = BattlePhase.GAME_OVER;
-        this.battleContext.winningTeam = this.winningTeam;
+        this.system.phaseContext.phase = BattlePhase.GAME_OVER;
+        this.system.battleStateContext.winningTeam = this.winningTeam;
 
         // タイマーエンティティを作成してシーン遷移を予約
         // (UIのOKボタンでも遷移するが、自動遷移も残す)

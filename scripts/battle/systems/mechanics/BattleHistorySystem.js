@@ -1,5 +1,5 @@
 import { System } from '../../../../engine/core/System.js';
-import { BattleContext } from '../../components/BattleContext.js'; // 修正
+import { BattleHistoryContext } from '../../components/BattleHistoryContext.js';
 import { BattleLog } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
@@ -8,13 +8,13 @@ import { EffectType } from '../../../common/constants.js';
 export class BattleHistorySystem extends System {
     constructor(world) {
         super(world);
-        this.battleContext = this.world.getSingletonComponent(BattleContext);
+        this.battleHistoryContext = this.world.getSingletonComponent(BattleHistoryContext);
         this.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
     }
 
     onCombatSequenceResolved(detail) {
         const { attackerId, appliedEffects, attackingPart } = detail;
-        
+
         const mainEffect = appliedEffects.find(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL);
         if (!mainEffect) return;
 
@@ -39,11 +39,11 @@ export class BattleHistorySystem extends System {
         if (!attackerInfo || !targetInfo) return;
 
         if (!attackingPart.isSupport && mainEffect.type === EffectType.DAMAGE) {
-            this.battleContext.history.teamLastAttack[attackerInfo.teamId] = { targetId, partKey };
+            this.battleHistoryContext.history.teamLastAttack[attackerInfo.teamId] = { targetId, partKey };
         }
 
         if (targetInfo.isLeader && !attackingPart.isSupport && mainEffect.type === EffectType.DAMAGE) {
-            this.battleContext.history.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
+            this.battleHistoryContext.history.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
         }
     }
 }

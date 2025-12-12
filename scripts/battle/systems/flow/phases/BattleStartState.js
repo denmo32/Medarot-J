@@ -17,7 +17,7 @@ export class BattleStartState extends BaseState {
     }
 
     enter() {
-        this.battleContext.phase = BattlePhase.BATTLE_START;
+        this.phaseContext.phase = BattlePhase.BATTLE_START;
         this.world.on('BATTLE_ANIMATION_COMPLETED', this._onAnimationCompleted);
         this.world.emit(GameEvents.SHOW_BATTLE_START_ANIMATION);
     }

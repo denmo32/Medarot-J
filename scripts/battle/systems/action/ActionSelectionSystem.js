@@ -1,5 +1,5 @@
 import { System } from '../../../../engine/core/System.js';
-import { BattleContext } from '../../components/BattleContext.js';
+import { TurnContext } from '../../components/TurnContext.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { Action, Gauge } from '../../components/index.js';
@@ -11,8 +11,8 @@ import { CommandExecutor, createCommand } from '../../common/Command.js';
 export class ActionSelectionSystem extends System {
     constructor(world) {
         super(world);
-        this.battleContext = this.world.getSingletonComponent(BattleContext);
-        
+        this.turnContext = this.world.getSingletonComponent(TurnContext);
+
         this.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
         this.on(GameEvents.NEXT_ACTOR_DETERMINED, this.onNextActorDetermined.bind(this));
     }
@@ -24,25 +24,25 @@ export class ActionSelectionSystem extends System {
 
     onNextActorDetermined(detail) {
         const { entityId } = detail;
-        this.battleContext.turn.currentActorId = entityId;
+        this.turnContext.currentActorId = entityId;
         this.triggerActionSelection(entityId);
     }
 
     triggerActionSelection(entityId) {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        const eventToEmit = playerInfo.teamId === 'team1' 
-            ? GameEvents.PLAYER_INPUT_REQUIRED 
+        const eventToEmit = playerInfo.teamId === 'team1'
+            ? GameEvents.PLAYER_INPUT_REQUIRED
             : GameEvents.AI_ACTION_REQUIRED;
-            
+
         this.world.emit(eventToEmit, { entityId });
     }
 
     onActionSelected(detail) {
         const { entityId, partKey, targetId, targetPartKey } = detail;
 
-        if (this.battleContext.turn.currentActorId === entityId) {
-            this.battleContext.turn.selectedActions.set(entityId, detail);
-            this.battleContext.turn.currentActorId = null;
+        if (this.turnContext.currentActorId === entityId) {
+            this.turnContext.selectedActions.set(entityId, detail);
+            this.turnContext.currentActorId = null;
         }
 
         const action = this.world.getComponent(entityId, Action);
@@ -63,7 +63,7 @@ export class ActionSelectionSystem extends System {
         action.targetTiming = selectedPart.targetTiming;
 
         const modifier = EffectService.getSpeedMultiplierModifier(this.world, entityId, selectedPart);
-        const speedMultiplier = CombatCalculator.calculateSpeedMultiplier({ 
+        const speedMultiplier = CombatCalculator.calculateSpeedMultiplier({
             might: selectedPart.might,
             success: selectedPart.success,
             factorType: 'charge',
@@ -86,7 +86,7 @@ export class ActionSelectionSystem extends System {
             })
         ];
         CommandExecutor.executeCommands(this.world, commands);
-        
+
         // 完了通知は不要（Stateがポーリングするため）
         // this.world.emit(GameEvents.ACTION_SELECTION_COMPLETED);
     }

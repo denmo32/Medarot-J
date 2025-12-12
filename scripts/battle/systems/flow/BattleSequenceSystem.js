@@ -6,7 +6,9 @@ import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
 import { TargetTiming } from '../../../common/constants.js';
-import { BattleContext } from '../../components/BattleContext.js';
+import { BattleSequenceContext } from '../../components/BattleSequenceContext.js';
+import { PhaseContext } from '../../components/PhaseContext.js';
+import { TurnContext } from '../../components/TurnContext.js';
 import { GameState, Action } from '../../components/index.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
 import { TaskRunner } from '../../tasks/TaskRunner.js';
@@ -29,13 +31,15 @@ const SequenceState = {
 export class BattleSequenceSystem extends System {
     constructor(world) {
         super(world);
-        this.battleContext = this.world.getSingletonComponent(BattleContext);
-        
+        this.battleSequenceContext = this.world.getSingletonComponent(BattleSequenceContext);
+        this.phaseContext = this.world.getSingletonComponent(PhaseContext);
+        this.turnContext = this.world.getSingletonComponent(TurnContext);
+
         this.service = new ActionSequenceService(world);
         this.timelineBuilder = new TimelineBuilder(world);
         this.taskRunner = new TaskRunner(world);
         this.battleResolver = new BattleResolutionService(world); // 初期化処理を追加
-        
+
         this.executionQueue = [];
         this.internalState = SequenceState.IDLE;
         this.currentActorId = null;
@@ -44,7 +48,7 @@ export class BattleSequenceSystem extends System {
         this.on(GameEvents.REQUEST_RESET_TO_COOLDOWN, this.onRequestResetToCooldown.bind(this));
         this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
         this.on(GameEvents.GAME_OVER, this.abortSequence.bind(this));
-        
+
         this.on(GameEvents.GAME_PAUSED, () => { this.taskRunner.isPaused = true; });
         this.on(GameEvents.GAME_RESUMED, () => { this.taskRunner.isPaused = false; });
     }
@@ -71,7 +75,7 @@ export class BattleSequenceSystem extends System {
         this.taskRunner.update(deltaTime);
 
         // ゲームオーバー時は処理しない
-        if (this.battleContext.phase === BattlePhase.GAME_OVER) {
+        if (this.phaseContext.phase === BattlePhase.GAME_OVER) {
             if (this.internalState !== SequenceState.IDLE) this.abortSequence();
             return;
         }
@@ -79,7 +83,7 @@ export class BattleSequenceSystem extends System {
         // メインステートマシン
         switch (this.internalState) {
             case SequenceState.IDLE:
-                if (this.battleContext.phase === BattlePhase.ACTION_EXECUTION && !this.battleContext.isSequenceRunning) {
+                if (this.phaseContext.phase === BattlePhase.ACTION_EXECUTION && !this.battleSequenceContext.isSequenceRunning) {
                     this._startExecutionPhase();
                 }
                 break;
@@ -91,13 +95,13 @@ export class BattleSequenceSystem extends System {
             case SequenceState.PROCESSING_QUEUE:
                 this._processQueueNext();
                 break;
-                
+
             case SequenceState.EXECUTING_TASK:
                 if (this.taskRunner.isIdle) {
                     this._onTaskCompleted();
                 }
                 break;
-                
+
             case SequenceState.FINISHING:
                 this._finishSequence();
                 break;
@@ -106,12 +110,12 @@ export class BattleSequenceSystem extends System {
 
     _startExecutionPhase() {
         this.internalState = SequenceState.PREPARING;
-        this.battleContext.isSequenceRunning = true;
+        this.battleSequenceContext.isSequenceRunning = true;
     }
 
     _prepareQueue() {
         this.executionQueue = this.service.getSortedReadyEntities();
-        
+
         if (this.executionQueue.length === 0) {
             this.internalState = SequenceState.FINISHING;
         } else {
@@ -131,8 +135,8 @@ export class BattleSequenceSystem extends System {
         }
 
         this.currentActorId = actorId;
-        this.battleContext.turn.currentActorId = actorId;
-        
+        this.turnContext.currentActorId = actorId;
+
         this._startActorSequence(actorId);
         this.internalState = SequenceState.EXECUTING_TASK;
     }
@@ -167,9 +171,9 @@ export class BattleSequenceSystem extends System {
                 this.world.emit(event.type, event.payload);
             });
         }
-        
+
         if (resultData.isCancelled) {
-            this.taskRunner.setSequence([], actorId); 
+            this.taskRunner.setSequence([], actorId);
             return;
         }
 
@@ -182,16 +186,16 @@ export class BattleSequenceSystem extends System {
         if (this.currentActorId) {
             this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: this.currentActorId });
         }
-        
+
         this.currentActorId = null;
-        this.battleContext.turn.currentActorId = null;
+        this.turnContext.currentActorId = null;
         this.internalState = SequenceState.PROCESSING_QUEUE;
     }
 
     _finishSequence() {
         this.internalState = SequenceState.IDLE;
-        this.battleContext.isSequenceRunning = false;
-        
+        this.battleSequenceContext.isSequenceRunning = false;
+
         this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
     }
 
@@ -200,7 +204,7 @@ export class BattleSequenceSystem extends System {
         this.taskRunner.abort();
         this.internalState = SequenceState.IDLE;
         this.currentActorId = null;
-        this.battleContext.isSequenceRunning = false;
+        this.battleSequenceContext.isSequenceRunning = false;
     }
 
     onRequestResetToCooldown(detail) {
@@ -208,13 +212,13 @@ export class BattleSequenceSystem extends System {
         const cmd = createCommand('RESET_TO_COOLDOWN', { targetId: entityId, options: options });
         cmd.execute(this.world);
     }
-    
+
     onCheckActionCancellation() {
         const actors = this.getEntities(GameState, Action);
         for (const actorId of actors) {
             const gameState = this.world.getComponent(actorId, GameState);
             if (gameState.state !== PlayerStateType.SELECTED_CHARGING) continue;
-            
+
             const check = CancellationService.checkCancellation(this.world, actorId);
             if (check.shouldCancel) {
                 CancellationService.executeCancel(this.world, actorId, check.reason);

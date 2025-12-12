@@ -9,7 +9,9 @@ export class BaseState {
     constructor(system) {
         this.system = system;
         this.world = system.world;
-        this.battleContext = system.battleContext;
+        this.phaseContext = system.phaseContext; // 追加
+        this.battleStateContext = system.battleStateContext; // 追加
+        this.turnContext = system.turnContext; // 追加
     }
 
     /**

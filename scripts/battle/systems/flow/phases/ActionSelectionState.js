@@ -11,7 +11,7 @@ import { GameEvents } from '../../../../common/events.js';
 
 export class ActionSelectionState extends BaseState {
     enter() {
-        this.battleContext.phase = BattlePhase.ACTION_SELECTION;
+        this.phaseContext.phase = BattlePhase.ACTION_SELECTION;
         // ActionSelectionSystemがこのフェーズ中に動作する
     }
 

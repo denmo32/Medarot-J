@@ -16,7 +16,7 @@ export class IdleState extends BaseState {
     }
 
     enter() {
-        this.battleContext.phase = BattlePhase.IDLE;
+        this.phaseContext.phase = BattlePhase.IDLE;
         this.world.on(GameEvents.GAME_START_CONFIRMED, this._onGameStartConfirmed);
     }
 

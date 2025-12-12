@@ -21,7 +21,7 @@ export class InitialSelectionState extends BaseState {
     }
 
     enter() {
-        this.battleContext.phase = BattlePhase.INITIAL_SELECTION;
+        this.phaseContext.phase = BattlePhase.INITIAL_SELECTION;
         this._initPlayers();
         this.world.on(GameEvents.BATTLE_START_CONFIRMED, this._onConfirm);
         this.world.on(GameEvents.BATTLE_START_CANCELLED, this._onCancel);
@@ -37,7 +37,7 @@ export class InitialSelectionState extends BaseState {
             this._cancelled = false;
             this._isConfirming = false;
             this.world.emit(GameEvents.HIDE_MODAL);
-            this.battleContext.isPaused = false;
+            this.battleStateContext.isPaused = false;
             this._initPlayers();
             return null;
         }
@@ -45,12 +45,12 @@ export class InitialSelectionState extends BaseState {
         // 全員選択完了チェック
         if (!this._isConfirming && this._checkAllSelected()) {
             this._isConfirming = true;
-            this.world.emit(GameEvents.SHOW_MODAL, { 
+            this.world.emit(GameEvents.SHOW_MODAL, {
                 type: 'battle_start_confirm',
                 data: {},
                 priority: 'high'
             });
-            this.battleContext.isPaused = true; 
+            this.battleStateContext.isPaused = true;
         }
 
         return null;
@@ -60,7 +60,7 @@ export class InitialSelectionState extends BaseState {
         this.world.off(GameEvents.BATTLE_START_CONFIRMED, this._onConfirm);
         this.world.off(GameEvents.BATTLE_START_CANCELLED, this._onCancel);
         this.world.emit(GameEvents.HIDE_MODAL);
-        this.battleContext.isPaused = false;
+        this.battleStateContext.isPaused = false;
     }
 
     _initPlayers() {

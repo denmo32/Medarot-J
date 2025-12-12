@@ -1,6 +1,7 @@
 import { Gauge, GameState } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
-import { BattleContext } from '../../components/BattleContext.js'; 
+import { BattleSequenceContext } from '../../components/BattleSequenceContext.js';
+import { PhaseContext } from '../../components/PhaseContext.js';
 import { BattlePhase } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';
@@ -9,15 +10,16 @@ import { CombatCalculator } from '../../logic/CombatCalculator.js';
 export class GaugeSystem extends System {
     constructor(world) {
         super(world);
-        this.battleContext = this.world.getSingletonComponent(BattleContext);
+        this.battleSequenceContext = this.world.getSingletonComponent(BattleSequenceContext);
+        this.phaseContext = this.world.getSingletonComponent(PhaseContext);
         this.isPaused = false;
-        
+
         this.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
         this.on(GameEvents.GAME_RESUMED, this.onResumeGame.bind(this));
     }
 
     update(deltaTime) {
-        if (this.battleContext.isSequenceRunning) {
+        if (this.battleSequenceContext.isSequenceRunning) {
             return;
         }
 
@@ -28,7 +30,7 @@ export class GaugeSystem extends System {
             BattlePhase.TURN_END,
         ];
 
-        if (!activePhases.includes(this.battleContext.phase) || this.isPaused) {
+        if (!activePhases.includes(this.phaseContext.phase) || this.isPaused) {
             return;
         }
 
@@ -46,7 +48,7 @@ export class GaugeSystem extends System {
 
         for (const entityId of entities) {
             const gauge = this.world.getComponent(entityId, Gauge);
-            
+
             // 行動ゲージ以外は無視 (汎用性確保)
             if (gauge.type !== 'ACTION') {
                 continue;
@@ -69,7 +71,7 @@ export class GaugeSystem extends System {
                 speedMultiplier,
                 deltaTime
             });
-            
+
             gauge.currentSpeed = nextSpeed;
             gauge.value += increment;
 
@@ -79,7 +81,7 @@ export class GaugeSystem extends System {
             }
         }
     }
-    
+
     onPauseGame() { this.isPaused = true; }
     onResumeGame() { this.isPaused = false; }
 }

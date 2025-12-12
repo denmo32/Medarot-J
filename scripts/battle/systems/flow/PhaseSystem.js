@@ -4,7 +4,9 @@
  * 各フェーズのロジックはStateクラスに委譲される。
  */
 import { System } from '../../../../engine/core/System.js';
-import { BattleContext } from '../../components/BattleContext.js';
+import { PhaseContext } from '../../components/PhaseContext.js';
+import { BattleStateContext } from '../../components/BattleStateContext.js'; // winningTeam用
+import { TurnContext } from '../../components/TurnContext.js'; // 追加
 import { GameEvents } from '../../../common/events.js';
 import { IdleState } from './phases/IdleState.js';
 import { GameOverState } from './phases/GameOverState.js';
@@ -12,8 +14,10 @@ import { GameOverState } from './phases/GameOverState.js';
 export class PhaseSystem extends System {
     constructor(world) {
         super(world);
-        this.battleContext = this.world.getSingletonComponent(BattleContext);
-        
+        this.phaseContext = this.world.getSingletonComponent(PhaseContext);
+        this.battleStateContext = this.world.getSingletonComponent(BattleStateContext); // winningTeam用
+        this.turnContext = this.world.getSingletonComponent(TurnContext); // 追加
+
         // 初期ステート
         this.currentState = new IdleState(this);
         this.currentState.enter();
@@ -26,7 +30,7 @@ export class PhaseSystem extends System {
         if (!this.currentState) return;
 
         const nextState = this.currentState.update(deltaTime);
-        
+
         if (nextState) {
             this.changeState(nextState);
         }
@@ -43,7 +47,7 @@ export class PhaseSystem extends System {
     onGameOver(detail) {
         // 既にゲームオーバーなら何もしない
         if (this.currentState instanceof GameOverState) return;
-        
+
         this.changeState(new GameOverState(this, detail.winningTeam));
     }
 }

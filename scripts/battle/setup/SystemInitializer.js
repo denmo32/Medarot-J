@@ -2,7 +2,6 @@
  * @file SystemInitializer.js
  * @description バトルシーンで使用するSystemの初期化・登録を行う。
  */
-import { BattleContext } from '../components/BattleContext.js';
 import { BattleUIState } from '../components/index.js';
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
@@ -31,7 +30,6 @@ import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
 export function initializeSystems(world, gameDataManager) {
     const contextEntity = world.createEntity();
-    world.addComponent(contextEntity, new BattleContext());
     world.addComponent(contextEntity, new BattleUIState());
     world.addComponent(contextEntity, new UIManager());
 

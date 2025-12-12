@@ -6,7 +6,6 @@ import { getStrategiesFor } from './personalityRegistry.js';
 import { targetingStrategies } from './targetingStrategies.js';
 import { conditionEvaluators } from './conditionEvaluators.js';
 import { partSelectionStrategies } from './partSelectionStrategies.js';
-import { BattleContext } from '../components/BattleContext.js';
 
 export function determineTargetCandidatesByPersonality({ world, entityId }) {
     const attackerMedal = world.getComponent(entityId, Medal);
