@@ -15,6 +15,7 @@ import { HookPhase } from '../definitions/HookRegistry.js';
 import { HookContext } from '../components/HookContext.js';
 import { GameEvents } from '../../common/events.js';
 import { MessageService } from './MessageService.js';
+import { VisualSequenceGenerator } from '../logic/VisualSequenceGenerator.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
 
 export class BattleResolutionService {
@@ -144,118 +145,16 @@ export class BattleResolutionService {
     }
 
     _calculateHitOutcome(ctx) {
-        const { attackingPart, attackerId, attackerParts, finalTargetId, targetLegs } = ctx;
-        
-        if (!finalTargetId || !targetLegs) {
-            ctx.outcome = CombatCalculator.resolveHitOutcome({
-                isSupport: ctx.isSupport,
-                evasionChance: 0,
-                criticalChance: 0,
-                defenseChance: 0,
-                initialTargetPartKey: ctx.finalTargetPartKey,
-                bestDefensePartKey: null
-            });
-            return;
-        }
-
-        const calcParams = attackingPart.effects?.find(e => e.type === EffectType.DAMAGE)?.calculation || {};
-        const baseStatKey = calcParams.baseStat || 'success';
-        const defenseStatKey = calcParams.defenseStat || 'armor';
-
-        const attackerSuccess = EffectService.getStatModifier(this.world, attackerId, baseStatKey, { 
-            attackingPart: attackingPart, 
-            attackerLegs: attackerParts.legs 
-        }) + (attackingPart[baseStatKey] || 0);
-
-        const targetMobility = (targetLegs.mobility || 0);
-
-        const evasionChance = CombatCalculator.calculateEvasionChance({
-            mobility: targetMobility,
-            attackerSuccess: attackerSuccess
-        });
-
-        const bonusChance = EffectService.getCriticalChanceModifier(attackingPart);
-        const criticalChance = CombatCalculator.calculateCriticalChance({
-            success: attackerSuccess,
-            mobility: targetMobility,
-            bonusChance: bonusChance
-        });
-
-        const targetArmor = (targetLegs[defenseStatKey] || 0);
-        const defenseChance = CombatCalculator.calculateDefenseChance({
-            armor: targetArmor
-        });
-        
-        const bestDefensePartKey = QueryService.findBestDefensePart(this.world, finalTargetId);
-
-        ctx.outcome = CombatCalculator.resolveHitOutcome({
-            isSupport: ctx.isSupport,
-            evasionChance,
-            criticalChance,
-            defenseChance,
-            initialTargetPartKey: ctx.finalTargetPartKey,
-            bestDefensePartKey
-        });
+        ctx.outcome = CombatCalculator.calculateHitOutcomeFromContext(ctx);
     }
 
     _calculateEffects(ctx) {
-        const { action, attackingPart, attackerInfo, attackerParts, finalTargetId, outcome } = ctx;
-
-        if (!outcome.isHit && finalTargetId) {
-            return;
-        }
-
-        for (const effectDef of attackingPart.effects || []) {
-            const result = EffectRegistry.process(effectDef.type, {
-                world: this.world,
-                sourceId: ctx.attackerId,
-                targetId: finalTargetId,
-                effect: effectDef,
-                part: attackingPart,
-                partKey: action.partKey,
-                partOwner: { info: attackerInfo, parts: attackerParts },
-                outcome,
-            });
-
-            if (result) {
-                result.penetrates = attackingPart.penetrates || false;
-                result.calculation = effectDef.calculation; 
-                ctx.rawEffects.push(result);
-            }
-        }
+        EffectRegistry.processAll(ctx);
     }
 
     _createVisuals(ctx) {
-        let visuals = [];
-        
-        const { attackerId, intendedTargetId, finalTargetId, guardianInfo, appliedEffects } = ctx;
-
-        const animationTargetId = intendedTargetId || finalTargetId;
-        visuals.push({
-            type: 'ANIMATE',
-            animationType: animationTargetId ? 'attack' : 'support',
-            attackerId,
-            targetId: animationTargetId
-        });
-        
-        visuals.push(...this.messageGenerator.createDeclarationSequence(ctx));
-        
-        if (appliedEffects && appliedEffects.length > 0) {
-            const mainEffectType = appliedEffects[0].type;
-            visuals.push(...EffectRegistry.createVisuals(mainEffectType, {
-                world: this.world,
-                effects: appliedEffects,
-                guardianInfo,
-                messageGenerator: this.messageGenerator
-            }));
-        } else if (!ctx.outcome.isHit && ctx.intendedTargetId) {
-            visuals.push(...this.messageGenerator.createResultSequence(ctx));
-        }
-        
-        visuals.push({ type: 'EVENT', eventName: GameEvents.REFRESH_UI });
-        visuals.push({ type: 'EVENT', eventName: GameEvents.CHECK_ACTION_CANCELLATION });
-        
-        return visuals;
+        // VisualSequenceGeneratorに演出シーケンスの生成を委譲
+        return VisualSequenceGenerator.generateVisualSequence(ctx);
     }
 
     _buildResult(ctx, eventsToEmit, stateUpdates, visualSequence) {

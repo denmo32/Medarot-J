@@ -7,6 +7,8 @@
 import { CONFIG } from '../common/config.js';
 import { GameError, ErrorType } from '../../../engine/utils/ErrorHandler.js';
 import { clamp } from '../../../engine/utils/MathUtils.js';
+import { EffectService } from '../services/EffectService.js';
+import { QueryService } from '../services/QueryService.js';
 
 /**
  * 戦闘計算戦略の基底クラス
@@ -199,7 +201,7 @@ class DefaultCombatStrategy extends CombatStrategy {
  */
 export const CombatCalculator = {
     strategy: new DefaultCombatStrategy(),
-    
+
     setStrategy(newStrategy) {
         if (newStrategy instanceof CombatStrategy) {
             this.strategy = newStrategy;
@@ -207,12 +209,82 @@ export const CombatCalculator = {
             console.warn('Invalid combat strategy provided.');
         }
     },
-    
+
     calculateEvasionChance(params) { return this.strategy.calculateEvasionChance(params); },
     calculateDefenseChance(params) { return this.strategy.calculateDefenseChance(params); },
     calculateCriticalChance(params) { return this.strategy.calculateCriticalChance(params); },
     calculateDamage(params) { return this.strategy.calculateDamage(params); },
     calculateSpeedMultiplier(params) { return this.strategy.calculateSpeedMultiplier(params); },
     calculateGaugeUpdate(params) { return this.strategy.calculateGaugeUpdate(params); },
-    resolveHitOutcome(params) { return this.strategy.resolveHitOutcome(params); }
+    resolveHitOutcome(params) { return this.strategy.resolveHitOutcome(params); },
+
+    /**
+     * Contextから戦闘計算に必要なパラメータを抽出する
+     * @param {object} ctx - 戦闘コンテキスト
+     * @returns {object} 計算用パラメータ
+     */
+    getCombatParamsFromContext(ctx) {
+        const { attackingPart, attackerId, attackerParts, finalTargetId, targetLegs } = ctx;
+
+        if (!finalTargetId || !targetLegs) {
+            // ターゲットがいない場合は基本的なパラメータを返す
+            return {
+                isSupport: ctx.isSupport,
+                evasionChance: 0,
+                criticalChance: 0,
+                defenseChance: 0,
+                initialTargetPartKey: ctx.finalTargetPartKey,
+                bestDefensePartKey: null
+            };
+        }
+
+        const calcParams = attackingPart.effects?.find(e => e.type === 'DAMAGE')?.calculation || {};
+        const baseStatKey = calcParams.baseStat || 'success';
+        const defenseStatKey = calcParams.defenseStat || 'armor';
+
+        const attackerSuccess = EffectService.getStatModifier(ctx.world, attackerId, baseStatKey, {
+            attackingPart: attackingPart,
+            attackerLegs: attackerParts.legs
+        }) + (attackingPart[baseStatKey] || 0);
+
+        const targetMobility = (targetLegs.mobility || 0);
+
+        const evasionChance = this.calculateEvasionChance({
+            mobility: targetMobility,
+            attackerSuccess: attackerSuccess
+        });
+
+        const bonusChance = EffectService.getCriticalChanceModifier(attackingPart);
+        const criticalChance = this.calculateCriticalChance({
+            success: attackerSuccess,
+            mobility: targetMobility,
+            bonusChance: bonusChance
+        });
+
+        const targetArmor = (targetLegs[defenseStatKey] || 0);
+        const defenseChance = this.calculateDefenseChance({
+            armor: targetArmor
+        });
+
+        const bestDefensePartKey = QueryService.findBestDefensePart(ctx.world, finalTargetId);
+
+        return {
+            isSupport: ctx.isSupport,
+            evasionChance,
+            criticalChance,
+            defenseChance,
+            initialTargetPartKey: ctx.finalTargetPartKey,
+            bestDefensePartKey
+        };
+    },
+
+    /**
+     * Contextからパラメータを抽出し、命中判定を実行する
+     * @param {object} ctx - 戦闘コンテキスト
+     * @returns {object} 判定結果
+     */
+    calculateHitOutcomeFromContext(ctx) {
+        const params = this.getCombatParamsFromContext(ctx);
+        return this.resolveHitOutcome(params);
+    }
 };

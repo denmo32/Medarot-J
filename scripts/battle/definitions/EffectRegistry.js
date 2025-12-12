@@ -35,6 +35,40 @@ export class EffectRegistry {
     }
 
     /**
+     * コンテキストからエフェクト定義を取得・処理し、結果をrawEffectsに追加する
+     * @param {object} ctx - バトルコンテキスト
+     */
+    static processAll(ctx) {
+        const { action, attackingPart, attackerInfo, attackerParts, finalTargetId, outcome } = ctx;
+
+        // 命中しなかった場合はエフェクトを処理しない（サポート行動の場合は例外）
+        if (!outcome.isHit && finalTargetId) {
+            return;
+        }
+
+        for (const effectDef of attackingPart.effects || []) {
+            const result = this.process(effectDef.type, {
+                world: ctx.world,
+                sourceId: ctx.attackerId,
+                targetId: finalTargetId,
+                effect: effectDef,
+                part: attackingPart,
+                partKey: action.partKey,
+                partOwner: { info: attackerInfo, parts: attackerParts },
+                outcome,
+            });
+
+            if (result) {
+                result.penetrates = attackingPart.penetrates || false;
+                result.calculation = effectDef.calculation;
+                // MessageService経由でrawEffectsにプッシュ（ここではctx.rawEffectsに直接プッシュ）
+                // -> ただし、`MessageService` は通常 `rawEffects` を更新しないので、ここは直接 `ctx` を操作する
+                ctx.rawEffects.push(result);
+            }
+        }
+    }
+
+    /**
      * 適用データ生成フェーズ
      * Worldの現状を参照して、適用すべき状態変更(stateUpdates)と発生イベント(events)を生成して返す。
      * 実際にWorldを変更してはならない。
