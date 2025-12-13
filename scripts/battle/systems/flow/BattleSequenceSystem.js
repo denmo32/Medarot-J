@@ -44,7 +44,6 @@ export class BattleSequenceSystem extends System {
         this.currentActorId = null;
 
         // イベントは入力トリガーとしてのみ使用
-        this.on(GameEvents.REQUEST_RESET_TO_COOLDOWN, this.onRequestResetToCooldown.bind(this));
         this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
         this.on(GameEvents.GAME_OVER, this.abortSequence.bind(this));
 
@@ -210,12 +209,6 @@ export class BattleSequenceSystem extends System {
         this.internalState = SequenceState.IDLE;
         this.currentActorId = null;
         this.battleSequenceContext.isSequenceRunning = false;
-    }
-
-    onRequestResetToCooldown(detail) {
-        const { entityId, options } = detail;
-        const cmd = createCommand('RESET_TO_COOLDOWN', { targetId: entityId, options: options });
-        cmd.execute(this.world);
     }
 
     onCheckActionCancellation() {

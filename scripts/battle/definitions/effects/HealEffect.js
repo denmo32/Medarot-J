@@ -34,11 +34,11 @@ export const HealEffect = {
         };
     },
 
-    apply: ({ world, effect }) => {
+    apply: ({ world, effect, simulatedParts }) => {
         const { targetId, partKey, value } = effect;
         if (!targetId) return effect;
 
-        const part = world.getComponent(targetId, Parts)?.[partKey];
+        const part = simulatedParts?.[partKey];
         if (!part) return null;
 
         let actualHealAmount = 0;
@@ -52,15 +52,8 @@ export const HealEffect = {
             newHp = Math.min(part.maxHp, part.hp + value);
             actualHealAmount = newHp - oldHp;
             
-            // データ駆動更新
-            stateUpdates.push({
-                type: 'UPDATE_COMPONENT',
-                targetId,
-                componentType: Parts,
-                updates: {
-                    [partKey]: { hp: newHp }
-                }
-            });
+            // シミュレーション状態を直接更新
+            part.hp = newHp;
             
             if (actualHealAmount > 0) {
                 events.push({

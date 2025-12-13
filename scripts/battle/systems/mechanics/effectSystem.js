@@ -64,29 +64,62 @@ export class EffectSystem extends System {
             return;
         }
 
+        const commandsToExecute = [];
+        const effectsToRemove = [];
         const nextEffects = [];
 
         for (const effect of activeEffects.effects) {
-            if (effect.duration > 0) {
-                effect.duration--;
+            let isExpired = false;
+            const updatedEffect = { ...effect };
+
+            if (updatedEffect.duration > 0) {
+                updatedEffect.duration--;
             }
 
-            if (effect.duration === undefined || effect.duration > 0 || effect.duration === Infinity) {
-                nextEffects.push(effect);
-            } else {
-                this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId, effect });
+            if (updatedEffect.duration !== undefined && updatedEffect.duration <= 0 && updatedEffect.duration !== Infinity) {
+                isExpired = true;
+            }
+
+            if (isExpired) {
+                effectsToRemove.push(effect); // 元のオブジェクトを削除対象に
+                this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId, effect: updatedEffect });
                 
                 const gameState = this.world.getComponent(entityId, GameState);
-                if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
-                    const cmd = createCommand('RESET_TO_COOLDOWN', {
+                if (updatedEffect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
+                    commandsToExecute.push(createCommand('RESET_TO_COOLDOWN', {
                         targetId: entityId,
                         options: {}
-                    });
-                    cmd.execute(this.world);
+                    }));
                 }
+            } else {
+                nextEffects.push(updatedEffect);
             }
         }
+        
+        // 状態変更をコマンド経由に統一
+        if (effectsToRemove.length > 0) {
+            // エフェクト配列の更新コマンドを最初に実行
+            commandsToExecute.unshift(createCommand('CUSTOM_UPDATE', {
+                targetId: entityId,
+                componentType: ActiveEffects,
+                customHandler: (ae) => {
+                    ae.effects = ae.effects.filter(e => !effectsToRemove.includes(e));
+                }
+            }));
+        }
 
-        activeEffects.effects = nextEffects;
+        if (commandsToExecute.length > 0) {
+            CommandExecutor.executeCommands(this.world, commandsToExecute);
+        } else if (effectsToRemove.length === 0 && nextEffects.length !== activeEffects.effects.length) {
+            // durationのみ更新された場合
+            const cmd = createCommand('CUSTOM_UPDATE', {
+                targetId: entityId,
+                componentType: ActiveEffects,
+                customHandler: (ae) => {
+                    ae.effects = nextEffects;
+                }
+            });
+            cmd.execute(this.world);
+        }
     }
 }

@@ -75,8 +75,8 @@ export class QueryService {
     }
 
     // 共通化されたランダム選択ヘルパー
-    static _selectRandomPartKey(world, entityId, filterFn = () => true) {
-        const parts = world.getComponent(entityId, Parts);
+    static _selectRandomPartKey(world, entityId, filterFn = () => true, simulatedParts = null) {
+        const parts = simulatedParts || world.getComponent(entityId, Parts);
         if (!parts || parts.head?.isBroken) return null;
 
         const validKeys = Object.keys(parts).filter(key => 
@@ -98,8 +98,8 @@ export class QueryService {
     /**
      * 貫通対象となるランダムなパーツを選択する（指定パーツ以外）
      */
-    static findRandomPenetrationTarget(world, entityId, excludedPartKey) {
-        return this._selectRandomPartKey(world, entityId, key => key !== excludedPartKey);
+    static findRandomPenetrationTarget(world, entityId, excludedPartKey, simulatedParts = null) {
+        return this._selectRandomPartKey(world, entityId, key => key !== excludedPartKey, simulatedParts);
     }
 
     /**

@@ -64,9 +64,9 @@ export const DamageEffect = {
     },
 
     // --- 適用データ生成フェーズ ---
-    apply: ({ world, effect }) => {
+    apply: ({ world, effect, simulatedParts }) => {
         const { targetId, partKey, value } = effect;
-        const part = world.getComponent(targetId, Parts)?.[partKey];
+        const part = simulatedParts?.[partKey];
         if (!part) return null;
 
         const oldHp = part.hp;
@@ -74,22 +74,16 @@ export const DamageEffect = {
         
         const actualDamage = oldHp - newHp;
         const isPartBroken = oldHp > 0 && newHp === 0;
-        let isPlayerBroken = false;
         let isGuardBroken = false;
 
         const events = [];
         const stateUpdates = [];
 
-        // HP更新リクエスト
-        // Partsコンポーネントの構造に合わせ、ディープマージを利用して更新
-        stateUpdates.push({
-            type: 'UPDATE_COMPONENT',
-            targetId,
-            componentType: Parts,
-            updates: {
-                [partKey]: { hp: newHp, isBroken: isPartBroken ? true : part.isBroken }
-            }
-        });
+        // シミュレーション状態を直接更新
+        part.hp = newHp;
+        if (isPartBroken) {
+            part.isBroken = true;
+        }
 
         events.push({
             type: GameEvents.HP_UPDATED,
@@ -111,7 +105,8 @@ export const DamageEffect = {
             });
 
             if (partKey === PartInfo.HEAD.key) {
-                isPlayerBroken = true;
+                simulatedParts.head.isBroken = true;
+                stateUpdates.push({ type: 'SET_PLAYER_BROKEN', targetId });
             }
 
             const targetState = world.getComponent(targetId, GameState);
@@ -123,11 +118,6 @@ export const DamageEffect = {
                 );
                 if (isGuardPart) {
                     isGuardBroken = true;
-                    events.push({
-                        type: GameEvents.GUARD_BROKEN,
-                        payload: { entityId: targetId }
-                    });
-                    // コマンドを発行してリセット
                     stateUpdates.push({
                         type: 'RESET_TO_COOLDOWN',
                         targetId: targetId,
@@ -145,7 +135,6 @@ export const DamageEffect = {
             oldHp, 
             newHp, 
             isPartBroken, 
-            isPlayerBroken, 
             isGuardBroken, 
             overkillDamage: overkillDamage,
             events: events,

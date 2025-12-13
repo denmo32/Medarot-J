@@ -11,6 +11,7 @@ import { GlitchEffect } from './effects/GlitchEffect.js';
 import { GuardEffect } from './effects/GuardEffect.js';
 import { ConsumeGuardEffect } from './effects/ConsumeGuardEffect.js';
 import { QueryService } from '../services/QueryService.js'; // QueryService をインポート
+import { Parts } from '../../components/index.js';
 
 const registry = {
     [EffectType.DAMAGE]: DamageEffect,
@@ -88,11 +89,15 @@ export class EffectRegistry {
      * @returns {Object} { appliedEffects, eventsToEmit, stateUpdates }
      */
     static applyAll(rawEffects, ctx) {
-        const { world } = ctx;
+        const { world, finalTargetId } = ctx;
         const eventsToEmit = [];
         const allStateUpdates = [];
         const appliedEffects = [];
-        // ガード消費
+
+        // --- シミュレーションのセットアップ ---
+        const targetPartsComponent = finalTargetId !== null ? world.getComponent(finalTargetId, Parts) : null;
+        const simulatedParts = targetPartsComponent ? JSON.parse(JSON.stringify(targetPartsComponent)) : null;
+
         if (ctx.guardianInfo) {
             rawEffects.push({
                 type: EffectType.CONSUME_GUARD,
@@ -106,7 +111,12 @@ export class EffectRegistry {
         while (effectQueue.length > 0) {
             const effect = effectQueue.shift();
 
-            const result = EffectRegistry.apply(effect.type, { world, effect });
+            const applyContext = { world, effect };
+            if (simulatedParts && effect.targetId === finalTargetId) {
+                applyContext.simulatedParts = simulatedParts;
+            }
+
+            const result = EffectRegistry.apply(effect.type, applyContext);
 
             if (result) {
                 appliedEffects.push(result);
@@ -114,8 +124,17 @@ export class EffectRegistry {
                 if (result.events) eventsToEmit.push(...result.events);
                 if (result.stateUpdates) allStateUpdates.push(...result.stateUpdates);
 
-                if (result.isPartBroken && result.overkillDamage > 0 && result.penetrates) {
-                    const nextTargetPartKey = QueryService.findRandomPenetrationTarget(world, result.targetId, result.partKey);
+                // このエフェクト適用によって頭部が破壊されたかチェック
+                const isTargetDefeated = simulatedParts?.head?.isBroken;
+
+                // 貫通処理は、ターゲットがまだ機能停止していない場合にのみ続行
+                if (result.isPartBroken && result.overkillDamage > 0 && result.penetrates && !isTargetDefeated) {
+                    const nextTargetPartKey = QueryService.findRandomPenetrationTarget(
+                        world,
+                        result.targetId,
+                        result.partKey,
+                        simulatedParts
+                    );
 
                     if (nextTargetPartKey) {
                         const nextEffect = {
@@ -131,6 +150,33 @@ export class EffectRegistry {
                         effectQueue.unshift(nextEffect);
                     }
                 }
+            }
+        }
+
+        // --- シミュレーション結果の差分から更新コマンドを生成 ---
+        if (finalTargetId !== null && simulatedParts && targetPartsComponent) {
+            const updates = {};
+            let hasChanges = false;
+            for (const partKey in simulatedParts) {
+                const simPart = simulatedParts[partKey];
+                const origPart = targetPartsComponent[partKey];
+                if (simPart && origPart) {
+                    if (simPart.hp !== origPart.hp || simPart.isBroken !== origPart.isBroken) {
+                        updates[partKey] = {
+                            hp: simPart.hp,
+                            isBroken: simPart.isBroken
+                        };
+                        hasChanges = true;
+                    }
+                }
+            }
+            if (hasChanges) {
+                allStateUpdates.push({
+                    type: 'UPDATE_COMPONENT',
+                    targetId: finalTargetId,
+                    componentType: Parts,
+                    updates: updates
+                });
             }
         }
 

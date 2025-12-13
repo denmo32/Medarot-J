@@ -5,7 +5,8 @@
 import { ObjectPool } from '../../../engine/core/ObjectPool.js';
 import { 
     WaitTask, MoveTask, ApplyStateTask, EventTask, CustomTask,
-    AnimateTask, VfxTask, CameraTask, DialogTask, UiAnimationTask
+    AnimateTask, VfxTask, CameraTask, DialogTask, UiAnimationTask,
+    ApplyVisualEffectTask
 } from './TaskClasses.js';
 
 export const TaskType = {
@@ -18,7 +19,8 @@ export const TaskType = {
     VFX: 'VFX',              
     CAMERA: 'CAMERA',        
     DIALOG: 'DIALOG',        
-    UI_ANIMATION: 'UI_ANIMATION'
+    UI_ANIMATION: 'UI_ANIMATION',
+    APPLY_VISUAL_EFFECT: 'APPLY_VISUAL_EFFECT'
 };
 
 // --- Pools ---
@@ -32,7 +34,8 @@ const pools = {
     uiAnim: new ObjectPool(() => new UiAnimationTask(), t => t.reset(), 5),
     applyState: new ObjectPool(() => new ApplyStateTask(), t => t.reset(), 5),
     event: new ObjectPool(() => new EventTask(), t => t.reset(), 10),
-    custom: new ObjectPool(() => new CustomTask(), t => t.reset(), 5)
+    custom: new ObjectPool(() => new CustomTask(), t => t.reset(), 5),
+    applyVisualEffect: new ObjectPool(() => new ApplyVisualEffectTask(), t => t.reset(), 5)
 };
 
 // タスク完了時にプールへ返却するためのヘルパー (TaskRunnerで使用)
@@ -48,6 +51,7 @@ export const releaseTask = (task) => {
         case TaskType.APPLY_STATE: pools.applyState.release(task); break;
         case TaskType.EVENT: pools.event.release(task); break;
         case TaskType.CUSTOM: pools.custom.release(task); break;
+        case TaskType.APPLY_VISUAL_EFFECT: pools.applyVisualEffect.release(task); break;
     }
 };
 
@@ -82,3 +86,6 @@ export const createEventTask = (eventName, detail) =>
 
 export const createCustomTask = (asyncFn) => 
     pools.custom.acquire().init(asyncFn);
+    
+export const createApplyVisualEffectTask = (targetEntityId, className) =>
+    pools.applyVisualEffect.acquire().init(targetEntityId, className);

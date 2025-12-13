@@ -9,7 +9,8 @@ import {
     createDialogTask,
     createUiAnimationTask,
     createVfxTask,
-    createCameraTask
+    createCameraTask,
+    createApplyVisualEffectTask
 } from './BattleTasks.js';
 
 export class TimelineBuilder {
@@ -48,6 +49,9 @@ export class TimelineBuilder {
                     break;
                 case 'CUSTOM':
                     tasks.push(createCustomTask(visual.executeFn));
+                    break;
+                case 'APPLY_VISUAL_EFFECT':
+                    tasks.push(createApplyVisualEffectTask(visual.targetId, visual.className));
                     break;
             }
         }

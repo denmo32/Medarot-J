@@ -4,7 +4,7 @@
  */
 import { TaskType } from './BattleTasks.js';
 import { GameEvents } from '../../common/events.js';
-import { Position } from '../components/index.js';
+import { Position, Visual } from '../components/index.js';
 import { Parts } from '../../components/index.js';
 import { 
     AnimationRequest, 
@@ -228,6 +228,32 @@ export class InstantTask extends BattleTask {
         super.start(world, entityId);
         if (this.executeFn) this.executeFn(world, entityId);
         this.isCompleted = true;
+    }
+}
+
+export class ApplyVisualEffectTask extends InstantTask {
+    constructor() {
+        super(TaskType.APPLY_VISUAL_EFFECT);
+        this.targetEntityId = null;
+        this.className = null;
+    }
+
+    init(targetEntityId, className) {
+        this.targetEntityId = targetEntityId;
+        this.className = className;
+        super.init((world) => {
+            const visual = world.getComponent(this.targetEntityId, Visual);
+            if (visual) {
+                visual.classes.add(this.className);
+            }
+        });
+        return this;
+    }
+
+    reset() {
+        super.reset();
+        this.targetEntityId = null;
+        this.className = null;
     }
 }
 

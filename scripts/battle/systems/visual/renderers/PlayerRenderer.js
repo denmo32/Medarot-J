@@ -151,7 +151,10 @@ export class PlayerRenderer {
         const icon = domElements.iconElement;
         if (gameState && icon && cache.state !== gameState.state) {
             cache.state = gameState.state;
-            icon.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
+
+            // BROKEN状態ではCSSクラスによるスタイルを優先するため、JSでの直接操作を避ける
+            if (gameState.state === PlayerStateType.BROKEN) return;
+            
             switch (gameState.state) {
                 case PlayerStateType.SELECTED_CHARGING:
                     icon.style.borderColor = '#f6ad55'; break;

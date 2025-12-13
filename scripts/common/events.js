@@ -38,12 +38,6 @@ export const GameEvents = {
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED',
 
     /**
-     * クールダウン移行要求 (BattleSequenceSystem -> CooldownSystem)
-     * @event REQUEST_COOLDOWN_TRANSITION
-     */
-    REQUEST_COOLDOWN_TRANSITION: 'REQUEST_COOLDOWN_TRANSITION',
-
-    /**
      * クールダウン移行完了 (CooldownSystem -> BattleSequenceSystem)
      * @event COOLDOWN_TRANSITION_COMPLETED
      */
@@ -89,11 +83,6 @@ export const GameEvents = {
      * @event REQUEST_STATE_TRANSITION
      */
     REQUEST_STATE_TRANSITION: 'REQUEST_STATE_TRANSITION',
-    /**
-     * エンティティをクールダウン状態にリセットするよう要求 (Any -> CooldownSystem)
-     * @event REQUEST_RESET_TO_COOLDOWN
-     */
-    REQUEST_RESET_TO_COOLDOWN: 'REQUEST_RESET_TO_COOLDOWN',
     ACTION_SELECTION_COMPLETED: 'ACTION_SELECTION_COMPLETED',
     ACTION_EXECUTION_COMPLETED: 'ACTION_EXECUTION_COMPLETED',
     TURN_START: 'TURN_START',
@@ -108,7 +97,6 @@ export const GameEvents = {
     GAME_OVER: 'GAME_OVER',
     HP_UPDATED: 'HP_UPDATED',
     EFFECT_EXPIRED: 'EFFECT_EXPIRED',
-    GUARD_BROKEN: 'GUARD_BROKEN',
     GUARD_EXPIRED: 'GUARD_EXPIRED',
 
     // --- UI & Sceneイベント ---
