@@ -109,3 +109,14 @@ export const TargetTiming = {
     PRE_MOVE: 'pre-move',   // 移動前にターゲットを決定する
     POST_MOVE: 'post-move'  // 移動後にターゲットを決定する
 };
+
+/**
+ * 戦闘ログの種類を定義する定数（リファクタリング用）
+ */
+export const BattleLogType = {
+    DECLARATION: 'DECLARATION',
+    GUARDIAN_TRIGGER: 'GUARDIAN_TRIGGER',
+    ANIMATION_START: 'ANIMATION_START',
+    EFFECT: 'EFFECT',
+    MISS: 'MISS',
+};

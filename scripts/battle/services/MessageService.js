@@ -1,78 +1,15 @@
 /**
  * @file MessageService.js
  * @description メッセージフォーマットのサービス。
- * 各EffectDefinitionから呼び出されるヘルパーメソッドを提供する。
+ * メッセージテンプレートの置換機能を提供する。
+ * 以前の演出生成ロジックはVisualSequenceServiceへ移行されたため、純粋なフォーマッターとして機能する。
  */
 
-import { MessageTemplates, MessageKey } from '../../data/messageRepository.js';
-import { PlayerInfo } from '../../components/index.js';
-import { ModalType } from '../common/constants.js';
+import { MessageTemplates } from '../../data/messageRepository.js';
 
 export class MessageService {
     constructor(world) {
         this.world = world;
-    }
-
-    /**
-     * 攻撃宣言時のメッセージシーケンスを生成します。
-     * @returns {Array<object>} 演出指示データの配列
-     */
-    createDeclarationSequence(detail) {
-        const { attackerId, finalTargetId, attackingPart, isSupport, guardianInfo } = detail;
-        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
-        
-        if (!attackerInfo) return [];
-
-        const sequence = [];
-        let mainMessageKey;
-        const params = {
-            attackerName: attackerInfo.name,
-            actionType: attackingPart.action,
-            attackType: attackingPart.type,
-            trait: attackingPart.trait,
-        };
-
-        if (isSupport) {
-            mainMessageKey = MessageKey.SUPPORT_DECLARATION;
-        } else if (finalTargetId === null || finalTargetId === undefined) { // finalTargetId を参照するように修正
-            mainMessageKey = MessageKey.ATTACK_MISSED;
-        } else {
-            mainMessageKey = MessageKey.ATTACK_DECLARATION;
-        }
-
-        sequence.push({
-            type: 'DIALOG',
-            text: this.format(mainMessageKey, params),
-            options: { modalType: ModalType.ATTACK_DECLARATION }
-        });
-
-        if (guardianInfo) {
-            sequence.push({
-                type: 'DIALOG',
-                text: this.format(MessageKey.GUARDIAN_TRIGGERED, { guardianName: guardianInfo.name }),
-                options: { modalType: ModalType.ATTACK_DECLARATION }
-            });
-        }
-
-        return sequence;
-    }
-
-    /**
-     * 回避時のメッセージシーケンスを生成します。
-     * @returns {Array<object>} 演出指示データの配列
-     */
-    createResultSequence(detail) {
-        const { targetId, outcome } = detail;
-        
-        if (!outcome.isHit && targetId) {
-            const targetName = this.world.getComponent(targetId, PlayerInfo)?.name || '相手';
-            return [{ 
-                type: 'DIALOG',
-                text: this.format(MessageKey.ATTACK_EVADED, { targetName }),
-                options: { modalType: ModalType.EXECUTION_RESULT }
-            }];
-        }
-        return [];
     }
 
     /**

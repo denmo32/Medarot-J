@@ -1,12 +1,12 @@
 /**
  * @file ScanEffect.js
  * @description スキャン効果の定義
+ * createVisualsメソッドは削除され、VisualSequenceServiceとVisualDefinitionsに責務が移譲されました。
  */
-import { EffectType, EffectScope, ModalType } from '../../common/constants.js';
+import { EffectType, EffectScope } from '../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { ActiveEffects } from '../../components/index.js';
 import { TargetingService } from '../../services/TargetingService.js';
-import { MessageKey } from '../../../data/messageRepository.js';
 
 export const ScanEffect = {
     type: EffectType.APPLY_SCAN,
@@ -59,22 +59,5 @@ export const ScanEffect = {
         });
         
         return { ...effect, events: [], stateUpdates };
-    },
-
-    createVisuals: ({ world, effects, messageGenerator }) => {
-        const visuals = [];
-        if (effects.length > 0) {
-            const effect = effects[0];
-            const message = messageGenerator.format(MessageKey.SUPPORT_SCAN_SUCCESS, { 
-                scanBonus: effect.value, 
-                duration: effect.duration 
-            });
-            visuals.push({
-                type: 'DIALOG',
-                text: message,
-                options: { modalType: ModalType.EXECUTION_RESULT }
-            });
-        }
-        return visuals;
     }
 };

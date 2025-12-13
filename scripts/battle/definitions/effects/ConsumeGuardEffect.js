@@ -1,12 +1,10 @@
 /**
  * @file ConsumeGuardEffect.js
  * @description ガード回数消費効果の定義
+ * createVisualsメソッドは削除され、VisualSequenceServiceとVisualDefinitionsに責務が移譲されました。
  */
-import { EffectType, ModalType } from '../../common/constants.js';
-import { PlayerInfo } from '../../../components/index.js';
+import { EffectType } from '../../common/constants.js';
 import { ActiveEffects } from '../../components/index.js';
-import { GameEvents } from '../../../common/events.js';
-import { MessageKey } from '../../../data/messageRepository.js';
 
 export const ConsumeGuardEffect = {
     type: EffectType.CONSUME_GUARD,
@@ -50,23 +48,5 @@ export const ConsumeGuardEffect = {
         }
 
         return { ...effect, isExpired, events, stateUpdates };
-    },
-
-    createVisuals: ({ world, effects, messageGenerator }) => {
-        const visuals = [];
-        for (const effect of effects) {
-            if (effect.isExpired) {
-                const actorInfo = world.getComponent(effect.targetId, PlayerInfo);
-                const message = messageGenerator.format(MessageKey.GUARD_EXPIRED, { 
-                    actorName: actorInfo?.name || '???' 
-                });
-                visuals.push({
-                    type: 'DIALOG',
-                    text: message,
-                    options: { modalType: ModalType.MESSAGE }
-                });
-            }
-        }
-        return visuals;
     }
 };

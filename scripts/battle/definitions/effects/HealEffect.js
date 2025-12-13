@@ -1,13 +1,12 @@
 /**
  * @file HealEffect.js
  * @description 回復効果の定義
+ * createVisualsメソッドは削除され、VisualSequenceServiceとVisualDefinitionsに責務が移譲されました。
  */
-import { EffectType, ModalType } from '../../common/constants.js';
-import { Parts, PlayerInfo } from '../../../components/index.js';
+import { EffectType } from '../../common/constants.js';
+import { Parts } from '../../../components/index.js';
 import { Action } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { PartKeyToInfoMap } from '../../../common/constants.js';
-import { MessageKey } from '../../../data/messageRepository.js';
 
 export const HealEffect = {
     type: EffectType.HEAL,
@@ -79,48 +78,5 @@ export const HealEffect = {
             events,
             stateUpdates
         };
-    },
-
-    createVisuals: ({ world, effects, messageGenerator }) => {
-        const visuals = [];
-        const messageLines = [];
-
-        effects.forEach(effect => {
-            if (effect.value > 0) {
-                const targetInfo = world.getComponent(effect.targetId, PlayerInfo);
-                const partName = PartKeyToInfoMap[effect.partKey]?.name || '不明部位';
-                messageLines.push(messageGenerator.format(MessageKey.HEAL_SUCCESS, { 
-                    targetName: targetInfo.name, 
-                    partName: partName, 
-                    healAmount: effect.value 
-                }));
-            } else {
-                messageLines.push(messageGenerator.format(MessageKey.HEAL_FAILED));
-            }
-        });
-
-        if (messageLines.length > 0) {
-            visuals.push({
-                type: 'DIALOG',
-                text: messageLines[0],
-                options: { modalType: ModalType.EXECUTION_RESULT }
-            });
-            if (effects.some(e => e.value > 0)) {
-                visuals.push({
-                    type: 'UI_ANIMATION',
-                    targetType: 'HP_BAR',
-                    data: { effects }
-                });
-            }
-            for (let i = 1; i < messageLines.length; i++) {
-                visuals.push({
-                    type: 'DIALOG',
-                    text: messageLines[i],
-                    options: { modalType: ModalType.EXECUTION_RESULT }
-                });
-            }
-        }
-
-        return visuals;
     }
 };

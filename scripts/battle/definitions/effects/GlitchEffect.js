@@ -1,12 +1,12 @@
 /**
  * @file GlitchEffect.js
  * @description 妨害効果の定義
+ * createVisualsメソッドは削除され、VisualSequenceServiceとVisualDefinitionsに責務が移譲されました。
  */
-import { EffectType, PlayerStateType, ModalType, ActionCancelReason } from '../../common/constants.js';
+import { EffectType, PlayerStateType, ActionCancelReason } from '../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { GameState } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { MessageKey } from '../../../data/messageRepository.js';
 
 export const GlitchEffect = {
     type: EffectType.APPLY_GLITCH,
@@ -51,21 +51,5 @@ export const GlitchEffect = {
         }
         
         return { ...effect, events, stateUpdates };
-    },
-
-    createVisuals: ({ world, effects, messageGenerator }) => {
-        const visuals = [];
-        for (const effect of effects) {
-            const targetInfo = world.getComponent(effect.targetId, PlayerInfo);
-            const key = effect.wasSuccessful ? MessageKey.INTERRUPT_GLITCH_SUCCESS : MessageKey.INTERRUPT_GLITCH_FAILED;
-            const message = messageGenerator.format(key, { targetName: targetInfo?.name || '相手' });
-            
-            visuals.push({
-                type: 'DIALOG',
-                text: message,
-                options: { modalType: ModalType.EXECUTION_RESULT }
-            });
-        }
-        return visuals;
     }
 };

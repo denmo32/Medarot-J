@@ -1,10 +1,10 @@
 /**
  * @file GuardEffect.js
  * @description ガード効果の定義
+ * createVisualsメソッドは削除され、VisualSequenceServiceとVisualDefinitionsに責務が移譲されました。
  */
-import { EffectType, PlayerStateType, ModalType } from '../../common/constants.js';
+import { EffectType, PlayerStateType } from '../../common/constants.js';
 import { ActiveEffects } from '../../components/index.js';
-import { MessageKey } from '../../../data/messageRepository.js';
 
 export const GuardEffect = {
     type: EffectType.APPLY_GUARD,
@@ -54,18 +54,5 @@ export const GuardEffect = {
         });
 
         return { ...effect, events: [], stateUpdates };
-    },
-
-    createVisuals: ({ world, effects, messageGenerator }) => {
-        const visuals = [];
-        for (const effect of effects) {
-            const message = messageGenerator.format(MessageKey.DEFEND_GUARD_SUCCESS, { guardCount: effect.value });
-            visuals.push({
-                type: 'DIALOG',
-                text: message,
-                options: { modalType: ModalType.EXECUTION_RESULT }
-            });
-        }
-        return visuals;
     }
 };

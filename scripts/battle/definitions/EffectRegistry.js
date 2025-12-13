@@ -2,6 +2,7 @@
  * @file EffectRegistry.js
  * @description 全てのアクション効果定義を集約管理するレジストリ。
  * apply メソッドは World を変更せず、更新データ(diff)を返す。
+ * createVisualsメソッドは削除され、VisualSequenceServiceとVisualDefinitionsに責務が移譲されました。
  */
 import { EffectType } from '../common/constants.js';
 import { DamageEffect } from './effects/DamageEffect.js';
@@ -181,19 +182,6 @@ export class EffectRegistry {
         }
 
         return { appliedEffects, eventsToEmit, stateUpdates: allStateUpdates };
-    }
-
-    /**
-     * 演出指示データ生成フェーズ
-     * 適用済みの効果を元に、どのような演出（ダイアログ、UIアニメーション等）が必要かを示す
-     * データオブジェクトの配列を生成して返す。
-     */
-    static createVisuals(type, context) {
-        const def = this.get(type);
-        if (def && typeof def.createVisuals === 'function') {
-            return def.createVisuals(context);
-        }
-        return [];
     }
 
     static update(type, context) {

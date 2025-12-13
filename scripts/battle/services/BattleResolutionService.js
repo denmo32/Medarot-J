@@ -2,27 +2,23 @@
  * @file BattleResolutionService.js
  * @description 戦闘の計算・解決フローを制御するサービス。
  * Worldへの副作用（書き換え）を完全に排除し、結果データ(BattleResult)の生成に専念する。
+ * リファクタリング: VisualSequenceServiceへの責務移譲により、演出生成ロジックを削除。
  */
 import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
-import { EffectType, TargetTiming } from '../common/constants.js';
+import { EffectType } from '../common/constants.js';
 import { CombatCalculator } from '../logic/CombatCalculator.js';
 import { EffectRegistry } from '../definitions/EffectRegistry.js'; 
 import { TargetingService } from './TargetingService.js';
-import { QueryService } from './QueryService.js';
-import { EffectService } from './EffectService.js';
 import { HookPhase } from '../definitions/HookRegistry.js';
 import { HookContext } from '../components/HookContext.js';
 import { GameEvents } from '../../common/events.js';
-import { MessageService } from './MessageService.js';
 import { VisualSequenceService } from './VisualSequenceService.js';
-import { targetingStrategies } from '../ai/targetingStrategies.js';
 
 export class BattleResolutionService {
     constructor(world) {
         this.world = world;
         this.hookContext = world.getSingletonComponent(HookContext);
-        this.messageGenerator = new MessageService(world);
     }
 
     resolve(attackerId) {
@@ -81,8 +77,8 @@ export class BattleResolutionService {
         // フック: 効果適用後
         this.hookContext.hookRegistry.execute(HookPhase.AFTER_EFFECT_APPLICATION, ctx);
 
-        // 6. 演出指示データ生成
-        visualSequence = this._createVisuals(ctx);
+        // 6. 演出指示データ生成 (Serviceに委譲)
+        visualSequence = VisualSequenceService.generateVisualSequence(ctx);
 
         // 7. 結果構築
         return this._buildResult(ctx, eventsToEmit, allStateUpdates, visualSequence);
@@ -150,11 +146,6 @@ export class BattleResolutionService {
 
     _calculateEffects(ctx) {
         EffectRegistry.processAll(ctx);
-    }
-
-    _createVisuals(ctx) {
-        // VisualSequenceServiceに演出シーケンスの生成を委譲
-        return VisualSequenceService.generateVisualSequence(ctx);
     }
 
     _buildResult(ctx, eventsToEmit, stateUpdates, visualSequence) {
