@@ -15,7 +15,7 @@ import { HookPhase } from '../definitions/HookRegistry.js';
 import { HookContext } from '../components/HookContext.js';
 import { GameEvents } from '../../common/events.js';
 import { MessageService } from './MessageService.js';
-import { VisualSequenceGenerator } from '../logic/VisualSequenceGenerator.js';
+import { VisualSequenceService } from './VisualSequenceService.js';
 import { targetingStrategies } from '../ai/targetingStrategies.js';
 
 export class BattleResolutionService {
@@ -153,8 +153,8 @@ export class BattleResolutionService {
     }
 
     _createVisuals(ctx) {
-        // VisualSequenceGeneratorに演出シーケンスの生成を委譲
-        return VisualSequenceGenerator.generateVisualSequence(ctx);
+        // VisualSequenceServiceに演出シーケンスの生成を委譲
+        return VisualSequenceService.generateVisualSequence(ctx);
     }
 
     _buildResult(ctx, eventsToEmit, stateUpdates, visualSequence) {
