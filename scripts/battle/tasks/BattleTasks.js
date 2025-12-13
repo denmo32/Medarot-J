@@ -4,7 +4,7 @@
  */
 import { ObjectPool } from '../../../engine/core/ObjectPool.js';
 import { 
-    WaitTask, MoveTask, ApplyStateTask, EventTask, CustomTask,
+    WaitTask, MoveTask, EventTask, CustomTask,
     AnimateTask, VfxTask, CameraTask, DialogTask, UiAnimationTask,
     ApplyVisualEffectTask
 } from './TaskClasses.js';
@@ -13,7 +13,7 @@ export const TaskType = {
     WAIT: 'WAIT',
     EVENT: 'EVENT',
     CUSTOM: 'CUSTOM',
-    APPLY_STATE: 'APPLY_STATE',
+    // APPLY_STATE: 'APPLY_STATE', // 削除
     MOVE: 'MOVE',
     ANIMATE: 'ANIMATE',      
     VFX: 'VFX',              
@@ -32,7 +32,7 @@ const pools = {
     camera: new ObjectPool(() => new CameraTask(), t => t.reset(), 2),
     dialog: new ObjectPool(() => new DialogTask(), t => t.reset(), 5),
     uiAnim: new ObjectPool(() => new UiAnimationTask(), t => t.reset(), 5),
-    applyState: new ObjectPool(() => new ApplyStateTask(), t => t.reset(), 5),
+    // applyState: new ObjectPool(() => new ApplyStateTask(), t => t.reset(), 5), // 削除
     event: new ObjectPool(() => new EventTask(), t => t.reset(), 10),
     custom: new ObjectPool(() => new CustomTask(), t => t.reset(), 5),
     applyVisualEffect: new ObjectPool(() => new ApplyVisualEffectTask(), t => t.reset(), 5)
@@ -48,7 +48,7 @@ export const releaseTask = (task) => {
         case TaskType.CAMERA: pools.camera.release(task); break;
         case TaskType.DIALOG: pools.dialog.release(task); break;
         case TaskType.UI_ANIMATION: pools.uiAnim.release(task); break;
-        case TaskType.APPLY_STATE: pools.applyState.release(task); break;
+        // case TaskType.APPLY_STATE: pools.applyState.release(task); break; // 削除
         case TaskType.EVENT: pools.event.release(task); break;
         case TaskType.CUSTOM: pools.custom.release(task); break;
         case TaskType.APPLY_VISUAL_EFFECT: pools.applyVisualEffect.release(task); break;
@@ -78,8 +78,9 @@ export const createDialogTask = (text, options = {}) =>
 export const createUiAnimationTask = (targetType, data) => 
     pools.uiAnim.acquire().init(targetType, data);
 
-export const createApplyStateTask = (commands) => 
-    pools.applyState.acquire().init(commands);
+// 削除: createApplyStateTask
+// export const createApplyStateTask = (commands) => 
+//     pools.applyState.acquire().init(commands);
 
 export const createEventTask = (eventName, detail) => 
     pools.event.acquire().init(eventName, detail);

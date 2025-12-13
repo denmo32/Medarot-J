@@ -3,9 +3,8 @@
  * @description バトルタスクのクラス定義。
  */
 import { TaskType } from './BattleTasks.js';
-import { GameEvents } from '../../common/events.js';
-import { Position, Visual } from '../components/index.js';
-import { Parts } from '../../components/index.js';
+import { Position } from '../components/index.js';
+import { Visual } from '../components/index.js';
 import { 
     AnimationRequest, 
     VfxRequest, 
@@ -13,7 +12,6 @@ import {
     UiAnimationRequest, 
     CameraRequest 
 } from '../components/VisualRequest.js';
-import { CommandExecutor, createCommand } from '../common/Command.js';
 
 export class BattleTask {
     constructor(type) {
@@ -168,10 +166,6 @@ export class RequestComponentTask extends BattleTask {
     }
 }
 
-// 具体的なリクエストタスクはファクトリで生成するクロージャが異なるだけなので
-// RequestComponentTask を直接利用するか、プール管理のためにクラスを分ける。
-// ここではプール管理を単純化するため、各クラスを維持しつつ init を実装する。
-
 export class AnimateTask extends RequestComponentTask {
     constructor() { super(TaskType.ANIMATE); }
     init(attackerId, targetId, animationType) {
@@ -257,30 +251,8 @@ export class ApplyVisualEffectTask extends InstantTask {
     }
 }
 
-export class ApplyStateTask extends InstantTask {
-    constructor() {
-        super(TaskType.APPLY_STATE);
-        this.commands = [];
-    }
-
-    init(commands) {
-        this.commands = commands || [];
-        return this;
-    }
-
-    reset() {
-        super.reset();
-        this.commands = [];
-    }
-
-    start(world, entityId) {
-        // InstantTaskのstartは呼ばず、ここで完結させる
-        this.isStarted = true;
-        const commandInstances = this.commands.map(cmd => createCommand(cmd.type, cmd));
-        CommandExecutor.executeCommands(world, commandInstances);
-        this.isCompleted = true;
-    }
-}
+// 削除: ApplyStateTask
+// export class ApplyStateTask extends InstantTask { ... }
 
 export class EventTask extends InstantTask {
     constructor() { super(TaskType.EVENT); }

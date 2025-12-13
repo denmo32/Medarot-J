@@ -4,23 +4,20 @@
  * キャンセル時はメッセージ表示後、強制移動はせずクールダウン状態へ遷移させる（自然な帰還を促す）。
  */
 import { BattleResolutionService } from './BattleResolutionService.js';
-import { TimelineBuilder } from '../tasks/TimelineBuilder.js';
 import { CancellationService } from './CancellationService.js';
 import { GameEvents } from '../../common/events.js';
-import { GameState, Action } from '../components/index.js';
 import { PlayerStateType, ModalType } from '../common/constants.js';
-import { createDialogTask, createApplyStateTask } from '../tasks/BattleTasks.js'; // タスク生成用
+import { GameState } from '../components/index.js';
 
 export class ActionSequenceService {
     constructor(world) {
         this.world = world;
         this.battleResolver = new BattleResolutionService(world);
-        this.timelineBuilder = new TimelineBuilder(world);
     }
 
     /**
      * @param {number} actorId 
-     * @returns {{ tasks: Array, isCancelled: boolean, eventsToEmit: Array, stateUpdates: Array }}
+     * @returns {{ visualSequence: Array, isCancelled: boolean, eventsToEmit: Array, stateUpdates: Array, actionUpdates: object }}
      */
     executeSequence(actorId) {
         // 基本的な状態遷移（アニメーション待機）
@@ -45,41 +42,55 @@ export class ActionSequenceService {
             return this._createCancelSequence(actorId, reason, stateUpdates);
         }
 
-        // 3. 演出タスクの構築
-        const tasks = this.timelineBuilder.buildVisualSequence(resultData.visualSequence);
+        // 3. 解決結果からデータを構築 (タスク化はSystem側で行う)
+        const visualSequence = resultData.visualSequence || [];
 
         // 状態変更コマンドを結果にマージ
         const finalStateUpdates = [...stateUpdates, ...(resultData.stateUpdates || [])];
+        
+        // POST_MOVEなどで更新されたアクション情報
+        const actionUpdates = {
+            entityId: actorId,
+            targetId: resultData.targetId,
+            targetPartKey: resultData.attackingPart ? resultData.attackingPart.targetPartKey : null // 戦闘結果に含まれる場合
+        };
 
         return { 
-            tasks, 
+            visualSequence,
             isCancelled: false, 
             eventsToEmit: resultData.eventsToEmit || [],
-            stateUpdates: finalStateUpdates
+            stateUpdates: finalStateUpdates,
+            actionUpdates
         };
     }
 
     /**
-     * キャンセル時のシーケンス（メッセージ -> クールダウン移行）を生成する
+     * キャンセル時のシーケンス（メッセージ -> クールダウン移行）のデータを作成する
      */
     _createCancelSequence(actorId, reason, initialStateUpdates) {
-        const tasks = [];
+        const visualSequence = [];
         const message = CancellationService.getCancelMessage(this.world, actorId, reason);
         
-        // 1. メッセージ表示
-        // これにより一時停止し、ユーザーの確認を待つ
+        // 1. メッセージ表示指示
         if (message) {
-            tasks.push(createDialogTask(message, { modalType: ModalType.MESSAGE }));
+            visualSequence.push({
+                type: 'DIALOG',
+                text: message,
+                options: { modalType: ModalType.MESSAGE }
+            });
         }
 
-        // 2. クールダウン状態へ移行 (タスクとして実行)
-        // メッセージを閉じた直後に実行される。
-        // ここでCHARGING状態・ゲージ0になることで、MovementSystemにより自然にホームへの帰還が始まる。
-        tasks.push(createApplyStateTask([{
-            type: 'RESET_TO_COOLDOWN',
-            targetId: actorId,
-            options: { interrupted: true }
-        }]));
+        // 2. クールダウン状態へ移行するイベント発行指示
+        // ApplyStateTaskを直接使うのではなく、コマンド実行イベントを発行する
+        visualSequence.push({
+            type: 'EVENT',
+            eventName: GameEvents.EXECUTE_COMMANDS,
+            detail: [{
+                type: 'RESET_TO_COOLDOWN',
+                targetId: actorId,
+                options: { interrupted: true }
+            }]
+        });
 
         // ACTION_CANCELLED イベントは発行リストに含める
         const eventsToEmit = [{
@@ -88,7 +99,7 @@ export class ActionSequenceService {
         }];
 
         return { 
-            tasks, 
+            visualSequence, 
             isCancelled: true, 
             eventsToEmit, 
             stateUpdates: initialStateUpdates // AWAITING_ANIMATION への遷移のみ即時実行
@@ -96,17 +107,28 @@ export class ActionSequenceService {
     }
     
     getSortedReadyEntities() {
-        return this.world.getEntitiesWith(GameState).filter(id => {
+        // ECSの実装詳細に依存しすぎないよう、標準的な取得方法を使用
+        // World.jsの実装に合わせて getEntitiesWith を使用
+        const entities = this.world.getEntitiesWith(GameState); // ID配列
+        
+        // 準備完了エンティティを抽出
+        const readyList = entities.filter(id => {
             const state = this.world.getComponent(id, GameState);
             return state.state === PlayerStateType.READY_EXECUTE;
-        }).sort((a, b) => {
-            // 循環参照回避のため QueryService のロジックをインライン化または別で持つべきだが
-            // ここでは簡易的に実装
-            const partsA = this.world.getComponent(a, 'Parts');
+        });
+
+        // ソート（推進力順）
+        readyList.sort((a, b) => {
+            const partsA = this.world.getComponent(a, 'Parts'); // 文字列キーでの取得が可能なら
             const partsB = this.world.getComponent(b, 'Parts');
-            const propA = partsA?.legs?.propulsion || 0;
-            const propB = partsB?.legs?.propulsion || 0;
+            // コンポーネントが取れない場合はフォールバック
+            if (!partsA || !partsB) return 0;
+            
+            const propA = partsA.legs?.propulsion || 0;
+            const propB = partsB.legs?.propulsion || 0;
             return propB - propA;
         });
+
+        return readyList;
     }
 }

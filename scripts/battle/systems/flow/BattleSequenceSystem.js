@@ -14,8 +14,7 @@ import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { ActionSequenceService } from '../../services/ActionSequenceService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
-import { BattleResolutionService } from '../../services/BattleResolutionService.js'; 
-import { CommandExecutor, createCommand } from '../../common/Command.js';
+import { createCommand } from '../../common/Command.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 
 // 内部ステート定義
@@ -37,7 +36,6 @@ export class BattleSequenceSystem extends System {
         this.service = new ActionSequenceService(world);
         this.timelineBuilder = new TimelineBuilder(world);
         this.taskRunner = new TaskRunner(world);
-        this.battleResolver = new BattleResolutionService(world); 
 
         this.executionQueue = [];
         this.internalState = SequenceState.IDLE;
@@ -144,11 +142,11 @@ export class BattleSequenceSystem extends System {
         // --- 0. POST_MOVE ターゲットを解決し、Actionコンポーネントを更新 ---
         this._resolvePostMoveTargetForWorld(this.world, actorId);
 
-        // --- 1. ロジック解決と適用 ---
-        // ActionSequenceServiceからタスクとして結果を受け取る
+        // --- 1. ロジック解決 ---
+        // Serviceは計算を行い、結果データと演出指示データ(visualSequence)を返す
         const resultData = this.service.executeSequence(actorId);
 
-        // Actionの更新情報を処理
+        // Actionの更新情報を処理 (即時反映が必要な内部データ)
         if (resultData.actionUpdates && resultData.actionUpdates.entityId) {
             const { entityId, targetId, targetPartKey } = resultData.actionUpdates;
             const actionComponent = this.world.getComponent(entityId, Action);
@@ -158,32 +156,42 @@ export class BattleSequenceSystem extends System {
             }
         }
 
-        // 状態変更コマンドを即時実行
-        if (resultData.stateUpdates && resultData.stateUpdates.length > 0) {
-            const commands = resultData.stateUpdates.map(cmd => createCommand(cmd.type, cmd));
-            CommandExecutor.executeCommands(this.world, commands);
-        }
-
         // 副作用イベントを発行
         if (resultData.eventsToEmit) {
             resultData.eventsToEmit.forEach(event => {
                 this.world.emit(event.type, event.payload);
             });
         }
+        
+        // --- 2. タスク構築と実行 ---
+        const visualSequence = resultData.visualSequence || [];
 
-        if (resultData.isCancelled) {
-            // キャンセルされた場合でも、タスク（メッセージ表示など）があれば実行する
-            if (resultData.tasks && resultData.tasks.length > 0) {
-                this.taskRunner.setSequence(resultData.tasks, actorId);
+        // 状態変更コマンドがある場合、演出シーケンス内の適切な位置に追加
+        // REFRESH_UI (実データからの同期) よりも前に実行しないと、表示が古いデータで上書きされてしまう
+        if (resultData.stateUpdates && resultData.stateUpdates.length > 0) {
+            const commandTask = {
+                type: 'EVENT',
+                eventName: GameEvents.EXECUTE_COMMANDS,
+                detail: resultData.stateUpdates
+            };
+
+            const refreshIndex = visualSequence.findIndex(v => v.type === 'EVENT' && v.eventName === GameEvents.REFRESH_UI);
+            
+            if (refreshIndex !== -1) {
+                visualSequence.splice(refreshIndex, 0, commandTask);
             } else {
-                // タスクがなければ即座に完了扱いとする
-                this.taskRunner.setSequence([], actorId);
+                visualSequence.push(commandTask);
             }
-            return;
         }
 
-        // --- 2. 正常系の演出シーケンス実行 ---
-        this.taskRunner.setSequence(resultData.tasks, actorId);
+        const tasks = this.timelineBuilder.buildVisualSequence(visualSequence);
+
+        if (tasks && tasks.length > 0) {
+            this.taskRunner.setSequence(tasks, actorId);
+        } else {
+            // タスクがなければ即座に完了扱いとする
+            this.taskRunner.setSequence([], actorId);
+        }
     }
 
     _onTaskCompleted() {
