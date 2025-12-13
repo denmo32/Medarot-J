@@ -1,8 +1,7 @@
 import { System } from '../../../../engine/core/System.js';
 import { ActiveEffects, GameState } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerStateType } from '../../common/constants.js';
-import { EffectType } from '../../../common/constants.js';
+import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { EffectRegistry } from '../../definitions/EffectRegistry.js';
 import { CommandExecutor, createCommand } from '../../common/Command.js';
 

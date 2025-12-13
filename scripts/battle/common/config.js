@@ -1,4 +1,4 @@
-import { AttackType } from '../../common/constants.js';
+import { AttackType } from './constants.js';
 import { CONFIG as COMMON_CONFIG } from '../../common/config.js';
 
 /**

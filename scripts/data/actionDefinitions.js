@@ -2,7 +2,7 @@
  * @file アクション定義マスターデータ
  * アクションごとの効果、ターゲットルール、計算パラメータを定義する。
  */
-import { TargetTiming, EffectType, EffectScope } from '../common/constants.js';
+import { TargetTiming, EffectType, EffectScope } from '../battle/common/constants.js';
 import { TargetingStrategyKey } from '../battle/ai/strategyKeys.js';
 
 export const ActionDefinitions = {

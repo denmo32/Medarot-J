@@ -2,10 +2,9 @@
  * @file GlitchEffect.js
  * @description 妨害効果の定義
  */
-import { EffectType } from '../../../common/constants.js';
+import { EffectType, PlayerStateType, ModalType, ActionCancelReason } from '../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { GameState } from '../../components/index.js';
-import { PlayerStateType, ModalType, ActionCancelReason } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 

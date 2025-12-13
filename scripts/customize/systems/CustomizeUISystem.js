@@ -1,5 +1,6 @@
 import { System } from '../../../engine/core/System.js';
-import { PartKeyToInfoMap, EquipSlotType } from '../../common/constants.js';
+import { PartKeyToInfoMap } from '../../common/constants.js';
+import { EquipSlotType } from '../common/constants.js';
 import { CustomizeState } from '../components/CustomizeState.js';
 import { GameEvents } from '../../common/events.js';
 import { CustomizeUIManager } from '../ui/CustomizeUIManager.js';

@@ -2,11 +2,10 @@
  * @file ScanEffect.js
  * @description スキャン効果の定義
  */
-import { EffectType, EffectScope } from '../../../common/constants.js';
+import { EffectType, EffectScope, ModalType } from '../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { ActiveEffects } from '../../components/index.js';
 import { TargetingService } from '../../services/TargetingService.js';
-import { ModalType } from '../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 
 export const ScanEffect = {

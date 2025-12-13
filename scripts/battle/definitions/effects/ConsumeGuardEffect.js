@@ -2,11 +2,10 @@
  * @file ConsumeGuardEffect.js
  * @description ガード回数消費効果の定義
  */
-import { EffectType } from '../../../common/constants.js';
+import { EffectType, ModalType } from '../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { ActiveEffects } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { ModalType } from '../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 
 export const ConsumeGuardEffect = {

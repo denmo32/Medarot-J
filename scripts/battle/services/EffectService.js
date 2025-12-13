@@ -3,7 +3,7 @@
  * @description 戦闘におけるステータス補正や特性効果を一元管理するサービス。
  */
 import { ActiveEffects } from '../components/index.js';
-import { EffectType } from '../../common/constants.js';
+import { EffectType } from '../common/constants.js';
 import { TypeDefinitions } from '../../data/typeDefinitions.js';
 import { TraitDefinitions } from '../../data/traitDefinitions.js';
 import { TraitRegistry } from '../definitions/traits/TraitRegistry.js';

@@ -2,11 +2,11 @@
  * @file DamageEffect.js
  * @description ダメージ効果の定義 (計算・適用・演出)
  */
-import { EffectType, PartInfo } from '../../../common/constants.js';
+import { PartInfo } from '../../../common/constants.js';
+import { EffectType, PlayerStateType, ModalType } from '../../common/constants.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
 import { GameState, ActiveEffects } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerStateType, ModalType } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { PartKeyToInfoMap } from '../../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';

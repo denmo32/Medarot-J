@@ -82,14 +82,14 @@ export class MapScene extends Scene {
 
     _setupEntities(gameDataManager) {
         const playerEntityId = this.world.createEntity();
-        const mapPlayerData = gameDataManager.getPlayerDataForMap();
+        const mapPlayerData = gameDataManager.gameData.playerPosition;
         
-        this.world.addComponent(playerEntityId, new MapComponents.Position(mapPlayerData.position.x, mapPlayerData.position.y));
+        this.world.addComponent(playerEntityId, new MapComponents.Position(mapPlayerData.x, mapPlayerData.y));
         this.world.addComponent(playerEntityId, new MapComponents.Renderable('circle', 'gold', MAP_CONFIG.PLAYER_SIZE));
         this.world.addComponent(playerEntityId, new MapComponents.PlayerControllable());
         this.world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
         this.world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
-        this.world.addComponent(playerEntityId, new MapComponents.FacingDirection(mapPlayerData.position.direction));
+        this.world.addComponent(playerEntityId, new MapComponents.FacingDirection(mapPlayerData.direction));
 
         return playerEntityId;
     }
@@ -114,7 +114,7 @@ export class MapScene extends Scene {
 
         this.world.on(GameEvents.GAME_SAVE_REQUESTED, () => {
             savePlayerState();
-            gameDataManager.saveGame();
+            gameDataManager.save();
         });
     }
 

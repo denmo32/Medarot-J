@@ -4,7 +4,7 @@
  */
 import { PlayerInfo, Parts } from '../../components/index.js';
 import { ActiveEffects } from '../components/index.js';
-import { EffectType, EffectScope, TargetTiming } from '../../common/constants.js';
+import { EffectType, EffectScope } from '../common/constants.js';
 
 export class TargetingService {
 

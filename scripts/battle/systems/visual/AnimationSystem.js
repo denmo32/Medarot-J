@@ -8,7 +8,7 @@ import { GameEvents } from '../../../common/events.js';
 import { Visual, AnimationRequest, UiAnimationRequest } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
-import { EffectType } from '../../../common/constants.js';
+import { EffectType } from '../../common/constants.js';
 import { Tween } from '../../../../engine/utils/Tween.js';
 
 export class AnimationSystem extends System {

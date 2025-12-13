@@ -5,8 +5,8 @@
  */
 import { el } from '../../../../../engine/utils/DOMUtils.js';
 import { CONFIG } from '../../../common/config.js';
-import { TeamID, PartInfo, EffectType } from '../../../../common/constants.js';
-import { PlayerStateType } from '../../../common/constants.js';
+import { TeamID, PartInfo } from '../../../../common/constants.js';
+import { PlayerStateType, EffectType } from '../../../common/constants.js';
 import { GameState, ActiveEffects } from '../../../components/index.js';
 import { Parts, PlayerInfo } from '../../../../components/index.js';
 import '../../../ui/components/GameHealthBar.js';

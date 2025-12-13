@@ -2,9 +2,8 @@
  * @file GuardEffect.js
  * @description ガード効果の定義
  */
-import { EffectType } from '../../../common/constants.js';
+import { EffectType, PlayerStateType, ModalType } from '../../common/constants.js';
 import { ActiveEffects } from '../../components/index.js';
-import { PlayerStateType, ModalType } from '../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 
 export const GuardEffect = {

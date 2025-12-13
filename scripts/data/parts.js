@@ -3,7 +3,8 @@
  * ゲームに登場するすべてのパーツの性能を定義します。
  */
 
-import { PartInfo, AttackType, ActionType } from '../common/constants.js';
+import { PartInfo } from '../common/constants.js';
+import { AttackType, ActionType } from '../battle/common/constants.js';
 import { PartRoles } from './partRoles.js';
 import { ActionDefinitionKey } from './actionDefinitions.js';
 

@@ -4,9 +4,9 @@
  */
 import { GameState, Gauge, Action, Position, ActiveEffects } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
-import { PlayerStateType } from '../common/constants.js';
-import { TeamID, EffectType } from '../../common/constants.js';
-import { CONFIG } from '../common/config.js';
+import { PlayerStateType, EffectType } from './constants.js';
+import { TeamID } from '../../common/constants.js';
+import { CONFIG } from './config.js';
 import { GameEvents } from '../../common/events.js';
 import { CombatCalculator } from '../logic/CombatCalculator.js';
 import { EffectService } from '../services/EffectService.js';

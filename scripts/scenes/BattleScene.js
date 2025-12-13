@@ -42,7 +42,7 @@ export class BattleScene extends Scene {
     }
 
     _setupEntities(gameDataManager) {
-        const playerTeamData = gameDataManager.getPlayerDataForBattle();
+        const playerTeamData = gameDataManager.gameData.playerMedarots;
         createPlayers(this.world, playerTeamData);
     }
 

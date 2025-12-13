@@ -5,7 +5,7 @@
 import { GameEvents } from '../../common/events.js';
 import { Parts as CommonParts } from '../../components/index.js';
 import { TargetingService } from './TargetingService.js';
-import { TargetTiming } from '../../common/constants.js';
+import { TargetTiming } from '../common/constants.js';
 
 export class ActionService {
     /**

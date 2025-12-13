@@ -2,11 +2,10 @@
  * @file HealEffect.js
  * @description 回復効果の定義
  */
-import { EffectType } from '../../../common/constants.js';
+import { EffectType, ModalType } from '../../common/constants.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
 import { Action } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { ModalType } from '../../common/constants.js';
 import { PartKeyToInfoMap } from '../../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 

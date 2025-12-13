@@ -5,7 +5,7 @@
  */
 import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
-import { EffectType, TargetTiming } from '../../common/constants.js';
+import { EffectType, TargetTiming } from '../common/constants.js';
 import { CombatCalculator } from '../logic/CombatCalculator.js';
 import { EffectRegistry } from '../definitions/EffectRegistry.js'; 
 import { TargetingService } from './TargetingService.js';

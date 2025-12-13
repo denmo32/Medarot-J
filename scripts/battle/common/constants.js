@@ -53,3 +53,59 @@ export const ActionCancelReason = {
     TARGET_LOST: 'TARGET_LOST',
     INTERRUPTED: 'INTERRUPTED',
 };
+
+/**
+ * アクションの効果種別を定義する定数
+ */
+export const EffectType = {
+    DAMAGE: 'DAMAGE',
+    APPLY_SCAN: 'APPLY_SCAN',
+    HEAL: 'HEAL',
+    APPLY_GLITCH: 'APPLY_GLITCH',
+    APPLY_GUARD: 'APPLY_GUARD',
+    CONSUME_GUARD: 'CONSUME_GUARD', // ガード消費を追加
+};
+
+/**
+ * アクションの効果範囲を定義する定数
+ */
+export const EffectScope = {
+    ENEMY_SINGLE: 'ENEMY_SINGLE',
+    ALLY_SINGLE: 'ALLY_SINGLE',
+    ALLY_TEAM: 'ALLY_TEAM',
+    SELF: 'SELF',
+};
+
+/**
+ * アクションの論理的な分類を定義する定数
+ */
+export const ActionType = {
+    SHOOT: 'SHOOT',
+    MELEE: 'MELEE',
+    HEAL: 'HEAL',
+    SUPPORT: 'SUPPORT',
+    INTERRUPT: 'INTERRUPT',
+    DEFEND: 'DEFEND',
+};
+
+/**
+ * 攻撃の特性（タイプ）を定義する定数
+ */
+export const AttackType = {
+    SHOOT: '撃つ',
+    AIMED_SHOT: '狙い撃ち',
+    STRIKE: '殴る',
+    RECKLESS: '我武者羅',
+    SUPPORT: '支援',
+    REPAIR: '修復',
+    INTERRUPT: '妨害',
+    DEFEND: '守る',
+};
+
+/**
+ * ターゲット決定タイミングを定義する定数
+ */
+export const TargetTiming = {
+    PRE_MOVE: 'pre-move',   // 移動前にターゲットを決定する
+    POST_MOVE: 'post-move'  // 移動後にターゲットを決定する
+};

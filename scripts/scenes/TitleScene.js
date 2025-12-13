@@ -76,10 +76,10 @@ export class TitleScene extends Scene {
         if (!this.gameDataManager) return;
 
         if (isNewGame) {
-            this.gameDataManager.resetToDefault();
+            this.gameDataManager.reset();
             console.log("Starting New Game...");
         } else {
-            this.gameDataManager.loadGame();
+            // ロードはGameDataManagerのコンストラクタで自動的に行われる
             console.log("Loading Game from Save...");
         }
 

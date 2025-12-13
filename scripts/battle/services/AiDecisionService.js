@@ -8,7 +8,7 @@ import { GameEvents } from '../../common/events.js';
 import { ActionService } from './ActionService.js';
 import { QueryService } from './QueryService.js';
 import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
-import { TargetTiming as CommonTargetTiming } from '../../common/constants.js';
+import { TargetTiming } from '../common/constants.js';
 
 export class AiDecisionService {
     constructor(world) {
@@ -95,7 +95,7 @@ export class AiDecisionService {
             let selectedTarget = null;
 
             // 事前ターゲット選択（射撃など）の場合のみ、ここでターゲットを決定する
-            if (part.targetTiming === CommonTargetTiming.PRE_MOVE) {
+            if (part.targetTiming === TargetTiming.PRE_MOVE) {
                 // 単一ターゲットが必要な行動か判定
                 const requiresSingleTarget = part.targetScope?.endsWith('_SINGLE');
                 

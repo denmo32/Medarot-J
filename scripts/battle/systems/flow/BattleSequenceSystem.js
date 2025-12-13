@@ -4,8 +4,7 @@
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { PlayerStateType, BattlePhase } from '../../common/constants.js';
-import { TargetTiming } from '../../../common/constants.js';
+import { PlayerStateType, BattlePhase, TargetTiming } from '../../common/constants.js';
 import { BattleSequenceContext } from '../../components/BattleSequenceContext.js';
 import { PhaseContext } from '../../components/PhaseContext.js';
 import { TurnContext } from '../../components/TurnContext.js';

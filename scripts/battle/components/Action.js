@@ -1,4 +1,4 @@
-import { TargetTiming } from '../../common/constants.js';
+import { TargetTiming } from '../common/constants.js';
 
 /**
  * 戦闘アクションの情報を保持するコンポーネント

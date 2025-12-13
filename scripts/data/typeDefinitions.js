@@ -2,7 +2,7 @@
  * @file 攻撃タイプ定義 (TypeDefinitions)
  * AttackTypeごとのステータス補正、クリティカル率補正、速度補正などのルールを定義する。
  */
-import { AttackType } from '../common/constants.js';
+import { AttackType } from '../battle/common/constants.js';
 
 export const TypeDefinitions = {
     [AttackType.SHOOT]: {
