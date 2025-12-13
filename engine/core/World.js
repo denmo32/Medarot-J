@@ -4,7 +4,7 @@
  * Queryシステム導入によるパフォーマンス最適化版。Mapによるクエリキャッシュに対応。
  */
 import { Query } from './Query.js';
-import { EventManager } from '../../scripts/battle/common/EventManager.js';
+import { EventManager } from '../event/EventManager.js';
 
 export class World {
     constructor() {
