@@ -66,16 +66,23 @@ export function initializeSystems(world, gameDataManager) {
     // 1. 入力 → イベントの起点となる入力処理
     world.registerSystem(uiInputSystem);
 
-    // 2. コアロジック (状態更新) → コマンド実行、フェーズ遷移、ターン管理
-    world.registerSystem(commandSystem);     // 状態変更コマンドの即時実行
-    world.registerSystem(phaseSystem);       // フェーズ状態を管理・遷移
-    world.registerSystem(turnSystem);        // ターン進行管理
-    world.registerSystem(actionSelectionSystem); // プレイヤー/AIの選択処理
-    world.registerSystem(battleSequenceSystem);  // アクション実行シーケンス管理
-    world.registerSystem(gameFlowSystem);    // ゲーム全体の進行管理
+    // 2. コアロジック (状態更新)
+    // CommandSystem: 他システムからの状態変更要求を即時処理
+    world.registerSystem(commandSystem);
+    // PhaseSystem: ログ・監視用（ロジックは他へ移動済み）
+    world.registerSystem(phaseSystem);
+    // GameFlowSystem: フェーズ遷移と初期化処理（ActionSelectionSystemより先に実行する必要がある）
+    world.registerSystem(gameFlowSystem);
+    // TurnSystem: ターン管理
+    world.registerSystem(turnSystem);
+    // ActionSelectionSystem: プレイヤー/AIの行動選択
+    world.registerSystem(actionSelectionSystem);
+    // BattleSequenceSystem: アクション実行シーケンス
+    world.registerSystem(battleSequenceSystem);
+    
     world.registerSystem(winConditionSystem); // 勝敗判定
     world.registerSystem(timerSystem);       // 時間管理
-    world.registerSystem(stateSystem);       // ゲーム状態（READY_SELECTなど）変更イベント
+    world.registerSystem(stateSystem);       // ゲーム状態変更イベント
 
     // 3. メカニクス (ゲームルール) → ゲージ、移動、エフェクト、履歴
     world.registerSystem(gaugeSystem);       // ゲージ進行管理

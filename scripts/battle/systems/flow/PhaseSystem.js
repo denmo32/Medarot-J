@@ -1,53 +1,25 @@
 /**
  * @file PhaseSystem.js
- * @description バトルフェーズのステートマシンを管理するシステム。
- * 各フェーズのロジックはStateクラスに委譲される。
+ * @description フェーズコンテキストを保持し、フェーズ遷移のログ等を管理するシステム。
+ * 旧来のステートマシンロジックは廃止し、データコンテナとしての役割とデバッグ機能に特化する。
+ * 実際の遷移ロジックは各専門System (ActionSelectionSystem, GameFlowSystem等) に移譲済み。
  */
 import { System } from '../../../../engine/core/System.js';
 import { PhaseContext } from '../../components/PhaseContext.js';
-import { BattleStateContext } from '../../components/BattleStateContext.js'; // winningTeam用
-import { TurnContext } from '../../components/TurnContext.js'; // 追加
-import { GameEvents } from '../../../common/events.js';
-import { IdleState } from './phases/IdleState.js';
-import { GameOverState } from './phases/GameOverState.js';
+import { BattlePhase } from '../../common/constants.js';
 
 export class PhaseSystem extends System {
     constructor(world) {
         super(world);
         this.phaseContext = this.world.getSingletonComponent(PhaseContext);
-        this.battleStateContext = this.world.getSingletonComponent(BattleStateContext); // winningTeam用
-        this.turnContext = this.world.getSingletonComponent(TurnContext); // 追加
-
-        // 初期ステート
-        this.currentState = new IdleState(this);
-        this.currentState.enter();
-
-        // 外部からの強制的なステート変更要求（ゲームオーバーなど）を受け付ける
-        this.on(GameEvents.GAME_OVER, this.onGameOver.bind(this));
+        this.lastPhase = null;
     }
 
     update(deltaTime) {
-        if (!this.currentState) return;
-
-        const nextState = this.currentState.update(deltaTime);
-
-        if (nextState) {
-            this.changeState(nextState);
+        // フェーズ変更検知（デバッグログ用など）
+        if (this.phaseContext.phase !== this.lastPhase) {
+            // console.log(`[PhaseSystem] Phase changed: ${this.lastPhase} -> ${this.phaseContext.phase}`);
+            this.lastPhase = this.phaseContext.phase;
         }
-    }
-
-    changeState(newState) {
-        if (this.currentState) {
-            this.currentState.exit();
-        }
-        this.currentState = newState;
-        this.currentState.enter();
-    }
-
-    onGameOver(detail) {
-        // 既にゲームオーバーなら何もしない
-        if (this.currentState instanceof GameOverState) return;
-
-        this.changeState(new GameOverState(this, detail.winningTeam));
     }
 }

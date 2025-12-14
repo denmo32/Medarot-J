@@ -1,6 +1,7 @@
 /**
  * @file BattleSequenceSystem.js
- * @description アクションシーケンスの進行管理。
+ * @description アクション実行シーケンスの管理システム。
+ * 旧 ActionExecutionState のロジックを統合。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -9,7 +10,7 @@ import { BattleSequenceContext } from '../../components/BattleSequenceContext.js
 import { PhaseContext } from '../../components/PhaseContext.js';
 import { TurnContext } from '../../components/TurnContext.js';
 import { GameState, Action } from '../../components/index.js';
-import { Parts, PlayerInfo } from '../../../components/index.js';
+import { Parts } from '../../../components/index.js';
 import { TaskRunner } from '../../tasks/TaskRunner.js';
 import { ActionSequenceService } from '../../services/ActionSequenceService.js';
 import { CancellationService } from '../../services/CancellationService.js';
@@ -49,23 +50,6 @@ export class BattleSequenceSystem extends System {
         this.on(GameEvents.GAME_RESUMED, () => { this.taskRunner.isPaused = false; });
     }
 
-    _resolvePostMoveTargetForWorld(world, attackerId) {
-        const action = world.getComponent(attackerId, Action);
-        const parts = world.getComponent(attackerId, Parts);
-        if (!action || !parts || !action.partKey) return;
-        const attackingPart = parts[action.partKey];
-        if (!attackingPart || attackingPart.targetTiming !== TargetTiming.POST_MOVE || action.targetId !== null) return;
-
-        const strategy = targetingStrategies[attackingPart.postMoveTargeting];
-        if (strategy) {
-            const targetData = strategy({ world, attackerId });
-            if (targetData) {
-                action.targetId = targetData.targetId;
-                action.targetPartKey = targetData.targetPartKey;
-            }
-        }
-    }
-
     update(deltaTime) {
         // TaskRunnerは常に更新
         this.taskRunner.update(deltaTime);
@@ -76,9 +60,19 @@ export class BattleSequenceSystem extends System {
             return;
         }
 
-        // メインステートマシン
+        // フェーズが ACTION_EXECUTION でなければアイドル状態へ
+        if (this.phaseContext.phase !== BattlePhase.ACTION_EXECUTION) {
+            if (this.internalState !== SequenceState.IDLE && !this.battleSequenceContext.isSequenceRunning) {
+                // 何らかの理由でフェーズが変わった場合のリセット（通常はないはず）
+                this.internalState = SequenceState.IDLE;
+            }
+            return;
+        }
+
+        // --- メインステートマシン ---
         switch (this.internalState) {
             case SequenceState.IDLE:
+                // フェーズが EXECUTION になったら自動開始
                 if (this.phaseContext.phase === BattlePhase.ACTION_EXECUTION && !this.battleSequenceContext.isSequenceRunning) {
                     this._startExecutionPhase();
                 }
@@ -103,6 +97,8 @@ export class BattleSequenceSystem extends System {
                 break;
         }
     }
+
+    // --- State Logic ---
 
     _startExecutionPhase() {
         this.internalState = SequenceState.PREPARING;
@@ -167,7 +163,6 @@ export class BattleSequenceSystem extends System {
         const visualSequence = resultData.visualSequence || [];
 
         // 状態変更コマンドがある場合、演出シーケンス内の適切な位置に追加
-        // REFRESH_UI (実データからの同期) よりも前に実行しないと、表示が古いデータで上書きされてしまう
         if (resultData.stateUpdates && resultData.stateUpdates.length > 0) {
             const commandTask = {
                 type: 'EVENT',
@@ -209,6 +204,41 @@ export class BattleSequenceSystem extends System {
         this.battleSequenceContext.isSequenceRunning = false;
 
         this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
+        
+        // 次のフェーズへ遷移
+        // 行動中のエンティティがいれば選択フェーズへ、いなければターン終了へ
+        if (this._isAnyEntityInAction()) {
+            this.phaseContext.phase = BattlePhase.ACTION_SELECTION;
+        } else {
+            this.phaseContext.phase = BattlePhase.TURN_END;
+        }
+    }
+
+    _isAnyEntityInAction() {
+        const entities = this.getEntities(GameState);
+        return entities.some(id => {
+            const state = this.world.getComponent(id, GameState);
+            return state.state === PlayerStateType.CHARGING || 
+                   state.state === PlayerStateType.READY_SELECT ||
+                   state.state === PlayerStateType.SELECTED_CHARGING;
+        });
+    }
+
+    _resolvePostMoveTargetForWorld(world, attackerId) {
+        const action = world.getComponent(attackerId, Action);
+        const parts = world.getComponent(attackerId, Parts);
+        if (!action || !parts || !action.partKey) return;
+        const attackingPart = parts[action.partKey];
+        if (!attackingPart || attackingPart.targetTiming !== TargetTiming.POST_MOVE || action.targetId !== null) return;
+
+        const strategy = targetingStrategies[attackingPart.postMoveTargeting];
+        if (strategy) {
+            const targetData = strategy({ world, attackerId });
+            if (targetData) {
+                action.targetId = targetData.targetId;
+                action.targetPartKey = targetData.targetPartKey;
+            }
+        }
     }
 
     abortSequence() {
