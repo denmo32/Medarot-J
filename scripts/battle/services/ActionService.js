@@ -1,42 +1,51 @@
 /**
  * @file 行動決定サービス
- * @description アクションの妥当性を検証し、イベントを発行する。
+ * @description アクションの妥当性を検証し、リクエストコンポーネントを生成する。
+ * 副作用（イベント発行）を廃止し、Worldへのコンポーネント追加のみを行う。
  */
-import { GameEvents } from '../../common/events.js';
 import { Parts as CommonParts } from '../../components/index.js';
 import { TargetingService } from './TargetingService.js';
 import { TargetTiming } from '../common/constants.js';
+import { ActionSelectedRequest, ActionRequeueRequest } from '../components/Requests.js';
 
 export class ActionService {
     /**
-     * アクションを決定し、イベントを発行する
+     * アクションリクエストを作成し、Worldに追加する
      * @param {World} world 
      * @param {number} entityId 
      * @param {string} partKey 
      * @param {object} target 
      */
-    static decideAndEmit(world, entityId, partKey, target = null) {
+    static createActionRequest(world, entityId, partKey, target = null) {
         const parts = world.getComponent(entityId, CommonParts);
 
         if (!parts || !partKey || !parts[partKey] || parts[partKey].isBroken) {
             console.warn(`ActionService: Invalid or broken part selected for entity ${entityId}. Re-queueing.`);
-            world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
+            const reqEntity = world.createEntity();
+            world.addComponent(reqEntity, new ActionRequeueRequest(entityId));
             return;
         }
 
         const selectedPart = parts[partKey];
 
-        // 単一ターゲットが必要な行動なのに、有効なターゲットが指定されていない場合に警告
-        // PRE_MOVE（事前選択）の場合のみチェック
-        if (selectedPart.targetTiming === TargetTiming.PRE_MOVE && selectedPart.targetScope?.endsWith('_SINGLE') && !TargetingService.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
+        // ターゲット検証 (PRE_MOVE)
+        if (selectedPart.targetTiming === TargetTiming.PRE_MOVE && 
+            selectedPart.targetScope?.endsWith('_SINGLE') && 
+            !TargetingService.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
+            
             console.error(`ActionService: A valid target was expected but not found. Action may fail.`, {entityId, partKey, target});
+            // 致命的なエラーでない限り続行させるか、リキューするかはゲームデザインによる。
+            // ここでは続行させてSystem側でキャンセル判定させるフローとする。
         }
 
-        world.emit(GameEvents.ACTION_SELECTED, {
+        // ActionSelectedRequest コンポーネントを持つエンティティを作成
+        // これは次のフレームで ActionSelectionSystem によって処理される
+        const reqEntity = world.createEntity();
+        world.addComponent(reqEntity, new ActionSelectedRequest(
             entityId,
             partKey,
-            targetId: target ? target.targetId : null,
-            targetPartKey: target ? target.targetPartKey : null
-        });
+            target ? target.targetId : null,
+            target ? target.targetPartKey : null
+        ));
     }
 }

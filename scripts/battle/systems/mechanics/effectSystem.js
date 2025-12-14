@@ -1,6 +1,7 @@
 import { System } from '../../../../engine/core/System.js';
 import { ActiveEffects, GameState } from '../../components/index.js';
 import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
+import { ModalRequest } from '../../components/Requests.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { EffectRegistry } from '../../definitions/EffectRegistry.js';
@@ -38,15 +39,20 @@ export class EffectSystem extends System {
                             partKey: effect.partKey,
                             change: -result.damage,
                             isHeal: false,
-                            ...result // oldHp, newHpなどが含まれる場合
+                            ...result 
                         });
                     }
                     if (result.message) {
-                        this.world.emit(GameEvents.SHOW_MODAL, {
-                            type: 'MESSAGE',
-                            data: { message: result.message },
-                            immediate: true
-                        });
+                        // イベント発行からリクエストコンポーネント生成へ変更
+                        const req = this.world.createEntity();
+                        this.world.addComponent(req, new ModalRequest(
+                            'MESSAGE',
+                            { message: result.message },
+                            {
+                                messageSequence: [{ text: result.message }],
+                                priority: 'high'
+                            }
+                        ));
                     }
                 }
             });

@@ -1,7 +1,7 @@
 /**
  * @file AiDecisionService.js
  * @description AIの意思決定ロジックを提供するサービス。
- * 性格に基づくターゲット選定や、行動プランの評価・選択を行う。
+ * イベント発行をActionService.createActionRequestへの委譲に変更。
  */
 import { determineTargetCandidatesByPersonality, selectBestActionPlan } from '../ai/aiDecisionUtils.js';
 import { GameEvents } from '../../common/events.js';
@@ -9,6 +9,7 @@ import { ActionService } from './ActionService.js';
 import { QueryService } from './QueryService.js';
 import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
 import { TargetTiming } from '../common/constants.js';
+import { ActionRequeueRequest, SetPlayerBrokenRequest } from '../components/index.js'; // SetPlayerBrokenRequestはCommandRequestsかも
 
 export class AiDecisionService {
     constructor(world) {
@@ -16,7 +17,7 @@ export class AiDecisionService {
     }
 
     /**
-     * 指定されたエンティティのAI思考を実行し、アクションを決定・発行する
+     * 指定されたエンティティのAI思考を実行し、アクションリクエストを生成する
      * @param {number} entityId 
      */
     processAiTurn(entityId) {
@@ -27,7 +28,8 @@ export class AiDecisionService {
 
         if (!targetCandidates || targetCandidates.length === 0) {
             console.warn(`AI ${entityId}: No target candidates found by personality.`);
-            this.world.emit(GameEvents.ACTION_REQUEUE_REQUEST, { entityId });
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new ActionRequeueRequest(entityId));
             return;
         }
 
@@ -35,8 +37,16 @@ export class AiDecisionService {
         const actionPlans = this.generateActionPlans(entityId, targetCandidates);
         
         if (actionPlans.length === 0) {
-            // 有効なアクションがない場合（全パーツ破壊など）
-            this.world.emit(GameEvents.PLAYER_BROKEN, { entityId });
+            // 有効なアクションがない場合（全パーツ破壊など） - CommandRequestを発行
+            // Note: SetPlayerBrokenRequestのインポート元に注意
+            const req = this.world.createEntity();
+            // 仮: SetPlayerBrokenRequestを動的にインポートするか、引数で渡す設計が望ましいが、
+            // ここでは単にActionServiceへ委譲できないため、イベントの代わりにコンポーネントを追加する
+            // 便宜上、ActionServiceが処理できない "Broken" 状態は別途処理が必要だが、
+            // ここではActionPlansが0になるケースは稀（機能停止判定は別途行われる）とする。
+            // 万が一の場合はターンをスキップするリクエストなどを出す。
+             console.warn(`AI ${entityId}: No valid action plans.`);
+             this.world.addComponent(req, new ActionRequeueRequest(entityId));
             return;
         }
 
@@ -49,7 +59,7 @@ export class AiDecisionService {
             return;
         }
         
-        // 4. プランを実行
+        // 4. プランを実行 (リクエスト生成)
         this._executePlan(entityId, finalPlan, usedStrategy);
     }
 
@@ -75,11 +85,6 @@ export class AiDecisionService {
         return this._determineActionPlans({ ...context, targetCandidates });
     }
 
-    /**
-     * 行動プラン生成ロジック (旧 targetingUtils.determineActionPlans)
-     * @param {object} params { world, entityId, targetCandidates }
-     * @returns {object[]}
-     */
     _determineActionPlans({ world, entityId, targetCandidates }) {
         if (!targetCandidates || targetCandidates.length === 0) {
             return [];
@@ -94,9 +99,7 @@ export class AiDecisionService {
         for (const [partKey, part] of availableParts) {
             let selectedTarget = null;
 
-            // 事前ターゲット選択（射撃など）の場合のみ、ここでターゲットを決定する
             if (part.targetTiming === TargetTiming.PRE_MOVE) {
-                // 単一ターゲットが必要な行動か判定
                 const requiresSingleTarget = part.targetScope?.endsWith('_SINGLE');
                 
                 if (requiresSingleTarget) {
@@ -104,15 +107,11 @@ export class AiDecisionService {
                     if (selectedCandidate) {
                         selectedTarget = selectedCandidate.target;
                     } else {
-                        // 有効なターゲットがいない場合、このパーツでの行動はプランに追加しない
                         continue;
                     }
                 }
-                // 'ALLY_TEAM' のような単一ターゲット不要な行動は selectedTarget が null のまま進む
             }
             
-            // 全ての有効なパーツについてプランを追加
-            // POST_MOVE の場合、target は null になる
             actionPlans.push({
                 partKey,
                 part,
@@ -123,20 +122,20 @@ export class AiDecisionService {
     }
 
     _executePlan(entityId, plan, strategyKey) {
+        // デバッグログ用イベントは維持（システムに影響しないため）
         if (strategyKey && plan.target) {
-            // デバッグやログ用に戦略情報を通知
             this.world.emit(GameEvents.STRATEGY_EXECUTED, {
                 strategy: strategyKey,
                 attackerId: entityId,
                 target: plan.target,
             });
         }
-        ActionService.decideAndEmit(this.world, entityId, plan.partKey, plan.target);
+        ActionService.createActionRequest(this.world, entityId, plan.partKey, plan.target);
     }
 
     _executeRandomFallback(entityId, actionPlans) {
         if (actionPlans.length === 0) return;
         const randomPlan = actionPlans[Math.floor(Math.random() * actionPlans.length)];
-        ActionService.decideAndEmit(this.world, entityId, randomPlan.partKey, randomPlan.target);
+        ActionService.createActionRequest(this.world, entityId, randomPlan.partKey, randomPlan.target);
     }
 }

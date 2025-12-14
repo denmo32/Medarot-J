@@ -1,8 +1,7 @@
 /**
  * @file VisualDirectorSystem.js
  * @description バトル中の視覚演出を一元管理する監督システム。
- * DialogTask, VfxTask, CameraTask を処理する。
- * 旧形式の Request 処理は削除・統合済み。
+ * イベント発行を廃止し、ModalRequestコンポーネントの生成へ移行。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -10,6 +9,7 @@ import { ModalType } from '../../common/constants.js';
 import {
     DialogTask, VfxTask, CameraTask
 } from '../../components/Tasks.js';
+import { ModalRequest } from '../../components/Requests.js';
 
 export class VisualDirectorSystem extends System {
     constructor(world) {
@@ -18,6 +18,7 @@ export class VisualDirectorSystem extends System {
     }
 
     bindWorldEvents() {
+        // 完了通知はイベントとして受け取る（System間通信の簡易化のため維持）
         this.on(GameEvents.MODAL_CLOSED, this.onModalClosed.bind(this));
     }
 
@@ -38,15 +39,21 @@ export class VisualDirectorSystem extends System {
             const task = this.world.getComponent(entityId, DialogTask);
             
             if (!task.isDisplayed) {
-                this.world.emit(GameEvents.SHOW_MODAL, {
-                    type: task.options?.modalType || ModalType.MESSAGE,
-                    data: { 
+                // イベント発行ではなく、リクエストコンポーネントを生成
+                const reqEntity = this.world.createEntity();
+                this.world.addComponent(reqEntity, new ModalRequest(
+                    task.options?.modalType || ModalType.MESSAGE,
+                    { 
                         message: task.text,
                         ...task.options 
                     },
-                    messageSequence: [{ text: task.text }],
-                    taskId: task.taskId
-                });
+                    {
+                        messageSequence: [{ text: task.text }],
+                        taskId: task.taskId,
+                        priority: 'normal'
+                    }
+                ));
+                
                 task.isDisplayed = true;
             }
         }

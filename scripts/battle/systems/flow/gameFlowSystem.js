@@ -1,12 +1,13 @@
 /**
  * @file GameFlowSystem.js
  * @description ゲーム全体の進行フロー（開始、終了、初期化など）を管理するシステム。
- * BattleStateContext を廃止し、PauseStateとBattleResultコンポーネントを使用するように変更。
+ * イベント発行を廃止し、ModalRequestコンポーネントの生成へ移行。
  */
 import { System } from '../../../../engine/core/System.js';
 import { PhaseState } from '../../components/PhaseState.js';
-import { GameState, Gauge, Action, ActionSelectionPending, PauseState, BattleResult } from '../../components/index.js'; // 変更
+import { GameState, Gauge, Action, ActionSelectionPending, PauseState, BattleResult } from '../../components/index.js';
 import { UpdateComponentRequest, TransitionStateRequest } from '../../components/CommandRequests.js';
+import { ModalRequest } from '../../components/Requests.js';
 import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
 import { Timer } from '../../../../engine/stdlib/components/Timer.js';
@@ -16,9 +17,7 @@ export class GameFlowSystem extends System {
         super(world);
         this.phaseState = this.world.getSingletonComponent(PhaseState);
         
-        // PauseState管理用のエンティティIDを保持（または毎回検索）
         this.pauseEntityId = null;
-        
         this.lastPhase = null;
 
         this._bindEvents();
@@ -28,14 +27,11 @@ export class GameFlowSystem extends System {
         this.on(GameEvents.GAME_PAUSED, this._onPause.bind(this));
         this.on(GameEvents.GAME_RESUMED, this._onResume.bind(this));
         
-        // IDLEフェーズでのイベント
         this.on(GameEvents.GAME_START_CONFIRMED, this._onGameStartConfirmed.bind(this));
-        
-        // BATTLE_STARTフェーズでのイベント
         this.on('BATTLE_ANIMATION_COMPLETED', this._onBattleAnimationCompleted.bind(this));
         
-        // GAME_OVERイベント
-        this.on(GameEvents.GAME_OVER, this._onGameOver.bind(this));
+        // GAME_OVERイベントはWinConditionSystemがPhaseStateを更新するため、
+        // ここでのリスナーは削除しても機能しますが、念のため残す場合はPhaseStateの整合性を保つ役割のみにします
     }
 
     update(deltaTime) {
@@ -90,7 +86,6 @@ export class GameFlowSystem extends System {
             }
             this.pauseEntityId = null;
         } else {
-            // 念のため全削除
             const entities = this.getEntities(PauseState);
             for (const id of entities) {
                 this.world.destroyEntity(id);
@@ -105,7 +100,7 @@ export class GameFlowSystem extends System {
         }
     }
 
-    // --- INITIAL_SELECTION Logic (Initialization) ---
+    // --- INITIAL_SELECTION Logic ---
     _initializePlayersForBattle() {
         const players = this.getEntities(GameState, Gauge);
         
@@ -145,16 +140,6 @@ export class GameFlowSystem extends System {
     }
 
     // --- GAME_OVER Logic ---
-    _onGameOver(detail) {
-        if (this.phaseState.phase !== BattlePhase.GAME_OVER) {
-            this.phaseState.phase = BattlePhase.GAME_OVER;
-            
-            // 結果を保存するためのエンティティを作成
-            const resultEntity = this.world.createEntity();
-            this.world.addComponent(resultEntity, new BattleResult(detail.winningTeam));
-        }
-    }
-
     _handleGameOverEnter() {
         // 結果を取得
         const results = this.getEntities(BattleResult);
@@ -163,9 +148,16 @@ export class GameFlowSystem extends System {
             winningTeam = this.world.getComponent(results[0], BattleResult).winningTeam;
         }
 
+        // タイマーは画面遷移までのディレイなどに使用可能だが、ここではUI表示を優先
         const timerEntity = this.world.createEntity();
         this.world.addComponent(timerEntity, new Timer(3000, () => {}));
 
-        this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.GAME_OVER, data: { winningTeam } });
+        // モーダル表示リクエストを発行
+        const req = this.world.createEntity();
+        this.world.addComponent(req, new ModalRequest(
+            ModalType.GAME_OVER,
+            { winningTeam },
+            { priority: 'high' }
+        ));
     }
 }

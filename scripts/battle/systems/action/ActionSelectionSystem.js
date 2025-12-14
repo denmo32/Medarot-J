@@ -1,7 +1,7 @@
 /**
  * @file ActionSelectionSystem.js
  * @description アクション選択フェーズの制御を行うシステム。
- * イベント駆動からループ監視による自律的なアクター選出へ移行。
+ * イベントリスナーを廃止し、Requestsコンポーネントのポーリングに移行。
  */
 import { System } from '../../../../engine/core/System.js';
 import { TurnContext } from '../../components/TurnContext.js';
@@ -9,8 +9,16 @@ import { PhaseState } from '../../components/PhaseState.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { Action, Gauge, GameState, ActionSelectionPending, AiActionRequest } from '../../components/index.js';
-import { TransitionStateRequest, UpdateComponentRequest } from '../../components/CommandRequests.js';
-import { PlayerStateType, BattlePhase } from '../../common/constants.js';
+import { 
+    TransitionStateRequest, 
+    UpdateComponentRequest 
+} from '../../components/CommandRequests.js';
+import { 
+    ActionSelectedRequest, 
+    ActionRequeueRequest,
+    ModalRequest 
+} from '../../components/Requests.js';
+import { PlayerStateType, BattlePhase, ModalType } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
 import { QueryService } from '../../services/QueryService.js';
@@ -27,19 +35,24 @@ export class ActionSelectionSystem extends System {
             cancelled: false
         };
 
-        this._bindEvents();
-    }
-
-    _bindEvents() {
-        this.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
+        // UIからの確認結果などはまだイベントで受け取る部分があるが
+        // 主要なアクション決定フローはコンポーネント化する
         this.on(GameEvents.BATTLE_START_CONFIRMED, () => { this.initialSelectionState.confirmed = true; });
         this.on(GameEvents.BATTLE_START_CANCELLED, () => { this.initialSelectionState.cancelled = true; });
-        this.on(GameEvents.ACTION_REQUEUE_REQUEST, this.onActionRequeueRequest.bind(this));
-        // ACTION_QUEUE_REQUEST のハンドラを追加
+        
+        // ActionQueueRequest (GameEvents) は StateTransitionSystem から発行されるが
+        // これはリクエストコンポーネントではなくイベントだったため、
+        // ハンドラ内で処理するか、発行元を修正する必要がある。
+        // ここではイベントハンドラを残しつつ処理を行う。
         this.on(GameEvents.ACTION_QUEUE_REQUEST, this.onActionQueueRequest.bind(this));
     }
 
     update(deltaTime) {
+        // 1. リクエスト処理 (フェーズに関わらず処理)
+        this._processActionSelectedRequests();
+        this._processActionRequeueRequests();
+
+        // 2. フェーズごとのロジック
         const currentPhase = this.phaseState.phase;
 
         if (currentPhase === BattlePhase.INITIAL_SELECTION) {
@@ -47,6 +60,91 @@ export class ActionSelectionSystem extends System {
         } else if (currentPhase === BattlePhase.ACTION_SELECTION) {
             this._updateActionSelection();
         }
+    }
+
+    // --- Request Processing ---
+
+    _processActionSelectedRequests() {
+        const requests = this.getEntities(ActionSelectedRequest);
+        for (const reqId of requests) {
+            const request = this.world.getComponent(reqId, ActionSelectedRequest);
+            this._handleActionSelected(request);
+            this.world.destroyEntity(reqId);
+        }
+    }
+
+    _processActionRequeueRequests() {
+        const requests = this.getEntities(ActionRequeueRequest);
+        for (const reqId of requests) {
+            const request = this.world.getComponent(reqId, ActionRequeueRequest);
+            const { entityId } = request;
+            
+            if (!this.world.getComponent(entityId, ActionSelectionPending)) {
+                this.world.addComponent(entityId, new ActionSelectionPending());
+            }
+            if (this.turnContext.currentActorId === entityId) {
+                this.turnContext.currentActorId = null;
+            }
+            this.world.destroyEntity(reqId);
+        }
+    }
+
+    // --- Core Logic ---
+
+    _handleActionSelected(detail) {
+        const { entityId, partKey, targetId, targetPartKey } = detail;
+
+        if (this.turnContext.currentActorId === entityId) {
+            this.turnContext.selectedActions.set(entityId, detail);
+            this.turnContext.currentActorId = null; // 次へ
+        }
+
+        const action = this.world.getComponent(entityId, Action);
+        const parts = this.world.getComponent(entityId, Parts);
+
+        // バリデーション (ActionServiceでも行っているが念のため)
+        if (!partKey || !parts?.[partKey] || parts[partKey].isBroken) {
+            console.warn(`ActionSelectionSystem: Invalid part selected. Re-queueing.`);
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new ActionRequeueRequest(entityId));
+            return;
+        }
+
+        const selectedPart = parts[partKey];
+
+        // コンポーネント更新
+        action.partKey = partKey;
+        action.type = selectedPart.action;
+        action.targetId = targetId;
+        action.targetPartKey = targetPartKey;
+        action.targetTiming = selectedPart.targetTiming;
+
+        // 速度計算
+        const modifier = EffectService.getSpeedMultiplierModifier(this.world, entityId, selectedPart);
+        const speedMultiplier = CombatCalculator.calculateSpeedMultiplier({
+            might: selectedPart.might,
+            success: selectedPart.success,
+            factorType: 'charge',
+            modifier: modifier
+        });
+
+        // 状態遷移リクエスト発行
+        const req1 = this.world.createEntity();
+        this.world.addComponent(req1, new TransitionStateRequest(
+            entityId,
+            PlayerStateType.SELECTED_CHARGING
+        ));
+
+        const req2 = this.world.createEntity();
+        this.world.addComponent(req2, new UpdateComponentRequest(
+            entityId,
+            Gauge,
+            {
+                value: 0,
+                currentSpeed: 0,
+                speedMultiplier: speedMultiplier
+            }
+        ));
     }
 
     // --- INITIAL_SELECTION Logic ---
@@ -62,18 +160,15 @@ export class ActionSelectionSystem extends System {
             this.initialSelectionState.isConfirming = false;
             
             this.phaseState.phase = BattlePhase.IDLE;
-            this.world.emit(GameEvents.GAME_START_CONFIRMED);
+            this.world.emit(GameEvents.GAME_START_CONFIRMED); // シーン遷移トリガー用
             return;
         }
 
         if (!this.initialSelectionState.isConfirming && this._checkAllSelected()) {
             this.initialSelectionState.isConfirming = true;
-            this.world.emit(GameEvents.SHOW_MODAL, {
-                type: 'battle_start_confirm',
-                data: {},
-                priority: 'high'
-            });
-            this.world.emit(GameEvents.GAME_PAUSED);
+            // モーダル表示リクエスト
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new ModalRequest(ModalType.BATTLE_START_CONFIRM, {}, { priority: 'high' }));
         }
 
         if (!this.initialSelectionState.isConfirming && this.turnContext.currentActorId === null) {
@@ -109,10 +204,6 @@ export class ActionSelectionSystem extends System {
         }
     }
 
-    /**
-     * 次の行動選択待ちアクターを選出し、入力要求を行う
-     * @param {boolean} isInitial 初期選択フェーズかどうか
-     */
     _processNextActor(isInitial) {
         const pendingEntities = this.getEntities(ActionSelectionPending);
         if (pendingEntities.length === 0) return;
@@ -145,78 +236,15 @@ export class ActionSelectionSystem extends System {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         
         if (playerInfo.teamId === 'team1') {
+            // イベント発行
             this.world.emit(GameEvents.PLAYER_INPUT_REQUIRED, { entityId });
         } else {
+            // AIリクエスト発行
             this.world.addComponent(entityId, new AiActionRequest());
         }
     }
 
-    // --- Event Handlers ---
-    onActionSelected(detail) {
-        const { entityId, partKey, targetId, targetPartKey } = detail;
-
-        if (this.turnContext.currentActorId === entityId) {
-            this.turnContext.selectedActions.set(entityId, detail);
-            this.turnContext.currentActorId = null; // 次へ
-        }
-
-        const action = this.world.getComponent(entityId, Action);
-        const parts = this.world.getComponent(entityId, Parts);
-
-        if (!partKey || !parts?.[partKey] || parts[partKey].isBroken) {
-            console.warn(`ActionSelectionSystem: Invalid or broken part selected for entity ${entityId}. Re-queueing.`, detail);
-            this.world.addComponent(entityId, new ActionSelectionPending());
-            if (this.turnContext.currentActorId === entityId) {
-                this.turnContext.currentActorId = null;
-            }
-            return;
-        }
-
-        const selectedPart = parts[partKey];
-
-        action.partKey = partKey;
-        action.type = selectedPart.action;
-        action.targetId = targetId;
-        action.targetPartKey = targetPartKey;
-        action.targetTiming = selectedPart.targetTiming;
-
-        const modifier = EffectService.getSpeedMultiplierModifier(this.world, entityId, selectedPart);
-        const speedMultiplier = CombatCalculator.calculateSpeedMultiplier({
-            might: selectedPart.might,
-            success: selectedPart.success,
-            factorType: 'charge',
-            modifier: modifier
-        });
-
-        const req1 = this.world.createEntity();
-        this.world.addComponent(req1, new TransitionStateRequest(
-            entityId,
-            PlayerStateType.SELECTED_CHARGING
-        ));
-
-        const req2 = this.world.createEntity();
-        this.world.addComponent(req2, new UpdateComponentRequest(
-            entityId,
-            Gauge,
-            {
-                value: 0,
-                currentSpeed: 0,
-                speedMultiplier: speedMultiplier
-            }
-        ));
-    }
-
-    onActionRequeueRequest(detail) {
-        const { entityId } = detail;
-        if (!this.world.getComponent(entityId, ActionSelectionPending)) {
-            this.world.addComponent(entityId, new ActionSelectionPending());
-        }
-        if (this.turnContext.currentActorId === entityId) {
-            this.turnContext.currentActorId = null;
-        }
-    }
-
-    // StateTransitionSystem 等からの要求を受け、選択待ちキューに入れる
+    // Handler for GameEvents.ACTION_QUEUE_REQUEST
     onActionQueueRequest(detail) {
         const { entityId } = detail;
         if (!this.world.getComponent(entityId, ActionSelectionPending)) {
