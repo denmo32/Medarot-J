@@ -5,7 +5,6 @@
  */
 import { EffectType } from '../../common/constants.js';
 import { ActiveEffects } from '../../components/index.js';
-import { ResetToCooldownCommand, CustomUpdateCommand } from '../../common/Command.js';
 
 export const ConsumeGuardEffect = {
     type: EffectType.CONSUME_GUARD,
@@ -22,7 +21,8 @@ export const ConsumeGuardEffect = {
         const stateUpdates = [];
 
         if (guardEffect) {
-            stateUpdates.push(new CustomUpdateCommand({
+            stateUpdates.push({
+                type: 'CustomUpdateComponent',
                 targetId: effect.targetId,
                 componentType: ActiveEffects,
                 customHandler: (ae) => {
@@ -34,15 +34,15 @@ export const ConsumeGuardEffect = {
                         }
                     }
                 }
-            }));
+            });
 
             if (guardEffect.count - 1 <= 0) {
                 isExpired = true;
-                // REQUEST_RESET_TO_COOLDOWN イベントの代わりにコマンドを生成
-                stateUpdates.push(new ResetToCooldownCommand({
+                stateUpdates.push({
+                    type: 'ResetToCooldown',
                     targetId: effect.targetId,
                     options: {}
-                }));
+                });
             }
         }
 

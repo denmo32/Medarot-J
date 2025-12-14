@@ -12,10 +12,14 @@ import {
     CombatRequest, CombatResult, VisualSequenceRequest, VisualSequenceResult, VisualSequence,
     BattleSequenceState, SequenceState, SequencePending
 } from '../../components/index.js';
+import { 
+    TransitionStateRequest, ResetToCooldownRequest,
+    SetPlayerBrokenRequest, UpdateComponentRequest, CustomUpdateComponentRequest,
+    TransitionToCooldownRequest
+} from '../../components/CommandRequests.js';
 import { Parts } from '../../../components/index.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
-import { TransitionStateCommand, ResetToCooldownCommand } from '../../common/Command.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 
 export class BattleSequenceSystem extends System {
@@ -168,11 +172,11 @@ export class BattleSequenceSystem extends System {
     }
 
     _initializeActorSequence(actorId, sequenceState) {
-        const cmd = new TransitionStateCommand({
-            targetId: actorId,
-            newState: PlayerStateType.AWAITING_ANIMATION
-        });
-        cmd.execute(this.world);
+        const reqEntity = this.world.createEntity();
+        this.world.addComponent(reqEntity, new TransitionStateRequest(
+            actorId,
+            PlayerStateType.AWAITING_ANIMATION
+        ));
 
         const cancelCheck = CancellationService.checkCancellation(this.world, actorId);
         if (cancelCheck.shouldCancel) {
@@ -205,9 +209,10 @@ export class BattleSequenceSystem extends System {
         
         if (resultData && resultData.stateUpdates && resultData.stateUpdates.length > 0) {
             const commandTask = {
-                type: 'EVENT',
-                eventName: GameEvents.EXECUTE_COMMANDS,
-                detail: resultData.stateUpdates
+                type: 'CUSTOM',
+                executeFn: (world) => {
+                    this._applyStateUpdates(world, resultData.stateUpdates);
+                }
             };
 
             const refreshIndex = tasks.findIndex(v => v.type === 'EVENT' && v.eventName === GameEvents.REFRESH_UI);
@@ -221,6 +226,35 @@ export class BattleSequenceSystem extends System {
         const builtTasks = this.timelineBuilder.buildVisualSequence(tasks);
         this.world.addComponent(actorId, new VisualSequence(builtTasks));
         sequenceState.currentState = SequenceState.EXECUTING_TASKS;
+    }
+
+    _applyStateUpdates(world, updates) {
+        for (const update of updates) {
+            const reqEntity = world.createEntity();
+            switch (update.type) {
+                case 'SetPlayerBroken':
+                    world.addComponent(reqEntity, new SetPlayerBrokenRequest(update.targetId));
+                    break;
+                case 'ResetToCooldown':
+                    world.addComponent(reqEntity, new ResetToCooldownRequest(update.targetId, update.options));
+                    break;
+                case 'TransitionState':
+                    world.addComponent(reqEntity, new TransitionStateRequest(update.targetId, update.newState));
+                    break;
+                case 'UpdateComponent':
+                    world.addComponent(reqEntity, new UpdateComponentRequest(update.targetId, update.componentType, update.updates));
+                    break;
+                case 'CustomUpdateComponent':
+                    world.addComponent(reqEntity, new CustomUpdateComponentRequest(update.targetId, update.componentType, update.customHandler));
+                    break;
+                case 'TransitionToCooldown':
+                    world.addComponent(reqEntity, new TransitionToCooldownRequest(update.targetId));
+                    break;
+                default:
+                    console.warn(`BattleSequenceSystem: Unknown state update type "${update.type}"`);
+                    world.destroyEntity(reqEntity);
+            }
+        }
     }
 
     _finalizeActorSequence(actorId) {
@@ -287,11 +321,11 @@ export class BattleSequenceSystem extends System {
             const check = CancellationService.checkCancellation(this.world, actorId);
             if (check.shouldCancel) {
                 CancellationService.executeCancel(this.world, actorId, check.reason);
-                const cmd = new ResetToCooldownCommand({
-                    targetId: actorId,
-                    options: { interrupted: true }
-                });
-                cmd.execute(this.world);
+                const req = this.world.createEntity();
+                this.world.addComponent(req, new ResetToCooldownRequest(
+                    actorId,
+                    { interrupted: true }
+                ));
             }
         }
     }

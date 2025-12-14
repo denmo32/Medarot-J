@@ -9,10 +9,10 @@ import { PhaseState } from '../../components/PhaseState.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { Action, Gauge, GameState, PauseState } from '../../components/index.js'; // 追加
+import { TransitionStateRequest, UpdateComponentRequest } from '../../components/CommandRequests.js';
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
-import { TransitionStateCommand, UpdateComponentCommand } from '../../common/Command.js';
 
 export class ActionSelectionSystem extends System {
     constructor(world) {
@@ -179,21 +179,21 @@ export class ActionSelectionSystem extends System {
             modifier: modifier
         });
 
-        const commands = [
-            new TransitionStateCommand({
-                targetId: entityId,
-                newState: PlayerStateType.SELECTED_CHARGING
-            }),
-            new UpdateComponentCommand({
-                targetId: entityId,
-                componentType: Gauge,
-                updates: {
-                    value: 0,
-                    currentSpeed: 0,
-                    speedMultiplier: speedMultiplier
-                }
-            })
-        ];
-        commands.forEach(cmd => cmd.execute(this.world));
+        const req1 = this.world.createEntity();
+        this.world.addComponent(req1, new TransitionStateRequest(
+            entityId,
+            PlayerStateType.SELECTED_CHARGING
+        ));
+
+        const req2 = this.world.createEntity();
+        this.world.addComponent(req2, new UpdateComponentRequest(
+            entityId,
+            Gauge,
+            {
+                value: 0,
+                currentSpeed: 0,
+                speedMultiplier: speedMultiplier
+            }
+        ));
     }
 }
