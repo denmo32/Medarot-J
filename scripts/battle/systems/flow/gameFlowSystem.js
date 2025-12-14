@@ -1,12 +1,12 @@
 /**
  * @file GameFlowSystem.js
  * @description ゲーム全体の進行フロー（開始、終了、初期化など）を管理するシステム。
- * 旧来の IdleState, BattleStartState, GameOverState, InitialSelectionState の初期化ロジックを統合。
+ * 初期化時のキューリクエストをActionSelectionPendingコンポーネントの付与に変更。
  */
 import { System } from '../../../../engine/core/System.js';
 import { BattleStateContext } from '../../components/BattleStateContext.js';
 import { PhaseContext } from '../../components/PhaseContext.js';
-import { GameState, Gauge, Action } from '../../components/index.js';
+import { GameState, Gauge, Action, ActionSelectionPending } from '../../components/index.js'; // 追加
 import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
 import { CommandExecutor, createCommand } from '../../common/Command.js';
@@ -126,8 +126,8 @@ export class GameFlowSystem extends System {
                     updates: new Action() // reset
                 });
 
-                // AI思考要求など
-                this.world.emit(GameEvents.ACTION_QUEUE_REQUEST, { entityId: id });
+                // キューリクエスト: コンポーネントを付与
+                this.world.addComponent(id, new ActionSelectionPending());
             }
         });
 
@@ -162,11 +162,6 @@ export class GameFlowSystem extends System {
         if (this.phaseContext.phase !== BattlePhase.GAME_OVER) {
             this.phaseContext.phase = BattlePhase.GAME_OVER;
             this.battleStateContext.winningTeam = detail.winningTeam;
-            
-            // ステート遷移検知(_onPhaseEnter)で処理されるようにするか、
-            // イベントハンドラ内で直接処理するか。今回はハンドラ内で処理して_onPhaseEnterも呼ぶ形になるが、
-            // phase書き換えの次フレームで_onPhaseEnterが呼ばれるため、ここでは処理しない手もある。
-            // ただし即時性が求められる場合もあるので、_handleGameOverEnterの実装に任せる。
         }
     }
 

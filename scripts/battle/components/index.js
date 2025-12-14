@@ -14,5 +14,6 @@ export { BattleHistoryContext } from './BattleHistoryContext.js';
 export { HookContext } from './HookContext.js';
 export { BattleSequenceState, SequenceState } from './BattleSequenceState.js';
 export { SequencePending } from './SequencePending.js';
+export { ActionSelectionPending } from './ActionSelectionPending.js';
 export * from './Requests.js';
 export * from './Tasks.js';
