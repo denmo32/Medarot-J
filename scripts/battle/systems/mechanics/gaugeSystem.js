@@ -1,6 +1,5 @@
-import { Gauge, GameState } from '../../components/index.js';
+import { Gauge, GameState, BattleSequenceState, SequencePending } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
-import { BattleSequenceContext } from '../../components/BattleSequenceContext.js';
 import { PhaseContext } from '../../components/PhaseContext.js';
 import { BattlePhase } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
@@ -10,7 +9,6 @@ import { CombatCalculator } from '../../logic/CombatCalculator.js';
 export class GaugeSystem extends System {
     constructor(world) {
         super(world);
-        this.battleSequenceContext = this.world.getSingletonComponent(BattleSequenceContext);
         this.phaseContext = this.world.getSingletonComponent(PhaseContext);
         this.isPaused = false;
 
@@ -19,7 +17,13 @@ export class GaugeSystem extends System {
     }
 
     update(deltaTime) {
-        if (this.battleSequenceContext.isSequenceRunning) {
+        // シーケンス実行中はゲージを停止
+        // SequencePendingを持つエンティティ、またはBattleSequenceStateを持つエンティティがいる場合
+        const isSequenceRunning = 
+            this.getEntities(SequencePending).length > 0 ||
+            this.getEntities(BattleSequenceState).length > 0;
+
+        if (isSequenceRunning) {
             return;
         }
 

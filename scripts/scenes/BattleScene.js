@@ -8,7 +8,6 @@ import { createPlayers } from '../battle/setup/EntityFactory.js';
 import { TurnContext } from '../battle/components/TurnContext.js';
 import { PhaseContext } from '../battle/components/PhaseContext.js';
 import { BattleStateContext } from '../battle/components/BattleStateContext.js';
-import { BattleSequenceContext } from '../battle/components/BattleSequenceContext.js';
 import { BattleHistoryContext } from '../battle/components/BattleHistoryContext.js';
 import { HookContext } from '../battle/components/HookContext.js';
 import { BattleUIState } from '../battle/components/BattleUIState.js';
@@ -54,7 +53,7 @@ export class BattleScene extends Scene {
         this.world.addComponent(contextEntity, new TurnContext());
         this.world.addComponent(contextEntity, new PhaseContext());
         this.world.addComponent(contextEntity, new BattleStateContext());
-        this.world.addComponent(contextEntity, new BattleSequenceContext());
+        // BattleSequenceContext は廃止されました
         this.world.addComponent(contextEntity, new BattleHistoryContext());
         this.world.addComponent(contextEntity, new HookContext());
 
