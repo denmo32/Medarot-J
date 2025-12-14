@@ -1,11 +1,11 @@
 /**
  * @file AnimationSystem.js
  * @description ビジュアルコンポーネントのアニメーション制御。
- * 固定タイマーを廃止し、Tween完了との完全同期を実現。
+ * AnimationRequest および AnimateTask, UiAnimationTask を処理する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { Visual, AnimationRequest, UiAnimationRequest } from '../../components/index.js';
+import { Visual, AnimationRequest, UiAnimationRequest, AnimateTask, UiAnimationTask as UiAnimTaskComp } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
 import { EffectType } from '../../common/constants.js';
@@ -38,41 +38,63 @@ export class AnimationSystem extends System {
             finishedTweens.forEach(t => this.activeTweens.delete(t));
         }
 
-        // 2. AnimationRequestの処理
+        // 2. AnimationRequest (旧) の処理
         const animRequests = this.getEntities(AnimationRequest);
         for (const entityId of animRequests) {
-            this._processAnimationRequest(entityId, deltaTime);
+            this._processAnimationRequest(entityId, deltaTime, AnimationRequest);
         }
 
-        // 3. UiAnimationRequestの処理
+        // 3. AnimateTask (新) の処理
+        const animateTasks = this.getEntities(AnimateTask);
+        for (const entityId of animateTasks) {
+            this._processAnimationRequest(entityId, deltaTime, AnimateTask);
+        }
+
+        // 4. UiAnimationRequest (旧) の処理
         const uiRequests = this.getEntities(UiAnimationRequest);
         for (const entityId of uiRequests) {
-            this._processUiAnimationRequest(entityId);
+            this._processUiAnimationRequest(entityId, UiAnimationRequest);
+        }
+
+        // 5. UiAnimationTask (新) の処理
+        const uiTaskEntities = this.getEntities(UiAnimTaskComp);
+        for (const entityId of uiTaskEntities) {
+            this._processUiAnimationRequest(entityId, UiAnimTaskComp);
         }
     }
 
-    _processAnimationRequest(entityId, deltaTime) {
-        const request = this.world.getComponent(entityId, AnimationRequest);
+    // 共通化されたアニメーション処理
+    _processAnimationRequest(entityId, deltaTime, ComponentClass) {
+        const request = this.world.getComponent(entityId, ComponentClass);
+        // AnimateTaskの場合は targetId プロパティ、AnimationRequestの場合は targetId
+        // データ構造の違いを吸収するか、同じ構造にする
+        // AnimateTask: { animationType, targetId }
+        // AnimationRequest: { type, targetId, options, startTime, duration, elapsed }
         
-        if (!request.startTime) {
-            request.startTime = performance.now();
-            request.duration = 0;
+        // 簡易的にプロパティマッピング
+        const type = request.animationType || request.type;
+        const targetId = request.targetId;
+
+        // 状態管理用のプロパティをコンポーネントに直接追加（ECS的には別コンポーネントにすべきだが簡易対応）
+        if (!request._startTime) {
+            request._startTime = performance.now();
+            request._duration = 0;
             
-            if (request.type === 'attack') {
-                this._startAttackAnimation(entityId, request.targetId);
-                request.duration = 600; 
-            } else if (request.type === 'support') {
-                request.duration = UI_CONFIG.ANIMATION.DURATION || 300;
+            if (type === 'attack') {
+                this._startAttackAnimation(entityId, targetId);
+                request._duration = 600; 
+            } else if (type === 'support') {
+                request._duration = UI_CONFIG.ANIMATION.DURATION || 300;
             } else {
-                request.duration = UI_CONFIG.ANIMATION.DURATION || 300;
+                request._duration = UI_CONFIG.ANIMATION.DURATION || 300;
             }
         }
 
-        if (!request.elapsed) request.elapsed = 0;
-        request.elapsed += deltaTime;
+        if (!request._elapsed) request._elapsed = 0;
+        request._elapsed += deltaTime;
 
-        if (request.elapsed >= request.duration) {
-            this.world.removeComponent(entityId, AnimationRequest);
+        if (request._elapsed >= request._duration) {
+            this.world.removeComponent(entityId, ComponentClass);
         }
     }
 
@@ -88,41 +110,35 @@ export class AnimationSystem extends System {
         }
     }
 
-    _processUiAnimationRequest(entityId) {
-        const request = this.world.getComponent(entityId, UiAnimationRequest);
+    _processUiAnimationRequest(entityId, ComponentClass) {
+        const request = this.world.getComponent(entityId, ComponentClass);
         
         if (request.targetType === 'HP_BAR') {
-            if (!request.initialized) {
-                request.initialized = true;
-                request.pendingTweens = 0;
+            if (!request._initialized) {
+                request._initialized = true;
+                request._pendingTweens = 0;
 
-                // コールバック関数: 全てのTweenが終わったらコンポーネントを削除
                 const onComplete = () => {
-                    request.pendingTweens--;
-                    if (request.pendingTweens <= 0) {
-                        this.world.removeComponent(entityId, UiAnimationRequest);
+                    request._pendingTweens--;
+                    if (request._pendingTweens <= 0) {
+                        this.world.removeComponent(entityId, ComponentClass);
                     }
                 };
 
-                // アニメーション開始（Tween数をカウント）
-                // onHpBarAnimationRequested にコールバックを渡せるように拡張する必要があるが、
-                // 既存メソッドのシグネチャを変えるより、内部ロジックをここで呼ぶ方が安全。
-                // あるいはイベント経由ではなく直接処理する。
                 this._startHpBarAnimation(request.data, onComplete, (count) => {
-                    request.pendingTweens = count;
+                    request._pendingTweens = count;
                 });
                 
-                // Tweenが発生しなかった場合
-                if (request.pendingTweens === 0) {
-                    this.world.removeComponent(entityId, UiAnimationRequest);
+                if (request._pendingTweens === 0) {
+                    this.world.removeComponent(entityId, ComponentClass);
                 }
             }
         } else {
-            this.world.removeComponent(entityId, UiAnimationRequest);
+            this.world.removeComponent(entityId, ComponentClass);
         }
     }
 
-    // 内部処理用メソッド (Requestから呼ばれる)
+    // ... (以下、_startHpBarAnimation 等の既存メソッドは変更なし) ...
     _startHpBarAnimation(detail, onComplete, onCount) {
         const appliedEffects = detail.appliedEffects || detail.effects;
         if (!appliedEffects || appliedEffects.length === 0) {
@@ -157,17 +173,14 @@ export class AnimationSystem extends System {
                 end: newHp,
                 duration: UI_CONFIG.ANIMATION.HP_BAR.DURATION,
                 easing: UI_CONFIG.ANIMATION.HP_BAR.EASING,
-                onComplete: onComplete // 完了時に通知
+                onComplete: onComplete 
             }));
         }
         
         onCount(tweenCount);
     }
 
-    // イベントハンドラ用 (互換性維持)
     onHpBarAnimationRequested(detail) {
-        // イベント経由の場合は完了通知不要（あるいはHP_BAR_ANIMATION_COMPLETEDをemitする）
-        // ここでは単純に再生のみ行う
         this._startHpBarAnimation(detail, () => {}, () => {});
     }
 

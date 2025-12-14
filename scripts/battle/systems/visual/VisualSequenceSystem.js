@@ -1,11 +1,9 @@
 /**
  * @file VisualSequenceSystem.js
  * @description 戦闘結果やキャンセル情報から演出シーケンス（タスクリスト）を生成するシステム。
- * VisualSequenceRequestを処理し、VisualSequenceを付与する。
- * 旧 VisualSequenceService のロジックを継承。
  */
 import { System } from '../../../../engine/core/System.js';
-import { VisualSequenceRequest, VisualSequence } from '../../components/index.js';
+import { VisualSequenceRequest, VisualSequenceResult } from '../../components/index.js'; // 修正
 import { MessageService } from '../../services/MessageService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { GameEvents } from '../../../common/events.js';
@@ -26,7 +24,8 @@ export class VisualSequenceSystem extends System {
             this.world.removeComponent(entityId, VisualSequenceRequest);
 
             const sequence = this._generateSequence(entityId, request.context);
-            this.world.addComponent(entityId, new VisualSequence(sequence));
+            // 修正: VisualSequence ではなく VisualSequenceResult を付与
+            this.world.addComponent(entityId, new VisualSequenceResult(sequence));
         }
     }
 
@@ -37,16 +36,14 @@ export class VisualSequenceSystem extends System {
             return this._createCombatSequence(context);
         }
     }
-
-    /**
-     * キャンセル時のシーケンスを生成
-     */
+    
+    // ... (以下のメソッドは変更なし) ...
+    
     _createCancelSequence(actorId, context) {
         const visualSequence = [];
         const { cancelReason } = context;
         const message = CancellationService.getCancelMessage(this.world, actorId, cancelReason);
         
-        // 1. メッセージ表示
         if (message) {
             visualSequence.push({
                 type: 'DIALOG',
@@ -55,7 +52,6 @@ export class VisualSequenceSystem extends System {
             });
         }
 
-        // 2. クールダウン状態へ移行するイベント発行
         visualSequence.push({
             type: 'EVENT',
             eventName: GameEvents.EXECUTE_COMMANDS,
@@ -69,9 +65,6 @@ export class VisualSequenceSystem extends System {
         return visualSequence;
     }
 
-    /**
-     * 戦闘結果からの演出シーケンスを生成
-     */
     _createCombatSequence(ctx) {
         const resolutionLog = this._buildResolutionLog(ctx);
         const sequence = [];
@@ -108,18 +101,14 @@ export class VisualSequenceSystem extends System {
 
         this._insertDefeatVisuals(sequence, defeatedPlayers);
 
-        // システム的なイベントタスクを追加
         sequence.push({ type: 'EVENT', eventName: GameEvents.REFRESH_UI });
         sequence.push({ type: 'EVENT', eventName: GameEvents.CHECK_ACTION_CANCELLATION });
 
         return sequence;
     }
 
-    // --- 以下、ヘルパーメソッド群 (VisualSequenceServiceから移植) ---
-
     _buildResolutionLog(ctx) {
         const log = [];
-        // 修正: finalTargetId ではなく targetId (CombatResultのプロパティ名) を使用
         const { attackerId, intendedTargetId, targetId, guardianInfo, appliedEffects, isSupport, outcome } = ctx;
 
         const animationTargetId = intendedTargetId || targetId;
@@ -132,7 +121,7 @@ export class VisualSequenceSystem extends System {
         log.push({ 
             type: BattleLogType.DECLARATION, 
             actorId: attackerId,
-            targetId: targetId, // 修正
+            targetId: targetId,
             isSupport: isSupport 
         });
 

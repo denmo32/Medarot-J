@@ -1,16 +1,17 @@
 /**
  * @file VisualDirectorSystem.js
  * @description バトル中の視覚演出を一元管理する監督システム。
- * RequestIDを用いた厳密な同期処理を実装。
+ * DialogRequest, VfxRequest, CameraRequest, DialogTask, VfxTask, CameraTask を処理する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { ModalType } from '../../common/constants.js';
 import { 
-    DialogRequest, 
-    VfxRequest, 
-    CameraRequest 
+    DialogRequest, VfxRequest, CameraRequest 
 } from '../../components/VisualRequest.js';
+import {
+    DialogTask, VfxTask, CameraTask
+} from '../../components/Tasks.js';
 
 export class VisualDirectorSystem extends System {
     constructor(world) {
@@ -23,53 +24,69 @@ export class VisualDirectorSystem extends System {
     }
 
     update(deltaTime) {
-        const dialogRequests = this.getEntities(DialogRequest);
-        for (const entityId of dialogRequests) {
-            this._processDialogRequest(entityId);
-        }
+        // --- Dialog ---
+        this._processDialogEntities(DialogRequest, DialogRequest); // 旧
+        this._processDialogEntities(DialogTask, DialogTask);       // 新
 
-        const vfxRequests = this.getEntities(VfxRequest);
-        for (const entityId of vfxRequests) {
-            const request = this.world.getComponent(entityId, VfxRequest);
-            console.log(`[VisualDirector] Play VFX: ${request.effectName}`);
-            this.world.removeComponent(entityId, VfxRequest);
-        }
+        // --- VFX ---
+        this._processInstantEntities(VfxRequest, (req) => console.log(`[VisualDirector] Play VFX: ${req.effectName}`));
+        this._processInstantEntities(VfxTask, (task) => console.log(`[VisualDirector] Play VFX: ${task.effectName}`));
 
-        const cameraRequests = this.getEntities(CameraRequest);
-        for (const entityId of cameraRequests) {
-            const request = this.world.getComponent(entityId, CameraRequest);
-            console.log(`[VisualDirector] Camera Action: ${request.action}`);
-            this.world.removeComponent(entityId, CameraRequest);
+        // --- Camera ---
+        this._processInstantEntities(CameraRequest, (req) => console.log(`[VisualDirector] Camera Action: ${req.action}`));
+        this._processInstantEntities(CameraTask, (task) => console.log(`[VisualDirector] Camera Action: ${task.action}`));
+    }
+
+    _processDialogEntities(ComponentClass, DataClass) {
+        const entities = this.getEntities(ComponentClass);
+        for (const entityId of entities) {
+            const component = this.world.getComponent(entityId, ComponentClass);
+            
+            if (!component.isDisplayed) {
+                // Taskの場合は taskId、Requestの場合は id プロパティ
+                const taskId = component.taskId || component.id;
+                
+                this.world.emit(GameEvents.SHOW_MODAL, {
+                    type: component.options?.modalType || ModalType.MESSAGE,
+                    data: { 
+                        message: component.text,
+                        ...component.options 
+                    },
+                    messageSequence: [{ text: component.text }],
+                    taskId: taskId 
+                });
+                component.isDisplayed = true;
+            }
         }
     }
 
-    _processDialogRequest(entityId) {
-        const request = this.world.getComponent(entityId, DialogRequest);
-        
-        if (!request.isDisplayed) {
-            this.world.emit(GameEvents.SHOW_MODAL, {
-                type: request.options.modalType || ModalType.MESSAGE,
-                data: { 
-                    message: request.text,
-                    ...request.options 
-                },
-                messageSequence: [{ text: request.text }],
-                taskId: request.id // Request自体のIDを渡す
-            });
-            request.isDisplayed = true;
+    _processInstantEntities(ComponentClass, actionFn) {
+        const entities = this.getEntities(ComponentClass);
+        for (const entityId of entities) {
+            const component = this.world.getComponent(entityId, ComponentClass);
+            actionFn(component);
+            this.world.removeComponent(entityId, ComponentClass);
         }
     }
 
     onModalClosed(detail) {
-        const { taskId } = detail; // 閉じられたモーダルのtaskId (RequestID)
+        const { taskId } = detail;
         
-        const dialogRequests = this.getEntities(DialogRequest);
-        for (const entityId of dialogRequests) {
-            const request = this.world.getComponent(entityId, DialogRequest);
-            // IDが一致するものだけを削除
-            if (request.isDisplayed && request.id === taskId) {
-                this.world.removeComponent(entityId, DialogRequest);
-                break;
+        // DialogRequestの削除
+        this._removeDialogByTaskId(DialogRequest, taskId);
+        // DialogTaskの削除
+        this._removeDialogByTaskId(DialogTask, taskId);
+    }
+
+    _removeDialogByTaskId(ComponentClass, targetTaskId) {
+        const entities = this.getEntities(ComponentClass);
+        for (const entityId of entities) {
+            const component = this.world.getComponent(entityId, ComponentClass);
+            const currentTaskId = component.taskId || component.id;
+            
+            if (component.isDisplayed && currentTaskId === targetTaskId) {
+                this.world.removeComponent(entityId, ComponentClass);
+                break; // 1つのモーダルにつき1つのタスク/リクエスト
             }
         }
     }

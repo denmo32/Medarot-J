@@ -25,6 +25,7 @@ import { ModalSystem } from '../systems/ui/ModalSystem.js';
 import { UIInputSystem } from '../systems/ui/UIInputSystem.js';
 import { CombatSystem } from '../systems/mechanics/CombatSystem.js';
 import { VisualSequenceSystem } from '../systems/visual/VisualSequenceSystem.js';
+import { TaskSystem } from '../systems/flow/TaskSystem.js'; // New
 
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
@@ -43,7 +44,7 @@ export function initializeSystems(world, gameDataManager) {
     const renderSystem = new RenderSystem(world);
     const animationSystem = new AnimationSystem(world);
     const visualDirectorSystem = new VisualDirectorSystem(world);
-    const visualSequenceSystem = new VisualSequenceSystem(world); // New
+    const visualSequenceSystem = new VisualSequenceSystem(world);
 
     // --- Flow/Core Systems ---
     const gameFlowSystem = new GameFlowSystem(world);
@@ -53,6 +54,7 @@ export function initializeSystems(world, gameDataManager) {
     const battleSequenceSystem = new BattleSequenceSystem(world); 
     const commandSystem = new CommandSystem(world);
     const timerSystem = new TimerSystem(world);
+    const taskSystem = new TaskSystem(world); // New
     
     // --- Mechanics Systems ---
     const gaugeSystem = new GaugeSystem(world);
@@ -60,7 +62,7 @@ export function initializeSystems(world, gameDataManager) {
     const movementSystem = new MovementSystem(world);
     const effectSystem = new EffectSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
-    const combatSystem = new CombatSystem(world); // New
+    const combatSystem = new CombatSystem(world);
 
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
@@ -77,17 +79,13 @@ export function initializeSystems(world, gameDataManager) {
     world.registerSystem(turnSystem);
     world.registerSystem(actionSelectionSystem);
     
-    // BattleSequenceSystem は CombatSystem や VisualSequenceSystem と連携する
-    // 処理順: BattleSequence (Request付与) -> Combat (処理) -> BattleSequence (Result検知/VisualReq付与) -> VisualSeq (処理)
-    // このサイクルを1フレームで回すか複数フレームで回すかによるが、
-    // ここでは上から順に実行されるため、
-    // BattleSequenceSystem(Pre) -> CombatSystem -> VisualSequenceSystem -> BattleSequenceSystem(Post) としたいところだが、
-    // ECSでは1システム1回実行が基本。
-    // 遅延が発生しても問題ない設計（Wait状態がある）なので、順序は論理的な流れに沿って配置する。
     world.registerSystem(battleSequenceSystem); 
     world.registerSystem(combatSystem);
     world.registerSystem(visualSequenceSystem);
     
+    // TaskSystem: VisualSequenceを持つエンティティにタスクコンポーネントを付与する
+    world.registerSystem(taskSystem);
+
     world.registerSystem(winConditionSystem);
     world.registerSystem(timerSystem);
     world.registerSystem(stateSystem);

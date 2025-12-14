@@ -1,17 +1,18 @@
 /**
  * @file TimelineBuilder.js
- * @description 演出指示データから、実行可能なタスクのリストを構築する。
+ * @description 演出指示データから、タスクコンポーネントの定義（ファクトリ関数やデータオブジェクト）の配列を構築する。
+ * オブジェクトプールやクラスインスタンスの生成は行わず、純粋なデータ変換を行う。
  */
 import { 
-    createAnimateTask, 
-    createEventTask, 
-    createCustomTask,
-    createDialogTask,
-    createUiAnimationTask,
-    createVfxTask,
-    createCameraTask,
-    createApplyVisualEffectTask
-} from './BattleTasks.js';
+    AnimateTask, 
+    EventTask, 
+    CustomTask,
+    DialogTask, 
+    UiAnimationTask, 
+    VfxTask, 
+    CameraTask,
+    ApplyVisualEffectTask
+} from '../components/Tasks.js';
 
 export class TimelineBuilder {
     constructor(world) {
@@ -19,9 +20,9 @@ export class TimelineBuilder {
     }
 
     /**
-     * 演出指示データの配列をタスクの配列に変換する
+     * 演出指示データの配列をタスクコンポーネント生成情報の配列に変換する
      * @param {Array<object>} visualSequence - 演出指示データの配列
-     * @returns {Array<BattleTask>}
+     * @returns {Array<object>} { componentClass, args } の配列
      */
     buildVisualSequence(visualSequence) {
         const tasks = [];
@@ -30,28 +31,52 @@ export class TimelineBuilder {
         for (const visual of visualSequence) {
             switch (visual.type) {
                 case 'ANIMATE':
-                    tasks.push(createAnimateTask(visual.attackerId, visual.targetId, visual.animationType));
+                    tasks.push({ 
+                        componentClass: AnimateTask, 
+                        args: [visual.animationType, visual.targetId] 
+                    });
                     break;
                 case 'DIALOG':
-                    tasks.push(createDialogTask(visual.text, visual.options));
+                    tasks.push({ 
+                        componentClass: DialogTask, 
+                        args: [visual.text, visual.options] 
+                    });
                     break;
                 case 'UI_ANIMATION':
-                    tasks.push(createUiAnimationTask(visual.targetType, visual.data));
+                    tasks.push({ 
+                        componentClass: UiAnimationTask, 
+                        args: [visual.targetType, visual.data] 
+                    });
                     break;
                 case 'VFX':
-                    tasks.push(createVfxTask(visual.effectName, visual.position));
+                    tasks.push({ 
+                        componentClass: VfxTask, 
+                        args: [visual.effectName, visual.position] 
+                    });
                     break;
                 case 'CAMERA':
-                    tasks.push(createCameraTask(visual.action, visual.params));
+                    tasks.push({ 
+                        componentClass: CameraTask, 
+                        args: [visual.action, visual.params] 
+                    });
                     break;
                 case 'EVENT':
-                    tasks.push(createEventTask(visual.eventName, visual.detail));
+                    tasks.push({ 
+                        componentClass: EventTask, 
+                        args: [visual.eventName, visual.detail] 
+                    });
                     break;
                 case 'CUSTOM':
-                    tasks.push(createCustomTask(visual.executeFn));
+                    tasks.push({ 
+                        componentClass: CustomTask, 
+                        args: [visual.executeFn] 
+                    });
                     break;
                 case 'APPLY_VISUAL_EFFECT':
-                    tasks.push(createApplyVisualEffectTask(visual.targetId, visual.className));
+                    tasks.push({ 
+                        componentClass: ApplyVisualEffectTask, 
+                        args: [visual.targetId, visual.className] 
+                    });
                     break;
             }
         }

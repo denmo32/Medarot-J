@@ -15,3 +15,4 @@ export { BattleHistoryContext } from './BattleHistoryContext.js';
 export { HookContext } from './HookContext.js';
 export * from './VisualRequest.js';
 export * from './Requests.js';
+export * from './Tasks.js';
