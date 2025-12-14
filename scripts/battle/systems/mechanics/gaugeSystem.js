@@ -1,6 +1,6 @@
-import { Gauge, GameState, BattleSequenceState, SequencePending } from '../../components/index.js';
+import { Gauge, GameState, BattleSequenceState, SequencePending, PauseState } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
-import { PhaseState } from '../../components/PhaseState.js'; // 修正
+import { PhaseState } from '../../components/PhaseState.js';
 import { BattlePhase } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';
@@ -9,11 +9,8 @@ import { CombatCalculator } from '../../logic/CombatCalculator.js';
 export class GaugeSystem extends System {
     constructor(world) {
         super(world);
-        this.phaseState = this.world.getSingletonComponent(PhaseState); // 修正
-        this.isPaused = false;
-
-        this.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
-        this.on(GameEvents.GAME_RESUMED, this.onResumeGame.bind(this));
+        this.phaseState = this.world.getSingletonComponent(PhaseState);
+        // this.isPaused = false; // 廃止: PauseState コンポーネントを使用
     }
 
     update(deltaTime) {
@@ -26,6 +23,9 @@ export class GaugeSystem extends System {
             return;
         }
 
+        // 一時停止状態のチェック
+        const isPaused = this.getEntities(PauseState).length > 0;
+
         const activePhases = [
             BattlePhase.TURN_START,
             BattlePhase.ACTION_SELECTION,
@@ -33,7 +33,7 @@ export class GaugeSystem extends System {
             BattlePhase.TURN_END,
         ];
 
-        if (!activePhases.includes(this.phaseState.phase) || this.isPaused) { // 修正
+        if (!activePhases.includes(this.phaseState.phase) || isPaused) {
             return;
         }
 
@@ -52,12 +52,10 @@ export class GaugeSystem extends System {
         for (const entityId of entities) {
             const gauge = this.world.getComponent(entityId, Gauge);
 
-            // 行動ゲージ以外は無視 (汎用性確保)
             if (gauge.type !== 'ACTION') {
                 continue;
             }
 
-            // フリーズチェック (拡張性確保)
             if (!gauge.isActive || gauge.isFrozen()) {
                 continue;
             }
@@ -84,7 +82,4 @@ export class GaugeSystem extends System {
             }
         }
     }
-
-    onPauseGame() { this.isPaused = true; }
-    onResumeGame() { this.isPaused = false; }
 }

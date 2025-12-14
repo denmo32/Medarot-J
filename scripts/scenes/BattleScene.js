@@ -6,8 +6,7 @@ import { GameEvents } from '../common/events.js';
 import { initializeSystems } from '../battle/setup/SystemInitializer.js';
 import { createPlayers } from '../battle/setup/EntityFactory.js';
 import { TurnContext } from '../battle/components/TurnContext.js';
-import { PhaseState } from '../battle/components/PhaseState.js'; // PhaseContext -> PhaseState
-import { BattleStateContext } from '../battle/components/BattleStateContext.js';
+import { PhaseState } from '../battle/components/PhaseState.js';
 import { BattleHistoryContext } from '../battle/components/BattleHistoryContext.js';
 import { HookContext } from '../battle/components/HookContext.js';
 import { BattleUIState } from '../battle/components/BattleUIState.js';
@@ -22,10 +21,6 @@ export class BattleScene extends Scene {
         console.log("Initializing Battle Scene...");
         const { gameDataManager } = data;
 
-        // 重要: 以下の初期化順序は依存関係を考慮して決定されています
-        // _setupBattleContext() で各種 Context コンポーネントを登録した後、
-        // _setupSystems() でそれらのコンポーネントを使用するシステムを初期化します
-        // この順序を変更すると、システムがコンポーネントを取得できずエラーが発生する可能性があります
         this._setupEntities(gameDataManager);
         this._setupBattleContext();
         this._setupSystems(gameDataManager);
@@ -46,17 +41,14 @@ export class BattleScene extends Scene {
     }
 
     _setupBattleContext() {
-        // 新しいContextクラスのインスタンスを登録するための専用エンティティを作成
         const contextEntity = this.world.createEntity();
 
-        // 各Contextの新しいインスタンスを登録
         this.world.addComponent(contextEntity, new TurnContext());
-        this.world.addComponent(contextEntity, new PhaseState()); // PhaseContext -> PhaseState
-        this.world.addComponent(contextEntity, new BattleStateContext());
+        this.world.addComponent(contextEntity, new PhaseState());
+        // BattleStateContext は廃止
         this.world.addComponent(contextEntity, new BattleHistoryContext());
         this.world.addComponent(contextEntity, new HookContext());
 
-        // UI関連コンポーネントの登録（システム初期化前に必要）
         const uiContextEntity = this.world.createEntity();
         this.world.addComponent(uiContextEntity, new BattleUIState());
         this.world.addComponent(uiContextEntity, new UIManager());

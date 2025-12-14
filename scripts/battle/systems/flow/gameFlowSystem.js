@@ -1,12 +1,11 @@
 /**
  * @file GameFlowSystem.js
  * @description ゲーム全体の進行フロー（開始、終了、初期化など）を管理するシステム。
- * PhaseContext -> PhaseState へ移行。
+ * BattleStateContext を廃止し、PauseStateとBattleResultコンポーネントを使用するように変更。
  */
 import { System } from '../../../../engine/core/System.js';
-import { BattleStateContext } from '../../components/BattleStateContext.js';
-import { PhaseState } from '../../components/PhaseState.js'; // 修正
-import { GameState, Gauge, Action, ActionSelectionPending } from '../../components/index.js';
+import { PhaseState } from '../../components/PhaseState.js';
+import { GameState, Gauge, Action, ActionSelectionPending, PauseState, BattleResult } from '../../components/index.js'; // 変更
 import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
 import { CommandExecutor, createCommand } from '../../common/Command.js';
@@ -15,18 +14,19 @@ import { Timer } from '../../../../engine/stdlib/components/Timer.js';
 export class GameFlowSystem extends System {
     constructor(world) {
         super(world);
-        this.battleStateContext = this.world.getSingletonComponent(BattleStateContext);
-        this.phaseState = this.world.getSingletonComponent(PhaseState); // 修正
+        this.phaseState = this.world.getSingletonComponent(PhaseState);
         
-        // フェーズ遷移検知用
+        // PauseState管理用のエンティティIDを保持（または毎回検索）
+        this.pauseEntityId = null;
+        
         this.lastPhase = null;
 
         this._bindEvents();
     }
 
     _bindEvents() {
-        this.on(GameEvents.GAME_PAUSED, () => { this.battleStateContext.isPaused = true; });
-        this.on(GameEvents.GAME_RESUMED, () => { this.battleStateContext.isPaused = false; });
+        this.on(GameEvents.GAME_PAUSED, this._onPause.bind(this));
+        this.on(GameEvents.GAME_RESUMED, this._onResume.bind(this));
         
         // IDLEフェーズでのイベント
         this.on(GameEvents.GAME_START_CONFIRMED, this._onGameStartConfirmed.bind(this));
@@ -39,22 +39,15 @@ export class GameFlowSystem extends System {
     }
 
     update(deltaTime) {
-        // フェーズ遷移検知（Enter処理）
-        if (this.phaseState.phase !== this.lastPhase) { // 修正
-            this._onPhaseEnter(this.phaseState.phase); // 修正
-            this.lastPhase = this.phaseState.phase; // 修正
+        if (this.phaseState.phase !== this.lastPhase) {
+            this._onPhaseEnter(this.phaseState.phase);
+            this.lastPhase = this.phaseState.phase;
         }
 
-        // フェーズごとの更新処理 (Update処理)
-        switch (this.phaseState.phase) { // 修正
+        switch (this.phaseState.phase) {
             case BattlePhase.IDLE:
-                // イベント待ちのため特になし
-                break;
             case BattlePhase.BATTLE_START:
-                // アニメーション完了待ちのため特になし
-                break;
             case BattlePhase.GAME_OVER:
-                // 終了状態
                 break;
         }
     }
@@ -62,7 +55,6 @@ export class GameFlowSystem extends System {
     _onPhaseEnter(phase) {
         switch (phase) {
             case BattlePhase.IDLE:
-                // 初期状態
                 break;
 
             case BattlePhase.INITIAL_SELECTION:
@@ -74,22 +66,40 @@ export class GameFlowSystem extends System {
                 break;
                 
             case BattlePhase.GAME_OVER:
-                // WinConditionSystemから遷移してくる
                 this._handleGameOverEnter();
                 break;
         }
     }
 
+    _onPause() {
+        if (!this.pauseEntityId) {
+            this.pauseEntityId = this.world.createEntity();
+            this.world.addComponent(this.pauseEntityId, new PauseState());
+        }
+    }
+
+    _onResume() {
+        if (this.pauseEntityId !== null) {
+            this.world.destroyEntity(this.pauseEntityId);
+            this.pauseEntityId = null;
+        } else {
+            // 念のため全削除
+            const entities = this.getEntities(PauseState);
+            for (const id of entities) {
+                this.world.destroyEntity(id);
+            }
+        }
+    }
+
     // --- IDLE Logic ---
     _onGameStartConfirmed() {
-        if (this.phaseState.phase === BattlePhase.IDLE) { // 修正
-            this.phaseState.phase = BattlePhase.INITIAL_SELECTION; // 修正
+        if (this.phaseState.phase === BattlePhase.IDLE) {
+            this.phaseState.phase = BattlePhase.INITIAL_SELECTION;
         }
     }
 
     // --- INITIAL_SELECTION Logic (Initialization) ---
     _initializePlayersForBattle() {
-        // 全プレイヤーのゲージをリセットし、選択可能な状態にする
         const players = this.getEntities(GameState, Gauge);
         const commands = [];
         
@@ -97,7 +107,6 @@ export class GameFlowSystem extends System {
             const gameState = this.world.getComponent(id, GameState);
             const gauge = this.world.getComponent(id, Gauge);
             
-            // ゲージを0にリセット
             commands.push({
                 type: 'UPDATE_COMPONENT',
                 targetId: id,
@@ -106,13 +115,11 @@ export class GameFlowSystem extends System {
             });
 
             if (gameState.state !== PlayerStateType.BROKEN) {
-                // 状態をREADY_SELECTへ
                 commands.push({
                     type: 'TRANSITION_STATE',
                     targetId: id,
                     newState: PlayerStateType.READY_SELECT
                 });
-                // 初期選択用: ゲージ満タン、アクションリセット
                 commands.push({
                     type: 'UPDATE_COMPONENT',
                     targetId: id,
@@ -126,7 +133,6 @@ export class GameFlowSystem extends System {
                     updates: new Action() // reset
                 });
 
-                // キューリクエスト: コンポーネントを付与
                 this.world.addComponent(id, new ActionSelectionPending());
             }
         });
@@ -139,8 +145,7 @@ export class GameFlowSystem extends System {
 
     // --- BATTLE_START Logic ---
     _onBattleAnimationCompleted() {
-        if (this.phaseState.phase === BattlePhase.BATTLE_START) { // 修正
-            // アニメーション完了後、ゲージを再度0にしてターン開始へ
+        if (this.phaseState.phase === BattlePhase.BATTLE_START) {
             const players = this.getEntities(GameState);
             const commands = players.map(id => ({
                 type: 'UPDATE_COMPONENT',
@@ -153,26 +158,31 @@ export class GameFlowSystem extends System {
                 CommandExecutor.executeCommands(this.world, commandInstances);
             }
 
-            this.phaseState.phase = BattlePhase.TURN_START; // 修正
+            this.phaseState.phase = BattlePhase.TURN_START;
         }
     }
 
     // --- GAME_OVER Logic ---
     _onGameOver(detail) {
-        if (this.phaseState.phase !== BattlePhase.GAME_OVER) { // 修正
-            this.phaseState.phase = BattlePhase.GAME_OVER; // 修正
-            this.battleStateContext.winningTeam = detail.winningTeam;
+        if (this.phaseState.phase !== BattlePhase.GAME_OVER) {
+            this.phaseState.phase = BattlePhase.GAME_OVER;
+            
+            // 結果を保存するためのエンティティを作成
+            const resultEntity = this.world.createEntity();
+            this.world.addComponent(resultEntity, new BattleResult(detail.winningTeam));
         }
     }
 
     _handleGameOverEnter() {
-        const winningTeam = this.battleStateContext.winningTeam;
-        
-        // タイマーエンティティを作成してシーン遷移を予約
+        // 結果を取得
+        const results = this.getEntities(BattleResult);
+        let winningTeam = null;
+        if (results.length > 0) {
+            winningTeam = this.world.getComponent(results[0], BattleResult).winningTeam;
+        }
+
         const timerEntity = this.world.createEntity();
-        this.world.addComponent(timerEntity, new Timer(3000, () => {
-             // 自動遷移処理（必要であれば）
-        }));
+        this.world.addComponent(timerEntity, new Timer(3000, () => {}));
 
         this.world.emit(GameEvents.SHOW_MODAL, { type: ModalType.GAME_OVER, data: { winningTeam } });
     }

@@ -1,15 +1,14 @@
 /**
  * @file ActionSelectionSystem.js
  * @description アクション選択フェーズの制御を行うシステム。
- * PhaseContext -> PhaseState へ移行。
+ * BattleStateContext への依存を削除し、PauseState を参照するように変更。
  */
 import { System } from '../../../../engine/core/System.js';
 import { TurnContext } from '../../components/TurnContext.js';
-import { PhaseState } from '../../components/PhaseState.js'; // 修正
-import { BattleStateContext } from '../../components/BattleStateContext.js';
+import { PhaseState } from '../../components/PhaseState.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
-import { Action, Gauge, GameState } from '../../components/index.js';
+import { Action, Gauge, GameState, PauseState } from '../../components/index.js'; // 追加
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
@@ -19,10 +18,9 @@ export class ActionSelectionSystem extends System {
     constructor(world) {
         super(world);
         this.turnContext = this.world.getSingletonComponent(TurnContext);
-        this.phaseState = this.world.getSingletonComponent(PhaseState); // 修正
-        this.battleStateContext = this.world.getSingletonComponent(BattleStateContext);
+        this.phaseState = this.world.getSingletonComponent(PhaseState);
+        // this.battleStateContext = this.world.getSingletonComponent(BattleStateContext); // 削除
 
-        // InitialSelection用の状態管理
         this.initialSelectionState = {
             isConfirming: false,
             confirmed: false,
@@ -35,14 +33,12 @@ export class ActionSelectionSystem extends System {
     _bindEvents() {
         this.on(GameEvents.ACTION_SELECTED, this.onActionSelected.bind(this));
         this.on(GameEvents.NEXT_ACTOR_DETERMINED, this.onNextActorDetermined.bind(this));
-        
-        // InitialSelection用イベント
         this.on(GameEvents.BATTLE_START_CONFIRMED, () => { this.initialSelectionState.confirmed = true; });
         this.on(GameEvents.BATTLE_START_CANCELLED, () => { this.initialSelectionState.cancelled = true; });
     }
 
     update(deltaTime) {
-        const currentPhase = this.phaseState.phase; // 修正
+        const currentPhase = this.phaseState.phase;
 
         if (currentPhase === BattlePhase.INITIAL_SELECTION) {
             this._updateInitialSelection();
@@ -53,26 +49,25 @@ export class ActionSelectionSystem extends System {
 
     // --- INITIAL_SELECTION Logic ---
     _updateInitialSelection() {
-        // 1. 確定済み -> バトル開始フェーズへ
         if (this.initialSelectionState.confirmed) {
-            this.phaseState.phase = BattlePhase.BATTLE_START; // 修正
+            this.phaseState.phase = BattlePhase.BATTLE_START;
             this._resetInitialSelectionState();
             return;
         }
 
-        // 2. キャンセル -> 初期化し直し（リスタート）
         if (this.initialSelectionState.cancelled) {
             this.initialSelectionState.cancelled = false;
             this.initialSelectionState.isConfirming = false;
             this.world.emit(GameEvents.HIDE_MODAL);
-            this.battleStateContext.isPaused = false;
             
-            this.phaseState.phase = BattlePhase.IDLE; // 修正
+            // Resume処理はGameFlowSystemがイベントを受けてPauseStateを削除することで行われる
+            this.world.emit(GameEvents.GAME_RESUMED);
+            
+            this.phaseState.phase = BattlePhase.IDLE;
             this.world.emit(GameEvents.GAME_START_CONFIRMED);
             return;
         }
 
-        // 3. 全員選択完了チェック
         if (!this.initialSelectionState.isConfirming && this._checkAllSelected()) {
             this.initialSelectionState.isConfirming = true;
             this.world.emit(GameEvents.SHOW_MODAL, {
@@ -80,7 +75,8 @@ export class ActionSelectionSystem extends System {
                 data: {},
                 priority: 'high'
             });
-            this.battleStateContext.isPaused = true;
+            // Pause処理はGameFlowSystemがイベントを受けてPauseStateを付与することで行われる
+            this.world.emit(GameEvents.GAME_PAUSED);
         }
     }
 
@@ -91,7 +87,7 @@ export class ActionSelectionSystem extends System {
             cancelled: false
         };
         this.world.emit(GameEvents.HIDE_MODAL);
-        this.battleStateContext.isPaused = false;
+        this.world.emit(GameEvents.GAME_RESUMED);
     }
 
     _checkAllSelected() {
@@ -107,15 +103,13 @@ export class ActionSelectionSystem extends System {
 
     // --- ACTION_SELECTION Logic ---
     _updateActionSelection() {
-        // 1. 実行待機状態(READY_EXECUTE)のエンティティがいるかチェック -> 実行フェーズへ
         if (this._isAnyEntityReadyToExecute()) {
-            this.phaseState.phase = BattlePhase.ACTION_EXECUTION; // 修正
+            this.phaseState.phase = BattlePhase.ACTION_EXECUTION;
             return;
         }
 
-        // 2. 誰もチャージ中でなく、誰も選択待機中でない -> ターン終了へ
         if (!this._isAnyEntityInAction()) {
-            this.phaseState.phase = BattlePhase.TURN_END; // 修正
+            this.phaseState.phase = BattlePhase.TURN_END;
         }
     }
 
@@ -131,7 +125,6 @@ export class ActionSelectionSystem extends System {
         const entities = this.getEntities(GameState);
         return entities.some(id => {
             const state = this.world.getComponent(id, GameState);
-            // チャージ中、選択待機中、選択決定後チャージ中
             return state.state === PlayerStateType.CHARGING || 
                    state.state === PlayerStateType.READY_SELECT ||
                    state.state === PlayerStateType.SELECTED_CHARGING;
