@@ -23,6 +23,8 @@ import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 import { CommandSystem } from '../systems/flow/CommandSystem.js';
 import { ModalSystem } from '../systems/ui/ModalSystem.js';
 import { UIInputSystem } from '../systems/ui/UIInputSystem.js';
+import { CombatSystem } from '../systems/mechanics/CombatSystem.js';
+import { VisualSequenceSystem } from '../systems/visual/VisualSequenceSystem.js';
 
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
@@ -41,6 +43,7 @@ export function initializeSystems(world, gameDataManager) {
     const renderSystem = new RenderSystem(world);
     const animationSystem = new AnimationSystem(world);
     const visualDirectorSystem = new VisualDirectorSystem(world);
+    const visualSequenceSystem = new VisualSequenceSystem(world); // New
 
     // --- Flow/Core Systems ---
     const gameFlowSystem = new GameFlowSystem(world);
@@ -57,45 +60,50 @@ export function initializeSystems(world, gameDataManager) {
     const movementSystem = new MovementSystem(world);
     const effectSystem = new EffectSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
+    const combatSystem = new CombatSystem(world); // New
 
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
     }
     
     // --- システムの登録順序を整理 ---
-    // 1. 入力 → イベントの起点となる入力処理
+    // 1. 入力
     world.registerSystem(uiInputSystem);
 
     // 2. コアロジック (状態更新)
-    // CommandSystem: 他システムからの状態変更要求を即時処理
     world.registerSystem(commandSystem);
-    // PhaseSystem: ログ・監視用（ロジックは他へ移動済み）
     world.registerSystem(phaseSystem);
-    // GameFlowSystem: フェーズ遷移と初期化処理（ActionSelectionSystemより先に実行する必要がある）
     world.registerSystem(gameFlowSystem);
-    // TurnSystem: ターン管理
     world.registerSystem(turnSystem);
-    // ActionSelectionSystem: プレイヤー/AIの行動選択
     world.registerSystem(actionSelectionSystem);
-    // BattleSequenceSystem: アクション実行シーケンス
-    world.registerSystem(battleSequenceSystem);
     
-    world.registerSystem(winConditionSystem); // 勝敗判定
-    world.registerSystem(timerSystem);       // 時間管理
-    world.registerSystem(stateSystem);       // ゲーム状態変更イベント
+    // BattleSequenceSystem は CombatSystem や VisualSequenceSystem と連携する
+    // 処理順: BattleSequence (Request付与) -> Combat (処理) -> BattleSequence (Result検知/VisualReq付与) -> VisualSeq (処理)
+    // このサイクルを1フレームで回すか複数フレームで回すかによるが、
+    // ここでは上から順に実行されるため、
+    // BattleSequenceSystem(Pre) -> CombatSystem -> VisualSequenceSystem -> BattleSequenceSystem(Post) としたいところだが、
+    // ECSでは1システム1回実行が基本。
+    // 遅延が発生しても問題ない設計（Wait状態がある）なので、順序は論理的な流れに沿って配置する。
+    world.registerSystem(battleSequenceSystem); 
+    world.registerSystem(combatSystem);
+    world.registerSystem(visualSequenceSystem);
+    
+    world.registerSystem(winConditionSystem);
+    world.registerSystem(timerSystem);
+    world.registerSystem(stateSystem);
 
-    // 3. メカニクス (ゲームルール) → ゲージ、移動、エフェクト、履歴
-    world.registerSystem(gaugeSystem);       // ゲージ進行管理
-    world.registerSystem(movementSystem);    // 移動更新（アニメーション後に反映）
-    world.registerSystem(effectSystem);      // エフェクトの時間更新（ターン終了時など）
-    world.registerSystem(battleHistorySystem); // 戦闘履歴記録
+    // 3. メカニクス
+    world.registerSystem(gaugeSystem);
+    world.registerSystem(movementSystem);
+    world.registerSystem(effectSystem);
+    world.registerSystem(battleHistorySystem);
 
-    // 4. UI状態管理 → モーダル、アクションパネル
-    world.registerSystem(modalSystem);       // モーダル表示制御
-    world.registerSystem(actionPanelSystem); // アクションUI
+    // 4. UI状態管理
+    world.registerSystem(modalSystem);
+    world.registerSystem(actionPanelSystem);
 
-    // 5. 描画/演出 → シーン描画、アニメーション、演出演出
-    world.registerSystem(visualDirectorSystem); // 演出演出の指揮
-    world.registerSystem(animationSystem);   // アニメーション更新
-    world.registerSystem(renderSystem);      // 描画処理
+    // 5. 描画/演出
+    world.registerSystem(visualDirectorSystem);
+    world.registerSystem(animationSystem);
+    world.registerSystem(renderSystem);
 }

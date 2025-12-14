@@ -1,30 +1,46 @@
 /**
- * @file BattleResolutionService.js
- * @description 戦闘の計算・解決フローを制御するサービス。
- * Worldへの副作用（書き換え）を完全に排除し、結果データ(BattleResult)の生成に専念する。
- * リファクタリング: VisualSequenceServiceへの責務移譲により、演出生成ロジックを削除。
+ * @file CombatSystem.js
+ * @description 戦闘の計算・解決を行うシステム。
+ * CombatRequestを持つエンティティを処理し、CombatResultを付与する。
+ * 旧 BattleResolutionService のロジックを継承。
  */
-import { Action } from '../components/index.js';
-import { Parts, PlayerInfo } from '../../components/index.js';
-import { EffectType } from '../common/constants.js';
-import { CombatCalculator } from '../logic/CombatCalculator.js';
-import { EffectRegistry } from '../definitions/EffectRegistry.js'; 
-import { TargetingService } from './TargetingService.js';
-import { HookPhase } from '../definitions/HookRegistry.js';
-import { HookContext } from '../components/HookContext.js';
-import { GameEvents } from '../../common/events.js';
-import { VisualSequenceService } from './VisualSequenceService.js';
+import { System } from '../../../../engine/core/System.js';
+import { CombatRequest, CombatResult } from '../../components/index.js';
+import { Action } from '../../components/index.js';
+import { Parts, PlayerInfo } from '../../../components/index.js'; // 修正: 共通コンポーネントからインポート
+import { EffectType } from '../../common/constants.js';
+import { CombatCalculator } from '../../logic/CombatCalculator.js';
+import { EffectRegistry } from '../../definitions/EffectRegistry.js';
+import { TargetingService } from '../../services/TargetingService.js';
+import { HookPhase } from '../../definitions/HookRegistry.js';
+import { HookContext } from '../../components/HookContext.js';
+import { GameEvents } from '../../../common/events.js';
 
-export class BattleResolutionService {
+export class CombatSystem extends System {
     constructor(world) {
-        this.world = world;
+        super(world);
         this.hookContext = world.getSingletonComponent(HookContext);
     }
 
-    resolve(attackerId) {
+    update(deltaTime) {
+        const entities = this.getEntities(CombatRequest);
+        for (const entityId of entities) {
+            // リクエストを削除 (二重処理防止)
+            this.world.removeComponent(entityId, CombatRequest);
+            
+            // 解決処理実行
+            const resultData = this._resolve(entityId);
+            
+            // 結果コンポーネントを付与
+            this.world.addComponent(entityId, new CombatResult(resultData));
+        }
+    }
+
+    // --- 以下、旧BattleResolutionServiceから移植したロジック ---
+
+    _resolve(attackerId) {
         const eventsToEmit = [];
         const allStateUpdates = []; 
-        let visualSequence = [];
         
         // 1. コンテキスト初期化
         const ctx = this._initializeContext(attackerId);
@@ -35,7 +51,6 @@ export class BattleResolutionService {
                 cancelReason: 'INTERRUPTED',
                 eventsToEmit,
                 stateUpdates: [],
-                visualSequence: []
             };
         }
 
@@ -48,13 +63,12 @@ export class BattleResolutionService {
                 cancelReason: 'TARGET_LOST',
                 eventsToEmit,
                 stateUpdates: [],
-                visualSequence: []
             };
         }
 
         // フック: 攻撃開始直前
         this.hookContext.hookRegistry.execute(HookPhase.BEFORE_COMBAT_CALCULATION, ctx);
-        if (ctx.shouldCancel) return this._buildResult(ctx, eventsToEmit, allStateUpdates, visualSequence);
+        if (ctx.shouldCancel) return this._buildResult(ctx, eventsToEmit, allStateUpdates);
 
         // 3. 命中・クリティカル等の判定
         this._calculateHitOutcome(ctx);
@@ -69,6 +83,8 @@ export class BattleResolutionService {
         this.hookContext.hookRegistry.execute(HookPhase.BEFORE_EFFECT_APPLICATION, ctx);
 
         // 5. 適用データ生成 (副作用なし)
+        // ここで計算された events や stateUpdates は、結果データに含まれ、
+        // 最終的に BattleSequenceSystem や CommandSystem で実行される
         const { appliedEffects, eventsToEmit: newEvents, stateUpdates: newStateUpdates } = EffectRegistry.applyAll(ctx.rawEffects, ctx);
         ctx.appliedEffects = appliedEffects;
         eventsToEmit.push(...newEvents);
@@ -77,11 +93,8 @@ export class BattleResolutionService {
         // フック: 効果適用後
         this.hookContext.hookRegistry.execute(HookPhase.AFTER_EFFECT_APPLICATION, ctx);
 
-        // 6. 演出指示データ生成 (Serviceに委譲)
-        visualSequence = VisualSequenceService.generateVisualSequence(ctx);
-
-        // 7. 結果構築
-        return this._buildResult(ctx, eventsToEmit, allStateUpdates, visualSequence);
+        // 6. 結果構築
+        return this._buildResult(ctx, eventsToEmit, allStateUpdates);
     }
 
     _initializeContext(attackerId) {
@@ -148,7 +161,7 @@ export class BattleResolutionService {
         EffectRegistry.processAll(ctx);
     }
 
-    _buildResult(ctx, eventsToEmit, stateUpdates, visualSequence) {
+    _buildResult(ctx, eventsToEmit, stateUpdates) {
         const summary = {
             isGuardBroken: ctx.appliedEffects.some(e => e.isGuardBroken),
             isGuardExpired: ctx.appliedEffects.some(e => e.isExpired && e.type === EffectType.CONSUME_GUARD),
@@ -183,7 +196,7 @@ export class BattleResolutionService {
             interruptions: ctx.interruptions,
             eventsToEmit,
             stateUpdates,
-            visualSequence
+            // visualSequence はここでは生成せず、VisualSequenceSystemに任せる
         };
     }
 }

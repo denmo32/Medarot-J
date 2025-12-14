@@ -1,27 +1,81 @@
 /**
- * @file VisualSequenceService.js
- * @description 戦闘結果から演出シーケンスを生成するサービス。
- * リファクタリング: VisualDefinitions と BattleLogType を利用して、
- * ロジックから具体的な演出指示を分離・生成する。
+ * @file VisualSequenceSystem.js
+ * @description 戦闘結果やキャンセル情報から演出シーケンス（タスクリスト）を生成するシステム。
+ * VisualSequenceRequestを処理し、VisualSequenceを付与する。
+ * 旧 VisualSequenceService のロジックを継承。
  */
-import { MessageService } from './MessageService.js';
-import { GameEvents } from '../../common/events.js';
-import { PartInfo, PartKeyToInfoMap } from '../../common/constants.js';
-import { BattleLogType, ModalType } from '../common/constants.js';
-import { VisualDefinitions } from '../../data/visualDefinitions.js';
-import { PlayerInfo } from '../../components/index.js';
+import { System } from '../../../../engine/core/System.js';
+import { VisualSequenceRequest, VisualSequence } from '../../components/index.js';
+import { MessageService } from '../../services/MessageService.js';
+import { CancellationService } from '../../services/CancellationService.js';
+import { GameEvents } from '../../../common/events.js';
+import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
+import { BattleLogType, ModalType, PlayerStateType } from '../../common/constants.js';
+import { VisualDefinitions } from '../../../data/visualDefinitions.js';
+import { PlayerInfo } from '../../../components/index.js';
 
-export class VisualSequenceService {
+export class VisualSequenceSystem extends System {
+    constructor(world) {
+        super(world);
+    }
+
+    update(deltaTime) {
+        const entities = this.getEntities(VisualSequenceRequest);
+        for (const entityId of entities) {
+            const request = this.world.getComponent(entityId, VisualSequenceRequest);
+            this.world.removeComponent(entityId, VisualSequenceRequest);
+
+            const sequence = this._generateSequence(entityId, request.context);
+            this.world.addComponent(entityId, new VisualSequence(sequence));
+        }
+    }
+
+    _generateSequence(actorId, context) {
+        if (context.isCancelled) {
+            return this._createCancelSequence(actorId, context);
+        } else {
+            return this._createCombatSequence(context);
+        }
+    }
 
     /**
-     * 戦闘コンテキストから演出シーケンスを生成する
-     * @param {object} ctx - 戦闘コンテキスト
-     * @returns {Array} 演出シーケンスオブジェクトの配列
+     * キャンセル時のシーケンスを生成
      */
-    static generateVisualSequence(ctx) {
+    _createCancelSequence(actorId, context) {
+        const visualSequence = [];
+        const { cancelReason } = context;
+        const message = CancellationService.getCancelMessage(this.world, actorId, cancelReason);
+        
+        // 1. メッセージ表示
+        if (message) {
+            visualSequence.push({
+                type: 'DIALOG',
+                text: message,
+                options: { modalType: ModalType.MESSAGE }
+            });
+        }
+
+        // 2. クールダウン状態へ移行するイベント発行
+        visualSequence.push({
+            type: 'EVENT',
+            eventName: GameEvents.EXECUTE_COMMANDS,
+            detail: [{
+                type: 'RESET_TO_COOLDOWN',
+                targetId: actorId,
+                options: { interrupted: true }
+            }]
+        });
+
+        return visualSequence;
+    }
+
+    /**
+     * 戦闘結果からの演出シーケンスを生成
+     */
+    _createCombatSequence(ctx) {
         const resolutionLog = this._buildResolutionLog(ctx);
         const sequence = [];
-        const messageService = new MessageService(ctx.world);
+        const messageService = new MessageService(this.world);
         const defeatedPlayers = new Set();
 
         for (const log of resolutionLog) {
@@ -42,7 +96,6 @@ export class VisualSequenceService {
                     break;
                 case BattleLogType.EFFECT:
                     sequence.push(...this._createEffectTasks(log, ctx, messageService));
-                    // 機能停止判定の収集
                     if (log.effect.isPartBroken && log.effect.partKey === PartInfo.HEAD.key) {
                         defeatedPlayers.add(log.effect.targetId);
                     }
@@ -53,7 +106,6 @@ export class VisualSequenceService {
             }
         }
 
-        // HPバーアニメーションタスクの位置を探し、その後に機能停止演出を挿入
         this._insertDefeatVisuals(sequence, defeatedPlayers);
 
         // システム的なイベントタスクを追加
@@ -63,30 +115,27 @@ export class VisualSequenceService {
         return sequence;
     }
 
-    /**
-     * コンテキストから論理的なログ（イベント順序）を再構成する
-     */
-    static _buildResolutionLog(ctx) {
-        const log = [];
-        const { attackerId, intendedTargetId, finalTargetId, guardianInfo, appliedEffects, isSupport, outcome } = ctx;
+    // --- 以下、ヘルパーメソッド群 (VisualSequenceServiceから移植) ---
 
-        // 1. アニメーション開始 (ターゲットへ向く、またはその場で実行)
-        const animationTargetId = intendedTargetId || finalTargetId;
+    _buildResolutionLog(ctx) {
+        const log = [];
+        // 修正: finalTargetId ではなく targetId (CombatResultのプロパティ名) を使用
+        const { attackerId, intendedTargetId, targetId, guardianInfo, appliedEffects, isSupport, outcome } = ctx;
+
+        const animationTargetId = intendedTargetId || targetId;
         log.push({ 
             type: BattleLogType.ANIMATION_START, 
             actorId: attackerId, 
             targetId: animationTargetId 
         });
 
-        // 2. 行動宣言
         log.push({ 
             type: BattleLogType.DECLARATION, 
             actorId: attackerId,
-            targetId: finalTargetId, // ターゲット不在ならnull
+            targetId: targetId, // 修正
             isSupport: isSupport 
         });
 
-        // 3. ガード発動 (ターゲットが変更された場合)
         if (guardianInfo) {
             log.push({ 
                 type: BattleLogType.GUARDIAN_TRIGGER, 
@@ -94,7 +143,6 @@ export class VisualSequenceService {
             });
         }
 
-        // 4. 効果適用 or ミス
         if (appliedEffects && appliedEffects.length > 0) {
             for (const effect of appliedEffects) {
                 log.push({ 
@@ -103,7 +151,6 @@ export class VisualSequenceService {
                 });
             }
         } else if (!outcome.isHit && intendedTargetId) {
-            // 命中せず、かつ意図したターゲットがいた場合（空振り）
             log.push({ 
                 type: BattleLogType.MISS, 
                 targetId: intendedTargetId 
@@ -113,15 +160,13 @@ export class VisualSequenceService {
         return log;
     }
 
-    // --- Task Creation Helpers ---
-
-    static _createDeclarationTasks(log, ctx, messageService) {
+    _createDeclarationTasks(log, ctx, messageService) {
         const def = VisualDefinitions.DECLARATION;
         const messageKey = def.getMessageKey({ ...ctx, targetId: log.targetId });
         
         if (!messageKey) return [];
 
-        const attackerInfo = ctx.world.getComponent(log.actorId, PlayerInfo);
+        const attackerInfo = this.world.getComponent(log.actorId, PlayerInfo);
         const params = {
             attackerName: attackerInfo?.name || '???',
             actionType: ctx.attackingPart.action,
@@ -136,7 +181,7 @@ export class VisualSequenceService {
         }];
     }
 
-    static _createGuardianTasks(log, ctx, messageService) {
+    _createGuardianTasks(log, ctx, messageService) {
         const def = VisualDefinitions.GUARDIAN_TRIGGER;
         const messageKey = def.getMessageKey();
         
@@ -147,19 +192,18 @@ export class VisualSequenceService {
         }];
     }
 
-    static _createEffectTasks(log, ctx, messageService) {
+    _createEffectTasks(log, ctx, messageService) {
         const effect = log.effect;
         const def = VisualDefinitions[effect.type];
         if (!def) return [];
 
         const tasks = [];
         
-        // メッセージ生成
         const prefixKey = def.getPrefixKey ? def.getPrefixKey(effect) : null;
         const messageKey = def.getMessageKey(effect);
         
         if (messageKey) {
-            const targetInfo = ctx.world.getComponent(effect.targetId, PlayerInfo);
+            const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
             const partName = PartKeyToInfoMap[effect.partKey]?.name || '不明部位';
             const guardianName = ctx.guardianInfo?.name || '不明';
 
@@ -172,7 +216,7 @@ export class VisualSequenceService {
                 scanBonus: effect.value,
                 duration: effect.duration,
                 guardCount: effect.value,
-                actorName: targetInfo?.name || '???' // CONSUME_GUARD用
+                actorName: targetInfo?.name || '???'
             };
 
             let text = messageService.format(messageKey, params);
@@ -187,7 +231,6 @@ export class VisualSequenceService {
             });
         }
 
-        // HPバーアニメーション
         if (def.shouldShowHpBar && def.shouldShowHpBar(effect)) {
             tasks.push({
                 type: 'UI_ANIMATION',
@@ -199,10 +242,10 @@ export class VisualSequenceService {
         return tasks;
     }
 
-    static _createMissTasks(log, ctx, messageService) {
+    _createMissTasks(log, ctx, messageService) {
         const def = VisualDefinitions.MISS;
         const messageKey = def.getMessageKey();
-        const targetInfo = ctx.world.getComponent(log.targetId, PlayerInfo);
+        const targetInfo = this.world.getComponent(log.targetId, PlayerInfo);
 
         return [{
             type: 'DIALOG',
@@ -211,7 +254,7 @@ export class VisualSequenceService {
         }];
     }
 
-    static _insertDefeatVisuals(sequence, defeatedPlayers) {
+    _insertDefeatVisuals(sequence, defeatedPlayers) {
         if (defeatedPlayers.size === 0) return;
 
         const defeatTasks = [];
@@ -219,7 +262,6 @@ export class VisualSequenceService {
             defeatTasks.push({ type: 'APPLY_VISUAL_EFFECT', targetId: playerId, className: 'is-defeated' });
         }
 
-        // HPバーアニメーションの後、またはメッセージの後に挿入
         const hpAnimIndex = sequence.findIndex(v => v.type === 'UI_ANIMATION' && v.targetType === 'HP_BAR');
         if (hpAnimIndex !== -1) {
             sequence.splice(hpAnimIndex + 1, 0, ...defeatTasks);
