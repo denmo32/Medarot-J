@@ -2,6 +2,7 @@
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの管理システム。
  * TaskRunnerを完全に削除し、TaskSystem用のコンポーネント(VisualSequence)を生成して付与する。
+ * 内部状態をBattleSequenceStateコンポーネントへ移行。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
@@ -9,24 +10,14 @@ import { BattlePhase, TargetTiming, PlayerStateType } from '../../common/constan
 import { 
     BattleSequenceContext, PhaseContext, TurnContext,
     GameState, Action,
-    CombatRequest, CombatResult, VisualSequenceRequest, VisualSequenceResult, VisualSequence
+    CombatRequest, CombatResult, VisualSequenceRequest, VisualSequenceResult, VisualSequence,
+    BattleSequenceState, SequenceState
 } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
 import { createCommand } from '../../common/Command.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
-
-// シーケンス処理の内部ステート
-const ActorState = {
-    IDLE: 'IDLE',
-    REQUEST_COMBAT: 'REQUEST_COMBAT',
-    WAITING_COMBAT: 'WAITING_COMBAT',
-    REQUEST_VISUALS: 'REQUEST_VISUALS',
-    WAITING_VISUALS: 'WAITING_VISUALS',
-    EXECUTING_TASKS: 'EXECUTING_TASKS',
-    COMPLETED: 'COMPLETED'
-};
 
 export class BattleSequenceSystem extends System {
     constructor(world) {
@@ -36,20 +27,17 @@ export class BattleSequenceSystem extends System {
         this.turnContext = this.world.getSingletonComponent(TurnContext);
 
         this.timelineBuilder = new TimelineBuilder(world);
-        // TaskRunner は削除
-
+        
         this.executionQueue = [];
-        this.actorStates = new Map();
+        // this.actorStates = new Map(); // 廃止: BattleSequenceStateコンポーネントへ移行
         this.currentActorId = null;
-        this.lastResultData = null; // lastResultDataの初期化
+        // this.lastResultData = null; // 廃止: BattleSequenceStateコンポーネントへ移行
 
         this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
         this.on(GameEvents.GAME_OVER, this.abortSequence.bind(this));
     }
 
     update(deltaTime) {
-        // TaskRunner.update(deltaTime) は不要（TaskSystemが処理する）
-
         if (this.phaseContext.phase === BattlePhase.GAME_OVER) {
             if (this.currentActorId) this.abortSequence();
             return;
@@ -98,58 +86,66 @@ export class BattleSequenceSystem extends System {
 
         this.currentActorId = actorId;
         this.turnContext.currentActorId = actorId;
-        this.actorStates.set(actorId, ActorState.IDLE);
+        
+        // 状態コンポーネントを付与
+        this.world.addComponent(actorId, new BattleSequenceState());
     }
 
     _updateActorSequence(actorId) {
-        const state = this.actorStates.get(actorId) || ActorState.IDLE;
+        const sequenceState = this.world.getComponent(actorId, BattleSequenceState);
+        if (!sequenceState) {
+            // 何らかの理由でコンポーネントがない場合、初期化するか中断する
+            // ここでは再初期化を試みる
+            this.world.addComponent(actorId, new BattleSequenceState());
+            return;
+        }
 
-        switch (state) {
-            case ActorState.IDLE:
-                this._initializeActorSequence(actorId);
+        switch (sequenceState.currentState) {
+            case SequenceState.IDLE:
+                this._initializeActorSequence(actorId, sequenceState);
                 break;
 
-            case ActorState.REQUEST_COMBAT:
+            case SequenceState.REQUEST_COMBAT:
                 this.world.addComponent(actorId, new CombatRequest(actorId));
-                this.actorStates.set(actorId, ActorState.WAITING_COMBAT);
+                sequenceState.currentState = SequenceState.WAITING_COMBAT;
                 break;
 
-            case ActorState.WAITING_COMBAT:
+            case SequenceState.WAITING_COMBAT:
                 const combatResult = this.world.getComponent(actorId, CombatResult);
                 if (combatResult) {
                     this.world.removeComponent(actorId, CombatResult);
-                    this._requestVisuals(actorId, combatResult.data);
+                    this._requestVisuals(actorId, sequenceState, combatResult.data);
                 }
                 break;
 
-            case ActorState.REQUEST_VISUALS:
+            case SequenceState.REQUEST_VISUALS:
                 break;
 
-            case ActorState.WAITING_VISUALS:
+            case SequenceState.WAITING_VISUALS:
                 // VisualSequenceResult (未変換データ) を待つ
                 const result = this.world.getComponent(actorId, VisualSequenceResult);
                 if (result) {
                     this.world.removeComponent(actorId, VisualSequenceResult);
                     // 変換して VisualSequence (実行用データ) を付与
-                    this._startTasks(actorId, result.sequence, this.lastResultData);
+                    this._startTasks(actorId, sequenceState, result.sequence);
                 }
                 break;
 
-            case ActorState.EXECUTING_TASKS:
+            case SequenceState.EXECUTING_TASKS:
                 // VisualSequenceコンポーネントがなくなれば完了とみなす
                 // (TaskSystemはタスクが空になるとVisualSequenceを削除する)
                 if (!this.world.getComponent(actorId, VisualSequence)) {
-                    this.actorStates.set(actorId, ActorState.COMPLETED);
+                    sequenceState.currentState = SequenceState.COMPLETED;
                 }
                 break;
 
-            case ActorState.COMPLETED:
+            case SequenceState.COMPLETED:
                 this._finalizeActorSequence(actorId);
                 break;
         }
     }
 
-    _initializeActorSequence(actorId) {
+    _initializeActorSequence(actorId, sequenceState) {
         const cmd = createCommand('TRANSITION_STATE', {
             targetId: actorId,
             newState: PlayerStateType.AWAITING_ANIMATION
@@ -160,30 +156,31 @@ export class BattleSequenceSystem extends System {
         if (cancelCheck.shouldCancel) {
             const context = { isCancelled: true, cancelReason: cancelCheck.reason };
             this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: cancelCheck.reason });
-            this._requestVisuals(actorId, context);
+            this._requestVisuals(actorId, sequenceState, context);
             return;
         }
 
         this._resolvePostMoveTargetForWorld(this.world, actorId);
-        this.actorStates.set(actorId, ActorState.REQUEST_COMBAT);
+        sequenceState.currentState = SequenceState.REQUEST_COMBAT;
     }
 
-    _requestVisuals(actorId, context) {
+    _requestVisuals(actorId, sequenceState, context) {
         if (context.eventsToEmit) {
             context.eventsToEmit.forEach(event => {
                 this.world.emit(event.type, event.payload);
             });
         }
         
-        // 状態変更用データを保持
-        this.lastResultData = context;
+        // 状態変更用データをコンポーネントに保持
+        sequenceState.contextData = context;
 
         this.world.addComponent(actorId, new VisualSequenceRequest(context));
-        this.actorStates.set(actorId, ActorState.WAITING_VISUALS);
+        sequenceState.currentState = SequenceState.WAITING_VISUALS;
     }
 
-    _startTasks(actorId, visualTasks, resultData) {
+    _startTasks(actorId, sequenceState, visualTasks) {
         const tasks = [...visualTasks];
+        const resultData = sequenceState.contextData;
         
         if (resultData && resultData.stateUpdates && resultData.stateUpdates.length > 0) {
             const commandTask = {
@@ -206,15 +203,16 @@ export class BattleSequenceSystem extends System {
         // 実行用コンポーネントを付与
         this.world.addComponent(actorId, new VisualSequence(builtTasks));
         
-        this.actorStates.set(actorId, ActorState.EXECUTING_TASKS);
+        sequenceState.currentState = SequenceState.EXECUTING_TASKS;
     }
 
     _finalizeActorSequence(actorId) {
         this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: actorId });
-        this.actorStates.delete(actorId);
+        // 状態コンポーネントを削除
+        this.world.removeComponent(actorId, BattleSequenceState);
+        
         this.currentActorId = null;
         this.turnContext.currentActorId = null;
-        this.lastResultData = null;
     }
 
     // --- Helpers ---
@@ -267,14 +265,18 @@ export class BattleSequenceSystem extends System {
 
     abortSequence() {
         this.executionQueue = [];
-        this.actorStates.clear();
-        // TaskRunnerがないので、現在のアクターのVisualSequenceコンポーネントを削除して停止させる
+        
+        // 管理中の全エンティティから状態コンポーネントを削除
+        const activeEntities = this.getEntities(BattleSequenceState);
+        for (const entityId of activeEntities) {
+            this.world.removeComponent(entityId, BattleSequenceState);
+        }
+
         if (this.currentActorId) {
             this.world.removeComponent(this.currentActorId, VisualSequence);
         }
         this.currentActorId = null;
         this.battleSequenceContext.isSequenceRunning = false;
-        this.lastResultData = null;
     }
 
     onCheckActionCancellation() {

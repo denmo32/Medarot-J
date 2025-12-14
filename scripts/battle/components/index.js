@@ -13,5 +13,6 @@ export { BattleStateContext } from './BattleStateContext.js';
 export { BattleSequenceContext } from './BattleSequenceContext.js';
 export { BattleHistoryContext } from './BattleHistoryContext.js';
 export { HookContext } from './HookContext.js';
+export { BattleSequenceState, SequenceState } from './BattleSequenceState.js';
 export * from './Requests.js';
 export * from './Tasks.js';
