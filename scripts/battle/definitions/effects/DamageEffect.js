@@ -10,7 +10,6 @@ import { GameState, ActiveEffects } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
-import { SetPlayerBrokenCommand, ResetToCooldownCommand } from '../../common/Command.js';
 
 export const DamageEffect = {
     type: EffectType.DAMAGE,
@@ -106,7 +105,7 @@ export const DamageEffect = {
 
             if (partKey === PartInfo.HEAD.key) {
                 simulatedParts.head.isBroken = true;
-                stateUpdates.push(new SetPlayerBrokenCommand({ targetId }));
+                stateUpdates.push({ type: 'SetPlayerBroken', targetId });
             }
 
             const targetState = world.getComponent(targetId, GameState);
@@ -118,10 +117,11 @@ export const DamageEffect = {
                 );
                 if (isGuardPart) {
                     isGuardBroken = true;
-                    stateUpdates.push(new ResetToCooldownCommand({
+                    stateUpdates.push({
+                        type: 'ResetToCooldown',
                         targetId: targetId,
                         options: {}
-                    }));
+                    });
                 }
             }
         }

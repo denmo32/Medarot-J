@@ -6,9 +6,9 @@
 import { System } from '../../../../engine/core/System.js';
 import { PhaseState } from '../../components/PhaseState.js';
 import { GameState, Gauge, Action, ActionSelectionPending, PauseState, BattleResult } from '../../components/index.js'; // 変更
+import { UpdateComponentRequest, TransitionStateRequest } from '../../components/CommandRequests.js';
 import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
-import { UpdateComponentCommand, TransitionStateCommand } from '../../common/Command.js';
 import { Timer } from '../../../../engine/stdlib/components/Timer.js';
 
 export class GameFlowSystem extends System {
@@ -108,55 +108,37 @@ export class GameFlowSystem extends System {
     // --- INITIAL_SELECTION Logic (Initialization) ---
     _initializePlayersForBattle() {
         const players = this.getEntities(GameState, Gauge);
-        const commands = [];
         
         players.forEach(id => {
             const gameState = this.world.getComponent(id, GameState);
             const gauge = this.world.getComponent(id, Gauge);
             
-            commands.push(new UpdateComponentCommand({
-                targetId: id,
-                componentType: Gauge,
-                updates: { value: 0 }
-            }));
+            const req1 = this.world.createEntity();
+            this.world.addComponent(req1, new UpdateComponentRequest(id, Gauge, { value: 0 }));
 
             if (gameState.state !== PlayerStateType.BROKEN) {
-                commands.push(new TransitionStateCommand({
-                    targetId: id,
-                    newState: PlayerStateType.READY_SELECT
-                }));
-                commands.push(new UpdateComponentCommand({
-                    targetId: id,
-                    componentType: Gauge,
-                    updates: { value: gauge.max, speedMultiplier: 1.0 }
-                }));
-                commands.push(new UpdateComponentCommand({
-                    targetId: id,
-                    componentType: Action,
-                    updates: new Action() // reset
-                }));
+                const req2 = this.world.createEntity();
+                this.world.addComponent(req2, new TransitionStateRequest(id, PlayerStateType.READY_SELECT));
+                
+                const req3 = this.world.createEntity();
+                this.world.addComponent(req3, new UpdateComponentRequest(id, Gauge, { value: gauge.max, speedMultiplier: 1.0 }));
+                
+                const req4 = this.world.createEntity();
+                this.world.addComponent(req4, new UpdateComponentRequest(id, Action, new Action()));
 
                 this.world.addComponent(id, new ActionSelectionPending());
             }
         });
-
-        if (commands.length > 0) {
-            commands.forEach(cmd => cmd.execute(this.world));
-        }
     }
 
     // --- BATTLE_START Logic ---
     _onBattleAnimationCompleted() {
         if (this.phaseState.phase === BattlePhase.BATTLE_START) {
             const players = this.getEntities(GameState);
-            const commands = players.map(id => new UpdateComponentCommand({
-                targetId: id,
-                componentType: Gauge,
-                updates: { value: 0 }
-            }));
-            if (commands.length > 0) {
-                commands.forEach(cmd => cmd.execute(this.world));
-            }
+            players.forEach(id => {
+                const req = this.world.createEntity();
+                this.world.addComponent(req, new UpdateComponentRequest(id, Gauge, { value: 0 }));
+            });
 
             this.phaseState.phase = BattlePhase.TURN_START;
         }

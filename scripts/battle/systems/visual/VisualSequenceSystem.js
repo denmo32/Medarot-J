@@ -4,6 +4,7 @@
  */
 import { System } from '../../../../engine/core/System.js';
 import { VisualSequenceRequest, VisualSequenceResult } from '../../components/index.js'; // 修正
+import { ResetToCooldownRequest } from '../../components/CommandRequests.js';
 import { MessageService } from '../../services/MessageService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { GameEvents } from '../../../common/events.js';
@@ -11,7 +12,6 @@ import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
 import { BattleLogType, ModalType, PlayerStateType } from '../../common/constants.js';
 import { VisualDefinitions } from '../../../data/visualDefinitions.js';
 import { PlayerInfo } from '../../../components/index.js';
-import { ResetToCooldownCommand } from '../../common/Command.js';
 
 export class VisualSequenceSystem extends System {
     constructor(world) {
@@ -54,12 +54,14 @@ export class VisualSequenceSystem extends System {
         }
 
         visualSequence.push({
-            type: 'EVENT',
-            eventName: GameEvents.EXECUTE_COMMANDS,
-            detail: [new ResetToCooldownCommand({
-                targetId: actorId,
-                options: { interrupted: true }
-            })]
+            type: 'CUSTOM',
+            executeFn: (world) => {
+                const req = world.createEntity();
+                world.addComponent(req, new ResetToCooldownRequest(
+                    actorId,
+                    { interrupted: true }
+                ));
+            }
         });
 
         return visualSequence;

@@ -9,10 +9,10 @@ import { PhaseState } from '../../components/PhaseState.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { Action, Gauge, GameState, PauseState } from '../../components/index.js'; // 追加
+import { TransitionStateRequest, UpdateComponentRequest } from '../../components/CommandRequests.js';
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
-import { TransitionStateCommand, UpdateComponentCommand } from '../../common/Command.js';
 
 export class ActionSelectionSystem extends System {
     constructor(world) {
@@ -57,10 +57,9 @@ export class ActionSelectionSystem extends System {
         if (this.initialSelectionState.cancelled) {
             this.initialSelectionState.cancelled = false;
             this.initialSelectionState.isConfirming = false;
-            this.world.emit(GameEvents.HIDE_MODAL);
             
-            // Resume処理はGameFlowSystemがイベントを受けてPauseStateを削除することで行われる
-            this.world.emit(GameEvents.GAME_RESUMED);
+            // ModalSystem側で閉じられているため、ここでは再開処理のみシステム側で認識
+            // ただしGAME_RESUMEDはModalSystemが閉じた時に発行済み
             
             this.phaseState.phase = BattlePhase.IDLE;
             this.world.emit(GameEvents.GAME_START_CONFIRMED);
@@ -85,18 +84,21 @@ export class ActionSelectionSystem extends System {
             confirmed: false,
             cancelled: false
         };
-        this.world.emit(GameEvents.HIDE_MODAL);
-        this.world.emit(GameEvents.GAME_RESUMED);
+        // HIDE_MODAL, GAME_RESUMED は ModalSystem の EMIT_AND_CLOSE 処理により実行済み
     }
 
     _checkAllSelected() {
         const allPlayers = this.getEntities(GameState);
         if (allPlayers.length === 0) return false;
 
+        // INITIAL_SELECTION フェーズでは、全員が行動選択済み(SELECTED_CHARGING)であることを確認する
+        // 初期状態(CHARGING)や選択中(READY_SELECT)は未完了とみなす
         return allPlayers.every(id => {
             const state = this.world.getComponent(id, GameState);
-            const unselectedStates = [PlayerStateType.READY_SELECT, PlayerStateType.COOLDOWN_COMPLETE];
-            return !unselectedStates.includes(state.state);
+            if (!state) return false;
+            
+            return state.state === PlayerStateType.SELECTED_CHARGING || 
+                   state.state === PlayerStateType.BROKEN;
         });
     }
 
@@ -179,21 +181,21 @@ export class ActionSelectionSystem extends System {
             modifier: modifier
         });
 
-        const commands = [
-            new TransitionStateCommand({
-                targetId: entityId,
-                newState: PlayerStateType.SELECTED_CHARGING
-            }),
-            new UpdateComponentCommand({
-                targetId: entityId,
-                componentType: Gauge,
-                updates: {
-                    value: 0,
-                    currentSpeed: 0,
-                    speedMultiplier: speedMultiplier
-                }
-            })
-        ];
-        commands.forEach(cmd => cmd.execute(this.world));
+        const req1 = this.world.createEntity();
+        this.world.addComponent(req1, new TransitionStateRequest(
+            entityId,
+            PlayerStateType.SELECTED_CHARGING
+        ));
+
+        const req2 = this.world.createEntity();
+        this.world.addComponent(req2, new UpdateComponentRequest(
+            entityId,
+            Gauge,
+            {
+                value: 0,
+                currentSpeed: 0,
+                speedMultiplier: speedMultiplier
+            }
+        ));
     }
 }

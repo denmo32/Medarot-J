@@ -19,12 +19,13 @@ import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.j
 import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
 import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
-import { CommandSystem } from '../systems/flow/CommandSystem.js';
 import { ModalSystem } from '../systems/ui/ModalSystem.js';
 import { UIInputSystem } from '../systems/ui/UIInputSystem.js';
 import { CombatSystem } from '../systems/mechanics/CombatSystem.js';
 import { VisualSequenceSystem } from '../systems/visual/VisualSequenceSystem.js';
 import { TaskSystem } from '../systems/flow/TaskSystem.js'; 
+import { StateTransitionSystem } from '../systems/mechanics/StateTransitionSystem.js';
+import { ComponentUpdateSystem } from '../systems/mechanics/ComponentUpdateSystem.js';
 
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
@@ -50,7 +51,6 @@ export function initializeSystems(world, gameDataManager) {
     const winConditionSystem = new WinConditionSystem(world);
     const turnSystem = new TurnSystem(world);
     const battleSequenceSystem = new BattleSequenceSystem(world); 
-    const commandSystem = new CommandSystem(world);
     const timerSystem = new TimerSystem(world);
     const taskSystem = new TaskSystem(world);
     
@@ -61,6 +61,8 @@ export function initializeSystems(world, gameDataManager) {
     const effectSystem = new EffectSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
     const combatSystem = new CombatSystem(world);
+    const stateTransitionSystem = new StateTransitionSystem(world);
+    const componentUpdateSystem = new ComponentUpdateSystem(world);
 
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
@@ -70,8 +72,11 @@ export function initializeSystems(world, gameDataManager) {
     // 1. 入力
     world.registerSystem(uiInputSystem);
 
-    // 2. コアロジック (状態更新)
-    world.registerSystem(commandSystem);
+    // 2. コアロジック (状態更新リクエスト処理)
+    world.registerSystem(stateTransitionSystem);
+    world.registerSystem(componentUpdateSystem);
+
+    // 3. ゲームフロー
     world.registerSystem(gameFlowSystem);
     world.registerSystem(turnSystem);
     world.registerSystem(actionSelectionSystem);
@@ -87,17 +92,17 @@ export function initializeSystems(world, gameDataManager) {
     world.registerSystem(timerSystem);
     world.registerSystem(stateSystem);
 
-    // 3. メカニクス
+    // 4. メカニクス
     world.registerSystem(gaugeSystem);
     world.registerSystem(movementSystem);
     world.registerSystem(effectSystem);
     world.registerSystem(battleHistorySystem);
 
-    // 4. UI状態管理
+    // 5. UI状態管理
     world.registerSystem(modalSystem);
     world.registerSystem(actionPanelSystem);
 
-    // 5. 描画/演出
+    // 6. 描画/演出
     world.registerSystem(visualDirectorSystem);
     world.registerSystem(animationSystem);
     world.registerSystem(renderSystem);

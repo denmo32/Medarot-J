@@ -1,9 +1,9 @@
 import { System } from '../../../../engine/core/System.js';
 import { ActiveEffects, GameState } from '../../components/index.js';
+import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { EffectRegistry } from '../../definitions/EffectRegistry.js';
-import { ResetToCooldownCommand, CustomUpdateCommand } from '../../common/Command.js';
 
 export class EffectSystem extends System {
     constructor(world) {
@@ -64,7 +64,6 @@ export class EffectSystem extends System {
             return;
         }
 
-        const commandsToExecute = [];
         const effectsToRemove = [];
         const nextEffects = [];
 
@@ -86,40 +85,32 @@ export class EffectSystem extends System {
                 
                 const gameState = this.world.getComponent(entityId, GameState);
                 if (updatedEffect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
-                    commandsToExecute.push(new ResetToCooldownCommand({
-                        targetId: entityId,
-                        options: {}
-                    }));
+                    const req = this.world.createEntity();
+                    this.world.addComponent(req, new ResetToCooldownRequest(entityId, {}));
                 }
             } else {
                 nextEffects.push(updatedEffect);
             }
         }
         
-        // 状態変更をコマンド経由に統一
         if (effectsToRemove.length > 0) {
-            // エフェクト配列の更新コマンドを最初に実行
-            commandsToExecute.unshift(new CustomUpdateCommand({
-                targetId: entityId,
-                componentType: ActiveEffects,
-                customHandler: (ae) => {
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new CustomUpdateComponentRequest(
+                entityId,
+                ActiveEffects,
+                (ae) => {
                     ae.effects = ae.effects.filter(e => !effectsToRemove.includes(e));
                 }
-            }));
-        }
-
-        if (commandsToExecute.length > 0) {
-            commandsToExecute.forEach(cmd => cmd.execute(this.world));
-        } else if (effectsToRemove.length === 0 && nextEffects.length !== activeEffects.effects.length) {
-            // durationのみ更新された場合
-            const cmd = new CustomUpdateCommand({
-                targetId: entityId,
-                componentType: ActiveEffects,
-                customHandler: (ae) => {
+            ));
+        } else if (nextEffects.length !== activeEffects.effects.length) {
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new CustomUpdateComponentRequest(
+                entityId,
+                ActiveEffects,
+                (ae) => {
                     ae.effects = nextEffects;
                 }
-            });
-            cmd.execute(this.world);
+            ));
         }
     }
 }
