@@ -1,6 +1,6 @@
 import { Gauge, GameState, BattleSequenceState, SequencePending } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
-import { PhaseContext } from '../../components/PhaseContext.js';
+import { PhaseState } from '../../components/PhaseState.js'; // 修正
 import { BattlePhase } from '../../common/constants.js';
 import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';
@@ -9,7 +9,7 @@ import { CombatCalculator } from '../../logic/CombatCalculator.js';
 export class GaugeSystem extends System {
     constructor(world) {
         super(world);
-        this.phaseContext = this.world.getSingletonComponent(PhaseContext);
+        this.phaseState = this.world.getSingletonComponent(PhaseState); // 修正
         this.isPaused = false;
 
         this.on(GameEvents.GAME_PAUSED, this.onPauseGame.bind(this));
@@ -18,7 +18,6 @@ export class GaugeSystem extends System {
 
     update(deltaTime) {
         // シーケンス実行中はゲージを停止
-        // SequencePendingを持つエンティティ、またはBattleSequenceStateを持つエンティティがいる場合
         const isSequenceRunning = 
             this.getEntities(SequencePending).length > 0 ||
             this.getEntities(BattleSequenceState).length > 0;
@@ -34,7 +33,7 @@ export class GaugeSystem extends System {
             BattlePhase.TURN_END,
         ];
 
-        if (!activePhases.includes(this.phaseContext.phase) || this.isPaused) {
+        if (!activePhases.includes(this.phaseState.phase) || this.isPaused) { // 修正
             return;
         }
 

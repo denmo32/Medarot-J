@@ -1,11 +1,11 @@
 /**
  * @file ActionSelectionSystem.js
  * @description アクション選択フェーズの制御を行うシステム。
- * 旧 ActionSelectionState, InitialSelectionState のロジックを統合。
+ * PhaseContext -> PhaseState へ移行。
  */
 import { System } from '../../../../engine/core/System.js';
 import { TurnContext } from '../../components/TurnContext.js';
-import { PhaseContext } from '../../components/PhaseContext.js';
+import { PhaseState } from '../../components/PhaseState.js'; // 修正
 import { BattleStateContext } from '../../components/BattleStateContext.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
@@ -19,7 +19,7 @@ export class ActionSelectionSystem extends System {
     constructor(world) {
         super(world);
         this.turnContext = this.world.getSingletonComponent(TurnContext);
-        this.phaseContext = this.world.getSingletonComponent(PhaseContext);
+        this.phaseState = this.world.getSingletonComponent(PhaseState); // 修正
         this.battleStateContext = this.world.getSingletonComponent(BattleStateContext);
 
         // InitialSelection用の状態管理
@@ -42,7 +42,7 @@ export class ActionSelectionSystem extends System {
     }
 
     update(deltaTime) {
-        const currentPhase = this.phaseContext.phase;
+        const currentPhase = this.phaseState.phase; // 修正
 
         if (currentPhase === BattlePhase.INITIAL_SELECTION) {
             this._updateInitialSelection();
@@ -55,7 +55,7 @@ export class ActionSelectionSystem extends System {
     _updateInitialSelection() {
         // 1. 確定済み -> バトル開始フェーズへ
         if (this.initialSelectionState.confirmed) {
-            this.phaseContext.phase = BattlePhase.BATTLE_START;
+            this.phaseState.phase = BattlePhase.BATTLE_START; // 修正
             this._resetInitialSelectionState();
             return;
         }
@@ -67,17 +67,7 @@ export class ActionSelectionSystem extends System {
             this.world.emit(GameEvents.HIDE_MODAL);
             this.battleStateContext.isPaused = false;
             
-            // 再初期化処理は GameFlowSystem の _onPhaseEnter(INITIAL_SELECTION) を再度走らせるため、
-            // 一度フェーズを変更するか、初期化ロジックをリクエストする必要がある。
-            // ここでは簡易的に、現在のフェーズを再設定して GameFlowSystem に検知させることはできない（同じ値のため）。
-            // したがって、GameFlowSystemのメソッドを呼べないので、初期化イベントを発行するか、
-            // ここで初期化ロジックを持つ必要があるが、依存を避けるため
-            // 一瞬 IDLE に戻して即座に INITIAL_SELECTION に戻すなどのハックよりは、
-            // GameFlowSystemがリセット要求イベントをリッスンする方が良いが、
-            // 今回は簡易的に GameFlowSystem の初期化ロジック相当（TRANSITION_STATE等）は
-            // GameFlowSystemに任せたい。
-            // 解決策: IDLEに戻し、GameStartConfirmedイベントを再発行してループさせる。
-            this.phaseContext.phase = BattlePhase.IDLE;
+            this.phaseState.phase = BattlePhase.IDLE; // 修正
             this.world.emit(GameEvents.GAME_START_CONFIRMED);
             return;
         }
@@ -119,14 +109,13 @@ export class ActionSelectionSystem extends System {
     _updateActionSelection() {
         // 1. 実行待機状態(READY_EXECUTE)のエンティティがいるかチェック -> 実行フェーズへ
         if (this._isAnyEntityReadyToExecute()) {
-            this.phaseContext.phase = BattlePhase.ACTION_EXECUTION;
+            this.phaseState.phase = BattlePhase.ACTION_EXECUTION; // 修正
             return;
         }
 
         // 2. 誰もチャージ中でなく、誰も選択待機中でない -> ターン終了へ
-        // (全員行動済み、または全員破壊された場合など)
         if (!this._isAnyEntityInAction()) {
-            this.phaseContext.phase = BattlePhase.TURN_END;
+            this.phaseState.phase = BattlePhase.TURN_END; // 修正
         }
     }
 

@@ -1,12 +1,12 @@
 /**
  * @file TurnSystem.js
  * @description ターン更新の管理システム。
- * 行動順管理を内部配列からActionSelectionPendingコンポーネントへ移行。
+ * PhaseContext -> PhaseState へ移行。
  */
 import { System } from '../../../../engine/core/System.js';
-import { GameState, ActionSelectionPending } from '../../components/index.js'; // 追加
+import { GameState, ActionSelectionPending } from '../../components/index.js'; 
 import { TurnContext } from '../../components/TurnContext.js';
-import { PhaseContext } from '../../components/PhaseContext.js';
+import { PhaseState } from '../../components/PhaseState.js'; // 修正
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
 import { QueryService } from '../../services/QueryService.js';
@@ -15,9 +15,7 @@ export class TurnSystem extends System {
     constructor(world) {
         super(world);
         this.turnContext = this.world.getSingletonComponent(TurnContext);
-        this.phaseContext = this.world.getSingletonComponent(PhaseContext);
-        
-        // this.pendingQueue = []; // 廃止: ActionSelectionPendingコンポーネントへ移行
+        this.phaseState = this.world.getSingletonComponent(PhaseState); // 修正
         
         this.lastPhase = null;
 
@@ -27,16 +25,16 @@ export class TurnSystem extends System {
 
     update(deltaTime) {
         // --- フェーズ遷移検知 ---
-        if (this.phaseContext.phase !== this.lastPhase) {
-            this._onPhaseEnter(this.phaseContext.phase);
-            this.lastPhase = this.phaseContext.phase;
+        if (this.phaseState.phase !== this.lastPhase) { // 修正
+            this._onPhaseEnter(this.phaseState.phase); // 修正
+            this.lastPhase = this.phaseState.phase; // 修正
         }
 
         const activePhases = [
             BattlePhase.ACTION_SELECTION,
             BattlePhase.INITIAL_SELECTION
         ];
-        if (!activePhases.includes(this.phaseContext.phase)) {
+        if (!activePhases.includes(this.phaseState.phase)) { // 修正
             return;
         }
 
@@ -68,7 +66,7 @@ export class TurnSystem extends System {
         if (validEntities.length === 0) return null;
 
         // ソート
-        if (this.phaseContext.phase === BattlePhase.INITIAL_SELECTION) {
+        if (this.phaseState.phase === BattlePhase.INITIAL_SELECTION) { // 修正
             // ID順 (Entity IDは作成順なので数値昇順で代用)
             validEntities.sort((a, b) => a - b);
         } else {
@@ -91,11 +89,11 @@ export class TurnSystem extends System {
         this.turnContext.number++;
         this.world.emit(GameEvents.TURN_END, { turnNumber: this.turnContext.number - 1 });
         this.world.emit(GameEvents.TURN_START, { turnNumber: this.turnContext.number });
-        this.phaseContext.phase = BattlePhase.TURN_START;
+        this.phaseState.phase = BattlePhase.TURN_START; // 修正
     }
 
     _handleTurnStart() {
-        this.phaseContext.phase = BattlePhase.ACTION_SELECTION;
+        this.phaseState.phase = BattlePhase.ACTION_SELECTION; // 修正
     }
 
     onActionQueueRequest(detail) {
@@ -107,9 +105,6 @@ export class TurnSystem extends System {
 
     onActionRequeueRequest(detail) {
         const { entityId } = detail;
-        // リキュー要求時も同様にコンポーネントを付与
-        // ただし、もし優先的に処理させたい場合は別途PriorityComponentのようなものを考える必要があるが、
-        // 現状は通常のキューイングと同じ扱いで問題ない
         if (!this.world.getComponent(entityId, ActionSelectionPending)) {
             this.world.addComponent(entityId, new ActionSelectionPending());
         }

@@ -3,13 +3,13 @@ import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { TeamID } from '../../../common/constants.js';
 import { BattlePhase } from '../../common/constants.js';
-import { PhaseContext } from '../../components/PhaseContext.js'; // 修正
+import { PhaseState } from '../../components/PhaseState.js'; // 修正
 import { TargetingService } from '../../services/TargetingService.js';
 
 export class WinConditionSystem extends System {
     constructor(world) {
         super(world);
-        this.phaseContext = this.world.getSingletonComponent(PhaseContext); // 修正
+        this.phaseState = this.world.getSingletonComponent(PhaseState); // 修正
         this.brokenEventsQueue = [];
 
         this.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
@@ -25,7 +25,7 @@ export class WinConditionSystem extends System {
     }
 
     checkWinCondition() {
-        if (this.phaseContext.phase === BattlePhase.GAME_OVER) { // 修正
+        if (this.phaseState.phase === BattlePhase.GAME_OVER) { // 修正
             return;
         }
 

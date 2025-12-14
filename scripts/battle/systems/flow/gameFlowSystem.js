@@ -1,12 +1,12 @@
 /**
  * @file GameFlowSystem.js
  * @description ゲーム全体の進行フロー（開始、終了、初期化など）を管理するシステム。
- * 初期化時のキューリクエストをActionSelectionPendingコンポーネントの付与に変更。
+ * PhaseContext -> PhaseState へ移行。
  */
 import { System } from '../../../../engine/core/System.js';
 import { BattleStateContext } from '../../components/BattleStateContext.js';
-import { PhaseContext } from '../../components/PhaseContext.js';
-import { GameState, Gauge, Action, ActionSelectionPending } from '../../components/index.js'; // 追加
+import { PhaseState } from '../../components/PhaseState.js'; // 修正
+import { GameState, Gauge, Action, ActionSelectionPending } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
 import { CommandExecutor, createCommand } from '../../common/Command.js';
@@ -16,7 +16,7 @@ export class GameFlowSystem extends System {
     constructor(world) {
         super(world);
         this.battleStateContext = this.world.getSingletonComponent(BattleStateContext);
-        this.phaseContext = this.world.getSingletonComponent(PhaseContext);
+        this.phaseState = this.world.getSingletonComponent(PhaseState); // 修正
         
         // フェーズ遷移検知用
         this.lastPhase = null;
@@ -40,13 +40,13 @@ export class GameFlowSystem extends System {
 
     update(deltaTime) {
         // フェーズ遷移検知（Enter処理）
-        if (this.phaseContext.phase !== this.lastPhase) {
-            this._onPhaseEnter(this.phaseContext.phase);
-            this.lastPhase = this.phaseContext.phase;
+        if (this.phaseState.phase !== this.lastPhase) { // 修正
+            this._onPhaseEnter(this.phaseState.phase); // 修正
+            this.lastPhase = this.phaseState.phase; // 修正
         }
 
         // フェーズごとの更新処理 (Update処理)
-        switch (this.phaseContext.phase) {
+        switch (this.phaseState.phase) { // 修正
             case BattlePhase.IDLE:
                 // イベント待ちのため特になし
                 break;
@@ -82,8 +82,8 @@ export class GameFlowSystem extends System {
 
     // --- IDLE Logic ---
     _onGameStartConfirmed() {
-        if (this.phaseContext.phase === BattlePhase.IDLE) {
-            this.phaseContext.phase = BattlePhase.INITIAL_SELECTION;
+        if (this.phaseState.phase === BattlePhase.IDLE) { // 修正
+            this.phaseState.phase = BattlePhase.INITIAL_SELECTION; // 修正
         }
     }
 
@@ -139,7 +139,7 @@ export class GameFlowSystem extends System {
 
     // --- BATTLE_START Logic ---
     _onBattleAnimationCompleted() {
-        if (this.phaseContext.phase === BattlePhase.BATTLE_START) {
+        if (this.phaseState.phase === BattlePhase.BATTLE_START) { // 修正
             // アニメーション完了後、ゲージを再度0にしてターン開始へ
             const players = this.getEntities(GameState);
             const commands = players.map(id => ({
@@ -153,14 +153,14 @@ export class GameFlowSystem extends System {
                 CommandExecutor.executeCommands(this.world, commandInstances);
             }
 
-            this.phaseContext.phase = BattlePhase.TURN_START;
+            this.phaseState.phase = BattlePhase.TURN_START; // 修正
         }
     }
 
     // --- GAME_OVER Logic ---
     _onGameOver(detail) {
-        if (this.phaseContext.phase !== BattlePhase.GAME_OVER) {
-            this.phaseContext.phase = BattlePhase.GAME_OVER;
+        if (this.phaseState.phase !== BattlePhase.GAME_OVER) { // 修正
+            this.phaseState.phase = BattlePhase.GAME_OVER; // 修正
             this.battleStateContext.winningTeam = detail.winningTeam;
         }
     }

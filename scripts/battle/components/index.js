@@ -8,7 +8,7 @@ export { ActiveEffects } from './ActiveEffects.js';
 export { Visual } from './Visual.js';
 export { BattleUIState } from './BattleUIState.js';
 export { TurnContext } from './TurnContext.js';
-export { PhaseContext } from './PhaseContext.js';
+export { PhaseState } from './PhaseState.js'; // PhaseContext -> PhaseState
 export { BattleStateContext } from './BattleStateContext.js';
 export { BattleHistoryContext } from './BattleHistoryContext.js';
 export { HookContext } from './HookContext.js';

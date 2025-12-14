@@ -15,7 +15,7 @@ import { TurnSystem } from '../systems/flow/TurnSystem.js';
 import { EffectSystem } from '../systems/mechanics/EffectSystem.js';
 import { DebugSystem } from '../systems/ui/DebugSystem.js';
 import { CONFIG } from '../common/config.js';
-import { PhaseSystem } from '../systems/flow/PhaseSystem.js';
+// PhaseSystem は削除
 import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.js';
 import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
@@ -25,7 +25,7 @@ import { ModalSystem } from '../systems/ui/ModalSystem.js';
 import { UIInputSystem } from '../systems/ui/UIInputSystem.js';
 import { CombatSystem } from '../systems/mechanics/CombatSystem.js';
 import { VisualSequenceSystem } from '../systems/visual/VisualSequenceSystem.js';
-import { TaskSystem } from '../systems/flow/TaskSystem.js'; // New
+import { TaskSystem } from '../systems/flow/TaskSystem.js'; 
 
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
@@ -49,12 +49,12 @@ export function initializeSystems(world, gameDataManager) {
     // --- Flow/Core Systems ---
     const gameFlowSystem = new GameFlowSystem(world);
     const winConditionSystem = new WinConditionSystem(world);
-    const phaseSystem = new PhaseSystem(world);
+    // const phaseSystem = new PhaseSystem(world); // 削除
     const turnSystem = new TurnSystem(world);
     const battleSequenceSystem = new BattleSequenceSystem(world); 
     const commandSystem = new CommandSystem(world);
     const timerSystem = new TimerSystem(world);
-    const taskSystem = new TaskSystem(world); // New
+    const taskSystem = new TaskSystem(world);
     
     // --- Mechanics Systems ---
     const gaugeSystem = new GaugeSystem(world);
@@ -74,7 +74,7 @@ export function initializeSystems(world, gameDataManager) {
 
     // 2. コアロジック (状態更新)
     world.registerSystem(commandSystem);
-    world.registerSystem(phaseSystem);
+    // world.registerSystem(phaseSystem); // 削除
     world.registerSystem(gameFlowSystem);
     world.registerSystem(turnSystem);
     world.registerSystem(actionSelectionSystem);

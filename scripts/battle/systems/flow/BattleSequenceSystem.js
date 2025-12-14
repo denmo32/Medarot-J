@@ -1,14 +1,13 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの管理システム。
- * 内部キュー(executionQueue)とコンテキスト(BattleSequenceContext)を廃止し、
- * SequencePendingコンポーネントによる動的なエンティティ制御へ移行。
+ * PhaseContext -> PhaseState へ移行。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, TargetTiming, PlayerStateType } from '../../common/constants.js';
 import { 
-    PhaseContext, TurnContext,
+    PhaseState, TurnContext, // 修正
     GameState, Action,
     CombatRequest, CombatResult, VisualSequenceRequest, VisualSequenceResult, VisualSequence,
     BattleSequenceState, SequenceState, SequencePending
@@ -22,12 +21,11 @@ import { targetingStrategies } from '../../ai/targetingStrategies.js';
 export class BattleSequenceSystem extends System {
     constructor(world) {
         super(world);
-        this.phaseContext = this.world.getSingletonComponent(PhaseContext);
+        this.phaseState = this.world.getSingletonComponent(PhaseState); // 修正
         this.turnContext = this.world.getSingletonComponent(TurnContext);
 
         this.timelineBuilder = new TimelineBuilder(world);
         
-        // 内部状態(currentActorId)は保持するが、これは「現在処理中の主体」を特定するためだけのキャッシュとして扱う
         this.currentActorId = null;
 
         this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
@@ -35,54 +33,42 @@ export class BattleSequenceSystem extends System {
     }
 
     update(deltaTime) {
-        if (this.phaseContext.phase === BattlePhase.GAME_OVER) {
+        if (this.phaseState.phase === BattlePhase.GAME_OVER) { // 修正
             if (this.currentActorId) this.abortSequence();
             return;
         }
 
-        if (this.phaseContext.phase !== BattlePhase.ACTION_EXECUTION) {
+        if (this.phaseState.phase !== BattlePhase.ACTION_EXECUTION) { // 修正
             this.currentActorId = null;
             return;
         }
 
-        // 1. フェーズ開始時の初期化チェック
-        // 実行待ち(Pending)も実行中(State持ち)もいない場合、フェーズ開始処理を行うべきか判断する
-        // ただし、updateループ内で判断するには「未処理のREADY_EXECUTEがいるか」を見る必要がある
         const pendingEntities = this.getEntities(SequencePending);
         const activeEntities = this.getEntities(BattleSequenceState);
 
         if (pendingEntities.length === 0 && activeEntities.length === 0) {
-            // まだSequencePendingが付与されていないREADY_EXECUTEを探す
             if (this._hasUnmarkedReadyEntities()) {
                 this.startExecutionPhase();
             } else {
-                // 誰も処理対象がいないならフェーズ終了
-                // (前フレームで処理が完了してここに来た場合を含む)
-                // ※ startExecutionPhase直後はpendingEntitiesが存在するためここには来ない
                 this.finishExecutionPhase();
                 return;
             }
         }
 
-        // 2. 実行中のエンティティがいればその更新処理
         if (this.currentActorId) {
-            // currentActorIdが有効か、コンポーネントを持っているか確認
             const sequenceState = this.world.getComponent(this.currentActorId, BattleSequenceState);
             if (sequenceState) {
                 this._updateActorSequence(this.currentActorId, sequenceState);
             } else {
-                // コンポーネントが外れている場合は処理終了とみなす
                 this.currentActorId = null;
             }
         } 
-        // 3. 実行中のエンティティがいない場合、次のエンティティを選出
         else {
             this._processNextActor();
         }
     }
 
     _hasUnmarkedReadyEntities() {
-        // GameStateがREADY_EXECUTEかつ、SequencePendingもBattleSequenceStateも持っていないエンティティがあるか
         const entities = this.world.getEntitiesWith(GameState);
         return entities.some(id => {
             const state = this.world.getComponent(id, GameState);
@@ -97,7 +83,6 @@ export class BattleSequenceSystem extends System {
         for (const id of entities) {
             const state = this.world.getComponent(id, GameState);
             if (state.state === PlayerStateType.READY_EXECUTE) {
-                // 実行待ちタグを付与
                 this.world.addComponent(id, new SequencePending());
             }
         }
@@ -107,18 +92,16 @@ export class BattleSequenceSystem extends System {
         this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
         
         if (this._isAnyEntityInAction()) {
-            this.phaseContext.phase = BattlePhase.ACTION_SELECTION;
+            this.phaseState.phase = BattlePhase.ACTION_SELECTION; // 修正
         } else {
-            this.phaseContext.phase = BattlePhase.TURN_END;
+            this.phaseState.phase = BattlePhase.TURN_END; // 修正
         }
     }
 
     _processNextActor() {
-        // SequencePendingを持つエンティティの中から、優先度が最も高いものを取得
         const nextActorId = this._getNextPendingEntity();
         if (nextActorId === null) return;
 
-        // 状態遷移: Pending -> Active
         this.world.removeComponent(nextActorId, SequencePending);
         this.world.addComponent(nextActorId, new BattleSequenceState());
 
@@ -130,15 +113,13 @@ export class BattleSequenceSystem extends System {
         const pendingEntities = this.getEntities(SequencePending);
         if (pendingEntities.length === 0) return null;
 
-        // ソートして先頭を返す
-        // ※ 毎フレームソートはコストがかかるが、戦闘参加人数は少数(最大6)なので許容範囲
         pendingEntities.sort((a, b) => {
             const partsA = this.world.getComponent(a, Parts);
             const partsB = this.world.getComponent(b, Parts);
             if (!partsA || !partsB) return 0;
             const propA = partsA.legs?.propulsion || 0;
             const propB = partsB.legs?.propulsion || 0;
-            return propB - propA; // 推進力が高い順
+            return propB - propA; 
         });
 
         return pendingEntities[0];
@@ -244,8 +225,6 @@ export class BattleSequenceSystem extends System {
 
     _finalizeActorSequence(actorId) {
         this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: actorId });
-        
-        // 状態コンポーネントを削除して完了とする
         this.world.removeComponent(actorId, BattleSequenceState);
         
         this.currentActorId = null;
@@ -282,7 +261,6 @@ export class BattleSequenceSystem extends System {
     }
 
     abortSequence() {
-        // 管理中の全エンティティから状態系コンポーネントを削除
         const pendingEntities = this.getEntities(SequencePending);
         for (const entityId of pendingEntities) {
             this.world.removeComponent(entityId, SequencePending);
@@ -293,7 +271,6 @@ export class BattleSequenceSystem extends System {
             this.world.removeComponent(entityId, BattleSequenceState);
         }
         
-        // 念のためVisualSequenceも削除
         if (this.currentActorId) {
             this.world.removeComponent(this.currentActorId, VisualSequence);
         }
