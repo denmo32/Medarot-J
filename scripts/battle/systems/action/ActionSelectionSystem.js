@@ -12,14 +12,13 @@ import { Action, Gauge, GameState, PauseState } from '../../components/index.js'
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
-import { CommandExecutor, createCommand } from '../../common/Command.js';
+import { TransitionStateCommand, UpdateComponentCommand } from '../../common/Command.js';
 
 export class ActionSelectionSystem extends System {
     constructor(world) {
         super(world);
         this.turnContext = this.world.getSingletonComponent(TurnContext);
         this.phaseState = this.world.getSingletonComponent(PhaseState);
-        // this.battleStateContext = this.world.getSingletonComponent(BattleStateContext); // 削除
 
         this.initialSelectionState = {
             isConfirming: false,
@@ -181,11 +180,11 @@ export class ActionSelectionSystem extends System {
         });
 
         const commands = [
-            createCommand('TRANSITION_STATE', {
+            new TransitionStateCommand({
                 targetId: entityId,
                 newState: PlayerStateType.SELECTED_CHARGING
             }),
-            createCommand('UPDATE_COMPONENT', {
+            new UpdateComponentCommand({
                 targetId: entityId,
                 componentType: Gauge,
                 updates: {
@@ -195,6 +194,6 @@ export class ActionSelectionSystem extends System {
                 }
             })
         ];
-        CommandExecutor.executeCommands(this.world, commands);
+        commands.forEach(cmd => cmd.execute(this.world));
     }
 }

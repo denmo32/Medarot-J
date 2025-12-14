@@ -237,32 +237,3 @@ function _deepMerge(target, source) {
         }
     }
 }
-
-// コマンドファクトリ（コマンド種類文字列からインスタンスを生成）
-export const createCommand = (type, data) => {
-    switch (type) {
-        case 'TRANSITION_STATE': return new TransitionStateCommand(data);
-        case 'SNAP_TO_ACTION_LINE': return new SnapToActionLineCommand(data);
-        case 'SET_PLAYER_BROKEN': return new SetPlayerBrokenCommand(data);
-        case 'HANDLE_GAUGE_FULL': return new HandleGaugeFullCommand(data);
-        case 'TRANSITION_TO_COOLDOWN': return new TransitionToCooldownCommand(data);
-        case 'RESET_TO_COOLDOWN': return new ResetToCooldownCommand(data);
-        case 'UPDATE_COMPONENT': return new UpdateComponentCommand(data);
-        case 'CUSTOM_UPDATE': return new CustomUpdateCommand(data);
-        default: throw new Error(`Unknown command type: ${type}`);
-    }
-};
-
-// 複数のコマンドを実行
-export class CommandExecutor {
-    /**
-     * @param {World} world
-     * @param {Array<Command>} commands
-     */
-    static executeCommands(world, commands) {
-        if (!commands || !Array.isArray(commands)) return;
-        for (const cmd of commands) {
-            cmd.execute(world);
-        }
-    }
-}

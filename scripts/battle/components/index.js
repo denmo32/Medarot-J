@@ -11,7 +11,6 @@ export { TurnContext } from './TurnContext.js';
 export { PhaseState } from './PhaseState.js';
 export { BattleResult } from './BattleResult.js'; // 追加
 export { PauseState } from './PauseState.js'; // 追加
-// export { BattleStateContext } from './BattleStateContext.js'; // 削除
 export { BattleHistoryContext } from './BattleHistoryContext.js';
 export { HookContext } from './HookContext.js';
 export { BattleSequenceState, SequenceState } from './BattleSequenceState.js';

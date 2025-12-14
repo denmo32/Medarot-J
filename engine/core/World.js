@@ -13,7 +13,7 @@ export class World {
         this.nextEntityId = 0;
         
         // key: ComponentClass, value: Map<entityId, componentInstance>
-        this.components = new Map();
+        // this.components = new Map(); // このプロパティは使用されていないため削除
         
         // key: componentId (number), value: ComponentClass
         this.componentClasses = new Map();
@@ -240,7 +240,6 @@ export class World {
         
         // エンティティとコンポーネントのクリア
         this.entities.clear();
-        this.components.clear();
         
         // 高速アクセス用レジストリのクリア
         this.componentRegistry.clear();

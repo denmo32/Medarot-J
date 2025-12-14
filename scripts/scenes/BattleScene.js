@@ -45,7 +45,6 @@ export class BattleScene extends Scene {
 
         this.world.addComponent(contextEntity, new TurnContext());
         this.world.addComponent(contextEntity, new PhaseState());
-        // BattleStateContext は廃止
         this.world.addComponent(contextEntity, new BattleHistoryContext());
         this.world.addComponent(contextEntity, new HookContext());
 

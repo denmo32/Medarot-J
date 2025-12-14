@@ -3,7 +3,7 @@ import { ActiveEffects, GameState } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { EffectRegistry } from '../../definitions/EffectRegistry.js';
-import { CommandExecutor, createCommand } from '../../common/Command.js';
+import { ResetToCooldownCommand, CustomUpdateCommand } from '../../common/Command.js';
 
 export class EffectSystem extends System {
     constructor(world) {
@@ -86,7 +86,7 @@ export class EffectSystem extends System {
                 
                 const gameState = this.world.getComponent(entityId, GameState);
                 if (updatedEffect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
-                    commandsToExecute.push(createCommand('RESET_TO_COOLDOWN', {
+                    commandsToExecute.push(new ResetToCooldownCommand({
                         targetId: entityId,
                         options: {}
                     }));
@@ -99,7 +99,7 @@ export class EffectSystem extends System {
         // 状態変更をコマンド経由に統一
         if (effectsToRemove.length > 0) {
             // エフェクト配列の更新コマンドを最初に実行
-            commandsToExecute.unshift(createCommand('CUSTOM_UPDATE', {
+            commandsToExecute.unshift(new CustomUpdateCommand({
                 targetId: entityId,
                 componentType: ActiveEffects,
                 customHandler: (ae) => {
@@ -109,10 +109,10 @@ export class EffectSystem extends System {
         }
 
         if (commandsToExecute.length > 0) {
-            CommandExecutor.executeCommands(this.world, commandsToExecute);
+            commandsToExecute.forEach(cmd => cmd.execute(this.world));
         } else if (effectsToRemove.length === 0 && nextEffects.length !== activeEffects.effects.length) {
             // durationのみ更新された場合
-            const cmd = createCommand('CUSTOM_UPDATE', {
+            const cmd = new CustomUpdateCommand({
                 targetId: entityId,
                 componentType: ActiveEffects,
                 customHandler: (ae) => {

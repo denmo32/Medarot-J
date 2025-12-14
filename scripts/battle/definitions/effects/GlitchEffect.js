@@ -7,6 +7,7 @@ import { EffectType, PlayerStateType, ActionCancelReason } from '../../common/co
 import { PlayerInfo } from '../../../components/index.js';
 import { GameState } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
+import { ResetToCooldownCommand } from '../../common/Command.js';
 
 export const GlitchEffect = {
     type: EffectType.APPLY_GLITCH,
@@ -43,11 +44,10 @@ export const GlitchEffect = {
                 }
             });
             // REQUEST_RESET_TO_COOLDOWN イベントの代わりにコマンドを生成
-            stateUpdates.push({
-                type: 'RESET_TO_COOLDOWN',
+            stateUpdates.push(new ResetToCooldownCommand({
                 targetId: effect.targetId,
                 options: { interrupted: true }
-            });
+            }));
         }
         
         return { ...effect, events, stateUpdates };

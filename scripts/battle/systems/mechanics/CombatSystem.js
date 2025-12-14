@@ -15,6 +15,7 @@ import { TargetingService } from '../../services/TargetingService.js';
 import { HookPhase } from '../../definitions/HookRegistry.js';
 import { HookContext } from '../../components/HookContext.js';
 import { GameEvents } from '../../../common/events.js';
+import { TransitionToCooldownCommand } from '../../common/Command.js';
 
 export class CombatSystem extends System {
     constructor(world) {
@@ -177,10 +178,9 @@ export class CombatSystem extends System {
         });
 
         // クールダウンへの移行コマンドを追加
-        stateUpdates.push({
-            type: 'TRANSITION_TO_COOLDOWN',
+        stateUpdates.push(new TransitionToCooldownCommand({
             targetId: ctx.attackerId
-        });
+        }));
 
         return {
             attackerId: ctx.attackerId,

@@ -5,7 +5,6 @@
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
-import { CommandExecutor, createCommand } from '../../common/Command.js';
 
 export class CommandSystem extends System {
     constructor(world) {
@@ -14,8 +13,13 @@ export class CommandSystem extends System {
     }
 
     onExecuteCommands(commands) {
-        // 古い形式のコマンド配列を新しいCommandクラスに変換
-        const commandInstances = commands.map(cmd => createCommand(cmd.type, cmd));
-        CommandExecutor.executeCommands(this.world, commandInstances);
+        if (!commands || !Array.isArray(commands)) return;
+        for (const cmd of commands) {
+            if (cmd && typeof cmd.execute === 'function') {
+                cmd.execute(this.world);
+            } else {
+                console.warn('CommandSystem received an invalid command object:', cmd);
+            }
+        }
     }
 }

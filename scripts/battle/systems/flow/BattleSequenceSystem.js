@@ -15,7 +15,7 @@ import {
 import { Parts } from '../../../components/index.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
-import { createCommand } from '../../common/Command.js';
+import { TransitionStateCommand, ResetToCooldownCommand } from '../../common/Command.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 
 export class BattleSequenceSystem extends System {
@@ -168,7 +168,7 @@ export class BattleSequenceSystem extends System {
     }
 
     _initializeActorSequence(actorId, sequenceState) {
-        const cmd = createCommand('TRANSITION_STATE', {
+        const cmd = new TransitionStateCommand({
             targetId: actorId,
             newState: PlayerStateType.AWAITING_ANIMATION
         });
@@ -287,7 +287,7 @@ export class BattleSequenceSystem extends System {
             const check = CancellationService.checkCancellation(this.world, actorId);
             if (check.shouldCancel) {
                 CancellationService.executeCancel(this.world, actorId, check.reason);
-                const cmd = createCommand('RESET_TO_COOLDOWN', {
+                const cmd = new ResetToCooldownCommand({
                     targetId: actorId,
                     options: { interrupted: true }
                 });

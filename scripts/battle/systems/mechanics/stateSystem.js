@@ -2,7 +2,7 @@ import { System } from '../../../../engine/core/System.js';
 import { GameState } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { PartInfo } from '../../../common/constants.js';
-import { CommandExecutor, createCommand } from '../../common/Command.js';
+import { HandleGaugeFullCommand } from '../../common/Command.js';
 
 export class StateSystem extends System {
     constructor(world) {
@@ -14,7 +14,7 @@ export class StateSystem extends System {
     onGaugeFull(detail) {
         const { entityId } = detail;
         // Serviceの代わりにコマンドを発行
-        const cmd = createCommand('HANDLE_GAUGE_FULL', { targetId: entityId });
+        const cmd = new HandleGaugeFullCommand({ targetId: entityId });
         cmd.execute(this.world);
     }
 }

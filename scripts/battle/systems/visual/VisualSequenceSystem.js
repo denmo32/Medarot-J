@@ -11,6 +11,7 @@ import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
 import { BattleLogType, ModalType, PlayerStateType } from '../../common/constants.js';
 import { VisualDefinitions } from '../../../data/visualDefinitions.js';
 import { PlayerInfo } from '../../../components/index.js';
+import { ResetToCooldownCommand } from '../../common/Command.js';
 
 export class VisualSequenceSystem extends System {
     constructor(world) {
@@ -55,11 +56,10 @@ export class VisualSequenceSystem extends System {
         visualSequence.push({
             type: 'EVENT',
             eventName: GameEvents.EXECUTE_COMMANDS,
-            detail: [{
-                type: 'RESET_TO_COOLDOWN',
+            detail: [new ResetToCooldownCommand({
                 targetId: actorId,
                 options: { interrupted: true }
-            }]
+            })]
         });
 
         return visualSequence;

@@ -5,6 +5,7 @@
  */
 import { EffectType, PlayerStateType } from '../../common/constants.js';
 import { ActiveEffects } from '../../components/index.js';
+import { TransitionStateCommand, CustomUpdateCommand } from '../../common/Command.js';
 
 export const GuardEffect = {
     type: EffectType.APPLY_GUARD,
@@ -29,15 +30,13 @@ export const GuardEffect = {
         const stateUpdates = [];
 
         // 状態遷移コマンドを追加
-        stateUpdates.push({
-            type: 'TRANSITION_STATE',
+        stateUpdates.push(new TransitionStateCommand({
             targetId: effect.targetId,
             newState: PlayerStateType.GUARDING
-        });
+        }));
 
         // ActiveEffectsの更新コマンドを追加
-        stateUpdates.push({
-            type: 'CUSTOM_UPDATE',
+        stateUpdates.push(new CustomUpdateCommand({
             targetId: effect.targetId,
             componentType: ActiveEffects,
             customHandler: (activeEffects) => {
@@ -51,7 +50,7 @@ export const GuardEffect = {
                     duration: Infinity
                 });
             }
-        });
+        }));
 
         return { ...effect, events: [], stateUpdates };
     }

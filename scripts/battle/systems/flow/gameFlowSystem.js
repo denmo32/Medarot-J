@@ -8,7 +8,7 @@ import { PhaseState } from '../../components/PhaseState.js';
 import { GameState, Gauge, Action, ActionSelectionPending, PauseState, BattleResult } from '../../components/index.js'; // 変更
 import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
-import { CommandExecutor, createCommand } from '../../common/Command.js';
+import { UpdateComponentCommand, TransitionStateCommand } from '../../common/Command.js';
 import { Timer } from '../../../../engine/stdlib/components/Timer.js';
 
 export class GameFlowSystem extends System {
@@ -73,14 +73,21 @@ export class GameFlowSystem extends System {
 
     _onPause() {
         if (!this.pauseEntityId) {
-            this.pauseEntityId = this.world.createEntity();
-            this.world.addComponent(this.pauseEntityId, new PauseState());
+            const entities = this.getEntities(PauseState);
+            if (entities.length === 0) {
+                this.pauseEntityId = this.world.createEntity();
+                this.world.addComponent(this.pauseEntityId, new PauseState());
+            } else {
+                this.pauseEntityId = entities[0];
+            }
         }
     }
 
     _onResume() {
         if (this.pauseEntityId !== null) {
-            this.world.destroyEntity(this.pauseEntityId);
+            if (this.world.entities.has(this.pauseEntityId)) {
+                this.world.destroyEntity(this.pauseEntityId);
+            }
             this.pauseEntityId = null;
         } else {
             // 念のため全削除
@@ -107,39 +114,34 @@ export class GameFlowSystem extends System {
             const gameState = this.world.getComponent(id, GameState);
             const gauge = this.world.getComponent(id, Gauge);
             
-            commands.push({
-                type: 'UPDATE_COMPONENT',
+            commands.push(new UpdateComponentCommand({
                 targetId: id,
                 componentType: Gauge,
                 updates: { value: 0 }
-            });
+            }));
 
             if (gameState.state !== PlayerStateType.BROKEN) {
-                commands.push({
-                    type: 'TRANSITION_STATE',
+                commands.push(new TransitionStateCommand({
                     targetId: id,
                     newState: PlayerStateType.READY_SELECT
-                });
-                commands.push({
-                    type: 'UPDATE_COMPONENT',
+                }));
+                commands.push(new UpdateComponentCommand({
                     targetId: id,
                     componentType: Gauge,
                     updates: { value: gauge.max, speedMultiplier: 1.0 }
-                });
-                commands.push({
-                    type: 'UPDATE_COMPONENT',
+                }));
+                commands.push(new UpdateComponentCommand({
                     targetId: id,
                     componentType: Action,
                     updates: new Action() // reset
-                });
+                }));
 
                 this.world.addComponent(id, new ActionSelectionPending());
             }
         });
 
         if (commands.length > 0) {
-            const commandInstances = commands.map(cmd => createCommand(cmd.type, cmd));
-            CommandExecutor.executeCommands(this.world, commandInstances);
+            commands.forEach(cmd => cmd.execute(this.world));
         }
     }
 
@@ -147,15 +149,13 @@ export class GameFlowSystem extends System {
     _onBattleAnimationCompleted() {
         if (this.phaseState.phase === BattlePhase.BATTLE_START) {
             const players = this.getEntities(GameState);
-            const commands = players.map(id => ({
-                type: 'UPDATE_COMPONENT',
+            const commands = players.map(id => new UpdateComponentCommand({
                 targetId: id,
                 componentType: Gauge,
                 updates: { value: 0 }
             }));
             if (commands.length > 0) {
-                const commandInstances = commands.map(cmd => createCommand(cmd.type, cmd));
-                CommandExecutor.executeCommands(this.world, commandInstances);
+                commands.forEach(cmd => cmd.execute(this.world));
             }
 
             this.phaseState.phase = BattlePhase.TURN_START;

@@ -13,6 +13,7 @@ import { GuardEffect } from './effects/GuardEffect.js';
 import { ConsumeGuardEffect } from './effects/ConsumeGuardEffect.js';
 import { QueryService } from '../services/QueryService.js'; // QueryService をインポート
 import { Parts } from '../../components/index.js';
+import { UpdateComponentCommand } from '../common/Command.js';
 
 const registry = {
     [EffectType.DAMAGE]: DamageEffect,
@@ -172,12 +173,11 @@ export class EffectRegistry {
                 }
             }
             if (hasChanges) {
-                allStateUpdates.push({
-                    type: 'UPDATE_COMPONENT',
+                allStateUpdates.push(new UpdateComponentCommand({
                     targetId: finalTargetId,
                     componentType: Parts,
                     updates: updates
-                });
+                }));
             }
         }
 

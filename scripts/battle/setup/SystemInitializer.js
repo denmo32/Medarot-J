@@ -15,7 +15,6 @@ import { TurnSystem } from '../systems/flow/TurnSystem.js';
 import { EffectSystem } from '../systems/mechanics/EffectSystem.js';
 import { DebugSystem } from '../systems/ui/DebugSystem.js';
 import { CONFIG } from '../common/config.js';
-// PhaseSystem は削除
 import { ActionSelectionSystem } from '../systems/action/ActionSelectionSystem.js';
 import { WinConditionSystem } from '../systems/flow/WinConditionSystem.js';
 import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js';
@@ -49,7 +48,6 @@ export function initializeSystems(world, gameDataManager) {
     // --- Flow/Core Systems ---
     const gameFlowSystem = new GameFlowSystem(world);
     const winConditionSystem = new WinConditionSystem(world);
-    // const phaseSystem = new PhaseSystem(world); // 削除
     const turnSystem = new TurnSystem(world);
     const battleSequenceSystem = new BattleSequenceSystem(world); 
     const commandSystem = new CommandSystem(world);
@@ -74,7 +72,6 @@ export function initializeSystems(world, gameDataManager) {
 
     // 2. コアロジック (状態更新)
     world.registerSystem(commandSystem);
-    // world.registerSystem(phaseSystem); // 削除
     world.registerSystem(gameFlowSystem);
     world.registerSystem(turnSystem);
     world.registerSystem(actionSelectionSystem);
