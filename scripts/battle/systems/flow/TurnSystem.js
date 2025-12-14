@@ -49,6 +49,7 @@ export class TurnSystem extends System {
 
     _handleTurnEnd() {
         this.turnContext.number++;
+        // ログ表示等はイベントで残すが、システム連携用イベントは削除
         this.world.emit(GameEvents.TURN_END, { turnNumber: this.turnContext.number - 1 });
         this.world.emit(GameEvents.TURN_START, { turnNumber: this.turnContext.number });
         this.phaseState.phase = BattlePhase.TURN_START;

@@ -1,13 +1,18 @@
 /**
  * @file AnimationSystem.js
  * @description ビジュアルコンポーネントのアニメーション制御。
- * AnimateTask および UiAnimationTask を処理する。
- * 旧形式の Request 処理は削除・統合済み。
+ * Request/Tagコンポーネントの監視に変更。
  */
 import { System } from '../../../../engine/core/System.js';
-import { GameEvents } from '../../../common/events.js';
 import { Visual } from '../../components/index.js';
 import { AnimateTask, UiAnimationTask } from '../../components/Tasks.js';
+import { 
+    BattleStartAnimationRequest, 
+    BattleStartAnimationCompleted,
+    HpBarAnimationRequest, 
+    RefreshUIRequest,
+    UIStateUpdateRequest
+} from '../../components/Requests.js';
 import { Parts } from '../../../components/index.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
 import { EffectType } from '../../common/constants.js';
@@ -17,17 +22,14 @@ export class AnimationSystem extends System {
     constructor(world) {
         super(world);
         this.activeTweens = new Set();
-        this.bindWorldEvents();
-    }
-
-    bindWorldEvents() {
-        this.on(GameEvents.SHOW_BATTLE_START_ANIMATION, this.onShowBattleStartAnimation.bind(this));
-        this.on(GameEvents.HP_BAR_ANIMATION_REQUESTED, this.onHpBarAnimationRequested.bind(this));
-        this.on(GameEvents.REFRESH_UI, this.onRefreshUI.bind(this));
-        this.on(GameEvents.ACTION_SEQUENCE_COMPLETED, this.onActionSequenceCompleted.bind(this));
     }
 
     update(deltaTime) {
+        // 0. リクエスト処理
+        this._processBattleStartRequests();
+        this._processHpBarRequests();
+        this._processRefreshRequests();
+
         // 1. Tween更新
         if (this.activeTweens.size > 0) {
             const finishedTweens = [];
@@ -53,10 +55,42 @@ export class AnimationSystem extends System {
         }
     }
 
+    // --- Request Processors ---
+
+    _processBattleStartRequests() {
+        const entities = this.getEntities(BattleStartAnimationRequest);
+        for (const entityId of entities) {
+            this._startBattleStartAnimation();
+            this.world.destroyEntity(entityId);
+        }
+    }
+
+    _processHpBarRequests() {
+        const entities = this.getEntities(HpBarAnimationRequest);
+        for (const entityId of entities) {
+            const req = this.world.getComponent(entityId, HpBarAnimationRequest);
+            this._startHpBarAnimation(req.appliedEffects, () => {
+                // 完了通知
+                const res = this.world.createEntity();
+                this.world.addComponent(res, new UIStateUpdateRequest('ANIMATION_COMPLETED'));
+            }, () => {});
+            this.world.destroyEntity(entityId);
+        }
+    }
+
+    _processRefreshRequests() {
+        const entities = this.getEntities(RefreshUIRequest);
+        if (entities.length > 0) {
+            this._refreshUI();
+            for (const id of entities) this.world.destroyEntity(id);
+        }
+    }
+
+    // --- Task Processors ---
+
     _processAnimationTask(entityId, deltaTime) {
         const task = this.world.getComponent(entityId, AnimateTask);
         
-        // 状態管理用のプロパティをコンポーネントに直接追加（簡易対応）
         if (!task._startTime) {
             task._startTime = performance.now();
             task._duration = 0;
@@ -64,8 +98,6 @@ export class AnimationSystem extends System {
             if (task.animationType === 'attack') {
                 this._startAttackAnimation(entityId, task.targetId);
                 task._duration = 600; 
-            } else if (task.animationType === 'support') {
-                task._duration = UI_CONFIG.ANIMATION.DURATION || 300;
             } else {
                 task._duration = UI_CONFIG.ANIMATION.DURATION || 300;
             }
@@ -75,6 +107,10 @@ export class AnimationSystem extends System {
         task._elapsed += deltaTime;
 
         if (task._elapsed >= task._duration) {
+            // アニメーション終了時のクリーンアップ
+            if (task.animationType === 'attack') {
+                this._cleanupAttackAnimation();
+            }
             this.world.removeComponent(entityId, AnimateTask);
         }
     }
@@ -88,6 +124,15 @@ export class AnimationSystem extends System {
         }
         if (visualTarget) {
             visualTarget.classes.add('target-lockon');
+        }
+    }
+
+    _cleanupAttackAnimation() {
+        const entities = this.getEntities(Visual);
+        for (const entityId of entities) {
+            const visual = this.world.getComponent(entityId, Visual);
+            if (visual.classes.has('attacker-active')) visual.classes.delete('attacker-active');
+            if (visual.classes.has('target-lockon')) visual.classes.delete('target-lockon');
         }
     }
 
@@ -106,7 +151,8 @@ export class AnimationSystem extends System {
                     }
                 };
 
-                this._startHpBarAnimation(task.data, onComplete, (count) => {
+                // UiAnimationTaskのデータ構造は { data: { appliedEffects: [...] } }
+                this._startHpBarAnimation(task.data.appliedEffects, onComplete, (count) => {
                     task._pendingTweens = count;
                 });
                 
@@ -119,8 +165,7 @@ export class AnimationSystem extends System {
         }
     }
 
-    _startHpBarAnimation(detail, onComplete, onCount) {
-        const appliedEffects = detail.appliedEffects || detail.effects;
+    _startHpBarAnimation(appliedEffects, onComplete, onCount) {
         if (!appliedEffects || appliedEffects.length === 0) {
             onCount(0);
             return;
@@ -160,11 +205,7 @@ export class AnimationSystem extends System {
         onCount(tweenCount);
     }
 
-    onHpBarAnimationRequested(detail) {
-        this._startHpBarAnimation(detail, () => {}, () => {});
-    }
-
-    onRefreshUI() {
+    _refreshUI() {
         const entities = this.getEntities(Parts, Visual);
         for (const entityId of entities) {
             const parts = this.world.getComponent(entityId, Parts);
@@ -179,15 +220,6 @@ export class AnimationSystem extends System {
         }
     }
 
-    onActionSequenceCompleted() {
-        const entities = this.getEntities(Visual);
-        for (const entityId of entities) {
-            const visual = this.world.getComponent(entityId, Visual);
-            if (visual.classes.has('attacker-active')) visual.classes.delete('attacker-active');
-            if (visual.classes.has('target-lockon')) visual.classes.delete('target-lockon');
-        }
-    }
-
     _syncHpValue(entityId, partKey, hp) {
         const visual = this.world.getComponent(entityId, Visual);
         if (visual) {
@@ -196,7 +228,7 @@ export class AnimationSystem extends System {
         }
     }
     
-    onShowBattleStartAnimation() {
+    _startBattleStartAnimation() {
         const textId = this.world.createEntity();
         const textVisual = new Visual();
         textVisual.x = 0.5;
@@ -204,9 +236,12 @@ export class AnimationSystem extends System {
         textVisual.classes.add('battle-start-text');
         this.world.addComponent(textId, textVisual);
         
+        // 簡易的なタイマー処理
         setTimeout(() => {
-            this.world.destroyEntity(textId);
-            this.world.emit('BATTLE_ANIMATION_COMPLETED');
+            if (this.world.entities.has(textId)) {
+                this.world.destroyEntity(textId);
+                this.world.addComponent(this.world.createEntity(), new BattleStartAnimationCompleted());
+            }
         }, 2000);
     }
 }

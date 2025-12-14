@@ -1,12 +1,11 @@
 /**
  * @file ActionSelectionSystem.js
  * @description アクション選択フェーズの制御を行うシステム。
- * イベントリスナーを廃止し、Requestsコンポーネントのポーリングに移行。
+ * イベント駆動からコンポーネントポーリングへ完全移行。
  */
 import { System } from '../../../../engine/core/System.js';
 import { TurnContext } from '../../components/TurnContext.js';
 import { PhaseState } from '../../components/PhaseState.js';
-import { GameEvents } from '../../../common/events.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { Action, Gauge, GameState, ActionSelectionPending, AiActionRequest } from '../../components/index.js';
 import { 
@@ -16,7 +15,10 @@ import {
 import { 
     ActionSelectedRequest, 
     ActionRequeueRequest,
-    ModalRequest 
+    ModalRequest,
+    PlayerInputRequiredRequest,
+    BattleStartConfirmedTag,
+    BattleStartCancelledTag
 } from '../../components/Requests.js';
 import { PlayerStateType, BattlePhase, ModalType } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
@@ -34,23 +36,13 @@ export class ActionSelectionSystem extends System {
             confirmed: false,
             cancelled: false
         };
-
-        // UIからの確認結果などはまだイベントで受け取る部分があるが
-        // 主要なアクション決定フローはコンポーネント化する
-        this.on(GameEvents.BATTLE_START_CONFIRMED, () => { this.initialSelectionState.confirmed = true; });
-        this.on(GameEvents.BATTLE_START_CANCELLED, () => { this.initialSelectionState.cancelled = true; });
-        
-        // ActionQueueRequest (GameEvents) は StateTransitionSystem から発行されるが
-        // これはリクエストコンポーネントではなくイベントだったため、
-        // ハンドラ内で処理するか、発行元を修正する必要がある。
-        // ここではイベントハンドラを残しつつ処理を行う。
-        this.on(GameEvents.ACTION_QUEUE_REQUEST, this.onActionQueueRequest.bind(this));
     }
 
     update(deltaTime) {
         // 1. リクエスト処理 (フェーズに関わらず処理)
         this._processActionSelectedRequests();
         this._processActionRequeueRequests();
+        this._processConfirmationTags();
 
         // 2. フェーズごとのロジック
         const currentPhase = this.phaseState.phase;
@@ -89,6 +81,22 @@ export class ActionSelectionSystem extends System {
         }
     }
 
+    _processConfirmationTags() {
+        // バトル開始確認
+        const confirmedTags = this.getEntities(BattleStartConfirmedTag);
+        if (confirmedTags.length > 0) {
+            this.initialSelectionState.confirmed = true;
+            for (const id of confirmedTags) this.world.destroyEntity(id);
+        }
+
+        // バトル開始キャンセル
+        const cancelledTags = this.getEntities(BattleStartCancelledTag);
+        if (cancelledTags.length > 0) {
+            this.initialSelectionState.cancelled = true;
+            for (const id of cancelledTags) this.world.destroyEntity(id);
+        }
+    }
+
     // --- Core Logic ---
 
     _handleActionSelected(detail) {
@@ -102,7 +110,7 @@ export class ActionSelectionSystem extends System {
         const action = this.world.getComponent(entityId, Action);
         const parts = this.world.getComponent(entityId, Parts);
 
-        // バリデーション (ActionServiceでも行っているが念のため)
+        // バリデーション
         if (!partKey || !parts?.[partKey] || parts[partKey].isBroken) {
             console.warn(`ActionSelectionSystem: Invalid part selected. Re-queueing.`);
             const req = this.world.createEntity();
@@ -160,7 +168,8 @@ export class ActionSelectionSystem extends System {
             this.initialSelectionState.isConfirming = false;
             
             this.phaseState.phase = BattlePhase.IDLE;
-            this.world.emit(GameEvents.GAME_START_CONFIRMED); // シーン遷移トリガー用
+            // シーン遷移はGameFlowSystem等で管理されるべきだが、ここではトリガーのみ変更
+            // IDLEフェーズへの遷移をGameFlowSystemが検知する
             return;
         }
 
@@ -236,19 +245,12 @@ export class ActionSelectionSystem extends System {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         
         if (playerInfo.teamId === 'team1') {
-            // イベント発行
-            this.world.emit(GameEvents.PLAYER_INPUT_REQUIRED, { entityId });
+            // プレイヤー入力要求リクエストを発行
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new PlayerInputRequiredRequest(entityId));
         } else {
             // AIリクエスト発行
             this.world.addComponent(entityId, new AiActionRequest());
-        }
-    }
-
-    // Handler for GameEvents.ACTION_QUEUE_REQUEST
-    onActionQueueRequest(detail) {
-        const { entityId } = detail;
-        if (!this.world.getComponent(entityId, ActionSelectionPending)) {
-            this.world.addComponent(entityId, new ActionSelectionPending());
         }
     }
 }

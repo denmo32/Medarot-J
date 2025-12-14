@@ -1,8 +1,8 @@
 import { Gauge, GameState, BattleSequenceState, SequencePending, PauseState } from '../../components/index.js';
+import { GaugeFullTag } from '../../components/Requests.js';
 import { Parts } from '../../../components/index.js';
 import { PhaseState } from '../../components/PhaseState.js';
 import { BattlePhase } from '../../common/constants.js';
-import { GameEvents } from '../../../common/events.js';
 import { System } from '../../../../engine/core/System.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 
@@ -10,7 +10,6 @@ export class GaugeSystem extends System {
     constructor(world) {
         super(world);
         this.phaseState = this.world.getSingletonComponent(PhaseState);
-        // this.isPaused = false; // 廃止: PauseState コンポーネントを使用
     }
 
     update(deltaTime) {
@@ -56,6 +55,11 @@ export class GaugeSystem extends System {
                 continue;
             }
 
+            // 既に満タンタグがついている場合は処理しない（StateSystemが処理するまで待機）
+            if (this.world.getComponent(entityId, GaugeFullTag)) {
+                continue;
+            }
+
             if (!gauge.isActive || gauge.isFrozen()) {
                 continue;
             }
@@ -78,7 +82,8 @@ export class GaugeSystem extends System {
 
             if (gauge.value >= gauge.max) {
                 gauge.value = gauge.max;
-                this.world.emit(GameEvents.GAUGE_FULL, { entityId });
+                // イベント発行ではなく、タグコンポーネントを付与する
+                this.world.addComponent(entityId, new GaugeFullTag());
             }
         }
     }

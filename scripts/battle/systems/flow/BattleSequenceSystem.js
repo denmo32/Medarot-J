@@ -1,10 +1,10 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの管理システム。
- * PhaseStateを監視し、自動的に処理を開始する。
+ * キャンセルチェックなどのイベント駆動ロジックをコンポーネント監視に移行。
  */
 import { System } from '../../../../engine/core/System.js';
-import { GameEvents } from '../../../common/events.js';
+import { GameEvents } from '../../../common/events.js'; // シーケンス完了通知等は残す
 import { BattlePhase, TargetTiming, PlayerStateType } from '../../common/constants.js';
 import { 
     PhaseState, TurnContext,
@@ -17,6 +17,7 @@ import {
     SetPlayerBrokenRequest, UpdateComponentRequest, CustomUpdateComponentRequest,
     TransitionToCooldownRequest
 } from '../../components/CommandRequests.js';
+import { CheckActionCancellationRequest } from '../../components/Requests.js';
 import { Parts } from '../../../components/index.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
@@ -29,11 +30,7 @@ export class BattleSequenceSystem extends System {
         this.turnContext = this.world.getSingletonComponent(TurnContext);
 
         this.timelineBuilder = new TimelineBuilder(world);
-        
         this.currentActorId = null;
-
-        this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
-        this.on(GameEvents.GAME_OVER, this.abortSequence.bind(this));
     }
 
     update(deltaTime) {
@@ -41,6 +38,9 @@ export class BattleSequenceSystem extends System {
             if (this.currentActorId) this.abortSequence();
             return;
         }
+        
+        // キャンセルチェックリクエストの処理
+        this._processCancellationRequests();
 
         if (this.phaseState.phase !== BattlePhase.ACTION_EXECUTION) {
             this.currentActorId = null;
@@ -72,6 +72,32 @@ export class BattleSequenceSystem extends System {
         } 
         else {
             this._processNextActor();
+        }
+    }
+
+    _processCancellationRequests() {
+        const requests = this.getEntities(CheckActionCancellationRequest);
+        if (requests.length > 0) {
+            this._checkActionCancellation();
+            for (const id of requests) this.world.destroyEntity(id);
+        }
+    }
+
+    _checkActionCancellation() {
+        const actors = this.getEntities(GameState, Action);
+        for (const actorId of actors) {
+            const gameState = this.world.getComponent(actorId, GameState);
+            if (gameState.state !== PlayerStateType.SELECTED_CHARGING) continue;
+
+            const check = CancellationService.checkCancellation(this.world, actorId);
+            if (check.shouldCancel) {
+                CancellationService.executeCancel(this.world, actorId, check.reason);
+                const req = this.world.createEntity();
+                this.world.addComponent(req, new ResetToCooldownRequest(
+                    actorId,
+                    { interrupted: true }
+                ));
+            }
         }
     }
 
@@ -176,6 +202,7 @@ export class BattleSequenceSystem extends System {
         const cancelCheck = CancellationService.checkCancellation(this.world, actorId);
         if (cancelCheck.shouldCancel) {
             const context = { isCancelled: true, cancelReason: cancelCheck.reason };
+            // キャンセルイベントの発行（ログ用）は残すが、処理はContextベースで行う
             this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: cancelCheck.reason });
             this._requestVisuals(actorId, sequenceState, context);
             return;
@@ -186,6 +213,8 @@ export class BattleSequenceSystem extends System {
     }
 
     _requestVisuals(actorId, sequenceState, context) {
+        // 副作用イベントの発行はここで行うか、VisualSequence内でタスクとして行うのが望ましいが、
+        // 現状の構造維持のためここで行う
         if (context.eventsToEmit) {
             context.eventsToEmit.forEach(event => {
                 this.world.emit(event.type, event.payload);
@@ -210,6 +239,7 @@ export class BattleSequenceSystem extends System {
                 }
             };
 
+            // REFRESH_UI イベントタスクの前に挿入して、UI更新前にデータを反映させる
             const refreshIndex = tasks.findIndex(v => v.type === 'EVENT' && v.eventName === GameEvents.REFRESH_UI);
             if (refreshIndex !== -1) {
                 tasks.splice(refreshIndex, 0, commandTask);
@@ -295,23 +325,5 @@ export class BattleSequenceSystem extends System {
         }
         
         this.currentActorId = null;
-    }
-
-    onCheckActionCancellation() {
-        const actors = this.getEntities(GameState, Action);
-        for (const actorId of actors) {
-            const gameState = this.world.getComponent(actorId, GameState);
-            if (gameState.state !== PlayerStateType.SELECTED_CHARGING) continue;
-
-            const check = CancellationService.checkCancellation(this.world, actorId);
-            if (check.shouldCancel) {
-                CancellationService.executeCancel(this.world, actorId, check.reason);
-                const req = this.world.createEntity();
-                this.world.addComponent(req, new ResetToCooldownRequest(
-                    actorId,
-                    { interrupted: true }
-                ));
-            }
-        }
     }
 }

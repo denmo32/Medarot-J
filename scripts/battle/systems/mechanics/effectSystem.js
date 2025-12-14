@@ -9,20 +9,21 @@ import { EffectRegistry } from '../../definitions/EffectRegistry.js';
 export class EffectSystem extends System {
     constructor(world) {
         super(world);
+        // TURN_ENDイベントはGameFlow/TurnSystemから発行されるが、
+        // システム間連携の明確化のため、TurnSystemが発行するイベントをリッスンする形は維持するか、
+        // TurnEndResultコンポーネントを監視する形にする。
+        // ここではTurnSystem側には手を入れていない（既存）ため、イベント監視を維持しつつ、
+        // 内部処理でイベント発行をリクエストコンポーネント生成に置換する。
         this.on(GameEvents.TURN_END, this.onTurnEnd.bind(this));
     }
 
-    /**
-     * 毎フレームの更新処理
-     * @param {number} deltaTime 
-     */
     update(deltaTime) {
         const entities = this.getEntities(ActiveEffects);
         
         for (const entityId of entities) {
             const activeEffects = this.world.getComponent(entityId, ActiveEffects);
             
-            // 各エフェクトに対して更新処理を委譲
+            // 各エフェクト更新
             activeEffects.effects.forEach(effect => {
                 const result = EffectRegistry.update(effect.type, {
                     world: this.world,
@@ -31,7 +32,6 @@ export class EffectSystem extends System {
                     deltaTime
                 });
 
-                // 時間経過処理による副作用のハンドリング
                 if (result) {
                     if (result.damage > 0) {
                         this.world.emit(GameEvents.HP_UPDATED, {
@@ -43,7 +43,7 @@ export class EffectSystem extends System {
                         });
                     }
                     if (result.message) {
-                        // イベント発行からリクエストコンポーネント生成へ変更
+                        // モーダルリクエストコンポーネント生成
                         const req = this.world.createEntity();
                         this.world.addComponent(req, new ModalRequest(
                             'MESSAGE',
@@ -86,7 +86,8 @@ export class EffectSystem extends System {
             }
 
             if (isExpired) {
-                effectsToRemove.push(effect); // 元のオブジェクトを削除対象に
+                effectsToRemove.push(effect);
+                // 期限切れイベント通知
                 this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId, effect: updatedEffect });
                 
                 const gameState = this.world.getComponent(entityId, GameState);

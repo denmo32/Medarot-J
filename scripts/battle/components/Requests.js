@@ -1,6 +1,6 @@
 /**
  * @file Requests.js
- * @description ECSの処理フロー制御用のリクエスト/結果コンポーネント群。
+ * @description ECSの処理フロー制御用のリクエスト/結果/タグコンポーネント群。
  * イベントの代わりにこれらのコンポーネントを使用してシステム間でメッセージを伝達する。
  */
 
@@ -94,10 +94,11 @@ export class ModalRequest {
 }
 
 /**
- * モーダルを閉じるリクエスト
+ * モーダルが閉じたことを通知する結果コンポーネント
+ * 以前の GameEvents.MODAL_CLOSED に相当
  */
-export class CloseModalRequest {
-    constructor(modalType = null, taskId = null) {
+export class ModalClosedResult {
+    constructor(modalType, taskId = null) {
         this.modalType = modalType;
         this.taskId = taskId;
     }
@@ -112,3 +113,48 @@ export class UIStateUpdateRequest {
         this.data = data;
     }
 }
+
+// --- 状態フラグ・タグ (イベント代替) ---
+
+/** ゲージが満タンになったことを示すタグ */
+export class GaugeFullTag { constructor() {} }
+
+/** プレイヤーに入力を求めている状態を示すタグ */
+export class PlayerInputRequiredRequest {
+    constructor(entityId) {
+        this.entityId = entityId;
+    }
+}
+
+/** 戦闘開始アニメーションの再生要求 */
+export class BattleStartAnimationRequest { constructor() {} }
+
+/** 戦闘開始アニメーション完了通知 */
+export class BattleStartAnimationCompleted { constructor() {} }
+
+/** HPバーアニメーション要求 */
+export class HpBarAnimationRequest {
+    constructor(appliedEffects) {
+        this.appliedEffects = appliedEffects;
+    }
+}
+
+/** UIのリフレッシュ要求 */
+export class RefreshUIRequest { constructor() {} }
+
+/** アクションキャンセルのチェック要求 */
+export class CheckActionCancellationRequest { constructor() {} }
+
+/** ターン終了通知 */
+export class TurnEndResult {
+    constructor(turnNumber) {
+        this.turnNumber = turnNumber;
+    }
+}
+
+/** バトル開始確認の結果タグ */
+export class BattleStartConfirmedTag { constructor() {} }
+export class BattleStartCancelledTag { constructor() {} }
+
+/** リセットボタン押下通知タグ */
+export class ResetButtonResult { constructor() {} }

@@ -1,6 +1,7 @@
 /**
  * @file StateTransitionSystem.js
  * @description 状態遷移リクエストを処理するシステム。
+ * イベント発行をコンポーネント生成へ置換。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameState, Gauge, Action, ActiveEffects, Position } from '../../components/index.js';
@@ -13,6 +14,7 @@ import {
     SnapToActionLineRequest,
     TransitionToCooldownRequest,
 } from '../../components/CommandRequests.js';
+import { ActionRequeueRequest } from '../../components/Requests.js';
 import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { TeamID } from '../../../common/constants.js';
 import { CONFIG } from '../../common/config.js';
@@ -113,9 +115,16 @@ export class StateTransitionSystem extends System {
             const gameState = this.world.getComponent(targetId, GameState);
             if (gameState) {
                 if (gameState.state === PlayerStateType.CHARGING) {
+                    // クールダウン完了 -> 行動選択準備完了
                     this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.READY_SELECT));
-                    this.world.emit(GameEvents.ACTION_QUEUE_REQUEST, { entityId: targetId });
+                    
+                    // イベント発行を廃止し、リクエストコンポーネントを生成
+                    // ActionSelectionSystem がこれを検知して ActionSelectionPending を付与する
+                    const req = this.world.createEntity();
+                    this.world.addComponent(req, new ActionRequeueRequest(targetId));
+
                 } else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
+                    // チャージ完了 -> 行動実行準備完了
                     this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.READY_EXECUTE));
                 }
             }
@@ -132,6 +141,8 @@ export class StateTransitionSystem extends System {
             this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.BROKEN));
             this.world.addComponent(targetId, new Action());
 
+            // ログや他システムへの通知としてイベントは維持してもよいが、ロジック依存がある場合はコンポーネント化推奨
+            // 現状はログ用途が主と思われるため維持
             const playerInfo = this.world.getComponent(targetId, PlayerInfo);
             if (playerInfo) {
                 this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId, teamId: playerInfo.teamId });
@@ -203,7 +214,7 @@ export class StateTransitionSystem extends System {
             }
 
             this.world.addComponent(targetId, new Action());
-            this.world.emit(GameEvents.COOLDOWN_TRANSITION_COMPLETED, { entityId: targetId });
+            // this.world.emit(GameEvents.COOLDOWN_TRANSITION_COMPLETED, { entityId: targetId }); // 必要性が薄いため削除
 
             this.world.destroyEntity(entityId);
         }

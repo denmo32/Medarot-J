@@ -1,10 +1,9 @@
 /**
  * @file ModalSystem.js
  * @description モーダルの状態管理とフロー制御を行うシステム。
- * イベント駆動からコンポーネント監視（Polling）へリファクタリング。
+ * コンポーネント監視によるデータ駆動設計。
  */
 import { System } from '../../../../engine/core/System.js';
-import { GameEvents } from '../../../common/events.js';
 import { BattleUIState } from '../../components/index.js';
 import { modalHandlers } from '../../ui/modalHandlers.js';
 import { ModalType } from '../../common/constants.js';
@@ -12,11 +11,17 @@ import { AiDecisionService } from '../../services/AiDecisionService.js';
 import { ActionService } from '../../services/ActionService.js';
 import { 
     ModalRequest, 
-    CloseModalRequest, 
+    ModalClosedResult,
     UIInputIntent, 
     UIStateUpdateRequest,
-    ActionRequeueRequest
+    ActionRequeueRequest,
+    PlayerInputRequiredRequest,
+    HpBarAnimationRequest,
+    BattleStartConfirmedTag,
+    BattleStartCancelledTag,
+    ResetButtonResult
 } from '../../components/Requests.js';
+import { PauseState } from '../../components/PauseState.js';
 
 export class ModalSystem extends System {
     constructor(world) {
@@ -24,28 +29,24 @@ export class ModalSystem extends System {
         this.uiState = this.world.getSingletonComponent(BattleUIState);
         this.handlers = modalHandlers;
         this.aiDecisionService = new AiDecisionService(world);
-
-        // イベントリスナーはアニメーション完了通知などの副作用的なものに限定するか、
-        // 完全にコンポーネントベースにする。ここではプレイヤー入力要求のみイベントとして残すが
-        // 本来はコンポーネントで通知されるべき。
-        // リファクタリング: PLAYER_INPUT_REQUIRED は ActionSelectionSystem からイベントとして発行されているため
-        // ここでは受信するが、内部ロジックはコンポーネント操作にする。
-        this.on(GameEvents.PLAYER_INPUT_REQUIRED, this.onPlayerInputRequired.bind(this));
     }
 
     update(deltaTime) {
         // 1. 新規モーダルリクエストの処理
         this._processModalRequests();
+        
+        // 2. プレイヤー入力要求の処理
+        this._processPlayerInputRequests();
 
-        // 2. モーダルキューの処理 (表示開始)
+        // 3. モーダルキューの処理 (表示開始)
         if (!this.uiState.isProcessingQueue && this.uiState.modalQueue.length > 0) {
             this._startNextModalInQueue();
         }
 
-        // 3. UI状態更新リクエストの処理 (アニメーション完了など)
+        // 4. UI状態更新リクエストの処理 (アニメーション完了など)
         this._processStateUpdateRequests();
 
-        // 4. ユーザー入力インテントの処理
+        // 5. ユーザー入力インテントの処理
         this._processInputIntents();
     }
 
@@ -55,7 +56,7 @@ export class ModalSystem extends System {
         const requests = this.getEntities(ModalRequest);
         for (const entityId of requests) {
             const request = this.world.getComponent(entityId, ModalRequest);
-            // キューに追加（シンプルなオブジェクトに変換して保持）
+            // キューに追加
             this.uiState.modalQueue.push({
                 type: request.type,
                 data: request.data,
@@ -65,6 +66,34 @@ export class ModalSystem extends System {
                 priority: request.priority
             });
             this.world.destroyEntity(entityId);
+        }
+    }
+    
+    _processPlayerInputRequests() {
+        const requests = this.getEntities(PlayerInputRequiredRequest);
+        for (const reqId of requests) {
+            const request = this.world.getComponent(reqId, PlayerInputRequiredRequest);
+            
+            // モーダルデータの準備
+            const handler = this.handlers[ModalType.SELECTION];
+            if (handler && handler.prepareData) {
+                const modalData = handler.prepareData({ 
+                    world: this.world, 
+                    data: { entityId: request.entityId }, 
+                    services: { aiService: this.aiDecisionService } 
+                });
+
+                if (modalData) {
+                    const modalReq = this.world.createEntity();
+                    this.world.addComponent(modalReq, new ModalRequest(ModalType.SELECTION, modalData, { priority: 'high' }));
+                } else {
+                    // データ準備失敗時はリキュー
+                    const req = this.world.createEntity();
+                    this.world.addComponent(req, new ActionRequeueRequest(request.entityId));
+                }
+            }
+            
+            this.world.destroyEntity(reqId);
         }
     }
 
@@ -78,11 +107,6 @@ export class ModalSystem extends System {
             }
             this.world.destroyEntity(entityId);
         }
-        
-        // イベント互換用: HP_BAR_ANIMATION_COMPLETEDイベントも監視したい場合
-        // System.on() でリッスンして UIStateUpdateRequest を発行する形にするのがECS的だが
-        // ここでは簡略化のためイベントハンドラを直接使うことはしない（ループ内で完結させる）。
-        // 外部システム（AnimationSystem）は完了時に UIStateUpdateRequest を発行すべき。
     }
 
     // --- Queue Management ---
@@ -103,7 +127,12 @@ export class ModalSystem extends System {
         this.uiState.currentMessageSequence = modalContext.messageSequence || [{}];
         this.uiState.currentSequenceIndex = 0;
 
-        this.world.emit(GameEvents.GAME_PAUSED); // ポーズ状態への遷移
+        // ポーズ状態への遷移 (PauseStateコンポーネントを付与)
+        if (this.getEntities(PauseState).length === 0) {
+            const pauseEntity = this.world.createEntity();
+            this.world.addComponent(pauseEntity, new PauseState());
+        }
+
         this.displayCurrentSequenceStep();
     }
 
@@ -112,7 +141,6 @@ export class ModalSystem extends System {
     _processInputIntents() {
         // UIが表示されていない、またはアニメーション待機中は入力を無視
         if (!this.uiState.isPanelVisible || this.uiState.isWaitingForAnimation) {
-            // インテントがあっても消費して捨てる
             const intents = this.getEntities(UIInputIntent);
             for (const id of intents) this.world.destroyEntity(id);
             return;
@@ -152,10 +180,13 @@ export class ModalSystem extends System {
 
         if (currentStep.waitForAnimation) {
             this.uiState.isWaitingForAnimation = true;
-            this.world.emit(GameEvents.HP_BAR_ANIMATION_REQUESTED, { 
-                appliedEffects: currentStep.effects || this.uiState.currentModalData.appliedEffects || []
-            });
-            this.world.emit(GameEvents.UI_STATE_CHANGED);
+            
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new HpBarAnimationRequest(
+                currentStep.effects || this.uiState.currentModalData.appliedEffects || []
+            ));
+            
+            // UI状態が変わったため、ActionPanelSystemがそれを検知して更新する
             return;
         }
         this.uiState.isWaitingForAnimation = false;
@@ -174,8 +205,8 @@ export class ModalSystem extends System {
             const action = handler.init({ data: this.uiState.currentModalData, uiState: this.uiState });
             this._executeAction(action);
         }
-
-        this.world.emit(GameEvents.UI_STATE_CHANGED);
+        
+        // ActionPanelSystemはこれらのステート変更を検知して描画を行う
     }
     
     proceedToNextSequence() {
@@ -194,20 +225,23 @@ export class ModalSystem extends System {
             this.uiState.currentModalCallback();
         }
 
-        this.world.emit(GameEvents.MODAL_CLOSED, {
-            modalType: this.uiState.currentModalType,
-            taskId: this.uiState.currentTaskId
-        });
+        // モーダル終了結果コンポーネントを生成 (VisualDirectorSystemなどが利用)
+        const resultEntity = this.world.createEntity();
+        this.world.addComponent(resultEntity, new ModalClosedResult(
+            this.uiState.currentModalType,
+            this.uiState.currentTaskId
+        ));
 
         this.hideCurrentModal();
     }
 
     hideCurrentModal() {
         if (this.uiState.isPanelVisible) {
-            this.world.emit(GameEvents.GAME_RESUMED);
+            // ポーズ解除
+            const pauseEntities = this.getEntities(PauseState);
+            for (const id of pauseEntities) this.world.destroyEntity(id);
         }
         this.uiState.reset();
-        this.world.emit(GameEvents.UI_STATE_CHANGED);
         this.uiState.isProcessingQueue = false;
     }
 
@@ -223,26 +257,24 @@ export class ModalSystem extends System {
     _executeAction(action) {
         if (!action) return;
 
-        // modalHandlersが返すアクション定義をコンポーネント操作等に変換
         switch(action.action) {
-            case 'EMIT':
-                this.world.emit(action.eventName, action.detail);
-                break;
-                
-            case 'EMIT_AND_CLOSE': // 主にPART_SELECTEDなどで使用
-                // ハンドラから返されたイベント名に基づいて処理を分岐
-                if (action.eventName === GameEvents.PART_SELECTED) {
-                    // ActionServiceへ委譲
+            case 'EMIT_AND_CLOSE': 
+                // イベント名に基づいて適切なリクエストやタグを生成
+                if (action.eventName === 'PART_SELECTED') {
                     ActionService.createActionRequest(
                         this.world, 
                         action.detail.entityId, 
                         action.detail.partKey, 
                         action.detail.target
                     );
-                } else {
-                    // その他のイベントはそのまま発行
-                    this.world.emit(action.eventName, action.detail);
+                } else if (action.eventName === 'BATTLE_START_CONFIRMED') {
+                    this.world.addComponent(this.world.createEntity(), new BattleStartConfirmedTag());
+                } else if (action.eventName === 'BATTLE_START_CANCELLED') {
+                    this.world.addComponent(this.world.createEntity(), new BattleStartCancelledTag());
+                } else if (action.eventName === 'RESET_BUTTON_CLICKED') {
+                    this.world.addComponent(this.world.createEntity(), new ResetButtonResult());
                 }
+                
                 this.finishCurrentModal();
                 break;
 
@@ -257,31 +289,8 @@ export class ModalSystem extends System {
             case 'UPDATE_FOCUS':
                 if (this.uiState.focusedButtonKey !== action.key) {
                     this.uiState.focusedButtonKey = action.key;
-                    this.world.emit(GameEvents.UI_STATE_CHANGED);
                 }
                 break;
-        }
-    }
-
-    // --- Handlers for External Events ---
-
-    onPlayerInputRequired(detail) {
-        const handler = this.handlers[ModalType.SELECTION];
-        if (!handler || !handler.prepareData) return;
-        
-        const modalData = handler.prepareData({ 
-            world: this.world, 
-            data: detail, 
-            services: { aiService: this.aiDecisionService } 
-        });
-
-        if (modalData) {
-            const req = this.world.createEntity();
-            this.world.addComponent(req, new ModalRequest(ModalType.SELECTION, modalData, { priority: 'high' }));
-        } else {
-            // データ準備失敗時はリキュー
-            const req = this.world.createEntity();
-            this.world.addComponent(req, new ActionRequeueRequest(detail.entityId));
         }
     }
 }
