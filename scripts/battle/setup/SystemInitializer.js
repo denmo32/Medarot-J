@@ -37,7 +37,7 @@ export function initializeSystems(world, gameDataManager) {
     const actionPanelSystem = new ActionPanelSystem(world);
 
     // --- AI/Player Action Systems ---
-    new AiSystem(world);
+    const aiSystem = new AiSystem(world);
     const actionSelectionSystem = new ActionSelectionSystem(world);
     
     // --- Visual Systems ---
@@ -79,6 +79,7 @@ export function initializeSystems(world, gameDataManager) {
     // 3. ゲームフロー
     world.registerSystem(gameFlowSystem);
     world.registerSystem(turnSystem);
+    world.registerSystem(aiSystem); // AIシステムを追加
     world.registerSystem(actionSelectionSystem);
     
     world.registerSystem(battleSequenceSystem); 

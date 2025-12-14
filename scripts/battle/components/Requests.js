@@ -38,3 +38,11 @@ export class VisualSequence {
         this.tasks = tasks;
     }
 }
+
+/**
+ * AIへの行動決定要求
+ * AiSystemが処理し、ActionService経由で結果を反映する
+ */
+export class AiActionRequest {
+    constructor() {}
+}

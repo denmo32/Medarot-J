@@ -19,73 +19,30 @@ export const GameEvents = {
     GAME_RESUMED: 'GAME_RESUMED',
 	STRATEGY_EXECUTED: 'STRATEGY_EXECUTED',
 	
-	// --- プレイヤー入力 & AIイベント ---
+	// --- プレイヤー入力 ---
     PLAYER_INPUT_REQUIRED: 'PLAYER_INPUT_REQUIRED',
     PART_SELECTED: 'PART_SELECTED',
-    AI_ACTION_REQUIRED: 'AI_ACTION_REQUIRED',
     ACTION_SELECTED: 'ACTION_SELECTED',
 
     // --- BattleSequenceSystem 制御用イベント ---
-    /**
-     * アクション実行フェーズの開始を要求 (PhaseSystem -> BattleSequenceSystem)
-     * @event ACTION_EXECUTION_REQUESTED
-     */
-    ACTION_EXECUTION_REQUESTED: 'ACTION_EXECUTION_REQUESTED',
-    /**
-     * アクション実行アニメーションの完了 (ViewSystem -> BattleSequenceSystem)
-     * @event EXECUTION_ANIMATION_COMPLETED
-     */
     EXECUTION_ANIMATION_COMPLETED: 'EXECUTION_ANIMATION_COMPLETED',
-
-    /**
-     * クールダウン移行完了 (CooldownSystem -> BattleSequenceSystem)
-     * @event COOLDOWN_TRANSITION_COMPLETED
-     */
     COOLDOWN_TRANSITION_COMPLETED: 'COOLDOWN_TRANSITION_COMPLETED',
-
-    /**
-     * アクションシーケンス全体の完了
-     * @event ACTION_SEQUENCE_COMPLETED
-     */
     ACTION_SEQUENCE_COMPLETED: 'ACTION_SEQUENCE_COMPLETED',
-
-    /**
-     * タスク実行要求 (TaskRunner -> Systems)
-     * @event REQUEST_TASK_EXECUTION
-     */
     REQUEST_TASK_EXECUTION: 'REQUEST_TASK_EXECUTION',
-
-    /**
-     * タスク実行完了 (Systems -> TaskRunner)
-     * @event TASK_EXECUTION_COMPLETED
-     */
     TASK_EXECUTION_COMPLETED: 'TASK_EXECUTION_COMPLETED',
-
-    /**
-     * アクションキャンセル状態の一括チェック要求
-     * @event CHECK_ACTION_CANCELLATION
-     */
     CHECK_ACTION_CANCELLATION: 'CHECK_ACTION_CANCELLATION',
 
     // --- その他イベント ---
     COMBAT_SEQUENCE_RESOLVED: 'COMBAT_SEQUENCE_RESOLVED',
     COMBAT_RESOLUTION_DISPLAYED: 'COMBAT_RESOLUTION_DISPLAYED',
 
-
     // --- 状態 & ターン管理イベント ---
-    /**
-     * エンティティの状態遷移を要求 (Any -> StateSystem)
-     * @event REQUEST_STATE_TRANSITION
-     */
     REQUEST_STATE_TRANSITION: 'REQUEST_STATE_TRANSITION',
-    ACTION_SELECTION_COMPLETED: 'ACTION_SELECTION_COMPLETED',
-    ACTION_EXECUTION_COMPLETED: 'ACTION_EXECUTION_COMPLETED',
     TURN_START: 'TURN_START',
     TURN_END: 'TURN_END',
     GAUGE_FULL: 'GAUGE_FULL',
-    ACTION_QUEUE_REQUEST: 'ACTION_QUEUE_REQUEST',
     ACTION_REQUEUE_REQUEST: 'ACTION_REQUEUE_REQUEST',
-    NEXT_ACTOR_DETERMINED: 'NEXT_ACTOR_DETERMINED',
+    
     ACTION_CANCELLED: 'ACTION_CANCELLED',
     PART_BROKEN: 'PART_BROKEN',
     PLAYER_BROKEN: 'PLAYER_BROKEN',
@@ -103,23 +60,13 @@ export const GameEvents = {
     SETUP_UI_REQUESTED: 'SETUP_UI_REQUESTED',
     HP_BAR_ANIMATION_REQUESTED: 'HP_BAR_ANIMATION_REQUESTED',
     HP_BAR_ANIMATION_COMPLETED: 'HP_BAR_ANIMATION_COMPLETED',
-    
-    /**
-     * UI全体の表示を最新データに合わせて更新する要求
-     * @event REFRESH_UI
-     */
     REFRESH_UI: 'REFRESH_UI',
-    /**
-     * UIの状態が変化したことを通知 (ModalSystem -> ActionPanelSystem)
-     * @event UI_STATE_CHANGED
-     */
     UI_STATE_CHANGED: 'UI_STATE_CHANGED',
 
-    // --- UI入力イベント (UIInputSystem -> ModalSystem) ---
+    // --- UI入力イベント ---
     UI_CONFIRM: 'UI_CONFIRM',
     UI_CANCEL: 'UI_CANCEL',
     UI_NAVIGATE: 'UI_NAVIGATE',
-
 
     // --- カスタマイズ画面イベント ---
     CUST_CONFIRM_INPUT: 'CUST_CONFIRM_INPUT',

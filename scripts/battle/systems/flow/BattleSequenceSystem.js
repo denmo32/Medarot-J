@@ -1,13 +1,13 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの管理システム。
- * PhaseContext -> PhaseState へ移行。
+ * PhaseStateを監視し、自動的に処理を開始する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js';
 import { BattlePhase, TargetTiming, PlayerStateType } from '../../common/constants.js';
 import { 
-    PhaseState, TurnContext, // 修正
+    PhaseState, TurnContext,
     GameState, Action,
     CombatRequest, CombatResult, VisualSequenceRequest, VisualSequenceResult, VisualSequence,
     BattleSequenceState, SequenceState, SequencePending
@@ -25,7 +25,7 @@ import { targetingStrategies } from '../../ai/targetingStrategies.js';
 export class BattleSequenceSystem extends System {
     constructor(world) {
         super(world);
-        this.phaseState = this.world.getSingletonComponent(PhaseState); // 修正
+        this.phaseState = this.world.getSingletonComponent(PhaseState);
         this.turnContext = this.world.getSingletonComponent(TurnContext);
 
         this.timelineBuilder = new TimelineBuilder(world);
@@ -37,16 +37,18 @@ export class BattleSequenceSystem extends System {
     }
 
     update(deltaTime) {
-        if (this.phaseState.phase === BattlePhase.GAME_OVER) { // 修正
+        if (this.phaseState.phase === BattlePhase.GAME_OVER) {
             if (this.currentActorId) this.abortSequence();
             return;
         }
 
-        if (this.phaseState.phase !== BattlePhase.ACTION_EXECUTION) { // 修正
+        if (this.phaseState.phase !== BattlePhase.ACTION_EXECUTION) {
             this.currentActorId = null;
             return;
         }
 
+        // --- シーケンス進行管理 ---
+        
         const pendingEntities = this.getEntities(SequencePending);
         const activeEntities = this.getEntities(BattleSequenceState);
 
@@ -54,7 +56,8 @@ export class BattleSequenceSystem extends System {
             if (this._hasUnmarkedReadyEntities()) {
                 this.startExecutionPhase();
             } else {
-                this.finishExecutionPhase();
+                this.currentActorId = null;
+                this.turnContext.currentActorId = null;
                 return;
             }
         }
@@ -87,18 +90,10 @@ export class BattleSequenceSystem extends System {
         for (const id of entities) {
             const state = this.world.getComponent(id, GameState);
             if (state.state === PlayerStateType.READY_EXECUTE) {
-                this.world.addComponent(id, new SequencePending());
+                if (!this.world.getComponent(id, SequencePending)) {
+                    this.world.addComponent(id, new SequencePending());
+                }
             }
-        }
-    }
-
-    finishExecutionPhase() {
-        this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
-        
-        if (this._isAnyEntityInAction()) {
-            this.phaseState.phase = BattlePhase.ACTION_SELECTION; // 修正
-        } else {
-            this.phaseState.phase = BattlePhase.TURN_END; // 修正
         }
     }
 
@@ -282,16 +277,6 @@ export class BattleSequenceSystem extends System {
                 action.targetPartKey = targetData.targetPartKey;
             }
         }
-    }
-
-    _isAnyEntityInAction() {
-        const entities = this.getEntities(GameState);
-        return entities.some(id => {
-            const state = this.world.getComponent(id, GameState);
-            return state.state === PlayerStateType.CHARGING || 
-                   state.state === PlayerStateType.READY_SELECT ||
-                   state.state === PlayerStateType.SELECTED_CHARGING;
-        });
     }
 
     abortSequence() {
