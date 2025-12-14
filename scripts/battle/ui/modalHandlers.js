@@ -135,8 +135,8 @@ export const modalHandlers = {
     [ModalType.BATTLE_START_CONFIRM]: {
         isClickable: true,
         getActorName: () => '合意と見てよろしいですね！？',
-        handleConfirm: () => ({ action: 'EMIT', eventName: GameEvents.BATTLE_START_CONFIRMED }),
-        handleCancel: () => ({ action: 'EMIT', eventName: GameEvents.BATTLE_START_CANCELLED })
+        handleConfirm: () => ({ action: 'EMIT_AND_CLOSE', eventName: GameEvents.BATTLE_START_CONFIRMED }),
+        handleCancel: () => ({ action: 'EMIT_AND_CLOSE', eventName: GameEvents.BATTLE_START_CANCELLED })
     },
     [ModalType.MESSAGE]: {
         isClickable: true,
