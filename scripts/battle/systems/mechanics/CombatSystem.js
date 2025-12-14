@@ -2,19 +2,18 @@
  * @file CombatSystem.js
  * @description 戦闘の計算・解決を行うシステム。
  * CombatRequestを持つエンティティを処理し、CombatResultを付与する。
- * 旧 BattleResolutionService のロジックを継承。
+ * イベント発行を廃止し、データコンポーネントによる受け渡しに特化。
  */
 import { System } from '../../../../engine/core/System.js';
 import { CombatRequest, CombatResult } from '../../components/index.js';
 import { Action } from '../../components/index.js';
-import { Parts, PlayerInfo } from '../../../components/index.js'; // 修正: 共通コンポーネントからインポート
+import { Parts, PlayerInfo } from '../../../components/index.js';
 import { EffectType } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectRegistry } from '../../definitions/EffectRegistry.js';
 import { TargetingService } from '../../services/TargetingService.js';
 import { HookPhase } from '../../definitions/HookRegistry.js';
 import { HookContext } from '../../components/HookContext.js';
-import { GameEvents } from '../../../common/events.js';
 
 export class CombatSystem extends System {
     constructor(world) {
@@ -32,11 +31,10 @@ export class CombatSystem extends System {
             const resultData = this._resolve(entityId);
             
             // 結果コンポーネントを付与
+            // 下流のシステム (BattleHistorySystem, BattleSequenceSystem) がこれを処理する
             this.world.addComponent(entityId, new CombatResult(resultData));
         }
     }
-
-    // --- 以下、旧BattleResolutionServiceから移植したロジック ---
 
     _resolve(attackerId) {
         const eventsToEmit = [];
@@ -167,14 +165,8 @@ export class CombatSystem extends System {
             isGuardExpired: ctx.appliedEffects.some(e => e.isExpired && e.type === EffectType.CONSUME_GUARD),
         };
 
-        eventsToEmit.push({
-            type: GameEvents.COMBAT_SEQUENCE_RESOLVED,
-            payload: {
-                attackerId: ctx.attackerId,
-                appliedEffects: ctx.appliedEffects,
-                attackingPart: ctx.attackingPart
-            }
-        });
+        // NOTE: イベント発行を削除。必要な情報は CombatResult に含め、VisualSequenceSystem 等で処理する。
+        // eventsToEmit は VisualSequenceSystem でアニメーション同期イベントとして使用されるため保持する。
 
         // クールダウンへの移行リクエストを追加
         stateUpdates.push({
@@ -196,7 +188,6 @@ export class CombatSystem extends System {
             interruptions: ctx.interruptions,
             eventsToEmit,
             stateUpdates,
-            // visualSequence はここでは生成せず、VisualSequenceSystemに任せる
         };
     }
 }
