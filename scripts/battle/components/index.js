@@ -13,6 +13,7 @@ export { BattleResult } from './BattleResult.js';
 export { PauseState } from './PauseState.js';
 export { BattleHistoryContext } from './BattleHistoryContext.js';
 // HookContext は廃止
+export { BattleFlowState } from './BattleFlowState.js';
 export { BattleSequenceState, SequenceState } from './BattleSequenceState.js';
 export { SequencePending } from './SequencePending.js';
 export { ActionSelectionPending } from './ActionSelectionPending.js';

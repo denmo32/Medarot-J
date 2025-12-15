@@ -5,13 +5,13 @@
  * 最終工程(FINISHED)に達したアクターをパイプラインから除外する。
  */
 import { System } from '../../../../engine/core/System.js';
-import { 
+import {
     BattleSequenceState, SequenceState, SequencePending,
-    GameState, Action, TurnContext, PhaseState
+    GameState, Action, BattleFlowState
 } from '../../components/index.js';
 import { Parts } from '../../../components/index.js'; // 修正: 共通コンポーネントはここからインポート
-import { 
-    TransitionStateRequest, ResetToCooldownRequest 
+import {
+    TransitionStateRequest, ResetToCooldownRequest
 } from '../../components/CommandRequests.js';
 import { ModalState, CheckActionCancellationState } from '../../components/States.js';
 import {
@@ -24,13 +24,12 @@ import { targetingStrategies } from '../../ai/targetingStrategies.js';
 export class BattleSequenceSystem extends System {
     constructor(world) {
         super(world);
-        this.phaseState = this.world.getSingletonComponent(PhaseState);
-        this.turnContext = this.world.getSingletonComponent(TurnContext);
+        this.battleFlowState = this.world.getSingletonComponent(BattleFlowState);
     }
 
     update(deltaTime) {
         // ゲームオーバー時は強制終了
-        if (this.phaseState.phase === BattlePhase.GAME_OVER) {
+        if (this.battleFlowState.phase === BattlePhase.GAME_OVER) {
             this._abortAllSequences();
             return;
         }
@@ -39,7 +38,7 @@ export class BattleSequenceSystem extends System {
         this._processCancellationStates();
 
         // 実行フェーズでなければ何もしない
-        if (this.phaseState.phase !== BattlePhase.ACTION_EXECUTION) {
+        if (this.battleFlowState.phase !== BattlePhase.ACTION_EXECUTION) {
             return;
         }
 
@@ -54,7 +53,7 @@ export class BattleSequenceSystem extends System {
         if (!this._isPipelineBusy()) {
             this._startNextSequence();
         }
-        
+
         // 4. 実行待機エンティティのタグ付け (まだPendingを持っていないREADY_EXECUTEがいれば)
         this._markReadyEntities();
     }
@@ -73,8 +72,8 @@ export class BattleSequenceSystem extends System {
         // Pendingタグを外し、SequenceState(INITIALIZING)を付与してパイプライン投入
         this.world.removeComponent(nextActorId, SequencePending);
         this.world.addComponent(nextActorId, new BattleSequenceState()); // Default is INITIALIZING
-        
-        this.turnContext.currentActorId = nextActorId;
+
+        this.battleFlowState.currentActorId = nextActorId;
     }
 
     _processInitializingSequences() {
@@ -97,19 +96,19 @@ export class BattleSequenceSystem extends System {
             if (cancelCheck.shouldCancel) {
                 // キャンセル発生時
                 state.contextData = { isCancelled: true, cancelReason: cancelCheck.reason };
-                
+
                 // ログイベント生成
                 const evt = this.world.createEntity();
                 this.world.addComponent(evt, new ActionCancelledEvent(entityId, cancelCheck.reason));
-                
+
                 // 計算フェーズをスキップして演出生成フェーズへ
                 state.currentState = SequenceState.GENERATING_VISUALS;
             } else {
                 // 正常進行時
-                
+
                 // 移動後ターゲットの解決（Actionコンポーネントの更新）
                 this._resolvePostMoveTarget(entityId);
-                
+
                 // 計算フェーズへ
                 state.currentState = SequenceState.CALCULATING;
             }
@@ -123,7 +122,7 @@ export class BattleSequenceSystem extends System {
             if (state.currentState === SequenceState.FINISHED) {
                 // コンポーネント削除（パイプラインから脱出）
                 this.world.removeComponent(entityId, BattleSequenceState);
-                this.turnContext.currentActorId = null;
+                this.battleFlowState.currentActorId = null;
             }
         }
     }
@@ -155,7 +154,7 @@ export class BattleSequenceSystem extends System {
             if (!partsA || !partsB) return 0;
             const propA = partsA.legs?.propulsion || 0;
             const propB = partsB.legs?.propulsion || 0;
-            return propB - propA; 
+            return propB - propA;
         });
 
         return pendingEntities[0];
@@ -164,9 +163,9 @@ export class BattleSequenceSystem extends System {
     _resolvePostMoveTarget(attackerId) {
         const action = this.world.getComponent(attackerId, Action);
         const parts = this.world.getComponent(attackerId, Parts);
-        
+
         if (!action || !parts || !action.partKey) return;
-        
+
         const attackingPart = parts[action.partKey];
         // 移動後ターゲット決定タイミング、かつターゲット未定の場合のみ
         if (!attackingPart || attackingPart.targetTiming !== TargetTiming.POST_MOVE || action.targetId !== null) return;
@@ -200,12 +199,12 @@ export class BattleSequenceSystem extends System {
             if (gameState.state !== PlayerStateType.SELECTED_CHARGING) continue;
 
             const check = CancellationService.checkCancellation(this.world, actorId);
-            
+
             if (check.shouldCancel) {
                 // ログ
                 const evt = this.world.createEntity();
                 this.world.addComponent(evt, new ActionCancelledEvent(actorId, check.reason));
-                
+
                 // 通知メッセージ
                 const message = CancellationService.getCancelMessage(this.world, actorId, check.reason);
                 if (message) {
@@ -233,7 +232,7 @@ export class BattleSequenceSystem extends System {
 
         const active = this.getEntities(BattleSequenceState);
         for (const id of active) this.world.removeComponent(id, BattleSequenceState);
-        
-        this.turnContext.currentActorId = null;
+
+        this.battleFlowState.currentActorId = null;
     }
 }

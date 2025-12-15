@@ -10,6 +10,7 @@ import { TurnContext } from '../battle/components/TurnContext.js';
 import { PhaseState } from '../battle/components/PhaseState.js';
 import { BattleHistoryContext } from '../battle/components/BattleHistoryContext.js';
 import { BattleUIState } from '../battle/components/BattleUIState.js';
+import { BattleFlowState } from '../battle/components/BattleFlowState.js';
 import { UIManager } from '../../engine/ui/UIManager.js';
 
 export class BattleScene extends Scene {
@@ -38,6 +39,7 @@ export class BattleScene extends Scene {
     _setupBattleContext() {
         const contextEntity = this.world.createEntity();
 
+        this.world.addComponent(contextEntity, new BattleFlowState());
         this.world.addComponent(contextEntity, new TurnContext());
         this.world.addComponent(contextEntity, new PhaseState());
         this.world.addComponent(contextEntity, new BattleHistoryContext());

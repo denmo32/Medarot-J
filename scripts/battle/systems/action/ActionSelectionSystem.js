@@ -4,13 +4,12 @@
  * イベント駆動からコンポーネントポーリングへ完全移行。
  */
 import { System } from '../../../../engine/core/System.js';
-import { TurnContext } from '../../components/TurnContext.js';
-import { PhaseState } from '../../components/PhaseState.js';
+import { BattleFlowState } from '../../components/BattleFlowState.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { Action, Gauge, GameState, ActionSelectionPending } from '../../components/index.js';
-import { 
-    TransitionStateRequest, 
-    UpdateComponentRequest 
+import {
+    TransitionStateRequest,
+    UpdateComponentRequest
 } from '../../components/CommandRequests.js';
 import { ModalState, ActionState, ActionRequeueState, PlayerInputState, AiActionState } from '../../components/States.js';
 import {
@@ -25,8 +24,7 @@ import { QueryService } from '../../services/QueryService.js';
 export class ActionSelectionSystem extends System {
     constructor(world) {
         super(world);
-        this.turnContext = this.world.getSingletonComponent(TurnContext);
-        this.phaseState = this.world.getSingletonComponent(PhaseState);
+        this.battleFlowState = this.world.getSingletonComponent(BattleFlowState);
 
         this.initialSelectionState = {
             isConfirming: false,
@@ -42,7 +40,7 @@ export class ActionSelectionSystem extends System {
         this._processConfirmationTags();
 
         // 2. フェーズごとのロジック
-        const currentPhase = this.phaseState.phase;
+        const currentPhase = this.battleFlowState.phase;
 
         if (currentPhase === BattlePhase.INITIAL_SELECTION) {
             this._updateInitialSelection();
@@ -75,8 +73,8 @@ export class ActionSelectionSystem extends System {
                 if (!this.world.getComponent(targetId, ActionSelectionPending)) {
                     this.world.addComponent(targetId, new ActionSelectionPending());
                 }
-                if (this.turnContext.currentActorId === targetId) {
-                    this.turnContext.currentActorId = null;
+                if (this.battleFlowState.currentActorId === targetId) {
+                    this.battleFlowState.currentActorId = null;
                 }
 
                 // 状態を更新
@@ -106,9 +104,10 @@ export class ActionSelectionSystem extends System {
     _handleActionState(state) {
         const { entityId, partKey, targetId, targetPartKey } = state;
 
-        if (this.turnContext.currentActorId === entityId) {
-            this.turnContext.selectedActions.set(entityId, state);
-            this.turnContext.currentActorId = null; // 次へ
+        if (this.battleFlowState.currentActorId === entityId) {
+            // selectedActions はTurnContextにあったが、BattleFlowStateに移行するか、または不要になる可能性がある
+            // 現在の設計ではselectedActionsを使用していないので、この部分は削除する
+            this.battleFlowState.currentActorId = null; // 次へ
         }
 
         const action = this.world.getComponent(entityId, Action);
@@ -165,7 +164,7 @@ export class ActionSelectionSystem extends System {
     // --- INITIAL_SELECTION Logic ---
     _updateInitialSelection() {
         if (this.initialSelectionState.confirmed) {
-            this.phaseState.phase = BattlePhase.BATTLE_START;
+            this.battleFlowState.phase = BattlePhase.BATTLE_START;
             this._resetInitialSelectionState();
             return;
         }
@@ -173,8 +172,8 @@ export class ActionSelectionSystem extends System {
         if (this.initialSelectionState.cancelled) {
             this.initialSelectionState.cancelled = false;
             this.initialSelectionState.isConfirming = false;
-            
-            this.phaseState.phase = BattlePhase.IDLE;
+
+            this.battleFlowState.phase = BattlePhase.IDLE;
             // シーン遷移はGameFlowSystem等で管理されるべきだが、ここではトリガーのみ変更
             // IDLEフェーズへの遷移をGameFlowSystemが検知する
             return;
@@ -192,7 +191,7 @@ export class ActionSelectionSystem extends System {
             this.world.addComponent(stateEntity, modalState);
         }
 
-        if (!this.initialSelectionState.isConfirming && this.turnContext.currentActorId === null) {
+        if (!this.initialSelectionState.isConfirming && this.battleFlowState.currentActorId === null) {
             this._processNextActor(true); // isInitial=true
         }
     }
@@ -220,7 +219,7 @@ export class ActionSelectionSystem extends System {
     // --- ACTION_SELECTION Logic ---
     _updateActionSelection() {
         // 現在のアクターが行動選択中でなければ、次のアクターを選出する
-        if (this.turnContext.currentActorId === null) {
+        if (this.battleFlowState.currentActorId === null) {
             this._processNextActor(false);
         }
     }
@@ -245,9 +244,9 @@ export class ActionSelectionSystem extends System {
         }
 
         const nextActorId = validEntities[0];
-        
+
         // 選択権の付与
-        this.turnContext.currentActorId = nextActorId;
+        this.battleFlowState.currentActorId = nextActorId;
         this.world.removeComponent(nextActorId, ActionSelectionPending);
 
         this._triggerInput(nextActorId);
@@ -255,7 +254,7 @@ export class ActionSelectionSystem extends System {
 
     _triggerInput(entityId) {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        
+
         if (playerInfo.teamId === 'team1') {
             // プレイヤー入力要求リクエストを発行
             const req = this.world.createEntity();
