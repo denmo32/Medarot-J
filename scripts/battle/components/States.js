@@ -17,3 +17,42 @@ export class ModalState {
     this.isCompleted = false; // モーダルが完了したか
   }
 }
+
+export class ActionState {
+  constructor() {
+    this.state = 'idle'; // 'idle', 'selected', 'processing', 'completed'
+    this.entityId = null; // アクションを行ったエンティティID
+    this.partKey = null; // アクションを行う部位
+    this.targetId = null; // 対象のエンティティID
+    this.targetPartKey = null; // 対象の部位
+  }
+}
+
+export class PlayerInputState {
+  constructor() {
+    this.isActive = false;
+    this.entityId = null;
+  }
+}
+
+export class ActionRequeueState {
+  constructor() {
+    this.isActive = false;
+    this.entityId = null;
+  }
+}
+
+export class AnimationState {
+  constructor() {
+    this.type = null; // 'HP_BAR', 'EFFECT', 'UI_ANIMATION' など
+    this.data = {};
+  }
+}
+
+export class UIStateUpdateState {
+  constructor() {
+    this.type = null; // 'ANIMATION_COMPLETED' など
+    this.data = {};
+    this.isCompleted = false;
+  }
+}

@@ -12,11 +12,8 @@ import {
     TransitionStateRequest, 
     UpdateComponentRequest 
 } from '../../components/CommandRequests.js';
-import { ModalState } from '../../components/States.js';
+import { ModalState, ActionState, ActionRequeueState, PlayerInputState } from '../../components/States.js';
 import {
-    ActionSelectedRequest,
-    ActionRequeueRequest,
-    PlayerInputRequiredRequest,
     BattleStartConfirmedTag,
     BattleStartCancelledTag
 } from '../../components/Requests.js';
@@ -39,9 +36,9 @@ export class ActionSelectionSystem extends System {
     }
 
     update(deltaTime) {
-        // 1. リクエスト処理 (フェーズに関わらず処理)
-        this._processActionSelectedRequests();
-        this._processActionRequeueRequests();
+        // 1. 状態処理 (フェーズに関わらず処理)
+        this._processActionStates();
+        this._processActionRequeueStates();
         this._processConfirmationTags();
 
         // 2. フェーズごとのロジック
@@ -56,28 +53,35 @@ export class ActionSelectionSystem extends System {
 
     // --- Request Processing ---
 
-    _processActionSelectedRequests() {
-        const requests = this.getEntities(ActionSelectedRequest);
-        for (const reqId of requests) {
-            const request = this.world.getComponent(reqId, ActionSelectedRequest);
-            this._handleActionSelected(request);
-            this.world.destroyEntity(reqId);
+    _processActionStates() {
+        const entities = this.getEntities(ActionState);
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, ActionState);
+            if (state.state === 'selected') {
+                this._handleActionState(state);
+                // stateを更新
+                state.state = 'processed';
+            }
         }
     }
 
-    _processActionRequeueRequests() {
-        const requests = this.getEntities(ActionRequeueRequest);
-        for (const reqId of requests) {
-            const request = this.world.getComponent(reqId, ActionRequeueRequest);
-            const { entityId } = request;
-            
-            if (!this.world.getComponent(entityId, ActionSelectionPending)) {
-                this.world.addComponent(entityId, new ActionSelectionPending());
+    _processActionRequeueStates() {
+        const entities = this.getEntities(ActionRequeueState);
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, ActionRequeueState);
+            if (state.isActive) {
+                const { entityId: targetId } = state;
+
+                if (!this.world.getComponent(targetId, ActionSelectionPending)) {
+                    this.world.addComponent(targetId, new ActionSelectionPending());
+                }
+                if (this.turnContext.currentActorId === targetId) {
+                    this.turnContext.currentActorId = null;
+                }
+
+                // 状態を更新
+                state.isActive = false;
             }
-            if (this.turnContext.currentActorId === entityId) {
-                this.turnContext.currentActorId = null;
-            }
-            this.world.destroyEntity(reqId);
         }
     }
 
@@ -99,11 +103,11 @@ export class ActionSelectionSystem extends System {
 
     // --- Core Logic ---
 
-    _handleActionSelected(detail) {
-        const { entityId, partKey, targetId, targetPartKey } = detail;
+    _handleActionState(state) {
+        const { entityId, partKey, targetId, targetPartKey } = state;
 
         if (this.turnContext.currentActorId === entityId) {
-            this.turnContext.selectedActions.set(entityId, detail);
+            this.turnContext.selectedActions.set(entityId, state);
             this.turnContext.currentActorId = null; // 次へ
         }
 
@@ -113,8 +117,11 @@ export class ActionSelectionSystem extends System {
         // バリデーション
         if (!partKey || !parts?.[partKey] || parts[partKey].isBroken) {
             console.warn(`ActionSelectionSystem: Invalid part selected. Re-queueing.`);
-            const req = this.world.createEntity();
-            this.world.addComponent(req, new ActionRequeueRequest(entityId));
+            const stateEntity = this.world.createEntity();
+            const actionRequeueState = new ActionRequeueState();
+            actionRequeueState.isActive = true;
+            actionRequeueState.entityId = entityId;
+            this.world.addComponent(stateEntity, actionRequeueState);
             return;
         }
 
@@ -252,7 +259,11 @@ export class ActionSelectionSystem extends System {
         if (playerInfo.teamId === 'team1') {
             // プレイヤー入力要求リクエストを発行
             const req = this.world.createEntity();
-            this.world.addComponent(req, new PlayerInputRequiredRequest(entityId));
+            const stateEntity = this.world.createEntity();
+            const playerInputState = new PlayerInputState();
+            playerInputState.isActive = true;
+            playerInputState.entityId = entityId;
+            this.world.addComponent(stateEntity, playerInputState);
         } else {
             // AIリクエスト発行
             this.world.addComponent(entityId, new AiActionRequest());

@@ -9,13 +9,9 @@ import { modalHandlers } from '../../ui/modalHandlers.js';
 import { ModalType } from '../../common/constants.js';
 import { AiDecisionService } from '../../services/AiDecisionService.js';
 import { ActionService } from '../../services/ActionService.js';
-import { ModalState } from '../../components/States.js';
+import { ModalState, PlayerInputState, ActionRequeueState, AnimationState, UIStateUpdateState } from '../../components/States.js';
 import {
     UIInputIntent,
-    UIStateUpdateRequest,
-    ActionRequeueRequest,
-    PlayerInputRequiredRequest,
-    HpBarAnimationRequest,
     BattleStartConfirmedTag,
     BattleStartCancelledTag,
     ResetButtonResult
@@ -35,16 +31,16 @@ export class ModalSystem extends System {
         // 1. モーダル状態の処理
         this._processModalStates();
 
-        // 2. プレイヤー入力要求の処理
-        this._processPlayerInputRequests();
+        // 2. プレイヤー入力状態の処理
+        this._processPlayerInputStates();
 
         // 3. モーダルキューの処理 (表示開始)
         if (!this.uiState.isProcessingQueue && this.uiState.modalQueue.length > 0) {
             this._startNextModalInQueue();
         }
 
-        // 4. UI状態更新リクエストの処理 (アニメーション完了など)
-        this._processStateUpdateRequests();
+        // 4. UI状態更新状態の処理 (アニメーション完了など)
+        this._processStateUpdateStates();
 
         // 5. ユーザー入力インテントの処理
         this._processInputIntents();
@@ -76,47 +72,52 @@ export class ModalSystem extends System {
         }
     }
     
-    _processPlayerInputRequests() {
-        const requests = this.getEntities(PlayerInputRequiredRequest);
-        for (const reqId of requests) {
-            const request = this.world.getComponent(reqId, PlayerInputRequiredRequest);
-            
-            // モーダルデータの準備
-            const handler = this.handlers[ModalType.SELECTION];
-            if (handler && handler.prepareData) {
-                const modalData = handler.prepareData({ 
-                    world: this.world, 
-                    data: { entityId: request.entityId }, 
-                    services: { aiService: AiDecisionService } // オブジェクトを直接渡す
-                });
+    _processPlayerInputStates() {
+        const entities = this.getEntities(PlayerInputState);
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, PlayerInputState);
+            if (state.isActive) {
+                // モーダルデータの準備
+                const handler = this.handlers[ModalType.SELECTION];
+                if (handler && handler.prepareData) {
+                    const modalData = handler.prepareData({
+                        world: this.world,
+                        data: { entityId: state.entityId },
+                        services: { aiService: AiDecisionService } // オブジェクトを直接渡す
+                    });
 
-                if (modalData) {
-                    const modalStateEntity = this.world.createEntity();
-                    const modalState = new ModalState();
-                    modalState.type = ModalType.SELECTION;
-                    modalState.data = modalData;
-                    modalState.priority = 'high';
-                    this.world.addComponent(modalStateEntity, modalState);
-                } else {
-                    // データ準備失敗時はリキュー
-                    const req = this.world.createEntity();
-                    this.world.addComponent(req, new ActionRequeueRequest(request.entityId));
+                    if (modalData) {
+                        const modalStateEntity = this.world.createEntity();
+                        const modalState = new ModalState();
+                        modalState.type = ModalType.SELECTION;
+                        modalState.data = modalData;
+                        modalState.priority = 'high';
+                        this.world.addComponent(modalStateEntity, modalState);
+                    } else {
+                        // データ準備失敗時はリキュー
+                        const stateEntity = this.world.createEntity();
+                        const actionRequeueState = new ActionRequeueState();
+                        actionRequeueState.isActive = true;
+                        actionRequeueState.entityId = state.entityId;
+                        this.world.addComponent(stateEntity, actionRequeueState);
+                    }
                 }
+
+                // isActiveをfalseにする
+                state.isActive = false;
             }
-            
-            this.world.destroyEntity(reqId);
         }
     }
 
-    _processStateUpdateRequests() {
-        const requests = this.getEntities(UIStateUpdateRequest);
-        for (const entityId of requests) {
-            const req = this.world.getComponent(entityId, UIStateUpdateRequest);
-            if (req.type === 'ANIMATION_COMPLETED' && this.uiState.isWaitingForAnimation) {
+    _processStateUpdateStates() {
+        const entities = this.getEntities(UIStateUpdateState);
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, UIStateUpdateState);
+            if (state.type === 'ANIMATION_COMPLETED' && this.uiState.isWaitingForAnimation) {
                 this.uiState.isWaitingForAnimation = false;
                 this.proceedToNextSequence();
+                state.isCompleted = true;
             }
-            this.world.destroyEntity(entityId);
         }
     }
 
@@ -192,10 +193,13 @@ export class ModalSystem extends System {
         if (currentStep.waitForAnimation) {
             this.uiState.isWaitingForAnimation = true;
             
-            const req = this.world.createEntity();
-            this.world.addComponent(req, new HpBarAnimationRequest(
-                currentStep.effects || this.uiState.currentModalData.appliedEffects || []
-            ));
+            const stateEntity = this.world.createEntity();
+            const animationState = new AnimationState();
+            animationState.type = 'HP_BAR';
+            animationState.data = {
+                appliedEffects: currentStep.effects || this.uiState.currentModalData.appliedEffects || []
+            };
+            this.world.addComponent(stateEntity, animationState);
             
             // UI状態が変わったため、ActionPanelSystemがそれを検知して更新する
             return;

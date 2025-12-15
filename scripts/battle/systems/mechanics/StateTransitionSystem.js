@@ -14,8 +14,8 @@ import {
     SnapToActionLineRequest,
     TransitionToCooldownRequest,
 } from '../../components/CommandRequests.js';
-import { 
-    ActionRequeueRequest,
+import { ActionRequeueState } from '../../components/States.js';
+import {
     PlayerBrokenEvent,
     GaugeFullTag
 } from '../../components/Requests.js';
@@ -62,9 +62,12 @@ export class StateTransitionSystem extends System {
             // クールダウン完了 -> 行動選択準備完了
             this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.READY_SELECT));
             
-            // ActionSelectionSystem が検知するためのリクエスト
-            const req = this.world.createEntity();
-            this.world.addComponent(req, new ActionRequeueRequest(targetId));
+            // ActionSelectionSystem が検知するための状態
+            const stateEntity = this.world.createEntity();
+            const actionRequeueState = new ActionRequeueState();
+            actionRequeueState.isActive = true;
+            actionRequeueState.entityId = targetId;
+            this.world.addComponent(stateEntity, actionRequeueState);
 
         } else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
             // チャージ完了 -> 行動実行準備完了

@@ -8,7 +8,7 @@ import { ActionService } from './ActionService.js';
 import { QueryService } from './QueryService.js';
 import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
 import { TargetTiming } from '../common/constants.js';
-import { ActionRequeueRequest } from '../components/index.js'; 
+import { ActionRequeueState } from '../components/States.js';
 import { StrategyExecutedEvent } from '../components/Requests.js';
 
 export const AiDecisionService = {
@@ -25,8 +25,11 @@ export const AiDecisionService = {
 
         if (!targetCandidates || targetCandidates.length === 0) {
             console.warn(`AI ${entityId}: No target candidates found by personality.`);
-            const req = world.createEntity();
-            world.addComponent(req, new ActionRequeueRequest(entityId));
+            const stateEntity = world.createEntity();
+            const actionRequeueState = new ActionRequeueState();
+            actionRequeueState.isActive = true;
+            actionRequeueState.entityId = entityId;
+            world.addComponent(stateEntity, actionRequeueState);
             return;
         }
 
@@ -36,8 +39,11 @@ export const AiDecisionService = {
         if (actionPlans.length === 0) {
             // 有効なアクションがない場合
              console.warn(`AI ${entityId}: No valid action plans.`);
-             const req = world.createEntity();
-             world.addComponent(req, new ActionRequeueRequest(entityId));
+             const stateEntity = world.createEntity();
+             const actionRequeueState = new ActionRequeueState();
+             actionRequeueState.isActive = true;
+             actionRequeueState.entityId = entityId;
+             world.addComponent(stateEntity, actionRequeueState);
             return;
         }
 

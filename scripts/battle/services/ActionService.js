@@ -6,7 +6,7 @@
 import { Parts as CommonParts } from '../../components/index.js';
 import { TargetingService } from './TargetingService.js';
 import { TargetTiming } from '../common/constants.js';
-import { ActionSelectedRequest, ActionRequeueRequest } from '../components/Requests.js';
+import { ActionState, ActionRequeueState } from '../components/States.js';
 
 export const ActionService = {
     /**
@@ -21,8 +21,11 @@ export const ActionService = {
 
         if (!parts || !partKey || !parts[partKey] || parts[partKey].isBroken) {
             console.warn(`ActionService: Invalid or broken part selected for entity ${entityId}. Re-queueing.`);
-            const reqEntity = world.createEntity();
-            world.addComponent(reqEntity, new ActionRequeueRequest(entityId));
+            const stateEntity = world.createEntity();
+            const actionRequeueState = new ActionRequeueState();
+            actionRequeueState.isActive = true;
+            actionRequeueState.entityId = entityId;
+            world.addComponent(stateEntity, actionRequeueState);
             return;
         }
 
@@ -37,13 +40,15 @@ export const ActionService = {
             // 続行させてSystem側でキャンセル判定させるフローとする
         }
 
-        // ActionSelectedRequest コンポーネントを持つエンティティを作成
-        const reqEntity = world.createEntity();
-        world.addComponent(reqEntity, new ActionSelectedRequest(
-            entityId,
-            partKey,
-            target ? target.targetId : null,
-            target ? target.targetPartKey : null
-        ));
+        // ActionState コンポーネントを持つエンティティを作成
+        const stateEntity = world.createEntity();
+        const actionState = new ActionState();
+        actionState.state = 'selected';
+        actionState.entityId = entityId;
+        actionState.partKey = partKey;
+        actionState.targetId = target ? target.targetId : null;
+        actionState.targetPartKey = target ? target.targetPartKey : null;
+        // actionState.isNewなどの初期状態があればそれに合わせる
+        world.addComponent(stateEntity, actionState);
     }
 };

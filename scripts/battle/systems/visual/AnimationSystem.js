@@ -6,12 +6,11 @@
 import { System } from '../../../../engine/core/System.js';
 import { Visual } from '../../components/index.js';
 import { AnimateTask, UiAnimationTask } from '../../components/Tasks.js';
-import { 
-    BattleStartAnimationRequest, 
+import { AnimationState, UIStateUpdateState } from '../../components/States.js';
+import {
+    BattleStartAnimationRequest,
     BattleStartAnimationCompleted,
-    HpBarAnimationRequest, 
-    RefreshUIRequest,
-    UIStateUpdateRequest
+    RefreshUIRequest
 } from '../../components/Requests.js';
 import { Parts } from '../../../components/index.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
@@ -27,7 +26,7 @@ export class AnimationSystem extends System {
     update(deltaTime) {
         // 0. リクエスト処理
         this._processBattleStartRequests();
-        this._processHpBarRequests();
+        this._processAnimationStates();
         this._processRefreshRequests();
 
         // 1. Tween更新
@@ -65,16 +64,21 @@ export class AnimationSystem extends System {
         }
     }
 
-    _processHpBarRequests() {
-        const entities = this.getEntities(HpBarAnimationRequest);
+    _processAnimationStates() {
+        const entities = this.getEntities(AnimationState);
         for (const entityId of entities) {
-            const req = this.world.getComponent(entityId, HpBarAnimationRequest);
-            this._startHpBarAnimation(req.appliedEffects, () => {
-                // 完了通知
-                const res = this.world.createEntity();
-                this.world.addComponent(res, new UIStateUpdateRequest('ANIMATION_COMPLETED'));
-            }, () => {});
-            this.world.destroyEntity(entityId);
+            const state = this.world.getComponent(entityId, AnimationState);
+            if (state.type === 'HP_BAR') {
+                this._startHpBarAnimation(state.data.appliedEffects, () => {
+                    // 完了通知
+                    const stateEntity = this.world.createEntity();
+                    const uiStateUpdateState = new UIStateUpdateState();
+                    uiStateUpdateState.type = 'ANIMATION_COMPLETED';
+                    this.world.addComponent(stateEntity, uiStateUpdateState);
+                }, () => {});
+                // 状態を完了にする
+                state.type = null;
+            }
         }
     }
 
