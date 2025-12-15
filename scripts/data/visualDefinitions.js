@@ -1,62 +1,72 @@
 /**
  * @file 演出定義 (VisualDefinitions)
- * @description 戦闘イベントに対する演出パターン（メッセージキー、アニメーション、VFXなど）を定義する。
- * VisualSequenceServiceがこの定義を参照してタスクを生成する。
+ * @description 戦闘イベントに対する演出設定を定義します。
+ * 以前のメソッド(getMessageKey等)は削除し、純粋なデータオブジェクトとして定義します。
+ * ロジックはSystem側に移行しました。
  */
 import { EffectType } from '../battle/common/constants.js';
-import { MessageKey } from './messageRepository.js';
 
 export const VisualDefinitions = {
-    // --- 効果適用時の演出定義 ---
+    // 効果種別ごとの基本設定
     [EffectType.DAMAGE]: {
-        getMessageKey: (effect) => {
-            if (effect.isGuardBroken) return MessageKey.GUARD_BROKEN;
-            if (effect.isPenetration) return MessageKey.PENETRATION_DAMAGE;
-            if (effect.isDefended) return MessageKey.DEFENSE_SUCCESS;
-            if (effect.guardianName) return MessageKey.GUARDIAN_DAMAGE; // ガーディアン情報はコンテキストから補完
-            return MessageKey.DAMAGE_APPLIED;
-        },
-        getPrefixKey: (effect) => {
-            return effect.isCritical ? MessageKey.CRITICAL_HIT : null;
-        },
-        shouldShowHpBar: (effect) => effect.value > 0,
+        showHpBar: true,
+        // 特定条件下で使用するメッセージキーのマッピングヒント
+        keys: {
+            default: 'DAMAGE_APPLIED',
+            guardBroken: 'GUARD_BROKEN',
+            penetration: 'PENETRATION_DAMAGE',
+            defended: 'DEFENSE_SUCCESS',
+            guardian: 'GUARDIAN_DAMAGE',
+            prefixCritical: 'CRITICAL_HIT'
+        }
     },
     [EffectType.HEAL]: {
-        getMessageKey: (effect) => {
-            return effect.value > 0 ? MessageKey.HEAL_SUCCESS : MessageKey.HEAL_FAILED;
-        },
-        shouldShowHpBar: (effect) => effect.value > 0,
+        showHpBar: true,
+        keys: {
+            success: 'HEAL_SUCCESS',
+            failed: 'HEAL_FAILED'
+        }
     },
     [EffectType.APPLY_SCAN]: {
-        getMessageKey: () => MessageKey.SUPPORT_SCAN_SUCCESS,
+        keys: {
+            default: 'SUPPORT_SCAN_SUCCESS'
+        }
     },
     [EffectType.APPLY_GLITCH]: {
-        getMessageKey: (effect) => {
-            return effect.wasSuccessful ? MessageKey.INTERRUPT_GLITCH_SUCCESS : MessageKey.INTERRUPT_GLITCH_FAILED;
-        },
+        keys: {
+            success: 'INTERRUPT_GLITCH_SUCCESS',
+            failed: 'INTERRUPT_GLITCH_FAILED'
+        }
     },
     [EffectType.APPLY_GUARD]: {
-        getMessageKey: () => MessageKey.DEFEND_GUARD_SUCCESS,
+        keys: {
+            default: 'DEFEND_GUARD_SUCCESS'
+        }
     },
     [EffectType.CONSUME_GUARD]: {
-        // ガード消費自体にはメッセージを出さないが、期限切れの場合のみ出す
-        getMessageKey: (effect) => {
-            return effect.isExpired ? MessageKey.GUARD_EXPIRED : null;
+        keys: {
+            expired: 'GUARD_EXPIRED'
         }
     },
 
-    // --- その他のイベント定義 ---
-    DECLARATION: {
-        getMessageKey: (ctx) => {
-            if (ctx.isSupport) return MessageKey.SUPPORT_DECLARATION;
-            if (!ctx.targetId) return MessageKey.ATTACK_MISSED;
-            return MessageKey.ATTACK_DECLARATION;
+    // 汎用イベント設定
+    EVENTS: {
+        DECLARATION: {
+            keys: {
+                support: 'SUPPORT_DECLARATION',
+                miss: 'ATTACK_MISSED',
+                default: 'ATTACK_DECLARATION'
+            }
+        },
+        GUARDIAN_TRIGGER: {
+            keys: {
+                default: 'GUARDIAN_TRIGGERED'
+            }
+        },
+        MISS: {
+            keys: {
+                default: 'ATTACK_EVADED'
+            }
         }
-    },
-    GUARDIAN_TRIGGER: {
-        getMessageKey: () => MessageKey.GUARDIAN_TRIGGERED
-    },
-    MISS: {
-        getMessageKey: () => MessageKey.ATTACK_EVADED
     }
 };

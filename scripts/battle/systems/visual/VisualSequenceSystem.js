@@ -1,7 +1,7 @@
 /**
  * @file VisualSequenceSystem.js
  * @description 演出生成フェーズを担当するシステム。
- * イベント名を廃止し、CreateEntityTaskで具体的なリクエストコンポーネントを生成するように変更。
+ * VisualDefinitionsからメソッドを排除し、ロジックをこのシステム内に集約しました。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -17,8 +17,9 @@ import { MessageService } from '../../services/MessageService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
 import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
-import { BattleLogType, ModalType } from '../../common/constants.js';
+import { BattleLogType, ModalType, EffectType } from '../../common/constants.js';
 import { VisualDefinitions } from '../../../data/visualDefinitions.js';
+import { MessageKey } from '../../../data/messageRepository.js';
 
 export class VisualSequenceSystem extends System {
     constructor(world) {
@@ -77,8 +78,6 @@ export class VisualSequenceSystem extends System {
             updates: stateUpdates
         };
 
-        // UIリフレッシュタスクの直前に挿入する
-        // 配列の最後から2番目(リフレッシュの直前)に追加するという簡易ロジック
         if (sequence.length >= 2) {
              sequence.splice(sequence.length - 2, 0, updateTask);
         } else {
@@ -147,13 +146,11 @@ export class VisualSequenceSystem extends System {
 
         this._insertDefeatVisuals(sequence, defeatedPlayers);
 
-        // UIリフレッシュリクエスト
         sequence.push({ 
             type: 'CREATE_ENTITY', 
             componentsDef: [{ componentClass: RefreshUIRequest, args: [] }] 
         });
 
-        // アクションキャンセルチェックリクエスト
         sequence.push({ 
             type: 'CREATE_ENTITY', 
             componentsDef: [{ componentClass: CheckActionCancellationRequest, args: [] }] 
@@ -205,8 +202,12 @@ export class VisualSequenceSystem extends System {
     }
 
     _createDeclarationTasks(log, ctx, messageService) {
-        const def = VisualDefinitions.DECLARATION;
-        const messageKey = def.getMessageKey({ ...ctx, targetId: log.targetId });
+        const def = VisualDefinitions.EVENTS.DECLARATION;
+        let messageKey;
+        
+        if (ctx.isSupport) messageKey = MessageKey[def.keys.support];
+        else if (!ctx.targetId) messageKey = MessageKey[def.keys.miss];
+        else messageKey = MessageKey[def.keys.default];
         
         if (!messageKey) return [];
 
@@ -226,8 +227,8 @@ export class VisualSequenceSystem extends System {
     }
 
     _createGuardianTasks(log, ctx, messageService) {
-        const def = VisualDefinitions.GUARDIAN_TRIGGER;
-        const messageKey = def.getMessageKey();
+        const def = VisualDefinitions.EVENTS.GUARDIAN_TRIGGER;
+        const messageKey = MessageKey[def.keys.default];
         
         return [{
             type: 'DIALOG',
@@ -242,8 +243,8 @@ export class VisualSequenceSystem extends System {
         if (!def) return [];
 
         const tasks = [];
-        const prefixKey = def.getPrefixKey ? def.getPrefixKey(effect) : null;
-        const messageKey = def.getMessageKey(effect);
+        const messageKey = this._resolveEffectMessageKey(effect, ctx, def);
+        const prefixKey = this._resolveEffectPrefixKey(effect, def);
         
         if (messageKey) {
             const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
@@ -274,7 +275,7 @@ export class VisualSequenceSystem extends System {
             });
         }
 
-        if (def.shouldShowHpBar && def.shouldShowHpBar(effect)) {
+        if (def.showHpBar && effect.value > 0) {
             tasks.push({
                 type: 'UI_ANIMATION',
                 targetType: 'HP_BAR',
@@ -285,9 +286,40 @@ export class VisualSequenceSystem extends System {
         return tasks;
     }
 
+    _resolveEffectMessageKey(effect, ctx, def) {
+        const keys = def.keys;
+        if (!keys) return null;
+
+        switch (effect.type) {
+            case EffectType.DAMAGE:
+                if (effect.isGuardBroken) return MessageKey[keys.guardBroken];
+                if (effect.isPenetration) return MessageKey[keys.penetration];
+                if (effect.isDefended) return MessageKey[keys.defended];
+                if (effect.guardianName || ctx.guardianInfo) return MessageKey[keys.guardian];
+                return MessageKey[keys.default];
+            
+            case EffectType.HEAL:
+                return effect.value > 0 ? MessageKey[keys.success] : MessageKey[keys.failed];
+            
+            case EffectType.APPLY_GLITCH:
+                return effect.wasSuccessful ? MessageKey[keys.success] : MessageKey[keys.failed];
+            
+            case EffectType.CONSUME_GUARD:
+                return effect.isExpired ? MessageKey[keys.expired] : null;
+
+            default:
+                return MessageKey[keys.default] || null;
+        }
+    }
+
+    _resolveEffectPrefixKey(effect, def) {
+        if (!def.keys || !def.keys.prefixCritical) return null;
+        return effect.isCritical ? MessageKey[def.keys.prefixCritical] : null;
+    }
+
     _createMissTasks(log, ctx, messageService) {
-        const def = VisualDefinitions.MISS;
-        const messageKey = def.getMessageKey();
+        const def = VisualDefinitions.EVENTS.MISS;
+        const messageKey = MessageKey[def.keys.default];
         const targetInfo = this.world.getComponent(log.targetId, PlayerInfo);
 
         return [{

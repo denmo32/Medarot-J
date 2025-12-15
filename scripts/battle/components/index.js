@@ -9,10 +9,10 @@ export { Visual } from './Visual.js';
 export { BattleUIState } from './BattleUIState.js';
 export { TurnContext } from './TurnContext.js';
 export { PhaseState } from './PhaseState.js';
-export { BattleResult } from './BattleResult.js'; // 追加
-export { PauseState } from './PauseState.js'; // 追加
+export { BattleResult } from './BattleResult.js';
+export { PauseState } from './PauseState.js';
 export { BattleHistoryContext } from './BattleHistoryContext.js';
-export { HookContext } from './HookContext.js';
+// HookContext は廃止
 export { BattleSequenceState, SequenceState } from './BattleSequenceState.js';
 export { SequencePending } from './SequencePending.js';
 export { ActionSelectionPending } from './ActionSelectionPending.js';
