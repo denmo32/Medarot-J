@@ -5,10 +5,10 @@
  */
 import { System } from '../../../../engine/core/System.js';
 import { ModalType } from '../../common/constants.js';
+import { ModalState } from '../../components/States.js';
 import {
     DialogTask, VfxTask, CameraTask
 } from '../../components/Tasks.js';
-import { ModalRequest, ModalClosedResult } from '../../components/Requests.js';
 
 export class VisualDirectorSystem extends System {
     constructor(world) {
@@ -17,8 +17,8 @@ export class VisualDirectorSystem extends System {
 
     update(deltaTime) {
         // --- Modal Closed Check ---
-        // モーダルが閉じたことを検知し、対応するDialogTaskを完了させる
-        this._processModalClosedResults();
+        // モーダルの状態完了を検知し、対応するDialogTaskを完了させる
+        this._processModalCompletedStates();
 
         // --- Dialog ---
         this._processDialogTasks();
@@ -30,12 +30,20 @@ export class VisualDirectorSystem extends System {
         this._processInstantTasks(CameraTask, (task) => console.log(`[VisualDirector] Camera Action: ${task.action}`));
     }
 
-    _processModalClosedResults() {
-        const results = this.getEntities(ModalClosedResult);
-        for (const entityId of results) {
-            const result = this.world.getComponent(entityId, ModalClosedResult);
-            this._handleModalClosed(result);
-            this.world.destroyEntity(entityId); // 結果コンポーネントを消費
+    _processModalCompletedStates() {
+        const entities = this.getEntities(ModalState);
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, ModalState);
+            if (state.isCompleted) {
+                const result = {
+                    modalType: state.type,
+                    taskId: state.taskId
+                };
+                this._handleModalClosed(result);
+                // isCompletedをfalseにするか、ModalStateを削除
+                // ここではModalStateを削除する
+                this.world.removeComponent(entityId, ModalState);
+            }
         }
     }
 
@@ -61,20 +69,19 @@ export class VisualDirectorSystem extends System {
             const task = this.world.getComponent(entityId, DialogTask);
             
             if (!task.isDisplayed) {
-                // ModalRequestコンポーネントを生成してModalSystemへ依頼
-                const reqEntity = this.world.createEntity();
-                this.world.addComponent(reqEntity, new ModalRequest(
-                    task.options?.modalType || ModalType.MESSAGE,
-                    { 
-                        message: task.text,
-                        ...task.options 
-                    },
-                    {
-                        messageSequence: [{ text: task.text }],
-                        taskId: task.taskId,
-                        priority: 'normal'
-                    }
-                ));
+                // ModalStateコンポーネントを生成してModalSystemへ依頼
+                const stateEntity = this.world.createEntity();
+                const modalState = new ModalState();
+                modalState.type = task.options?.modalType || ModalType.MESSAGE;
+                modalState.data = {
+                    message: task.text,
+                    ...task.options
+                };
+                modalState.messageSequence = [{ text: task.text }];
+                modalState.taskId = task.taskId;
+                modalState.priority = 'normal';
+                // modalState.isNewはデフォルトでtrue
+                this.world.addComponent(stateEntity, modalState);
                 
                 task.isDisplayed = true;
             }

@@ -9,10 +9,9 @@ import { modalHandlers } from '../../ui/modalHandlers.js';
 import { ModalType } from '../../common/constants.js';
 import { AiDecisionService } from '../../services/AiDecisionService.js';
 import { ActionService } from '../../services/ActionService.js';
-import { 
-    ModalRequest, 
-    ModalClosedResult,
-    UIInputIntent, 
+import { ModalState } from '../../components/States.js';
+import {
+    UIInputIntent,
     UIStateUpdateRequest,
     ActionRequeueRequest,
     PlayerInputRequiredRequest,
@@ -28,13 +27,14 @@ export class ModalSystem extends System {
         super(world);
         this.uiState = this.world.getSingletonComponent(BattleUIState);
         this.handlers = modalHandlers;
+        this.currentModalEntityId = null; // 現在表示中のModalStateエンティティID
         // AiDecisionServiceはステートレスなオブジェクトのためインスタンス化不要
     }
 
     update(deltaTime) {
-        // 1. 新規モーダルリクエストの処理
-        this._processModalRequests();
-        
+        // 1. モーダル状態の処理
+        this._processModalStates();
+
         // 2. プレイヤー入力要求の処理
         this._processPlayerInputRequests();
 
@@ -52,20 +52,27 @@ export class ModalSystem extends System {
 
     // --- Request Processing ---
 
-    _processModalRequests() {
-        const requests = this.getEntities(ModalRequest);
-        for (const entityId of requests) {
-            const request = this.world.getComponent(entityId, ModalRequest);
-            // キューに追加
-            this.uiState.modalQueue.push({
-                type: request.type,
-                data: request.data,
-                messageSequence: request.messageSequence,
-                taskId: request.taskId,
-                onComplete: request.onComplete,
-                priority: request.priority
-            });
-            this.world.destroyEntity(entityId);
+    _processModalStates() {
+        const entities = this.getEntities(ModalState);
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, ModalState);
+            if (state.isNew) {
+                // キューに追加
+                this.uiState.modalQueue.push({
+                    type: state.type,
+                    data: state.data,
+                    messageSequence: state.messageSequence,
+                    taskId: state.taskId,
+                    onComplete: state.onComplete,
+                    priority: state.priority
+                });
+                // isNewフラグをオフ
+                state.isNew = false;
+                // state.isOpenをtrueに設定
+                state.isOpen = true;
+                // 現在のモーダルエンティティIDを記憶
+                this.currentModalEntityId = entityId;
+            }
         }
     }
     
@@ -84,8 +91,12 @@ export class ModalSystem extends System {
                 });
 
                 if (modalData) {
-                    const modalReq = this.world.createEntity();
-                    this.world.addComponent(modalReq, new ModalRequest(ModalType.SELECTION, modalData, { priority: 'high' }));
+                    const modalStateEntity = this.world.createEntity();
+                    const modalState = new ModalState();
+                    modalState.type = ModalType.SELECTION;
+                    modalState.data = modalData;
+                    modalState.priority = 'high';
+                    this.world.addComponent(modalStateEntity, modalState);
                 } else {
                     // データ準備失敗時はリキュー
                     const req = this.world.createEntity();
@@ -225,12 +236,13 @@ export class ModalSystem extends System {
             this.uiState.currentModalCallback();
         }
 
-        // モーダル終了結果コンポーネントを生成 (VisualDirectorSystemなどが利用)
-        const resultEntity = this.world.createEntity();
-        this.world.addComponent(resultEntity, new ModalClosedResult(
-            this.uiState.currentModalType,
-            this.uiState.currentTaskId
-        ));
+        // 対応するModalStateのisCompletedをtrueに設定
+        if (this.currentModalEntityId) {
+            const state = this.world.getComponent(this.currentModalEntityId, ModalState);
+            if (state) {
+                state.isCompleted = true;
+            }
+        }
 
         this.hideCurrentModal();
     }

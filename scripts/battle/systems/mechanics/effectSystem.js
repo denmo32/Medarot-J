@@ -6,8 +6,8 @@
 import { System } from '../../../../engine/core/System.js';
 import { ActiveEffects, GameState } from '../../components/index.js';
 import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
-import { 
-    ModalRequest, 
+import { ModalState } from '../../components/States.js';
+import {
     TurnEndedSignal,
     HpChangedEvent,
     EffectExpiredEvent
@@ -69,15 +69,14 @@ export class EffectSystem extends System {
                         ));
                     }
                     if (result.message) {
-                        const req = this.world.createEntity();
-                        this.world.addComponent(req, new ModalRequest(
-                            'MESSAGE',
-                            { message: result.message },
-                            {
-                                messageSequence: [{ text: result.message }],
-                                priority: 'high'
-                            }
-                        ));
+                        const stateEntity = this.world.createEntity();
+                        const modalState = new ModalState();
+                        modalState.type = 'MESSAGE';
+                        modalState.data = { message: result.message };
+                        modalState.messageSequence = [{ text: result.message }];
+                        modalState.priority = 'high';
+                        // modalState.isNewはデフォルトでtrue
+                        this.world.addComponent(stateEntity, modalState);
                     }
                 }
             });

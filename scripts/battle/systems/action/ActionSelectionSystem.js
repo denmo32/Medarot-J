@@ -12,10 +12,10 @@ import {
     TransitionStateRequest, 
     UpdateComponentRequest 
 } from '../../components/CommandRequests.js';
-import { 
-    ActionSelectedRequest, 
+import { ModalState } from '../../components/States.js';
+import {
+    ActionSelectedRequest,
     ActionRequeueRequest,
-    ModalRequest,
     PlayerInputRequiredRequest,
     BattleStartConfirmedTag,
     BattleStartCancelledTag
@@ -176,8 +176,13 @@ export class ActionSelectionSystem extends System {
         if (!this.initialSelectionState.isConfirming && this._checkAllSelected()) {
             this.initialSelectionState.isConfirming = true;
             // モーダル表示リクエスト
-            const req = this.world.createEntity();
-            this.world.addComponent(req, new ModalRequest(ModalType.BATTLE_START_CONFIRM, {}, { priority: 'high' }));
+            const stateEntity = this.world.createEntity();
+            const modalState = new ModalState();
+            modalState.type = ModalType.BATTLE_START_CONFIRM;
+            modalState.data = {};
+            modalState.priority = 'high';
+            // modalState.isNewはデフォルトでtrue
+            this.world.addComponent(stateEntity, modalState);
         }
 
         if (!this.initialSelectionState.isConfirming && this.turnContext.currentActorId === null) {

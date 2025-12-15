@@ -13,8 +13,9 @@ import { Parts } from '../../../components/index.js'; // 修正: 共通コンポ
 import { 
     TransitionStateRequest, ResetToCooldownRequest 
 } from '../../components/CommandRequests.js';
-import { 
-    ActionCancelledEvent, ModalRequest, CheckActionCancellationRequest 
+import { ModalState } from '../../components/States.js';
+import {
+    ActionCancelledEvent, CheckActionCancellationRequest
 } from '../../components/Requests.js';
 import { PlayerStateType, BattlePhase, TargetTiming, ModalType } from '../../common/constants.js';
 import { CancellationService } from '../../services/CancellationService.js';
@@ -206,11 +207,14 @@ export class BattleSequenceSystem extends System {
                 const message = CancellationService.getCancelMessage(this.world, actorId, check.reason);
                 if (message) {
                     const msgReq = this.world.createEntity();
-                    this.world.addComponent(msgReq, new ModalRequest(
-                        ModalType.MESSAGE,
-                        { message: message },
-                        { messageSequence: [{ text: message }], priority: 'high' }
-                    ));
+                    const stateEntity = this.world.createEntity();
+                    const modalState = new ModalState();
+                    modalState.type = ModalType.MESSAGE;
+                    modalState.data = { message: message };
+                    modalState.messageSequence = [{ text: message }];
+                    modalState.priority = 'high';
+                    // modalState.isNewはデフォルトでtrue
+                    this.world.addComponent(stateEntity, modalState);
                 }
 
                 // 強制中断（クールダウンへ）

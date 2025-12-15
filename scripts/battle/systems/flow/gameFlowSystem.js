@@ -7,9 +7,9 @@ import { System } from '../../../../engine/core/System.js';
 import { PhaseState } from '../../components/PhaseState.js';
 import { GameState, Gauge, Action, ActionSelectionPending, BattleResult } from '../../components/index.js';
 import { UpdateComponentRequest, TransitionStateRequest } from '../../components/CommandRequests.js';
-import { 
-    ModalRequest, 
-    BattleStartAnimationRequest, 
+import { ModalState } from '../../components/States.js';
+import {
+    BattleStartAnimationRequest,
     BattleStartAnimationCompleted,
     ResetButtonResult
 } from '../../components/Requests.js';
@@ -125,11 +125,12 @@ export class GameFlowSystem extends System {
             winningTeam = this.world.getComponent(results[0], BattleResult).winningTeam;
         }
 
-        const req = this.world.createEntity();
-        this.world.addComponent(req, new ModalRequest(
-            ModalType.GAME_OVER,
-            { winningTeam },
-            { priority: 'high' }
-        ));
+        const stateEntity = this.world.createEntity();
+        const modalState = new ModalState();
+        modalState.type = ModalType.GAME_OVER;
+        modalState.data = { winningTeam };
+        modalState.priority = 'high';
+        // modalState.isNewはデフォルトでtrue
+        this.world.addComponent(stateEntity, modalState);
     }
 }
