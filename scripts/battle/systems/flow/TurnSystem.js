@@ -8,7 +8,7 @@ import { GameState, ActionSelectionPending, SequencePending, BattleSequenceState
 import { TurnContext } from '../../components/TurnContext.js';
 import { PhaseState } from '../../components/PhaseState.js';
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
-import { TurnEndedSignal, TurnStartedSignal } from '../../components/Requests.js';
+import { TurnEndedSignal } from '../../components/Requests.js';
 
 export class TurnSystem extends System {
     constructor(world) {
@@ -68,10 +68,6 @@ export class TurnSystem extends System {
     }
 
     _handleTurnStart() {
-        // ターン開始シグナル発行
-        const signalEntity = this.world.createEntity();
-        this.world.addComponent(signalEntity, new TurnStartedSignal(this.turnContext.number));
-
         // 即座に行動選択フェーズへ
         this.phaseState.phase = BattlePhase.ACTION_SELECTION;
     }
