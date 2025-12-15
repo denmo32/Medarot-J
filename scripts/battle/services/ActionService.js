@@ -1,14 +1,14 @@
 /**
  * @file ActionService.js
- * @description アクションの妥当性を検証し、リクエストコンポーネントを生成する静的サービス。
- * Worldへのコンポーネント追加のみを行い、副作用を持たない設計。
+ * @description アクションの妥当性を検証し、リクエストコンポーネントを生成する静的ヘルパー。
+ * クラス構造を排除し、純粋な関数オブジェクトとして定義。
  */
 import { Parts as CommonParts } from '../../components/index.js';
 import { TargetingService } from './TargetingService.js';
 import { TargetTiming } from '../common/constants.js';
 import { ActionSelectedRequest, ActionRequeueRequest } from '../components/Requests.js';
 
-export class ActionService {
+export const ActionService = {
     /**
      * アクションリクエストを作成し、Worldに追加する
      * @param {World} world 
@@ -16,7 +16,7 @@ export class ActionService {
      * @param {string} partKey 
      * @param {object} target 
      */
-    static createActionRequest(world, entityId, partKey, target = null) {
+    createActionRequest(world, entityId, partKey, target = null) {
         const parts = world.getComponent(entityId, CommonParts);
 
         if (!parts || !partKey || !parts[partKey] || parts[partKey].isBroken) {
@@ -38,7 +38,6 @@ export class ActionService {
         }
 
         // ActionSelectedRequest コンポーネントを持つエンティティを作成
-        // これは次のフレームで ActionSelectionSystem によって処理される
         const reqEntity = world.createEntity();
         world.addComponent(reqEntity, new ActionSelectedRequest(
             entityId,
@@ -47,4 +46,4 @@ export class ActionService {
             target ? target.targetPartKey : null
         ));
     }
-}
+};

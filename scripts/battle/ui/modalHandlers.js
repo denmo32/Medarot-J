@@ -1,7 +1,7 @@
 /**
  * @file modalHandlers.js
  * @description モーダルごとの挙動（入力ハンドリング）定義。
- * 副作用を起こさず、実行すべきアクションを記述したオブジェクトを返す。
+ * AiDecisionServiceのインターフェース変更に対応（world引数の追加）。
  */
 import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
@@ -47,13 +47,14 @@ export const modalHandlers = {
 
             const { aiService } = services;
 
-            const targetCandidates = aiService.getSuggestionForPlayer(entityId);
+            // 純粋関数呼び出しに変更し、worldを渡す
+            const targetCandidates = aiService.getSuggestionForPlayer(world, entityId);
 
             if (!targetCandidates || targetCandidates.length === 0) {
                 return null; // ターゲット候補がいない場合はモーダルを出さない
             }
 
-            const actionPlans = aiService.generateActionPlans(entityId, targetCandidates);
+            const actionPlans = aiService.generateActionPlans(world, entityId, targetCandidates);
             const allPossibleParts = QueryService.getAllActionParts(world, entityId);
 
             const buttonsData = allPossibleParts.map(([partKey, part]) => {

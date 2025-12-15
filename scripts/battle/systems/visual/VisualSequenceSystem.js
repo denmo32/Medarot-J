@@ -1,7 +1,7 @@
 /**
  * @file VisualSequenceSystem.js
  * @description 演出生成フェーズを担当するシステム。
- * VisualDefinitionsからメソッドを排除し、ロジックをこのシステム内に集約しました。
+ * データ不整合を防ぐため、状態更新後に明示的なWaitを挿入。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -15,7 +15,6 @@ import {
 } from '../../components/Requests.js';
 import { MessageService } from '../../services/MessageService.js';
 import { CancellationService } from '../../services/CancellationService.js';
-import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
 import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
 import { BattleLogType, ModalType, EffectType } from '../../common/constants.js';
 import { VisualDefinitions } from '../../../data/visualDefinitions.js';
@@ -24,7 +23,6 @@ import { MessageKey } from '../../../data/messageRepository.js';
 export class VisualSequenceSystem extends System {
     constructor(world) {
         super(world);
-        this.timelineBuilder = new TimelineBuilder(world);
     }
 
     update(deltaTime) {
@@ -43,18 +41,13 @@ export class VisualSequenceSystem extends System {
                 continue;
             }
 
-            // 演出タスク定義の生成
             const sequenceDefs = this._generateSequenceDefinitions(entityId, context);
 
-            // 状態更新タスクの挿入
             if (context.stateUpdates && context.stateUpdates.length > 0) {
                 this._insertStateUpdateTasks(sequenceDefs, context.stateUpdates);
             }
 
-            // タスクコンポーネントリストの構築
-            const builtTasks = this.timelineBuilder.buildVisualSequence(sequenceDefs);
-
-            this.world.addComponent(entityId, new VisualSequence(builtTasks));
+            this.world.addComponent(entityId, new VisualSequence(sequenceDefs));
 
             if (combatResult) {
                 this.world.removeComponent(entityId, CombatResult);
@@ -78,10 +71,18 @@ export class VisualSequenceSystem extends System {
             updates: stateUpdates
         };
 
+        // 状態更新タスクの直後に1フレームのウェイトを挿入する。
+        // これにより、後続の RefreshUIRequest が発行される前に、
+        // ComponentUpdateSystem が確実に Parts コンポーネントを更新する時間を確保する。
+        const waitTask = {
+            type: 'WAIT',
+            duration: 0
+        };
+
         if (sequence.length >= 2) {
-             sequence.splice(sequence.length - 2, 0, updateTask);
+             sequence.splice(sequence.length - 2, 0, updateTask, waitTask);
         } else {
-             sequence.push(updateTask);
+             sequence.push(updateTask, waitTask);
         }
     }
 
@@ -147,13 +148,13 @@ export class VisualSequenceSystem extends System {
         this._insertDefeatVisuals(sequence, defeatedPlayers);
 
         sequence.push({ 
-            type: 'CREATE_ENTITY', 
-            componentsDef: [{ componentClass: RefreshUIRequest, args: [] }] 
+            type: 'CREATE_REQUEST', 
+            requestType: 'RefreshUIRequest'
         });
 
         sequence.push({ 
-            type: 'CREATE_ENTITY', 
-            componentsDef: [{ componentClass: CheckActionCancellationRequest, args: [] }] 
+            type: 'CREATE_REQUEST', 
+            requestType: 'CheckActionCancellationRequest'
         });
 
         return sequence;

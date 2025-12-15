@@ -1,7 +1,7 @@
 /**
  * @file AiDecisionService.js
- * @description AIの意思決定ロジックを提供するサービス。
- * イベント発行を廃止し、ECSコンポーネントの生成へ変更。
+ * @description AIの意思決定ロジックを提供する純粋な関数群。
+ * クラスインスタンス化を廃止し、ステートレスなロジックとして定義。
  */
 import { determineTargetCandidatesByPersonality, selectBestActionPlan } from '../ai/aiDecisionUtils.js';
 import { ActionService } from './ActionService.js';
@@ -11,36 +11,33 @@ import { TargetTiming } from '../common/constants.js';
 import { ActionRequeueRequest } from '../components/index.js'; 
 import { StrategyExecutedEvent } from '../components/Requests.js';
 
-export class AiDecisionService {
-    constructor(world) {
-        this.world = world;
-    }
-
+export const AiDecisionService = {
     /**
      * 指定されたエンティティのAI思考を実行し、アクションリクエストを生成する
+     * @param {World} world
      * @param {number} entityId 
      */
-    processAiTurn(entityId) {
-        const context = { world: this.world, entityId };
+    processAiTurn(world, entityId) {
+        const context = { world, entityId };
 
         // 1. 性格に基づいてターゲット候補を選定
         const { candidates: targetCandidates, strategy: usedStrategy } = determineTargetCandidatesByPersonality(context);
 
         if (!targetCandidates || targetCandidates.length === 0) {
             console.warn(`AI ${entityId}: No target candidates found by personality.`);
-            const req = this.world.createEntity();
-            this.world.addComponent(req, new ActionRequeueRequest(entityId));
+            const req = world.createEntity();
+            world.addComponent(req, new ActionRequeueRequest(entityId));
             return;
         }
 
         // 2. 実行可能な行動プランを列挙
-        const actionPlans = this.generateActionPlans(entityId, targetCandidates);
+        const actionPlans = this.generateActionPlans(world, entityId, targetCandidates);
         
         if (actionPlans.length === 0) {
             // 有効なアクションがない場合
              console.warn(`AI ${entityId}: No valid action plans.`);
-             const req = this.world.createEntity();
-             this.world.addComponent(req, new ActionRequeueRequest(entityId));
+             const req = world.createEntity();
+             world.addComponent(req, new ActionRequeueRequest(entityId));
             return;
         }
 
@@ -49,37 +46,34 @@ export class AiDecisionService {
 
         if (!finalPlan) {
             console.error(`AI ${entityId}: Could not select a final action plan. Falling back to random.`);
-            this._executeRandomFallback(entityId, actionPlans);
+            this._executeRandomFallback(world, entityId, actionPlans);
             return;
         }
         
         // 4. プランを実行 (リクエスト生成)
-        this._executePlan(entityId, finalPlan, usedStrategy);
-    }
+        this._executePlan(world, entityId, finalPlan, usedStrategy);
+    },
 
     /**
      * プレイヤーのターゲット選択補助のために、性格に基づいた候補を取得する
+     * @param {World} world
      * @param {number} entityId 
      * @returns {object[]} ターゲット候補リスト
      */
-    getSuggestionForPlayer(entityId) {
-        const context = { world: this.world, entityId };
+    getSuggestionForPlayer(world, entityId) {
+        const context = { world, entityId };
         const { candidates } = determineTargetCandidatesByPersonality(context);
         return candidates || [];
-    }
+    },
 
     /**
      * ターゲット候補に基づき、実行可能なアクションプランを生成する
+     * @param {World} world
      * @param {number} entityId 
      * @param {object[]} targetCandidates 
      * @returns {object[]}
      */
-    generateActionPlans(entityId, targetCandidates) {
-        const context = { world: this.world, entityId };
-        return this._determineActionPlans({ ...context, targetCandidates });
-    }
-
-    _determineActionPlans({ world, entityId, targetCandidates }) {
+    generateActionPlans(world, entityId, targetCandidates) {
         if (!targetCandidates || targetCandidates.length === 0) {
             return [];
         }
@@ -113,24 +107,24 @@ export class AiDecisionService {
             });
         }
         return actionPlans;
-    }
+    },
 
-    _executePlan(entityId, plan, strategyKey) {
-        // デバッグログ用イベントコンポーネントを生成 (this.world.emitの代替)
+    _executePlan(world, entityId, plan, strategyKey) {
+        // デバッグログ用イベントコンポーネントを生成
         if (strategyKey && plan.target) {
-            const debugEntity = this.world.createEntity();
-            this.world.addComponent(debugEntity, new StrategyExecutedEvent(
+            const debugEntity = world.createEntity();
+            world.addComponent(debugEntity, new StrategyExecutedEvent(
                 strategyKey,
                 entityId,
                 plan.target
             ));
         }
-        ActionService.createActionRequest(this.world, entityId, plan.partKey, plan.target);
-    }
+        ActionService.createActionRequest(world, entityId, plan.partKey, plan.target);
+    },
 
-    _executeRandomFallback(entityId, actionPlans) {
+    _executeRandomFallback(world, entityId, actionPlans) {
         if (actionPlans.length === 0) return;
         const randomPlan = actionPlans[Math.floor(Math.random() * actionPlans.length)];
-        ActionService.createActionRequest(this.world, entityId, randomPlan.partKey, randomPlan.target);
+        ActionService.createActionRequest(world, entityId, randomPlan.partKey, randomPlan.target);
     }
-}
+};

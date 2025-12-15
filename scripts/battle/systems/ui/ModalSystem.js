@@ -1,7 +1,7 @@
 /**
  * @file ModalSystem.js
  * @description モーダルの状態管理とフロー制御を行うシステム。
- * コンポーネント監視によるデータ駆動設計。
+ * AiDecisionServiceの静的化に伴い修正。
  */
 import { System } from '../../../../engine/core/System.js';
 import { BattleUIState } from '../../components/index.js';
@@ -28,7 +28,7 @@ export class ModalSystem extends System {
         super(world);
         this.uiState = this.world.getSingletonComponent(BattleUIState);
         this.handlers = modalHandlers;
-        this.aiDecisionService = new AiDecisionService(world);
+        // AiDecisionServiceはステートレスなオブジェクトのためインスタンス化不要
     }
 
     update(deltaTime) {
@@ -80,7 +80,7 @@ export class ModalSystem extends System {
                 const modalData = handler.prepareData({ 
                     world: this.world, 
                     data: { entityId: request.entityId }, 
-                    services: { aiService: this.aiDecisionService } 
+                    services: { aiService: AiDecisionService } // オブジェクトを直接渡す
                 });
 
                 if (modalData) {

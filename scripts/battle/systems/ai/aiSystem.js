@@ -9,7 +9,7 @@ import { AiActionRequest } from '../../components/Requests.js';
 export class AiSystem extends System {
     constructor(world) {
         super(world);
-        this.decisionService = new AiDecisionService(world);
+        // Serviceはステートレスになったためインスタンス化不要
     }
 
     update(deltaTime) {
@@ -18,8 +18,8 @@ export class AiSystem extends System {
             // リクエストを削除 (二重処理防止)
             this.world.removeComponent(entityId, AiActionRequest);
             
-            // AI思考実行 (ActionService経由で ActionSelectedRequest を生成する)
-            this.decisionService.processAiTurn(entityId);
+            // AI思考実行 (純粋関数として呼び出し)
+            AiDecisionService.processAiTurn(this.world, entityId);
         }
     }
 }
