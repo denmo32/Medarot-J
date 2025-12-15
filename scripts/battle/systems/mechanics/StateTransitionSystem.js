@@ -14,11 +14,13 @@ import {
     SnapToActionLineRequest,
     TransitionToCooldownRequest,
 } from '../../components/CommandRequests.js';
-import { ActionRequeueRequest } from '../../components/Requests.js';
+import { 
+    ActionRequeueRequest,
+    PlayerBrokenEvent 
+} from '../../components/Requests.js';
 import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { TeamID } from '../../../common/constants.js';
 import { CONFIG } from '../../common/config.js';
-import { GameEvents } from '../../../common/events.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
 
@@ -141,11 +143,11 @@ export class StateTransitionSystem extends System {
             this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.BROKEN));
             this.world.addComponent(targetId, new Action());
 
-            // ログや他システムへの通知としてイベントは維持してもよいが、ロジック依存がある場合はコンポーネント化推奨
-            // 現状はログ用途が主と思われるため維持
+            // イベント発行を廃止し、ログ用イベントコンポーネントを生成
             const playerInfo = this.world.getComponent(targetId, PlayerInfo);
             if (playerInfo) {
-                this.world.emit(GameEvents.PLAYER_BROKEN, { entityId: targetId, teamId: playerInfo.teamId });
+                const evt = this.world.createEntity();
+                this.world.addComponent(evt, new PlayerBrokenEvent(targetId, playerInfo.teamId));
             }
             this.world.destroyEntity(entityId);
         }
@@ -214,8 +216,6 @@ export class StateTransitionSystem extends System {
             }
 
             this.world.addComponent(targetId, new Action());
-            // this.world.emit(GameEvents.COOLDOWN_TRANSITION_COMPLETED, { entityId: targetId }); // 必要性が薄いため削除
-
             this.world.destroyEntity(entityId);
         }
     }

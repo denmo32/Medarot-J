@@ -1,7 +1,7 @@
 /**
  * @file TaskSystem.js
  * @description VisualSequenceを持つエンティティのタスク進行を管理するシステム。
- * 現在のタスクコンポーネントが処理完了（削除）されたら、次のタスクコンポーネントを付与する。
+ * イベント発行タスク(EventTask)を、ECSのリクエスト生成処理に置換して処理する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { VisualSequence } from '../../components/index.js';
@@ -11,6 +11,10 @@ import {
 } from '../../components/Tasks.js';
 import { Visual } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
+import { 
+    RefreshUIRequest, 
+    CheckActionCancellationRequest 
+} from '../../components/Requests.js';
 
 export class TaskSystem extends System {
     constructor(world) {
@@ -55,7 +59,7 @@ export class TaskSystem extends System {
         }
 
         const ComponentClass = nextTaskDef.componentClass;
-        const args = nextTaskDef.args || []; // argsがundefinedの場合は空配列とする
+        const args = nextTaskDef.args || []; 
 
         try {
             // コンポーネント付与
@@ -79,11 +83,24 @@ export class TaskSystem extends System {
     }
 
     _processInstantTasks() {
-        // EventTask
+        // EventTask: イベント発行の代わりに適切なリクエストコンポーネントを生成
         const eventEntities = this.getEntities(EventTask);
         for (const entityId of eventEntities) {
             const task = this.world.getComponent(entityId, EventTask);
-            this.world.emit(task.eventName, task.detail);
+            
+            // イベント名に応じたリクエスト生成 (イベント駆動からの脱却)
+            if (task.eventName === GameEvents.REFRESH_UI) {
+                const req = this.world.createEntity();
+                this.world.addComponent(req, new RefreshUIRequest());
+            } else if (task.eventName === GameEvents.CHECK_ACTION_CANCELLATION) {
+                const req = this.world.createEntity();
+                this.world.addComponent(req, new CheckActionCancellationRequest());
+            } else {
+                // 互換性のために一応emitを残すが、原則使用しない
+                // console.warn(`TaskSystem: Emitting legacy event ${task.eventName}. Convert to Request Component.`);
+                this.world.emit(task.eventName, task.detail);
+            }
+            
             this.world.removeComponent(entityId, EventTask);
         }
 
@@ -95,12 +112,8 @@ export class TaskSystem extends System {
             this.world.removeComponent(entityId, CustomTask);
         }
 
-        // VfxTask
-        const vfxEntities = this.getEntities(VfxTask);
-        for (const entityId of vfxEntities) {
-            // VisualDirectorSystemに処理を委譲するため、ここでは削除しない
-            // VisualDirectorSystemがVfxTaskを検知して処理し、削除する
-        }
+        // VfxTask (VisualDirectorSystemが処理するためここでは削除しない)
+        // CameraTask (VisualDirectorSystemが処理するためここでは削除しない)
 
         // ApplyVisualEffectTask
         const visualEntities = this.getEntities(ApplyVisualEffectTask);

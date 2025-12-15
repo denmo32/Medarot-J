@@ -1,11 +1,10 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの管理システム。
- * キャンセルチェックなどのイベント駆動ロジックをコンポーネント監視に移行し、
- * シーケンス完了通知もイベントから状態遷移へ変更。
+ * イベント駆動を完全に廃止し、コンポーネントベースの状態管理と通知へ移行。
  */
 import { System } from '../../../../engine/core/System.js';
-import { GameEvents } from '../../../common/events.js'; // ログ用イベントのみ残す
+import { GameEvents } from '../../../common/events.js'; // 参照用に定数のみ使用
 import { BattlePhase, TargetTiming, PlayerStateType } from '../../common/constants.js';
 import { 
     PhaseState, TurnContext,
@@ -18,7 +17,10 @@ import {
     SetPlayerBrokenRequest, UpdateComponentRequest, CustomUpdateComponentRequest,
     TransitionToCooldownRequest
 } from '../../components/CommandRequests.js';
-import { CheckActionCancellationRequest } from '../../components/Requests.js';
+import { 
+    CheckActionCancellationRequest, 
+    ActionCancelledEvent 
+} from '../../components/Requests.js';
 import { Parts } from '../../../components/index.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
@@ -97,8 +99,15 @@ export class BattleSequenceSystem extends System {
 
             const check = CancellationService.checkCancellation(this.world, actorId);
             if (check.shouldCancel) {
-                // サービス内でログ出力などは行うが、状態変更はリクエスト経由で行う
+                // キャンセル実行: ログ用イベントコンポーネントを生成
+                const evt = this.world.createEntity();
+                this.world.addComponent(evt, new ActionCancelledEvent(actorId, check.reason));
+                
+                // メッセージ表示リクエスト発行（CancellationService内で行われる処理をSystemへ移動すべきだが、
+                // 今回はServiceが副作用としてModalRequestを出す形を許容するか、Serviceを純粋化するか。
+                // CancellationService.executeCancelはリクエストを出す実装になっているため呼び出す）
                 CancellationService.executeCancel(this.world, actorId, check.reason);
+
                 const req = this.world.createEntity();
                 this.world.addComponent(req, new ResetToCooldownRequest(
                     actorId,
@@ -216,8 +225,10 @@ export class BattleSequenceSystem extends System {
         const cancelCheck = CancellationService.checkCancellation(this.world, actorId);
         if (cancelCheck.shouldCancel) {
             const context = { isCancelled: true, cancelReason: cancelCheck.reason };
-            // ログ出力用イベントのみ発行
-            this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: cancelCheck.reason });
+            
+            // ログ用イベントコンポーネント生成
+            const evt = this.world.createEntity();
+            this.world.addComponent(evt, new ActionCancelledEvent(actorId, cancelCheck.reason));
             
             // キャンセル演出のリクエストへ
             this._requestVisuals(actorId, sequenceState, context);
@@ -231,9 +242,6 @@ export class BattleSequenceSystem extends System {
     }
 
     _requestVisuals(actorId, sequenceState, context) {
-        // イベント発行タスクがシーケンスに含まれている場合はVisualSequenceSystemが処理するが、
-        // 即時発行が必要なイベントがあればここで処理する（現状は特になし）
-        
         // コンテキスト保持
         sequenceState.contextData = context;
 
@@ -299,8 +307,6 @@ export class BattleSequenceSystem extends System {
     }
 
     _finalizeActorSequence(actorId) {
-        // イベント発行を廃止し、シーケンス完了は「コンポーネントの削除」で表現する。
-        // TurnSystemはこのコンポーネントが無くなることを監視して次のフェーズへ進む。
         this.world.removeComponent(actorId, BattleSequenceState);
         
         this.currentActorId = null;

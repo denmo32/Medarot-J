@@ -6,8 +6,12 @@
 import { System } from '../../../../engine/core/System.js';
 import { ActiveEffects, GameState } from '../../components/index.js';
 import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
-import { ModalRequest, TurnEndedSignal } from '../../components/Requests.js';
-import { GameEvents } from '../../../common/events.js'; // ログ出力用イベントは維持
+import { 
+    ModalRequest, 
+    TurnEndedSignal,
+    HpChangedEvent,
+    EffectExpiredEvent
+} from '../../components/Requests.js';
 import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { EffectRegistry } from '../../definitions/EffectRegistry.js';
 
@@ -54,16 +58,15 @@ export class EffectSystem extends System {
 
                 if (result) {
                     if (result.damage > 0) {
-                        // HP更新は重要な状態変化なので、イベントを発行してRenderSystem等に通知しても良いが
-                        // 本来的にはここでもUpdateComponentRequestを使うのがECS的。
-                        // ただしHP_UPDATEDイベントはログ用途も兼ねているため維持する。
-                        this.world.emit(GameEvents.HP_UPDATED, {
+                        // HP更新イベントコンポーネントを生成 (ログ/デバッグ用)
+                        const evt = this.world.createEntity();
+                        this.world.addComponent(evt, new HpChangedEvent(
                             entityId,
-                            partKey: effect.partKey,
-                            change: -result.damage,
-                            isHeal: false,
-                            ...result 
-                        });
+                            effect.partKey,
+                            -result.damage,
+                            false,
+                            result
+                        ));
                     }
                     if (result.message) {
                         const req = this.world.createEntity();
@@ -105,8 +108,10 @@ export class EffectSystem extends System {
 
             if (isExpired) {
                 effectsToRemove.push(effect);
-                // 期限切れ通知 (ログ用)
-                this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId, effect: updatedEffect });
+                
+                // 期限切れイベントコンポーネントを生成 (ログ用)
+                const evt = this.world.createEntity();
+                this.world.addComponent(evt, new EffectExpiredEvent(entityId, updatedEffect));
                 
                 const gameState = this.world.getComponent(entityId, GameState);
                 if (updatedEffect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {

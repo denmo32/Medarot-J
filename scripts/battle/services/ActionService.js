@@ -1,7 +1,7 @@
 /**
- * @file 行動決定サービス
- * @description アクションの妥当性を検証し、リクエストコンポーネントを生成する。
- * 副作用（イベント発行）を廃止し、Worldへのコンポーネント追加のみを行う。
+ * @file ActionService.js
+ * @description アクションの妥当性を検証し、リクエストコンポーネントを生成する静的サービス。
+ * Worldへのコンポーネント追加のみを行い、副作用を持たない設計。
  */
 import { Parts as CommonParts } from '../../components/index.js';
 import { TargetingService } from './TargetingService.js';
@@ -34,8 +34,7 @@ export class ActionService {
             !TargetingService.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
             
             console.error(`ActionService: A valid target was expected but not found. Action may fail.`, {entityId, partKey, target});
-            // 致命的なエラーでない限り続行させるか、リキューするかはゲームデザインによる。
-            // ここでは続行させてSystem側でキャンセル判定させるフローとする。
+            // 続行させてSystem側でキャンセル判定させるフローとする
         }
 
         // ActionSelectedRequest コンポーネントを持つエンティティを作成

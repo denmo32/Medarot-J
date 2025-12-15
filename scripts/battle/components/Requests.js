@@ -170,3 +170,60 @@ export class BattleStartCancelledTag { constructor() {} }
 
 /** リセットボタン押下通知タグ */
 export class ResetButtonResult { constructor() {} }
+
+// --- イベント代替用データコンポーネント (Events as Data) ---
+
+/**
+ * HPが更新されたことを表すイベントデータ
+ * ログ出力やデバッグ表示に使用される
+ */
+export class HpChangedEvent {
+    constructor(entityId, partKey, change, isHeal, resultData) {
+        this.entityId = entityId;
+        this.partKey = partKey;
+        this.change = change;
+        this.isHeal = isHeal;
+        this.resultData = resultData;
+    }
+}
+
+/**
+ * 効果が期限切れになったことを表すイベントデータ
+ */
+export class EffectExpiredEvent {
+    constructor(entityId, effect) {
+        this.entityId = entityId;
+        this.effect = effect;
+    }
+}
+
+/**
+ * アクションがキャンセルされたことを表すイベントデータ
+ */
+export class ActionCancelledEvent {
+    constructor(entityId, reason) {
+        this.entityId = entityId;
+        this.reason = reason;
+    }
+}
+
+/**
+ * プレイヤーが機能停止したことを表すイベントデータ
+ */
+export class PlayerBrokenEvent {
+    constructor(entityId, teamId) {
+        this.entityId = entityId;
+        this.teamId = teamId;
+    }
+}
+
+/**
+ * AIが戦略を実行したことを表すイベントデータ (デバッグ用)
+ */
+export class StrategyExecutedEvent {
+    constructor(strategy, attackerId, target) {
+        this.strategy = strategy;
+        this.attackerId = attackerId;
+        this.target = target;
+    }
+}
