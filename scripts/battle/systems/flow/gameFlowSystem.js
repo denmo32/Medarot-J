@@ -1,11 +1,11 @@
 /**
  * @file GameFlowSystem.js
  * @description ゲーム全体の進行フロー（開始、終了、初期化など）を管理するシステム。
- * イベント発行を廃止し、状態監視とリクエストコンポーネントへ移行。
+ * シーン遷移イベントをSceneChangeRequestコンポーネントの生成へ変更。
  */
 import { System } from '../../../../engine/core/System.js';
 import { PhaseState } from '../../components/PhaseState.js';
-import { GameState, Gauge, Action, ActionSelectionPending, PauseState, BattleResult } from '../../components/index.js';
+import { GameState, Gauge, Action, ActionSelectionPending, BattleResult } from '../../components/index.js';
 import { UpdateComponentRequest, TransitionStateRequest } from '../../components/CommandRequests.js';
 import { 
     ModalRequest, 
@@ -13,9 +13,8 @@ import {
     BattleStartAnimationCompleted,
     ResetButtonResult
 } from '../../components/Requests.js';
-import { GameEvents } from '../../../common/events.js'; // シーン遷移イベントなどは残す
+import { SceneChangeRequest } from '../../../components/SceneRequests.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
-import { Timer } from '../../../../engine/stdlib/components/Timer.js';
 
 export class GameFlowSystem extends System {
     constructor(world) {
@@ -27,8 +26,6 @@ export class GameFlowSystem extends System {
 
     update(deltaTime) {
         // フェーズ遷移検知
-        // 注意: _onPhaseEnter内で this.phaseState.phase が変更される可能性があるため、
-        // 処理開始時点のフェーズをキャプチャして判定・更新を行う。
         const currentPhase = this.phaseState.phase;
         if (currentPhase !== this.lastPhase) {
             this._onPhaseEnter(currentPhase);
@@ -39,11 +36,13 @@ export class GameFlowSystem extends System {
         const resetRequests = this.getEntities(ResetButtonResult);
         for (const id of resetRequests) {
             this.world.destroyEntity(id);
-            // シーン遷移イベント発行 (SceneManagerへの指示は例外的にイベントを使用)
-            this.world.emit(GameEvents.SCENE_CHANGE_REQUESTED, {
-                sceneName: 'map',
-                data: {}
-            });
+            
+            // シーン遷移リクエスト生成
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new SceneChangeRequest('map', {
+                // 必要に応じて結果データを渡す
+                battleResult: this._getBattleResult() 
+            }));
         }
 
         // アニメーション完了監視
@@ -56,10 +55,17 @@ export class GameFlowSystem extends System {
         }
     }
 
+    _getBattleResult() {
+        const results = this.getEntities(BattleResult);
+        if (results.length > 0) {
+            return this.world.getComponent(results[0], BattleResult);
+        }
+        return null;
+    }
+
     _onPhaseEnter(phase) {
         switch (phase) {
             case BattlePhase.IDLE:
-                // IDLEになったら即座に初期選択へ（シーンロード直後の流れ）
                 this.phaseState.phase = BattlePhase.INITIAL_SELECTION;
                 break;
 
@@ -77,7 +83,6 @@ export class GameFlowSystem extends System {
         }
     }
 
-    // --- INITIAL_SELECTION Logic ---
     _initializePlayersForBattle() {
         const players = this.getEntities(GameState, Gauge);
         
@@ -103,7 +108,6 @@ export class GameFlowSystem extends System {
         });
     }
 
-    // --- BATTLE_START Logic ---
     _onBattleAnimationCompleted() {
         const players = this.getEntities(GameState);
         players.forEach(id => {
@@ -114,16 +118,13 @@ export class GameFlowSystem extends System {
         this.phaseState.phase = BattlePhase.TURN_START;
     }
 
-    // --- GAME_OVER Logic ---
     _handleGameOverEnter() {
-        // 結果を取得
         const results = this.getEntities(BattleResult);
         let winningTeam = null;
         if (results.length > 0) {
             winningTeam = this.world.getComponent(results[0], BattleResult).winningTeam;
         }
 
-        // モーダル表示リクエストを発行
         const req = this.world.createEntity();
         this.world.addComponent(req, new ModalRequest(
             ModalType.GAME_OVER,

@@ -1,19 +1,15 @@
 /**
  * @file ECS (Entity-Component-System) の中核クラス
- * @description エンティティ、コンポーネント、システムの管理とオーケストレーションを行います。
- * 最適化版: コンポーネントIDの事前割り当てと高速クエリシステムを実装
+ * @description エンティティ、コンポーネント、システムの管理を行います。
+ * イベントバス(EventManager)を削除し、純粋なデータ駆動アーキテクチャを強制します。
  */
 import { Query } from './Query.js';
-import { EventManager } from '../event/EventManager.js';
 
 export class World {
     constructor() {
         // key: entityId, value: Set<ComponentClass>
         this.entities = new Map();
         this.nextEntityId = 0;
-        
-        // key: ComponentClass, value: Map<entityId, componentInstance>
-        // this.components = new Map(); // このプロパティは使用されていないため削除
         
         // key: componentId (number), value: ComponentClass
         this.componentClasses = new Map();
@@ -25,7 +21,7 @@ export class World {
         // key: componentIdSignature (string), value: Query
         this.queries = new Map();
         
-        // --- Component ID Management (Minification Safety) ---
+        // --- Component ID Management ---
         // key: ComponentClass, value: number (unique ID)
         this.componentIdMap = new Map();
         this.nextComponentId = 0;
@@ -33,9 +29,6 @@ export class World {
         // --- 高速アクセス用マッピング ---
         // key: componentId, value: { entities: Set<number>, components: Map<number, any> }
         this.componentRegistry = new Map();
-        
-        // --- Event Manager ---
-        this.eventManager = new EventManager();
     }
     
     // === Component ID Management ===
@@ -58,15 +51,6 @@ export class World {
         return this.componentIdMap.get(componentClass);
     }
     
-    /**
-     * コンポーネントIDからクラスを取得
-     * @param {number} componentId
-     * @returns {Function|null}
-     */
-    _getComponentClassById(componentId) {
-        return this.componentClasses.get(componentId) || null;
-    }
-    
     // === Entity and Component Methods ===
     createEntity() {
         const entityId = this.nextEntityId++;
@@ -84,7 +68,6 @@ export class World {
             return;
         }
         
-        const isNew = !entityComponents.has(componentClass);
         entityComponents.add(componentClass);
         
         // コンポーネントレジストリへの登録
@@ -125,10 +108,9 @@ export class World {
     }
     
     /**
-     * 指定されたクラスのコンポーネントを検索し、存在すればそのインスタンスを返します。
-     * 重要: この関数はコンポーネントを自動生成・登録しません。既存のコンポーネントのみを取得します。
-     * @param {Function} componentClass - 取得したいコンポーネントのクラス
-     * @returns {Object|null} コンポーネントのインスタンスまたはnull
+     * シングルトンコンポーネント（TagやManager等）の取得
+     * @param {Function} componentClass 
+     * @returns {Object|null}
      */
     getSingletonComponent(componentClass) {
         const componentId = this.componentIdMap.get(componentClass);
@@ -146,7 +128,6 @@ export class World {
     
     /**
      * コンポーネントの組み合わせを指定してエンティティを取得します。
-     * O(1) でキャッシュされたクエリを取得します。
      * @param  {...Function} componentClasses
      * @returns {number[]}
      */
@@ -180,21 +161,12 @@ export class World {
         }
     }
     
-    /**
-     * 特定のコンポーネントの変更をクエリに通知
-     * @param {number} entityId 
-     * @param {number} componentId 
-     * @param {boolean} isAdded 
-     */
     _updateQueriesForComponent(entityId, componentId, isAdded) {
-        // 署名にこのcomponentIdを含むクエリのみを更新
-        for (const [signature, query] of this.queries) {
-            if (signature.includes(`|${componentId}|`) || 
-                signature.startsWith(`${componentId}|`) || 
-                signature.endsWith(`|${componentId}`) ||
-                signature === `${componentId}`) {
+        // 単純な部分一致検索ではなく、IDが含まれるか厳密にチェック（Queryクラス側で詳細判定）
+        for (const [, query] of this.queries) {
+             if (query.componentIds.has(componentId)) {
                 query.onEntityComponentUpdated(entityId, componentId, isAdded);
-            }
+             }
         }
     }
     
@@ -213,43 +185,20 @@ export class World {
         }
     }
     
-    on(eventName, callback) {
-        this.eventManager.on(eventName, callback);
-    }
-    
-    emit(eventName, detail) {
-        this.eventManager.emit(eventName, detail);
-    }
-    
-    off(eventName, callback) {
-        this.eventManager.off(eventName, callback);
-    }
-    
-    waitFor(eventName, predicate = null, timeout = 0) {
-        return this.eventManager.waitFor(eventName, predicate, timeout);
-    }
-    
     reset() {
         for (const system of this.systems) {
             if (system.destroy) {
                 system.destroy();
             }
         }
-        this.eventManager.clear();
         this.systems = [];
         
-        // エンティティとコンポーネントのクリア
         this.entities.clear();
-        
-        // 高速アクセス用レジストリのクリア
         this.componentRegistry.clear();
         this.componentClasses.clear();
         this.componentIdMap.clear();
-        
-        // クエリのクリア
         this.queries.clear();
         
-        // IDカウンタのリセット
         this.nextEntityId = 0;
         this.nextComponentId = 0;
     }

@@ -1,6 +1,7 @@
 /**
  * @file マップモード用コンポーネント定義
- * このファイルは、マップ探索モードで使用されるエンティティのデータコンテナを定義します。
+ * (旧 scripts/map/components.js からリネーム)
+ * マップ探索モードで使用されるエンティティのデータコンテナを定義します。
  */
 
 /**
@@ -36,7 +37,6 @@ export class Renderable {
 
 /**
  * エンティティがプレイヤーによって操作可能であることを示すタグコンポーネント。
- * データは持ちません。
  */
 export class PlayerControllable {}
 
@@ -47,7 +47,7 @@ export class Collision {
     constructor(width, height, padding = 2) {
         this.width = width;
         this.height = height;
-        this.padding = padding; // 当たり判定を少し小さくするためのパディング
+        this.padding = padding;
     }
 }
 

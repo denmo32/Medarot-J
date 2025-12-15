@@ -1,12 +1,12 @@
 /**
  * @file MovementSystem.js
- * @description 移動ロジック
- * グリッド移動方式への復帰。TargetPositionへ向けて補間移動し、到達したらスナップする。
+ * @description マップ移動システム。
  */
 import { System } from '../../../engine/core/System.js';
-import * as MapComponents from '../components.js';
-import { CONFIG, PLAYER_STATES, MAP_EVENTS, TILE_TYPES } from '../constants.js';
+import * as MapComponents from '../MapComponents.js'; // パス修正
+import { CONFIG, PLAYER_STATES, TILE_TYPES } from '../constants.js';
 import { distance } from '../../../engine/utils/MathUtils.js';
+import { SceneChangeRequest } from '../../components/SceneRequests.js';
 
 export class MovementSystem extends System {
     constructor(world, map) {
@@ -53,7 +53,8 @@ export class MovementSystem extends System {
                 const currentTileType = this.map.getTileType(tileX, tileY);
 
                 if (currentTileType === TILE_TYPES.BATTLE_TRIGGER) {
-                    this.world.emit(MAP_EVENTS.BATTLE_TRIGGERED);
+                    const req = this.world.createEntity();
+                    this.world.addComponent(req, new SceneChangeRequest('battle'));
                 }
 
             } else {

@@ -1,8 +1,9 @@
 /**
  * @file BattleScene.js
+ * @description バトルシーンクラス。
+ * イベントバインディングを削除し、システムによる自律動作に任せます。
  */
 import { Scene } from '../../engine/scene/Scene.js';
-import { GameEvents } from '../common/events.js';
 import { initializeSystems } from '../battle/setup/SystemInitializer.js';
 import { createPlayers } from '../battle/setup/EntityFactory.js';
 import { TurnContext } from '../battle/components/TurnContext.js';
@@ -11,6 +12,7 @@ import { BattleHistoryContext } from '../battle/components/BattleHistoryContext.
 import { HookContext } from '../battle/components/HookContext.js';
 import { BattleUIState } from '../battle/components/BattleUIState.js';
 import { UIManager } from '../../engine/ui/UIManager.js';
+import { SceneChangeRequest } from '../components/SceneRequests.js';
 
 export class BattleScene extends Scene {
     constructor(world, sceneManager) {
@@ -25,10 +27,8 @@ export class BattleScene extends Scene {
         this._setupBattleContext();
         this._setupSystems(gameDataManager);
 
-        this._bindEvents(gameDataManager);
-
-        this.world.emit(GameEvents.SETUP_UI_REQUESTED);
-        this.world.emit(GameEvents.GAME_START_CONFIRMED);
+        // UI初期化は各Systemのコンストラクタやupdateで行われるため、イベント発行は不要
+        // 必要な初期化リクエストがあればここでコンポーネントを追加する
     }
 
     _setupSystems(gameDataManager) {
@@ -53,24 +53,18 @@ export class BattleScene extends Scene {
         this.world.addComponent(uiContextEntity, new UIManager());
     }
 
-    _bindEvents(gameDataManager) {
-        this.world.on(GameEvents.SCENE_CHANGE_REQUESTED, (detail) => {
-            if (detail.data && detail.data.result) {
-                gameDataManager.applyBattleResult(detail.data.result);
-            }
-            this.sceneManager.switchTo(detail.sceneName, detail.data);
-        });
-
-        this.world.on(GameEvents.RESET_BUTTON_CLICKED, () => {
-            this.world.emit(GameEvents.SCENE_CHANGE_REQUESTED, {
-                sceneName: 'map',
-                data: {}
-            });
-        });
-    }
-
     update(deltaTime) {
         super.update(deltaTime);
+        
+        // BattleResultの適用などの後処理があればここで行うこともできるが、
+        // 基本的にGameFlowSystemがSceneChangeRequestを発行し、
+        // SceneManagerがそれに従って遷移する流れとなる。
+        // ここで特別な処理は不要。
+        
+        // 結果適用ロジックは SceneManager の switchTo か、あるいは
+        // GameFlowSystem が GameDataManager を直接参照して行う形が自然。
+        // 今回は GameFlowSystem が SceneChangeRequest にデータを載せ、
+        // 次のシーン (MapScene) の init で gameDataManager.applyBattleResult を呼ぶ形も考えられる。
     }
 
     destroy() {

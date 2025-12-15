@@ -1,6 +1,7 @@
 /**
  * @file シーン基底クラス
  * @description すべてのシーンクラスの基底となる抽象クラス。
+ * イベント発行を廃止し、純粋な更新処理のみを行います。
  */
 export class Scene {
     /**
@@ -35,7 +36,8 @@ export class Scene {
      * シーン終了時に呼び出されます。
      */
     destroy() {
-        this.world.emit('SCENE_WILL_DESTROY'); // 汎用イベントは文字列リテラルで定義
+        // イベント発行を削除
+        // this.world.emit('SCENE_WILL_DESTROY'); 
         this.world.reset();
     }
 }

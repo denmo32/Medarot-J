@@ -1,14 +1,13 @@
 /**
  * @file PlayerInputSystem.js
- * @description プレイヤー入力のハンドリング
- * グリッド移動方式への復帰。移動中は入力を受け付けず、入力時に1タイル分の移動先を決定する。
+ * @description プレイヤー入力のハンドリング。
  */
 import { System } from '../../../engine/core/System.js';
-import * as MapComponents from '../components.js';
+import * as MapComponents from '../MapComponents.js'; // パス修正
 import { CONFIG, PLAYER_STATES } from '../constants.js';
 import { MapUIState } from '../../scenes/MapScene.js';
-import { GameEvents } from '../../common/events.js';
 import { InputManager } from '../../../engine/input/InputManager.js';
+import { InteractionRequest } from '../components/MapRequests.js';
 
 export class PlayerInputSystem extends System {
     constructor(world, map) {
@@ -40,7 +39,8 @@ export class PlayerInputSystem extends System {
             this._handleMovement(entityId);
 
             if (this.input.wasKeyJustPressed('z')) {
-                this.world.emit(GameEvents.INTERACTION_KEY_PRESSED, { entityId });
+                const req = this.world.createEntity();
+                this.world.addComponent(req, new InteractionRequest(entityId));
             }
         }
     }
@@ -48,7 +48,6 @@ export class PlayerInputSystem extends System {
     _handleMovement(entityId) {
         const state = this.world.getComponent(entityId, MapComponents.State);
         
-        // 移動中は入力を受け付けない（グリッド移動の基本）
         if (state.value !== PLAYER_STATES.IDLE) {
             return;
         }
@@ -69,10 +68,8 @@ export class PlayerInputSystem extends System {
         const position = this.world.getComponent(entityId, MapComponents.Position);
         const collision = this.world.getComponent(entityId, MapComponents.Collision);
 
-        // 移動先の座標（タイルの中央）を計算
         const targetPos = this._calculateTargetPosition(position, direction);
 
-        // 衝突判定用の矩形
         const bounds = { 
             x: targetPos.x, 
             y: targetPos.y, 
@@ -86,13 +83,11 @@ export class PlayerInputSystem extends System {
     }
 
     _calculateTargetPosition(position, direction) {
-        // 現在の中心座標からタイルインデックスを算出
         const centerX = position.x + CONFIG.PLAYER_SIZE / 2;
         const centerY = position.y + CONFIG.PLAYER_SIZE / 2;
         const currentTileX = Math.floor(centerX / CONFIG.TILE_SIZE);
         const currentTileY = Math.floor(centerY / CONFIG.TILE_SIZE);
         
-        // タイルの中央に配置するためのオフセット計算
         const offset = (CONFIG.TILE_SIZE - CONFIG.PLAYER_SIZE) / 2;
         const baseX = currentTileX * CONFIG.TILE_SIZE + offset;
         const baseY = currentTileY * CONFIG.TILE_SIZE + offset;
@@ -100,7 +95,6 @@ export class PlayerInputSystem extends System {
         let targetX = baseX;
         let targetY = baseY;
 
-        // 隣接タイルへの移動
         switch (direction) {
             case 'up':    targetY -= CONFIG.TILE_SIZE; break;
             case 'down':  targetY += CONFIG.TILE_SIZE; break;
@@ -124,7 +118,6 @@ export class PlayerInputSystem extends System {
         const state = this.world.getComponent(entityId, MapComponents.State);
         state.value = PLAYER_STATES.WALKING;
         
-        // TargetPositionコンポーネントを付与して移動システムに委譲
         const targetPosition = this.world.getComponent(entityId, MapComponents.TargetPosition);
         if (targetPosition) {
             targetPosition.x = targetPos.x;

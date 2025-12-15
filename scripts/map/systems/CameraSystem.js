@@ -1,5 +1,5 @@
 import { System } from '../../../engine/core/System.js';
-import * as MapComponents from '../components.js';
+import * as MapComponents from '../MapComponents.js'; // パス修正
 import { CONFIG } from '../constants.js';
 import { clamp } from '../../../engine/utils/MathUtils.js';
 

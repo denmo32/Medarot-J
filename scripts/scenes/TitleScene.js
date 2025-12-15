@@ -1,8 +1,10 @@
 /**
  * @file TitleScene.js
+ * @description タイトル画面シーン。
  */
 import { Scene } from '../../engine/scene/Scene.js';
 import { InputManager } from '../../engine/input/InputManager.js';
+import { SceneChangeRequest } from '../components/SceneRequests.js';
 
 export class TitleScene extends Scene {
     constructor(world, sceneManager) {
@@ -79,11 +81,12 @@ export class TitleScene extends Scene {
             this.gameDataManager.reset();
             console.log("Starting New Game...");
         } else {
-            // ロードはGameDataManagerのコンストラクタで自動的に行われる
             console.log("Loading Game from Save...");
         }
 
-        await this.sceneManager.switchTo('map');
+        // SceneChangeRequestを発行
+        const req = this.world.createEntity();
+        this.world.addComponent(req, new SceneChangeRequest('map'));
     }
 
     destroy() {

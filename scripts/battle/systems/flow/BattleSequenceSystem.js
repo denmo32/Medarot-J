@@ -1,11 +1,11 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの管理システム。
- * イベント駆動を完全に廃止し、コンポーネントベースの状態管理と通知へ移行。
+ * キャンセル処理などをデータ駆動（コンポーネント生成）で行うよう改修。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameEvents } from '../../../common/events.js'; // 参照用に定数のみ使用
-import { BattlePhase, TargetTiming, PlayerStateType } from '../../common/constants.js';
+import { BattlePhase, TargetTiming, PlayerStateType, ModalType } from '../../common/constants.js';
 import { 
     PhaseState, TurnContext,
     GameState, Action,
@@ -19,7 +19,8 @@ import {
 } from '../../components/CommandRequests.js';
 import { 
     CheckActionCancellationRequest, 
-    ActionCancelledEvent 
+    ActionCancelledEvent,
+    ModalRequest 
 } from '../../components/Requests.js';
 import { Parts } from '../../../components/index.js';
 import { CancellationService } from '../../services/CancellationService.js';
@@ -97,19 +98,31 @@ export class BattleSequenceSystem extends System {
             const gameState = this.world.getComponent(actorId, GameState);
             if (gameState.state !== PlayerStateType.SELECTED_CHARGING) continue;
 
+            // 純粋なロジックサービスによる判定
             const check = CancellationService.checkCancellation(this.world, actorId);
+            
             if (check.shouldCancel) {
-                // キャンセル実行: ログ用イベントコンポーネントを生成
+                // 1. ログ用イベントコンポーネント生成
                 const evt = this.world.createEntity();
                 this.world.addComponent(evt, new ActionCancelledEvent(actorId, check.reason));
                 
-                // メッセージ表示リクエスト発行（CancellationService内で行われる処理をSystemへ移動すべきだが、
-                // 今回はServiceが副作用としてModalRequestを出す形を許容するか、Serviceを純粋化するか。
-                // CancellationService.executeCancelはリクエストを出す実装になっているため呼び出す）
-                CancellationService.executeCancel(this.world, actorId, check.reason);
+                // 2. ユーザーへの通知 (メッセージ表示リクエスト)
+                const message = CancellationService.getCancelMessage(this.world, actorId, check.reason);
+                if (message) {
+                    const msgReq = this.world.createEntity();
+                    this.world.addComponent(msgReq, new ModalRequest(
+                        ModalType.MESSAGE,
+                        { message: message },
+                        {
+                            messageSequence: [{ text: message }],
+                            priority: 'high'
+                        }
+                    ));
+                }
 
-                const req = this.world.createEntity();
-                this.world.addComponent(req, new ResetToCooldownRequest(
+                // 3. 状態リセットリクエスト
+                const resetReq = this.world.createEntity();
+                this.world.addComponent(resetReq, new ResetToCooldownRequest(
                     actorId,
                     { interrupted: true }
                 ));

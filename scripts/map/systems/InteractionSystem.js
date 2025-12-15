@@ -1,11 +1,12 @@
 /**
- * @file マップシーン：インタラクションシステム
+ * @file InteractionSystem.js
+ * @description マップ上のインタラクション処理。
  */
 import { System } from '../../../engine/core/System.js';
-import * as MapComponents from '../components.js';
+import * as MapComponents from '../MapComponents.js'; // パス修正
 import { CONFIG } from '../constants.js';
 import { MapUIState } from '../../scenes/MapScene.js';
-import { GameEvents } from '../../common/events.js';
+import { InteractionRequest, ShowNpcDialogRequest } from '../components/MapRequests.js'; 
 
 const DIRECTION_OFFSETS = {
     'up': { x: 0, y: -1 },
@@ -18,11 +19,20 @@ export class InteractionSystem extends System {
     constructor(world, map) {
         super(world);
         this.map = map;
-        this.on(GameEvents.INTERACTION_KEY_PRESSED, this.onInteractionKeyPressed.bind(this));
     }
 
-    onInteractionKeyPressed(detail) {
-        const { entityId } = detail;
+    update(deltaTime) {
+        // InteractionRequest を監視
+        const requests = this.getEntities(InteractionRequest);
+        
+        for (const reqId of requests) {
+            const request = this.world.getComponent(reqId, InteractionRequest);
+            this._handleInteraction(request.entityId);
+            this.world.destroyEntity(reqId);
+        }
+    }
+
+    _handleInteraction(entityId) {
         const mapUIState = this.world.getSingletonComponent(MapUIState);
         
         if (mapUIState && mapUIState.isPausedByModal) {
@@ -45,7 +55,8 @@ export class InteractionSystem extends System {
         const targetNpc = this.map.npcs.find(npc => npc.x === targetX && npc.y === targetY);
 
         if (targetNpc) {
-            this.world.emit(GameEvents.NPC_INTERACTION_REQUESTED, targetNpc);
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new ShowNpcDialogRequest(targetNpc));
         }
     }
 }
