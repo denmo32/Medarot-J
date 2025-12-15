@@ -1,29 +1,49 @@
+/**
+ * @file EffectSystem.js
+ * @description エフェクト（バフ・デバフ）の持続時間管理と定期更新を行うシステム。
+ * イベントリスナーを廃止し、Signalコンポーネントのポーリングに移行。
+ */
 import { System } from '../../../../engine/core/System.js';
 import { ActiveEffects, GameState } from '../../components/index.js';
 import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
-import { ModalRequest } from '../../components/Requests.js';
-import { GameEvents } from '../../../common/events.js';
+import { ModalRequest, TurnEndedSignal } from '../../components/Requests.js';
+import { GameEvents } from '../../../common/events.js'; // ログ出力用イベントは維持
 import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { EffectRegistry } from '../../definitions/EffectRegistry.js';
 
 export class EffectSystem extends System {
     constructor(world) {
         super(world);
-        // TURN_ENDイベントはGameFlow/TurnSystemから発行されるが、
-        // システム間連携の明確化のため、TurnSystemが発行するイベントをリッスンする形は維持するか、
-        // TurnEndResultコンポーネントを監視する形にする。
-        // ここではTurnSystem側には手を入れていない（既存）ため、イベント監視を維持しつつ、
-        // 内部処理でイベント発行をリクエストコンポーネント生成に置換する。
-        this.on(GameEvents.TURN_END, this.onTurnEnd.bind(this));
     }
 
     update(deltaTime) {
+        // 1. ターン終了シグナルの監視
+        this._checkTurnEndSignal();
+
+        // 2. エフェクトの毎フレーム更新処理（DoTダメージなど）
+        this._updateContinuousEffects(deltaTime);
+    }
+
+    _checkTurnEndSignal() {
+        const signals = this.getEntities(TurnEndedSignal);
+        if (signals.length > 0) {
+            // ターン終了処理の実行
+            const allEntities = this.getEntities(ActiveEffects);
+            allEntities.forEach(id => this._processTurnEndForEntity(id));
+
+            // シグナルを消費（エンティティ削除）
+            for (const id of signals) {
+                this.world.destroyEntity(id);
+            }
+        }
+    }
+
+    _updateContinuousEffects(deltaTime) {
         const entities = this.getEntities(ActiveEffects);
         
         for (const entityId of entities) {
             const activeEffects = this.world.getComponent(entityId, ActiveEffects);
             
-            // 各エフェクト更新
             activeEffects.effects.forEach(effect => {
                 const result = EffectRegistry.update(effect.type, {
                     world: this.world,
@@ -34,6 +54,9 @@ export class EffectSystem extends System {
 
                 if (result) {
                     if (result.damage > 0) {
+                        // HP更新は重要な状態変化なので、イベントを発行してRenderSystem等に通知しても良いが
+                        // 本来的にはここでもUpdateComponentRequestを使うのがECS的。
+                        // ただしHP_UPDATEDイベントはログ用途も兼ねているため維持する。
                         this.world.emit(GameEvents.HP_UPDATED, {
                             entityId,
                             partKey: effect.partKey,
@@ -43,7 +66,6 @@ export class EffectSystem extends System {
                         });
                     }
                     if (result.message) {
-                        // モーダルリクエストコンポーネント生成
                         const req = this.world.createEntity();
                         this.world.addComponent(req, new ModalRequest(
                             'MESSAGE',
@@ -59,12 +81,7 @@ export class EffectSystem extends System {
         }
     }
 
-    onTurnEnd(detail) {
-        const allEntities = this.getEntities(ActiveEffects);
-        allEntities.forEach(id => this._updateEffectsForEntity(id));
-    }
-
-    _updateEffectsForEntity(entityId) {
+    _processTurnEndForEntity(entityId) {
         const activeEffects = this.world.getComponent(entityId, ActiveEffects);
         if (!activeEffects || activeEffects.effects.length === 0) {
             return;
@@ -77,6 +94,7 @@ export class EffectSystem extends System {
             let isExpired = false;
             const updatedEffect = { ...effect };
 
+            // 持続時間の減算
             if (updatedEffect.duration > 0) {
                 updatedEffect.duration--;
             }
@@ -87,7 +105,7 @@ export class EffectSystem extends System {
 
             if (isExpired) {
                 effectsToRemove.push(effect);
-                // 期限切れイベント通知
+                // 期限切れ通知 (ログ用)
                 this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId, effect: updatedEffect });
                 
                 const gameState = this.world.getComponent(entityId, GameState);
@@ -100,16 +118,19 @@ export class EffectSystem extends System {
             }
         }
         
+        // 状態更新リクエストの発行
         if (effectsToRemove.length > 0) {
             const req = this.world.createEntity();
             this.world.addComponent(req, new CustomUpdateComponentRequest(
                 entityId,
                 ActiveEffects,
                 (ae) => {
+                    // 現在の状態に対してフィルタリングを行う（並列更新への配慮）
                     ae.effects = ae.effects.filter(e => !effectsToRemove.includes(e));
                 }
             ));
         } else if (nextEffects.length !== activeEffects.effects.length) {
+            // 単純な置換で済む場合
             const req = this.world.createEntity();
             this.world.addComponent(req, new CustomUpdateComponentRequest(
                 entityId,

@@ -1,10 +1,11 @@
 /**
  * @file BattleSequenceSystem.js
  * @description アクション実行シーケンスの管理システム。
- * キャンセルチェックなどのイベント駆動ロジックをコンポーネント監視に移行。
+ * キャンセルチェックなどのイベント駆動ロジックをコンポーネント監視に移行し、
+ * シーケンス完了通知もイベントから状態遷移へ変更。
  */
 import { System } from '../../../../engine/core/System.js';
-import { GameEvents } from '../../../common/events.js'; // シーケンス完了通知等は残す
+import { GameEvents } from '../../../common/events.js'; // ログ用イベントのみ残す
 import { BattlePhase, TargetTiming, PlayerStateType } from '../../common/constants.js';
 import { 
     PhaseState, TurnContext,
@@ -39,23 +40,27 @@ export class BattleSequenceSystem extends System {
             return;
         }
         
-        // キャンセルチェックリクエストの処理
+        // 1. キャンセルチェックリクエストの処理 (前のシーケンス等から要求された場合)
         this._processCancellationRequests();
 
+        // 2. 実行フェーズの監視
         if (this.phaseState.phase !== BattlePhase.ACTION_EXECUTION) {
             this.currentActorId = null;
             return;
         }
 
-        // --- シーケンス進行管理 ---
+        // 3. シーケンス進行管理
         
         const pendingEntities = this.getEntities(SequencePending);
         const activeEntities = this.getEntities(BattleSequenceState);
 
+        // 何も処理するものがなく、シーケンスも動いていない場合
         if (pendingEntities.length === 0 && activeEntities.length === 0) {
+            // まだ実行待機状態のエンティティがいるか確認し、いればPendingタグを付与
             if (this._hasUnmarkedReadyEntities()) {
                 this.startExecutionPhase();
             } else {
+                // 全て完了 -> TurnSystemがこれを検知してフェーズ遷移させる
                 this.currentActorId = null;
                 this.turnContext.currentActorId = null;
                 return;
@@ -67,6 +72,7 @@ export class BattleSequenceSystem extends System {
             if (sequenceState) {
                 this._updateActorSequence(this.currentActorId, sequenceState);
             } else {
+                // シーケンス状態コンポーネントが外れている = 完了
                 this.currentActorId = null;
             }
         } 
@@ -91,6 +97,7 @@ export class BattleSequenceSystem extends System {
 
             const check = CancellationService.checkCancellation(this.world, actorId);
             if (check.shouldCancel) {
+                // サービス内でログ出力などは行うが、状態変更はリクエスト経由で行う
                 CancellationService.executeCancel(this.world, actorId, check.reason);
                 const req = this.world.createEntity();
                 this.world.addComponent(req, new ResetToCooldownRequest(
@@ -127,6 +134,7 @@ export class BattleSequenceSystem extends System {
         const nextActorId = this._getNextPendingEntity();
         if (nextActorId === null) return;
 
+        // Pendingタグを外し、SequenceStateを付与して開始
         this.world.removeComponent(nextActorId, SequencePending);
         this.world.addComponent(nextActorId, new BattleSequenceState());
 
@@ -138,6 +146,7 @@ export class BattleSequenceSystem extends System {
         const pendingEntities = this.getEntities(SequencePending);
         if (pendingEntities.length === 0) return null;
 
+        // 推進力順にソート（同時の場合の優先順位）
         pendingEntities.sort((a, b) => {
             const partsA = this.world.getComponent(a, Parts);
             const partsB = this.world.getComponent(b, Parts);
@@ -157,6 +166,7 @@ export class BattleSequenceSystem extends System {
                 break;
 
             case SequenceState.REQUEST_COMBAT:
+                // CombatSystem へリクエスト発行
                 this.world.addComponent(actorId, new CombatRequest(actorId));
                 sequenceState.currentState = SequenceState.WAITING_COMBAT;
                 break;
@@ -164,12 +174,14 @@ export class BattleSequenceSystem extends System {
             case SequenceState.WAITING_COMBAT:
                 const combatResult = this.world.getComponent(actorId, CombatResult);
                 if (combatResult) {
+                    // 結果を受け取り、リクエストを消費
                     this.world.removeComponent(actorId, CombatResult);
                     this._requestVisuals(actorId, sequenceState, combatResult.data);
                 }
                 break;
 
             case SequenceState.REQUEST_VISUALS:
+                // 処理待ち（現在は即座にWAITING_VISUALSへ遷移するためここは通過しない）
                 break;
 
             case SequenceState.WAITING_VISUALS:
@@ -181,6 +193,7 @@ export class BattleSequenceSystem extends System {
                 break;
 
             case SequenceState.EXECUTING_TASKS:
+                // TaskSystemがVisualSequenceコンポーネントを削除するのを待つ
                 if (!this.world.getComponent(actorId, VisualSequence)) {
                     sequenceState.currentState = SequenceState.COMPLETED;
                 }
@@ -199,30 +212,32 @@ export class BattleSequenceSystem extends System {
             PlayerStateType.AWAITING_ANIMATION
         ));
 
+        // キャンセルチェック
         const cancelCheck = CancellationService.checkCancellation(this.world, actorId);
         if (cancelCheck.shouldCancel) {
             const context = { isCancelled: true, cancelReason: cancelCheck.reason };
-            // キャンセルイベントの発行（ログ用）は残すが、処理はContextベースで行う
+            // ログ出力用イベントのみ発行
             this.world.emit(GameEvents.ACTION_CANCELLED, { entityId: actorId, reason: cancelCheck.reason });
+            
+            // キャンセル演出のリクエストへ
             this._requestVisuals(actorId, sequenceState, context);
             return;
         }
 
+        // 移動後ターゲットの解決（ここでActionコンポーネントを更新）
         this._resolvePostMoveTargetForWorld(this.world, actorId);
+        
         sequenceState.currentState = SequenceState.REQUEST_COMBAT;
     }
 
     _requestVisuals(actorId, sequenceState, context) {
-        // 副作用イベントの発行はここで行うか、VisualSequence内でタスクとして行うのが望ましいが、
-        // 現状の構造維持のためここで行う
-        if (context.eventsToEmit) {
-            context.eventsToEmit.forEach(event => {
-                this.world.emit(event.type, event.payload);
-            });
-        }
+        // イベント発行タスクがシーケンスに含まれている場合はVisualSequenceSystemが処理するが、
+        // 即時発行が必要なイベントがあればここで処理する（現状は特になし）
         
+        // コンテキスト保持
         sequenceState.contextData = context;
 
+        // VisualSequenceSystem へリクエスト発行
         this.world.addComponent(actorId, new VisualSequenceRequest(context));
         sequenceState.currentState = SequenceState.WAITING_VISUALS;
     }
@@ -231,6 +246,7 @@ export class BattleSequenceSystem extends System {
         const tasks = [...visualTasks];
         const resultData = sequenceState.contextData;
         
+        // 結果に含まれる状態更新指示をタスクとして挿入
         if (resultData && resultData.stateUpdates && resultData.stateUpdates.length > 0) {
             const commandTask = {
                 type: 'CUSTOM',
@@ -239,7 +255,7 @@ export class BattleSequenceSystem extends System {
                 }
             };
 
-            // REFRESH_UI イベントタスクの前に挿入して、UI更新前にデータを反映させる
+            // UIリフレッシュタスクの前に挿入して、見た目の反映前にデータを更新
             const refreshIndex = tasks.findIndex(v => v.type === 'EVENT' && v.eventName === GameEvents.REFRESH_UI);
             if (refreshIndex !== -1) {
                 tasks.splice(refreshIndex, 0, commandTask);
@@ -283,7 +299,8 @@ export class BattleSequenceSystem extends System {
     }
 
     _finalizeActorSequence(actorId) {
-        this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: actorId });
+        // イベント発行を廃止し、シーケンス完了は「コンポーネントの削除」で表現する。
+        // TurnSystemはこのコンポーネントが無くなることを監視して次のフェーズへ進む。
         this.world.removeComponent(actorId, BattleSequenceState);
         
         this.currentActorId = null;

@@ -1,14 +1,14 @@
 /**
  * @file TurnSystem.js
  * @description ターン更新の管理システム。
- * フェーズの終了条件を毎フレーム監視し、条件を満たした時に遷移を行う。
+ * イベント発行を廃止し、Signalコンポーネントの生成によるデータ指向の通知に移行。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameState, ActionSelectionPending, SequencePending, BattleSequenceState } from '../../components/index.js'; 
 import { TurnContext } from '../../components/TurnContext.js';
 import { PhaseState } from '../../components/PhaseState.js';
-import { GameEvents } from '../../../common/events.js';
 import { PlayerStateType, BattlePhase } from '../../common/constants.js';
+import { TurnEndedSignal, TurnStartedSignal } from '../../components/Requests.js';
 
 export class TurnSystem extends System {
     constructor(world) {
@@ -20,7 +20,7 @@ export class TurnSystem extends System {
     }
 
     update(deltaTime) {
-        // --- フェーズ遷移イベント検知 (Enter/Exit処理) ---
+        // --- フェーズ遷移検知 (Enter/Exit処理) ---
         if (this.phaseState.phase !== this.lastPhase) {
             this._onPhaseEnter(this.phaseState.phase);
             this.lastPhase = this.phaseState.phase;
@@ -49,14 +49,30 @@ export class TurnSystem extends System {
 
     _handleTurnEnd() {
         this.turnContext.number++;
-        // ログ表示等はイベントで残すが、システム連携用イベントは削除
-        this.world.emit(GameEvents.TURN_END, { turnNumber: this.turnContext.number - 1 });
-        this.world.emit(GameEvents.TURN_START, { turnNumber: this.turnContext.number });
+        
+        // イベント発行(emit)の代わりにシグナルコンポーネントを生成
+        // EffectSystemなどがこれを検知して処理を行う
+        const signalEntity = this.world.createEntity();
+        this.world.addComponent(signalEntity, new TurnEndedSignal(this.turnContext.number - 1));
+
+        // 次のフェーズへ（自動遷移）
+        // 1フレーム待つ必要がある場合はここでreturnするが、
+        // 処理順序(TurnSystem -> EffectSystem)が保証されていれば即時遷移でも可。
+        // ここではシグナルが処理される猶予を与えるため、次のupdateで遷移させるのが安全だが、
+        // 既存ロジックに合わせて即時遷移しつつ、シグナルは残す。
+        // EffectSystemはTurnEndedSignalを見つけ次第処理し、削除する責任を持つ必要はない（ComponentUpdateSystem等で掃除するか、自己破壊させる）。
+        // ここでは「シグナルは1フレーム生存」とみなす設計にするため、システム側で削除させる。
+        
+        // 即時遷移
         this.phaseState.phase = BattlePhase.TURN_START;
     }
 
     _handleTurnStart() {
-        // TURN_STARTでの処理（ログ表示など）が終わったら即座にACTION_SELECTIONへ
+        // ターン開始シグナル発行
+        const signalEntity = this.world.createEntity();
+        this.world.addComponent(signalEntity, new TurnStartedSignal(this.turnContext.number));
+
+        // 即座に行動選択フェーズへ
         this.phaseState.phase = BattlePhase.ACTION_SELECTION;
     }
 

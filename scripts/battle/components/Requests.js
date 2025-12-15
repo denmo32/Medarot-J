@@ -114,7 +114,7 @@ export class UIStateUpdateRequest {
     }
 }
 
-// --- 状態フラグ・タグ (イベント代替) ---
+// --- 状態フラグ・タグ (イベント代替シグナル) ---
 
 /** ゲージが満タンになったことを示すタグ */
 export class GaugeFullTag { constructor() {} }
@@ -145,8 +145,20 @@ export class RefreshUIRequest { constructor() {} }
 /** アクションキャンセルのチェック要求 */
 export class CheckActionCancellationRequest { constructor() {} }
 
-/** ターン終了通知 */
-export class TurnEndResult {
+/** 
+ * ターン終了シグナル
+ * TurnSystemが発行し、EffectSystemなどが消費する
+ */
+export class TurnEndedSignal {
+    constructor(turnNumber) {
+        this.turnNumber = turnNumber;
+    }
+}
+
+/** 
+ * ターン開始シグナル
+ */
+export class TurnStartedSignal {
     constructor(turnNumber) {
         this.turnNumber = turnNumber;
     }
