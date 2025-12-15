@@ -10,13 +10,8 @@ import {
 } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { 
-    ResetToCooldownRequest,
-    SetPlayerBrokenRequest,
-    TransitionStateRequest,
-    UpdateComponentRequest,
-    CustomUpdateComponentRequest,
-    TransitionToCooldownRequest
-} from '../../components/CommandRequests.js'; // 修正: ここでインポート
+    ResetToCooldownRequest // 型チェック用に残すが、基本は文字列定義を使用
+} from '../../components/CommandRequests.js';
 import { MessageService } from '../../services/MessageService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
@@ -85,12 +80,10 @@ export class VisualSequenceSystem extends System {
     }
 
     _insertStateUpdateTasks(sequence, stateUpdates) {
-        // 状態更新を実行するカスタムタスクを作成
+        // 状態更新を実行するデータ駆動タスクを作成
         const updateTask = {
-            type: 'CUSTOM',
-            executeFn: (world) => {
-                this._applyStateUpdates(world, stateUpdates);
-            }
+            type: 'STATE_CONTROL',
+            updates: stateUpdates // 単純なオブジェクト配列として渡す
         };
 
         // UIリフレッシュタスクの直前に挿入する（見た目の反映前に内部データを更新するため）
@@ -99,24 +92,6 @@ export class VisualSequenceSystem extends System {
             sequence.splice(refreshIndex, 0, updateTask);
         } else {
             sequence.push(updateTask);
-        }
-    }
-
-    _applyStateUpdates(world, updates) {
-        // StateUpdate を CommandRequests に変換して発行
-        // このメソッドは TaskSystem 内のコールバックとして実行される
-        
-        for (const update of updates) {
-            const reqEntity = world.createEntity();
-            // 型チェックは省略し、type文字列で判断
-            switch (update.type) {
-                case 'SetPlayerBroken': world.addComponent(reqEntity, new SetPlayerBrokenRequest(update.targetId)); break;
-                case 'ResetToCooldown': world.addComponent(reqEntity, new ResetToCooldownRequest(update.targetId, update.options)); break;
-                case 'TransitionState': world.addComponent(reqEntity, new TransitionStateRequest(update.targetId, update.newState)); break;
-                case 'UpdateComponent': world.addComponent(reqEntity, new UpdateComponentRequest(update.targetId, update.componentType, update.updates)); break;
-                case 'CustomUpdateComponent': world.addComponent(reqEntity, new CustomUpdateComponentRequest(update.targetId, update.componentType, update.customHandler)); break;
-                case 'TransitionToCooldown': world.addComponent(reqEntity, new TransitionToCooldownRequest(update.targetId)); break;
-            }
         }
     }
 
@@ -135,12 +110,14 @@ export class VisualSequenceSystem extends System {
             });
         }
 
+        // データ駆動型タスク: リセット要求
         visualSequence.push({
-            type: 'CUSTOM',
-            executeFn: (world) => {
-                const req = world.createEntity();
-                world.addComponent(req, new ResetToCooldownRequest(actorId, { interrupted: true }));
-            }
+            type: 'STATE_CONTROL',
+            updates: [{
+                type: 'ResetToCooldown',
+                targetId: actorId,
+                options: { interrupted: true }
+            }]
         });
 
         return visualSequence;

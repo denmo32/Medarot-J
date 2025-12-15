@@ -8,7 +8,7 @@ import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
 import { VisualDirectorSystem } from '../systems/visual/VisualDirectorSystem.js';
 import { ActionPanelSystem } from '../systems/ui/ActionPanelSystem.js';
 import { GaugeSystem } from '../systems/mechanics/GaugeSystem.js';
-import { StateSystem } from '../systems/mechanics/StateSystem.js';
+// StateSystem は廃止 (StateTransitionSystemに統合)
 import { AiSystem } from '../systems/ai/AiSystem.js';
 import { GameFlowSystem } from '../systems/flow/GameFlowSystem.js';
 import { MovementSystem } from '../systems/mechanics/MovementSystem.js';
@@ -57,7 +57,7 @@ export function initializeSystems(world, gameDataManager) {
     
     // --- Mechanics Systems (計算・状態更新) ---
     const gaugeSystem = new GaugeSystem(world);
-    const stateSystem = new StateSystem(world);
+    // stateSystem は削除
     const movementSystem = new MovementSystem(world);
     const effectSystem = new EffectSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
@@ -75,7 +75,7 @@ export function initializeSystems(world, gameDataManager) {
     world.registerSystem(uiInputSystem);
 
     // 2. 基本状態の更新 (汎用的なコンポーネント更新)
-    world.registerSystem(stateTransitionSystem);
+    world.registerSystem(stateTransitionSystem); // ゲージ満タン処理などもここで一括管理
     world.registerSystem(componentUpdateSystem);
 
     // 3. ゲームフロー制御 (フェーズ遷移、ターン管理)
@@ -105,7 +105,6 @@ export function initializeSystems(world, gameDataManager) {
 
     // 8. メカニクス更新 (時間経過、移動、エフェクト)
     world.registerSystem(timerSystem);
-    world.registerSystem(stateSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(movementSystem);
     world.registerSystem(effectSystem);

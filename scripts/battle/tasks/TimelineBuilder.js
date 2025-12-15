@@ -11,7 +11,8 @@ import {
     UiAnimationTask, 
     VfxTask, 
     CameraTask,
-    ApplyVisualEffectTask
+    ApplyVisualEffectTask,
+    StateControlTask
 } from '../components/Tasks.js';
 
 export class TimelineBuilder {
@@ -64,6 +65,12 @@ export class TimelineBuilder {
                     tasks.push({ 
                         componentClass: EventTask, 
                         args: [visual.eventName, visual.detail] 
+                    });
+                    break;
+                case 'STATE_CONTROL':
+                    tasks.push({
+                        componentClass: StateControlTask,
+                        args: [visual.updates]
                     });
                     break;
                 case 'CUSTOM':

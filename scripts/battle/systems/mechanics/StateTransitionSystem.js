@@ -1,7 +1,7 @@
 /**
  * @file StateTransitionSystem.js
  * @description 状態遷移リクエストを処理するシステム。
- * イベント発行をコンポーネント生成へ置換。
+ * イベント発行をコンポーネント生成へ置換。GaugeSystemからのタグも直接処理する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { GameState, Gauge, Action, ActiveEffects, Position } from '../../components/index.js';
@@ -9,14 +9,15 @@ import { Parts, PlayerInfo } from '../../../components/index.js';
 import {
     TransitionStateRequest,
     ResetToCooldownRequest,
-    HandleGaugeFullRequest,
+    HandleGaugeFullRequest, // 互換性のために残すが、基本はTag経由
     SetPlayerBrokenRequest,
     SnapToActionLineRequest,
     TransitionToCooldownRequest,
 } from '../../components/CommandRequests.js';
 import { 
     ActionRequeueRequest,
-    PlayerBrokenEvent 
+    PlayerBrokenEvent,
+    GaugeFullTag
 } from '../../components/Requests.js';
 import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { TeamID } from '../../../common/constants.js';
@@ -35,12 +36,60 @@ export class StateTransitionSystem extends System {
     }
 
     update(deltaTime) {
+        // Tag処理
+        this._processGaugeFullTags();
+
+        // Request処理
         this._processTransitionStateRequests();
         this._processResetToCooldownRequests();
-        this._processHandleGaugeFullRequests();
+        this._processHandleGaugeFullRequests(); // レガシーサポートまたは外部強制用
         this._processSetPlayerBrokenRequests();
         this._processSnapToActionLineRequests();
         this._processTransitionToCooldownRequests();
+    }
+
+    // --- Core Logic Implementations ---
+
+    /**
+     * ゲージ満タン時のロジック
+     * GaugeFullTag または HandleGaugeFullRequest から呼ばれる
+     */
+    _handleGaugeFull(targetId) {
+        const gameState = this.world.getComponent(targetId, GameState);
+        if (!gameState) return;
+
+        if (gameState.state === PlayerStateType.CHARGING) {
+            // クールダウン完了 -> 行動選択準備完了
+            this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.READY_SELECT));
+            
+            // ActionSelectionSystem が検知するためのリクエスト
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new ActionRequeueRequest(targetId));
+
+        } else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
+            // チャージ完了 -> 行動実行準備完了
+            this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.READY_EXECUTE));
+        }
+    }
+
+    // --- Processors ---
+
+    _processGaugeFullTags() {
+        const entities = this.getEntities(GaugeFullTag);
+        for (const entityId of entities) {
+            // タグが付いているエンティティ自体が対象
+            this._handleGaugeFull(entityId);
+            this.world.removeComponent(entityId, GaugeFullTag);
+        }
+    }
+
+    _processHandleGaugeFullRequests() {
+        const entities = this.getEntities(HandleGaugeFullRequest);
+        for (const entityId of entities) {
+            const request = this.world.getComponent(entityId, HandleGaugeFullRequest);
+            this._handleGaugeFull(request.targetId);
+            this.world.destroyEntity(entityId);
+        }
     }
 
     _processTransitionStateRequests() {
@@ -108,31 +157,6 @@ export class StateTransitionSystem extends System {
             this.world.destroyEntity(entityId);
         }
     }
-    
-    _processHandleGaugeFullRequests() {
-        const entities = this.getEntities(HandleGaugeFullRequest);
-        for (const entityId of entities) {
-            const request = this.world.getComponent(entityId, HandleGaugeFullRequest);
-            const { targetId } = request;
-            const gameState = this.world.getComponent(targetId, GameState);
-            if (gameState) {
-                if (gameState.state === PlayerStateType.CHARGING) {
-                    // クールダウン完了 -> 行動選択準備完了
-                    this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.READY_SELECT));
-                    
-                    // イベント発行を廃止し、リクエストコンポーネントを生成
-                    // ActionSelectionSystem がこれを検知して ActionSelectionPending を付与する
-                    const req = this.world.createEntity();
-                    this.world.addComponent(req, new ActionRequeueRequest(targetId));
-
-                } else if (gameState.state === PlayerStateType.SELECTED_CHARGING) {
-                    // チャージ完了 -> 行動実行準備完了
-                    this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.READY_EXECUTE));
-                }
-            }
-            this.world.destroyEntity(entityId);
-        }
-    }
 
     _processSetPlayerBrokenRequests() {
         const entities = this.getEntities(SetPlayerBrokenRequest);
@@ -143,7 +167,7 @@ export class StateTransitionSystem extends System {
             this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.BROKEN));
             this.world.addComponent(targetId, new Action());
 
-            // イベント発行を廃止し、ログ用イベントコンポーネントを生成
+            // ログ用イベントコンポーネントを生成
             const playerInfo = this.world.getComponent(targetId, PlayerInfo);
             if (playerInfo) {
                 const evt = this.world.createEntity();

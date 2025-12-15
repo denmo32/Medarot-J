@@ -106,7 +106,22 @@ export class ApplyVisualEffectTask {
 }
 
 /**
+ * 状態制御タスク
+ * 演出の途中で内部データ（HPやステータス）を更新するために使用する
+ * 純粋なデータとして更新内容を保持する
+ */
+export class StateControlTask {
+    /**
+     * @param {Array<object>} updates - 更新内容の定義配列 (type, targetId, ...args)
+     */
+    constructor(updates) {
+        this.updates = updates;
+    }
+}
+
+/**
  * カスタム関数実行タスク (瞬時完了)
+ * ※可能な限りStateControlTask等のデータ駆動タスクを使用し、これは最終手段とする
  */
 export class CustomTask {
     constructor(executeFn) {

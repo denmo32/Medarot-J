@@ -10,10 +10,19 @@ import {
 } from '../../components/index.js';
 import { 
     WaitTask, MoveTask, AnimateTask, EventTask, CustomTask,
-    DialogTask, VfxTask, CameraTask, UiAnimationTask, ApplyVisualEffectTask
+    DialogTask, VfxTask, CameraTask, UiAnimationTask, ApplyVisualEffectTask,
+    StateControlTask
 } from '../../components/Tasks.js';
 import { GameEvents } from '../../../common/events.js';
 import { RefreshUIRequest, CheckActionCancellationRequest } from '../../components/Requests.js';
+import {
+    SetPlayerBrokenRequest,
+    ResetToCooldownRequest,
+    TransitionStateRequest,
+    UpdateComponentRequest,
+    CustomUpdateComponentRequest,
+    TransitionToCooldownRequest
+} from '../../components/CommandRequests.js';
 
 export class TaskSystem extends System {
     constructor(world) {
@@ -21,7 +30,8 @@ export class TaskSystem extends System {
         // 管理対象のタスクコンポーネント一覧
         this.taskComponents = [
             WaitTask, MoveTask, AnimateTask, EventTask, CustomTask,
-            DialogTask, VfxTask, CameraTask, UiAnimationTask, ApplyVisualEffectTask
+            DialogTask, VfxTask, CameraTask, UiAnimationTask, ApplyVisualEffectTask,
+            StateControlTask
         ];
     }
 
@@ -106,7 +116,15 @@ export class TaskSystem extends System {
             this.world.removeComponent(entityId, EventTask);
         }
 
-        // CustomTask
+        // StateControlTask: コマンドリクエストへの変換 (データ駆動)
+        const stateControlEntities = this.getEntities(StateControlTask);
+        for (const entityId of stateControlEntities) {
+            const task = this.world.getComponent(entityId, StateControlTask);
+            this._applyStateUpdates(task.updates);
+            this.world.removeComponent(entityId, StateControlTask);
+        }
+
+        // CustomTask: クロージャ実行 (非推奨だが互換維持)
         const customEntities = this.getEntities(CustomTask);
         for (const entityId of customEntities) {
             const task = this.world.getComponent(entityId, CustomTask);
@@ -114,8 +132,7 @@ export class TaskSystem extends System {
             this.world.removeComponent(entityId, CustomTask);
         }
 
-        // VfxTask (VisualDirectorSystemが処理するためここでは削除しない)
-        // CameraTask (VisualDirectorSystemが処理するためここでは削除しない)
+        // VfxTask, CameraTask (VisualDirectorSystemが処理するためここでは削除しない)
 
         // ApplyVisualEffectTask
         const visualEntities = this.getEntities(ApplyVisualEffectTask);
@@ -127,6 +144,33 @@ export class TaskSystem extends System {
                 visual.classes.add(task.className);
             }
             this.world.removeComponent(entityId, ApplyVisualEffectTask);
+        }
+    }
+
+    _applyStateUpdates(updates) {
+        if (!updates) return;
+        for (const update of updates) {
+            const reqEntity = this.world.createEntity();
+            switch (update.type) {
+                case 'SetPlayerBroken': 
+                    this.world.addComponent(reqEntity, new SetPlayerBrokenRequest(update.targetId)); 
+                    break;
+                case 'ResetToCooldown': 
+                    this.world.addComponent(reqEntity, new ResetToCooldownRequest(update.targetId, update.options)); 
+                    break;
+                case 'TransitionState': 
+                    this.world.addComponent(reqEntity, new TransitionStateRequest(update.targetId, update.newState)); 
+                    break;
+                case 'UpdateComponent': 
+                    this.world.addComponent(reqEntity, new UpdateComponentRequest(update.targetId, update.componentType, update.updates)); 
+                    break;
+                case 'CustomUpdateComponent': 
+                    this.world.addComponent(reqEntity, new CustomUpdateComponentRequest(update.targetId, update.componentType, update.customHandler)); 
+                    break;
+                case 'TransitionToCooldown': 
+                    this.world.addComponent(reqEntity, new TransitionToCooldownRequest(update.targetId)); 
+                    break;
+            }
         }
     }
 }
