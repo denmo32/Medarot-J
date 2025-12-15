@@ -9,12 +9,10 @@ import {
     VisualSequence, Visual 
 } from '../../components/index.js';
 import { 
-    WaitTask, MoveTask, AnimateTask, EventTask, CustomTask,
+    WaitTask, MoveTask, AnimateTask, CreateEntityTask, CustomTask,
     DialogTask, VfxTask, CameraTask, UiAnimationTask, ApplyVisualEffectTask,
     StateControlTask
 } from '../../components/Tasks.js';
-import { GameEvents } from '../../../common/events.js';
-import { RefreshUIRequest, CheckActionCancellationRequest } from '../../components/Requests.js';
 import {
     SetPlayerBrokenRequest,
     ResetToCooldownRequest,
@@ -29,7 +27,7 @@ export class TaskSystem extends System {
         super(world);
         // 管理対象のタスクコンポーネント一覧
         this.taskComponents = [
-            WaitTask, MoveTask, AnimateTask, EventTask, CustomTask,
+            WaitTask, MoveTask, AnimateTask, CreateEntityTask, CustomTask,
             DialogTask, VfxTask, CameraTask, UiAnimationTask, ApplyVisualEffectTask,
             StateControlTask
         ];
@@ -59,10 +57,7 @@ export class TaskSystem extends System {
         const sequence = this.world.getComponent(entityId, VisualSequence);
         if (!sequence || !sequence.tasks || sequence.tasks.length === 0) {
             // タスクが空になった = シーケンス完了
-            // VisualSequence コンポーネントを削除
             this.world.removeComponent(entityId, VisualSequence);
-            
-            // パイプライン状態を FINISHED に更新 (BattleSequenceSystemが回収する)
             state.currentState = SequenceState.FINISHED;
             return;
         }
@@ -99,21 +94,24 @@ export class TaskSystem extends System {
     }
 
     _processInstantTasks() {
-        // EventTask: 適切なリクエストコンポーネントへの変換
-        const eventEntities = this.getEntities(EventTask);
-        for (const entityId of eventEntities) {
-            const task = this.world.getComponent(entityId, EventTask);
+        // CreateEntityTask: 汎用的なエンティティ生成 (リクエスト発行など)
+        const createEntities = this.getEntities(CreateEntityTask);
+        for (const entityId of createEntities) {
+            const task = this.world.getComponent(entityId, CreateEntityTask);
             
-            if (task.eventName === GameEvents.REFRESH_UI) {
-                this.world.addComponent(this.world.createEntity(), new RefreshUIRequest());
-            } else if (task.eventName === GameEvents.CHECK_ACTION_CANCELLATION) {
-                this.world.addComponent(this.world.createEntity(), new CheckActionCancellationRequest());
-            } else {
-                // 互換性
-                this.world.emit(task.eventName, task.detail);
+            if (task.componentsDef && Array.isArray(task.componentsDef)) {
+                const newEntityId = this.world.createEntity();
+                for (const def of task.componentsDef) {
+                    const CompClass = def.componentClass;
+                    const args = def.args || [];
+                    try {
+                        this.world.addComponent(newEntityId, new CompClass(...args));
+                    } catch (e) {
+                        console.error(`TaskSystem: Failed to attach component ${CompClass.name}`, e);
+                    }
+                }
             }
-            
-            this.world.removeComponent(entityId, EventTask);
+            this.world.removeComponent(entityId, CreateEntityTask);
         }
 
         // StateControlTask: コマンドリクエストへの変換 (データ駆動)
@@ -124,15 +122,13 @@ export class TaskSystem extends System {
             this.world.removeComponent(entityId, StateControlTask);
         }
 
-        // CustomTask: クロージャ実行 (非推奨だが互換維持)
+        // CustomTask: クロージャ実行
         const customEntities = this.getEntities(CustomTask);
         for (const entityId of customEntities) {
             const task = this.world.getComponent(entityId, CustomTask);
             if (task.executeFn) task.executeFn(this.world, entityId);
             this.world.removeComponent(entityId, CustomTask);
         }
-
-        // VfxTask, CameraTask (VisualDirectorSystemが処理するためここでは削除しない)
 
         // ApplyVisualEffectTask
         const visualEntities = this.getEntities(ApplyVisualEffectTask);
@@ -145,6 +141,8 @@ export class TaskSystem extends System {
             }
             this.world.removeComponent(entityId, ApplyVisualEffectTask);
         }
+        
+        // VfxTask, CameraTask (VisualDirectorSystemが処理するためここでは削除しない)
     }
 
     _applyStateUpdates(updates) {

@@ -1,11 +1,10 @@
 /**
  * @file TimelineBuilder.js
  * @description 演出指示データから、タスクコンポーネントの定義（ファクトリ関数やデータオブジェクト）の配列を構築する。
- * オブジェクトプールやクラスインスタンスの生成は行わず、純粋なデータ変換を行う。
  */
 import { 
     AnimateTask, 
-    EventTask, 
+    CreateEntityTask, 
     CustomTask,
     DialogTask, 
     UiAnimationTask, 
@@ -61,10 +60,11 @@ export class TimelineBuilder {
                         args: [visual.action, visual.params] 
                     });
                     break;
-                case 'EVENT':
+                // EVENT タイプを廃止し、CREATE_ENTITY に統合
+                case 'CREATE_ENTITY':
                     tasks.push({ 
-                        componentClass: EventTask, 
-                        args: [visual.eventName, visual.detail] 
+                        componentClass: CreateEntityTask, 
+                        args: [visual.componentsDef] 
                     });
                     break;
                 case 'STATE_CONTROL':

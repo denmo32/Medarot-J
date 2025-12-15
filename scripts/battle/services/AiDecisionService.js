@@ -1,15 +1,15 @@
 /**
  * @file AiDecisionService.js
  * @description AIの意思決定ロジックを提供するサービス。
- * イベント発行をActionService.createActionRequestへの委譲に変更。
+ * イベント発行を廃止し、ECSコンポーネントの生成へ変更。
  */
 import { determineTargetCandidatesByPersonality, selectBestActionPlan } from '../ai/aiDecisionUtils.js';
-import { GameEvents } from '../../common/events.js';
 import { ActionService } from './ActionService.js';
 import { QueryService } from './QueryService.js';
 import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
 import { TargetTiming } from '../common/constants.js';
-import { ActionRequeueRequest, SetPlayerBrokenRequest } from '../components/index.js'; // SetPlayerBrokenRequestはCommandRequestsかも
+import { ActionRequeueRequest } from '../components/index.js'; 
+import { StrategyExecutedEvent } from '../components/Requests.js';
 
 export class AiDecisionService {
     constructor(world) {
@@ -37,15 +37,9 @@ export class AiDecisionService {
         const actionPlans = this.generateActionPlans(entityId, targetCandidates);
         
         if (actionPlans.length === 0) {
-            // 有効なアクションがない場合（全パーツ破壊など） - CommandRequestを発行
-            // Note: SetPlayerBrokenRequestのインポート元に注意
-            const req = this.world.createEntity();
-            // 仮: SetPlayerBrokenRequestを動的にインポートするか、引数で渡す設計が望ましいが、
-            // ここでは単にActionServiceへ委譲できないため、イベントの代わりにコンポーネントを追加する
-            // 便宜上、ActionServiceが処理できない "Broken" 状態は別途処理が必要だが、
-            // ここではActionPlansが0になるケースは稀（機能停止判定は別途行われる）とする。
-            // 万が一の場合はターンをスキップするリクエストなどを出す。
+            // 有効なアクションがない場合
              console.warn(`AI ${entityId}: No valid action plans.`);
+             const req = this.world.createEntity();
              this.world.addComponent(req, new ActionRequeueRequest(entityId));
             return;
         }
@@ -122,13 +116,14 @@ export class AiDecisionService {
     }
 
     _executePlan(entityId, plan, strategyKey) {
-        // デバッグログ用イベントは維持（システムに影響しないため）
+        // デバッグログ用イベントコンポーネントを生成 (this.world.emitの代替)
         if (strategyKey && plan.target) {
-            this.world.emit(GameEvents.STRATEGY_EXECUTED, {
-                strategy: strategyKey,
-                attackerId: entityId,
-                target: plan.target,
-            });
+            const debugEntity = this.world.createEntity();
+            this.world.addComponent(debugEntity, new StrategyExecutedEvent(
+                strategyKey,
+                entityId,
+                plan.target
+            ));
         }
         ActionService.createActionRequest(this.world, entityId, plan.partKey, plan.target);
     }

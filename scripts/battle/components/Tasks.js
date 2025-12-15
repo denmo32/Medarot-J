@@ -37,17 +37,22 @@ export class AnimateTask {
     constructor(animationType, targetId) {
         this.animationType = animationType;
         this.targetId = targetId;
-        // durationなどはAnimationSystem側で管理、またはここに追加
+        // durationなどはAnimationSystem側で管理
     }
 }
 
 /**
- * 汎用イベント発行タスク (瞬時完了)
+ * 新規エンティティ生成タスク (瞬時完了)
+ * システムへのリクエスト発行(RefreshUIRequest等)に使用する。
+ * EventTaskを廃止し、ECSコンポーネントを直接扱う形式に統合。
  */
-export class EventTask {
-    constructor(eventName, detail) {
-        this.eventName = eventName;
-        this.detail = detail;
+export class CreateEntityTask {
+    /**
+     * @param {Array<{componentClass: Function, args: Array}>} componentsDef 
+     * 生成するエンティティに付与するコンポーネントの定義リスト
+     */
+    constructor(componentsDef) {
+        this.componentsDef = componentsDef;
     }
 }
 
@@ -108,7 +113,6 @@ export class ApplyVisualEffectTask {
 /**
  * 状態制御タスク
  * 演出の途中で内部データ（HPやステータス）を更新するために使用する
- * 純粋なデータとして更新内容を保持する
  */
 export class StateControlTask {
     /**
@@ -121,7 +125,7 @@ export class StateControlTask {
 
 /**
  * カスタム関数実行タスク (瞬時完了)
- * ※可能な限りStateControlTask等のデータ駆動タスクを使用し、これは最終手段とする
+ * ※可能な限りデータ駆動タスクを使用し、これは最終手段とする
  */
 export class CustomTask {
     constructor(executeFn) {
