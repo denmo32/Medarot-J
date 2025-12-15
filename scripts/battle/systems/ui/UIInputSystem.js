@@ -6,7 +6,7 @@
 import { System } from '../../../../engine/core/System.js';
 import { InputManager } from '../../../../engine/input/InputManager.js';
 import { BattleUIState } from '../../components/index.js';
-import { UIInputIntent } from '../../components/Requests.js';
+import { UIInputState } from '../../components/States.js';
 
 export class UIInputSystem extends System {
     constructor(world) {
@@ -51,7 +51,11 @@ export class UIInputSystem extends System {
     }
 
     _createIntent(type, data = {}) {
-        const intentEntity = this.world.createEntity();
-        this.world.addComponent(intentEntity, new UIInputIntent(type, data));
+        const stateEntity = this.world.createEntity();
+        const uiInputState = new UIInputState();
+        uiInputState.isActive = true;
+        uiInputState.type = type;
+        uiInputState.data = data;
+        this.world.addComponent(stateEntity, uiInputState);
     }
 }

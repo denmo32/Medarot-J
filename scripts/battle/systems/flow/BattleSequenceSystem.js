@@ -13,9 +13,9 @@ import { Parts } from '../../../components/index.js'; // 修正: 共通コンポ
 import { 
     TransitionStateRequest, ResetToCooldownRequest 
 } from '../../components/CommandRequests.js';
-import { ModalState } from '../../components/States.js';
+import { ModalState, CheckActionCancellationState } from '../../components/States.js';
 import {
-    ActionCancelledEvent, CheckActionCancellationRequest
+    ActionCancelledEvent
 } from '../../components/Requests.js';
 import { PlayerStateType, BattlePhase, TargetTiming, ModalType } from '../../common/constants.js';
 import { CancellationService } from '../../services/CancellationService.js';
@@ -36,7 +36,7 @@ export class BattleSequenceSystem extends System {
         }
 
         // キャンセルチェックリクエストの処理 (随時)
-        this._processCancellationRequests();
+        this._processCancellationStates();
 
         // 実行フェーズでなければ何もしない
         if (this.phaseState.phase !== BattlePhase.ACTION_EXECUTION) {
@@ -181,11 +181,14 @@ export class BattleSequenceSystem extends System {
         }
     }
 
-    _processCancellationRequests() {
-        const requests = this.getEntities(CheckActionCancellationRequest);
-        if (requests.length > 0) {
+    _processCancellationStates() {
+        const entities = this.getEntities(CheckActionCancellationState);
+        if (entities.length > 0) {
             this._checkActionCancellationGlobal();
-            for (const id of requests) this.world.destroyEntity(id);
+            for (const id of entities) {
+                const state = this.world.getComponent(id, CheckActionCancellationState);
+                state.isActive = false;
+            }
         }
     }
 

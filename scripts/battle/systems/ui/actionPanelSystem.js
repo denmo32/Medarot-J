@@ -9,7 +9,7 @@ import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { BattleUIManager } from '../../ui/BattleUIManager.js';
 import { BattleUIState } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
-import { UIInputIntent } from '../../components/Requests.js';
+import { UIInputState } from '../../components/States.js';
 
 export class ActionPanelSystem extends System {
     constructor(world) {
@@ -39,8 +39,11 @@ export class ActionPanelSystem extends System {
         const emitConfirm = () => {
             if (this.uiState && this.uiState.isPanelClickable && !this.uiState.isWaitingForAnimation) {
                 // UIInputSystemが処理するためのIntentを生成
-                const e = this.world.createEntity();
-                this.world.addComponent(e, new UIInputIntent('CONFIRM'));
+                const stateEntity = this.world.createEntity();
+                const uiInputState = new UIInputState();
+                uiInputState.isActive = true;
+                uiInputState.type = 'CONFIRM';
+                this.world.addComponent(stateEntity, uiInputState);
             }
         };
 
@@ -101,7 +104,7 @@ export class ActionPanelSystem extends System {
                 state.actorText
             );
 
-            // コンテキスト: UIイベントはUIInputIntentに変換されるため、ここでのemitは不要になったが
+            // コンテキスト: UIイベントはUIInputStateに変換されるため、ここでのemitは不要になったが
             // renderContentがemitを使う構造になっている場合は修正が必要。
             // 今回は BattleUIManager.js が emit を呼ぶ前提の構造なので、
             // 互換性のためダミーあるいは適切な変換関数を渡す。

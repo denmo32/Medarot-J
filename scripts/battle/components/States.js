@@ -56,3 +56,23 @@ export class UIStateUpdateState {
     this.isCompleted = false;
   }
 }
+
+export class AiActionState {
+  constructor() {
+    this.isActive = false;
+  }
+}
+
+export class CheckActionCancellationState {
+  constructor() {
+    this.isActive = false;
+  }
+}
+
+export class UIInputState {
+  constructor() {
+    this.isActive = false;
+    this.type = null; // 'NAVIGATE' | 'CONFIRM' | 'CANCEL'
+    this.data = {};
+  }
+}

@@ -7,12 +7,12 @@ import { System } from '../../../../engine/core/System.js';
 import { TurnContext } from '../../components/TurnContext.js';
 import { PhaseState } from '../../components/PhaseState.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
-import { Action, Gauge, GameState, ActionSelectionPending, AiActionRequest } from '../../components/index.js';
+import { Action, Gauge, GameState, ActionSelectionPending } from '../../components/index.js';
 import { 
     TransitionStateRequest, 
     UpdateComponentRequest 
 } from '../../components/CommandRequests.js';
-import { ModalState, ActionState, ActionRequeueState, PlayerInputState } from '../../components/States.js';
+import { ModalState, ActionState, ActionRequeueState, PlayerInputState, AiActionState } from '../../components/States.js';
 import {
     BattleStartConfirmedTag,
     BattleStartCancelledTag
@@ -266,7 +266,9 @@ export class ActionSelectionSystem extends System {
             this.world.addComponent(stateEntity, playerInputState);
         } else {
             // AIリクエスト発行
-            this.world.addComponent(entityId, new AiActionRequest());
+            const aiActionState = new AiActionState();
+            aiActionState.isActive = true;
+            this.world.addComponent(entityId, aiActionState);
         }
     }
 }

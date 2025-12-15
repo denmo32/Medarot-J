@@ -9,9 +9,8 @@ import { modalHandlers } from '../../ui/modalHandlers.js';
 import { ModalType } from '../../common/constants.js';
 import { AiDecisionService } from '../../services/AiDecisionService.js';
 import { ActionService } from '../../services/ActionService.js';
-import { ModalState, PlayerInputState, ActionRequeueState, AnimationState, UIStateUpdateState } from '../../components/States.js';
+import { ModalState, PlayerInputState, ActionRequeueState, AnimationState, UIStateUpdateState, UIInputState } from '../../components/States.js';
 import {
-    UIInputIntent,
     BattleStartConfirmedTag,
     BattleStartCancelledTag,
     ResetButtonResult
@@ -42,8 +41,8 @@ export class ModalSystem extends System {
         // 4. UI状態更新状態の処理 (アニメーション完了など)
         this._processStateUpdateStates();
 
-        // 5. ユーザー入力インテントの処理
-        this._processInputIntents();
+        // 5. ユーザー入力状態の処理
+        this._processInputStates();
     }
 
     // --- Request Processing ---
@@ -150,31 +149,35 @@ export class ModalSystem extends System {
 
     // --- Input Processing ---
 
-    _processInputIntents() {
+    _processInputStates() {
         // UIが表示されていない、またはアニメーション待機中は入力を無視
         if (!this.uiState.isPanelVisible || this.uiState.isWaitingForAnimation) {
-            const intents = this.getEntities(UIInputIntent);
-            for (const id of intents) this.world.destroyEntity(id);
+            const entities = this.getEntities(UIInputState);
+            for (const id of entities) {
+                const state = this.world.getComponent(id, UIInputState);
+                state.isActive = false;
+            }
             return;
         }
 
-        const intents = this.getEntities(UIInputIntent);
-        for (const entityId of intents) {
-            const intent = this.world.getComponent(entityId, UIInputIntent);
-            
-            switch (intent.type) {
-                case 'NAVIGATE':
-                    this._handleUserInput('handleNavigation', intent.data.direction);
-                    break;
-                case 'CONFIRM':
-                    this._handleUserInput('handleConfirm');
-                    break;
-                case 'CANCEL':
-                    this._handleUserInput('handleCancel');
-                    break;
+        const entities = this.getEntities(UIInputState);
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, UIInputState);
+            if (state.isActive) {
+                switch (state.type) {
+                    case 'NAVIGATE':
+                        this._handleUserInput('handleNavigation', state.data.direction);
+                        break;
+                    case 'CONFIRM':
+                        this._handleUserInput('handleConfirm');
+                        break;
+                    case 'CANCEL':
+                        this._handleUserInput('handleCancel');
+                        break;
+                }
+
+                state.isActive = false;
             }
-            
-            this.world.destroyEntity(entityId);
         }
     }
 

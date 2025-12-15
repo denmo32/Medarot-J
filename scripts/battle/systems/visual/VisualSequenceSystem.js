@@ -4,14 +4,13 @@
  * データ不整合を防ぐため、状態更新後に明示的なWaitを挿入。
  */
 import { System } from '../../../../engine/core/System.js';
-import { 
-    BattleSequenceState, SequenceState, 
-    VisualSequence, CombatResult 
+import {
+    BattleSequenceState, SequenceState,
+    VisualSequence, CombatResult
 } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
-import { 
-    RefreshUIRequest, 
-    CheckActionCancellationRequest
+import {
+    RefreshUIRequest
 } from '../../components/Requests.js';
 import { MessageService } from '../../services/MessageService.js';
 import { CancellationService } from '../../services/CancellationService.js';

@@ -23,9 +23,11 @@ import {
     TransitionToCooldownRequest
 } from '../../components/CommandRequests.js';
 import {
-    RefreshUIRequest,
-    CheckActionCancellationRequest
+    RefreshUIRequest
 } from '../../components/Requests.js';
+import {
+    CheckActionCancellationState
+} from '../../components/States.js';
 
 export class TaskSystem extends System {
     constructor(world) {
@@ -130,7 +132,10 @@ export class TaskSystem extends System {
                 this.world.addComponent(reqEntity, new RefreshUIRequest());
                 break;
             case 'CheckActionCancellationRequest':
-                this.world.addComponent(reqEntity, new CheckActionCancellationRequest());
+                const stateEntity = this.world.createEntity();
+                const state = new CheckActionCancellationState();
+                state.isActive = true;
+                this.world.addComponent(stateEntity, state);
                 break;
             default:
                 console.warn(`TaskSystem: Unknown request type ${taskData.requestType}`);
