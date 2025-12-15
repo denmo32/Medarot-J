@@ -1,10 +1,9 @@
 /**
  * @file ActionPanelSystem.js
  * @description UIの状態を監視し、DOMに反映する描画専用システム。
- * イベント駆動からポーリング駆動（Dirty Check）へ変更。
+ * 描画キャッシュをBattleUIStateコンポーネントに移管し、Systemをステートレス化。
  */
 import { System } from '../../../../engine/core/System.js';
-import { GameEvents } from '../../../common/events.js'; // UI_CONFIRMなどは残るが、emitのみ
 import { UIManager } from '../../../../engine/ui/UIManager.js'; 
 import { BattleUIManager } from '../../ui/BattleUIManager.js';
 import { BattleUIState } from '../../components/index.js';
@@ -18,18 +17,7 @@ export class ActionPanelSystem extends System {
         this.uiState = this.world.getSingletonComponent(BattleUIState);
         this.battleUI = new BattleUIManager();
 
-        // ダーティチェック用キャッシュ
-        this._lastRenderState = {
-            isPanelVisible: false,
-            ownerText: '',
-            titleText: '',
-            actorText: '',
-            modalType: null,
-            buttonsSignature: '', // ボタンデータの簡易ハッシュ代わり
-            isPanelClickable: false,
-            isWaiting: false,
-            focusedKey: null
-        };
+        // ステートレス: キャッシュ変数は削除し、uiState.renderCache を使用
 
         this._setupDomListeners();
         this.battleUI.resetPanel(); 
@@ -38,7 +26,6 @@ export class ActionPanelSystem extends System {
     _setupDomListeners() {
         const emitConfirm = () => {
             if (this.uiState && this.uiState.isPanelClickable && !this.uiState.isWaitingForAnimation) {
-                // UIInputSystemが処理するためのIntentを生成
                 const stateEntity = this.world.createEntity();
                 const uiInputState = new UIInputState();
                 uiInputState.isActive = true;
@@ -66,9 +53,8 @@ export class ActionPanelSystem extends System {
 
     render() {
         const state = this.uiState;
-        const last = this._lastRenderState;
+        const last = this.uiState.renderCache; // キャッシュをコンポーネントから取得
         
-        // 変更検知
         const buttonsSig = state.buttonsData ? state.buttonsData.map(b => b.partKey + b.text).join('|') : '';
         const isDirty = 
             state.isPanelVisible !== last.isPanelVisible ||
@@ -97,26 +83,16 @@ export class ActionPanelSystem extends System {
         // 描画処理
         if (state.isPanelVisible) {
             this.battleUI.showPanel();
-
             this.battleUI.updatePanelText(
                 state.ownerText, 
                 state.titleText, 
                 state.actorText
             );
 
-            // コンテキスト: UIイベントはUIInputStateに変換されるため、ここでのemitは不要になったが
-            // renderContentがemitを使う構造になっている場合は修正が必要。
-            // 今回は BattleUIManager.js が emit を呼ぶ前提の構造なので、
-            // 互換性のためダミーあるいは適切な変換関数を渡す。
-            // ただし、renderContent 内で onclick に設定される処理は _setupDomListeners で包括的に
-            // 処理される（イベント委譲）ため、個別の onclick は実は不要になる。
-            // BattleUIManagerの実装を尊重しつつ、イベントはIntentへ。
-            const context = {
-                emit: (eventName, detail) => { /* Intentへの変換はDOMリスナー側で行うため、ここは空でも良いが、念のため */ }
-            };
+            // コンテキスト(emitはIntent変換されるためダミー)
+            const context = { emit: () => {} };
             
             this.battleUI.renderContent(state.currentModalType, state.buttonsData, context);
-
             this.battleUI.setPanelClickable(state.isPanelClickable);
 
             if (state.isPanelClickable && !state.isWaitingForAnimation) {

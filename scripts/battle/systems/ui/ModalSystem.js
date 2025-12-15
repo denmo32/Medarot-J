@@ -1,7 +1,7 @@
 /**
  * @file ModalSystem.js
  * @description モーダルの状態管理とフロー制御を行うシステム。
- * AiDecisionServiceの静的化に伴い修正。
+ * 内部状態(currentModalEntityId)を排除し、BattleUIStateコンポーネントを使用。
  */
 import { System } from '../../../../engine/core/System.js';
 import { BattleUIState } from '../../components/index.js';
@@ -22,8 +22,7 @@ export class ModalSystem extends System {
         super(world);
         this.uiState = this.world.getSingletonComponent(BattleUIState);
         this.handlers = modalHandlers;
-        this.currentModalEntityId = null; // 現在表示中のModalStateエンティティID
-        // AiDecisionServiceはステートレスなオブジェクトのためインスタンス化不要
+        // ステートレス: currentModalEntityId は削除
     }
 
     update(deltaTime) {
@@ -52,21 +51,18 @@ export class ModalSystem extends System {
         for (const entityId of entities) {
             const state = this.world.getComponent(entityId, ModalState);
             if (state.isNew) {
-                // キューに追加
                 this.uiState.modalQueue.push({
                     type: state.type,
                     data: state.data,
                     messageSequence: state.messageSequence,
                     taskId: state.taskId,
                     onComplete: state.onComplete,
-                    priority: state.priority
+                    priority: state.priority,
+                    entityId: entityId // キューにエンティティIDを保持
                 });
-                // isNewフラグをオフ
                 state.isNew = false;
-                // state.isOpenをtrueに設定
                 state.isOpen = true;
-                // 現在のモーダルエンティティIDを記憶
-                this.currentModalEntityId = entityId;
+                // activeModalEntityId は _startNextModalInQueue で設定
             }
         }
     }
@@ -76,13 +72,12 @@ export class ModalSystem extends System {
         for (const entityId of entities) {
             const state = this.world.getComponent(entityId, PlayerInputState);
             if (state.isActive) {
-                // モーダルデータの準備
                 const handler = this.handlers[ModalType.SELECTION];
                 if (handler && handler.prepareData) {
                     const modalData = handler.prepareData({
                         world: this.world,
                         data: { entityId: state.entityId },
-                        services: { aiService: AiDecisionService } // オブジェクトを直接渡す
+                        services: { aiService: AiDecisionService }
                     });
 
                     if (modalData) {
@@ -93,7 +88,6 @@ export class ModalSystem extends System {
                         modalState.priority = 'high';
                         this.world.addComponent(modalStateEntity, modalState);
                     } else {
-                        // データ準備失敗時はリキュー
                         const stateEntity = this.world.createEntity();
                         const actionRequeueState = new ActionRequeueState();
                         actionRequeueState.isActive = true;
@@ -101,8 +95,6 @@ export class ModalSystem extends System {
                         this.world.addComponent(stateEntity, actionRequeueState);
                     }
                 }
-
-                // isActiveをfalseにする
                 state.isActive = false;
             }
         }
@@ -137,8 +129,8 @@ export class ModalSystem extends System {
         this.uiState.currentModalCallback = modalContext.onComplete || null;
         this.uiState.currentMessageSequence = modalContext.messageSequence || [{}];
         this.uiState.currentSequenceIndex = 0;
+        this.uiState.activeModalEntityId = modalContext.entityId || null; // コンポーネントでID管理
 
-        // ポーズ状態への遷移 (PauseStateコンポーネントを付与)
         if (this.getEntities(PauseState).length === 0) {
             const pauseEntity = this.world.createEntity();
             this.world.addComponent(pauseEntity, new PauseState());
@@ -150,7 +142,6 @@ export class ModalSystem extends System {
     // --- Input Processing ---
 
     _processInputStates() {
-        // UIが表示されていない、またはアニメーション待機中は入力を無視
         if (!this.uiState.isPanelVisible || this.uiState.isWaitingForAnimation) {
             const entities = this.getEntities(UIInputState);
             for (const id of entities) {
@@ -175,7 +166,6 @@ export class ModalSystem extends System {
                         this._handleUserInput('handleCancel');
                         break;
                 }
-
                 state.isActive = false;
             }
         }
@@ -203,13 +193,10 @@ export class ModalSystem extends System {
                 appliedEffects: currentStep.effects || this.uiState.currentModalData.appliedEffects || []
             };
             this.world.addComponent(stateEntity, animationState);
-            
-            // UI状態が変わったため、ActionPanelSystemがそれを検知して更新する
             return;
         }
         this.uiState.isWaitingForAnimation = false;
 
-        // 描画データ更新
         const displayData = { ...this.uiState.currentModalData, currentMessage: currentStep };
         this.uiState.ownerText = handler.getOwnerName?.(displayData) || '';
         this.uiState.titleText = handler.getTitle?.(displayData) || '';
@@ -218,13 +205,10 @@ export class ModalSystem extends System {
         this.uiState.isPanelVisible = true;
         this.uiState.isPanelClickable = !!handler.isClickable;
 
-        // 初期化処理
         if (handler.init) {
             const action = handler.init({ data: this.uiState.currentModalData, uiState: this.uiState });
             this._executeAction(action);
         }
-        
-        // ActionPanelSystemはこれらのステート変更を検知して描画を行う
     }
     
     proceedToNextSequence() {
@@ -243,9 +227,9 @@ export class ModalSystem extends System {
             this.uiState.currentModalCallback();
         }
 
-        // 対応するModalStateのisCompletedをtrueに設定
-        if (this.currentModalEntityId) {
-            const state = this.world.getComponent(this.currentModalEntityId, ModalState);
+        // BattleUIStateに保持したIDを使用してコンポーネントを更新
+        if (this.uiState.activeModalEntityId) {
+            const state = this.world.getComponent(this.uiState.activeModalEntityId, ModalState);
             if (state) {
                 state.isCompleted = true;
             }
@@ -256,7 +240,6 @@ export class ModalSystem extends System {
 
     hideCurrentModal() {
         if (this.uiState.isPanelVisible) {
-            // ポーズ解除
             const pauseEntities = this.getEntities(PauseState);
             for (const id of pauseEntities) this.world.destroyEntity(id);
         }
@@ -278,7 +261,6 @@ export class ModalSystem extends System {
 
         switch(action.action) {
             case 'EMIT_AND_CLOSE': 
-                // イベント名に基づいて適切なリクエストやタグを生成
                 if (action.eventName === 'PART_SELECTED') {
                     ActionService.createActionRequest(
                         this.world, 
