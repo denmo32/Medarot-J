@@ -1,45 +1,127 @@
 /**
  * @file VisualSequenceSystem.js
- * @description 戦闘結果やキャンセル情報から演出シーケンス（タスクリスト）を生成するシステム。
+ * @description 演出生成フェーズを担当するシステム。
+ * BattleSequenceState が GENERATING_VISUALS のエンティティを処理し、VisualSequence を生成して EXECUTING へ遷移させる。
  */
 import { System } from '../../../../engine/core/System.js';
-import { VisualSequenceRequest, VisualSequenceResult } from '../../components/index.js'; // 修正
-import { ResetToCooldownRequest } from '../../components/CommandRequests.js';
+import { 
+    BattleSequenceState, SequenceState, 
+    VisualSequence, CombatResult 
+} from '../../components/index.js';
+import { PlayerInfo } from '../../../components/index.js';
+import { 
+    ResetToCooldownRequest,
+    SetPlayerBrokenRequest,
+    TransitionStateRequest,
+    UpdateComponentRequest,
+    CustomUpdateComponentRequest,
+    TransitionToCooldownRequest
+} from '../../components/CommandRequests.js'; // 修正: ここでインポート
 import { MessageService } from '../../services/MessageService.js';
 import { CancellationService } from '../../services/CancellationService.js';
+import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
 import { GameEvents } from '../../../common/events.js';
 import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
-import { BattleLogType, ModalType, PlayerStateType } from '../../common/constants.js';
+import { BattleLogType, ModalType } from '../../common/constants.js';
 import { VisualDefinitions } from '../../../data/visualDefinitions.js';
-import { PlayerInfo } from '../../../components/index.js';
 
 export class VisualSequenceSystem extends System {
     constructor(world) {
         super(world);
+        this.timelineBuilder = new TimelineBuilder(world);
     }
 
     update(deltaTime) {
-        const entities = this.getEntities(VisualSequenceRequest);
-        for (const entityId of entities) {
-            const request = this.world.getComponent(entityId, VisualSequenceRequest);
-            this.world.removeComponent(entityId, VisualSequenceRequest);
+        const entities = this.world.getEntitiesWith(BattleSequenceState);
 
-            const sequence = this._generateSequence(entityId, request.context);
-            // 修正: VisualSequence ではなく VisualSequenceResult を付与
-            this.world.addComponent(entityId, new VisualSequenceResult(sequence));
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, BattleSequenceState);
+            if (state.currentState !== SequenceState.GENERATING_VISUALS) continue;
+
+            // CombatResultの取得（計算済みの場合）
+            const combatResult = this.world.getComponent(entityId, CombatResult);
+            
+            // コンテキストデータの取得（CombatSystemの結果、または初期化時のキャンセル情報）
+            const context = state.contextData || (combatResult ? combatResult.data : null);
+
+            if (!context) {
+                console.error(`VisualSequenceSystem: No context data for entity ${entityId}`);
+                state.currentState = SequenceState.FINISHED; // エラー回避
+                continue;
+            }
+
+            // 演出タスク定義の生成
+            const sequenceDefs = this._generateSequenceDefinitions(entityId, context);
+
+            // 状態更新タスクの挿入 (context.stateUpdates)
+            if (context.stateUpdates && context.stateUpdates.length > 0) {
+                this._insertStateUpdateTasks(sequenceDefs, context.stateUpdates);
+            }
+
+            // タスクコンポーネントリストの構築
+            const builtTasks = this.timelineBuilder.buildVisualSequence(sequenceDefs);
+
+            // VisualSequence コンポーネント付与
+            this.world.addComponent(entityId, new VisualSequence(builtTasks));
+
+            // CombatResult は用済みなので削除 (履歴処理は BattleHistorySystem がこの前に済ませている前提)
+            if (combatResult) {
+                this.world.removeComponent(entityId, CombatResult);
+            }
+
+            // 次のフェーズへ
+            state.currentState = SequenceState.EXECUTING;
         }
     }
 
-    _generateSequence(actorId, context) {
+    // --- Sequence Generation Logic ---
+
+    _generateSequenceDefinitions(actorId, context) {
         if (context.isCancelled) {
             return this._createCancelSequence(actorId, context);
         } else {
             return this._createCombatSequence(context);
         }
     }
-    
-    // ... (以下のメソッドは変更なし) ...
-    
+
+    _insertStateUpdateTasks(sequence, stateUpdates) {
+        // 状態更新を実行するカスタムタスクを作成
+        const updateTask = {
+            type: 'CUSTOM',
+            executeFn: (world) => {
+                this._applyStateUpdates(world, stateUpdates);
+            }
+        };
+
+        // UIリフレッシュタスクの直前に挿入する（見た目の反映前に内部データを更新するため）
+        const refreshIndex = sequence.findIndex(v => v.type === 'EVENT' && v.eventName === GameEvents.REFRESH_UI);
+        if (refreshIndex !== -1) {
+            sequence.splice(refreshIndex, 0, updateTask);
+        } else {
+            sequence.push(updateTask);
+        }
+    }
+
+    _applyStateUpdates(world, updates) {
+        // StateUpdate を CommandRequests に変換して発行
+        // このメソッドは TaskSystem 内のコールバックとして実行される
+        
+        for (const update of updates) {
+            const reqEntity = world.createEntity();
+            // 型チェックは省略し、type文字列で判断
+            switch (update.type) {
+                case 'SetPlayerBroken': world.addComponent(reqEntity, new SetPlayerBrokenRequest(update.targetId)); break;
+                case 'ResetToCooldown': world.addComponent(reqEntity, new ResetToCooldownRequest(update.targetId, update.options)); break;
+                case 'TransitionState': world.addComponent(reqEntity, new TransitionStateRequest(update.targetId, update.newState)); break;
+                case 'UpdateComponent': world.addComponent(reqEntity, new UpdateComponentRequest(update.targetId, update.componentType, update.updates)); break;
+                case 'CustomUpdateComponent': world.addComponent(reqEntity, new CustomUpdateComponentRequest(update.targetId, update.componentType, update.customHandler)); break;
+                case 'TransitionToCooldown': world.addComponent(reqEntity, new TransitionToCooldownRequest(update.targetId)); break;
+            }
+        }
+    }
+
+    // --- Create Specific Sequences ---
+
     _createCancelSequence(actorId, context) {
         const visualSequence = [];
         const { cancelReason } = context;
@@ -57,10 +139,7 @@ export class VisualSequenceSystem extends System {
             type: 'CUSTOM',
             executeFn: (world) => {
                 const req = world.createEntity();
-                world.addComponent(req, new ResetToCooldownRequest(
-                    actorId,
-                    { interrupted: true }
-                ));
+                world.addComponent(req, new ResetToCooldownRequest(actorId, { interrupted: true }));
             }
         });
 
@@ -189,7 +268,6 @@ export class VisualSequenceSystem extends System {
         if (!def) return [];
 
         const tasks = [];
-        
         const prefixKey = def.getPrefixKey ? def.getPrefixKey(effect) : null;
         const messageKey = def.getMessageKey(effect);
         

@@ -1,25 +1,23 @@
 /**
  * @file BattleSequenceState.js
- * @description アクション実行シーケンス中の個々のエンティティの状態を管理するコンポーネント。
- * システムの内部状態(Map)を廃止し、ECSのエンティティに状態を持たせるために使用する。
+ * @description バトルアクション実行パイプラインの状態を管理するコンポーネント。
+ * エンティティはこのコンポーネントの状態遷移によって各システム間を受け渡される。
  */
 
 export const SequenceState = {
-    IDLE: 'IDLE',
-    REQUEST_COMBAT: 'REQUEST_COMBAT',
-    WAITING_COMBAT: 'WAITING_COMBAT',
-    REQUEST_VISUALS: 'REQUEST_VISUALS',
-    WAITING_VISUALS: 'WAITING_VISUALS',
-    EXECUTING_TASKS: 'EXECUTING_TASKS',
-    COMPLETED: 'COMPLETED'
+    INITIALIZING: 'INITIALIZING',             // 初期化・ターゲット解決・キャンセル判定 (BattleSequenceSystem担当)
+    CALCULATING: 'CALCULATING',               // ダメージ等の計算 (CombatSystem担当)
+    GENERATING_VISUALS: 'GENERATING_VISUALS', // 演出データの生成 (VisualSequenceSystem担当)
+    EXECUTING: 'EXECUTING',                   // 演出タスクの実行 (TaskSystem担当)
+    FINISHED: 'FINISHED'                      // 完了・クリーンアップ待ち (BattleSequenceSystem担当)
 };
 
 export class BattleSequenceState {
     constructor() {
-        /** @type {string} 現在のシーケンス状態 */
-        this.currentState = SequenceState.IDLE;
+        /** @type {string} 現在のパイプライン工程 */
+        this.currentState = SequenceState.INITIALIZING;
         
-        /** @type {object|null} シーケンス間で保持する必要があるコンテキストデータ (旧 lastResultData) */
+        /** @type {object|null} パイプライン間で共有するコンテキストデータ (計算結果、キャンセル理由など) */
         this.contextData = null;
     }
 }

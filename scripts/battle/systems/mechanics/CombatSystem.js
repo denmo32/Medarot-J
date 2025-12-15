@@ -1,12 +1,10 @@
 /**
  * @file CombatSystem.js
- * @description 戦闘の計算・解決を行うシステム。
- * CombatRequestを持つエンティティを処理し、CombatResultを付与する。
- * イベント発行を廃止し、データコンポーネントによる受け渡しに特化。
+ * @description 戦闘計算フェーズを担当するシステム。
+ * BattleSequenceState が CALCULATING のエンティティを処理し、CombatResult を生成して GENERATING_VISUALS へ遷移させる。
  */
 import { System } from '../../../../engine/core/System.js';
-import { CombatRequest, CombatResult } from '../../components/index.js';
-import { Action } from '../../components/index.js';
+import { BattleSequenceState, SequenceState, CombatResult, Action } from '../../components/index.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
 import { EffectType } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
@@ -22,21 +20,28 @@ export class CombatSystem extends System {
     }
 
     update(deltaTime) {
-        const entities = this.getEntities(CombatRequest);
+        // CALCULATING 状態のエンティティを検索
+        const entities = this.world.getEntitiesWith(BattleSequenceState);
+        
         for (const entityId of entities) {
-            // リクエストを削除 (二重処理防止)
-            this.world.removeComponent(entityId, CombatRequest);
+            const state = this.world.getComponent(entityId, BattleSequenceState);
+            if (state.currentState !== SequenceState.CALCULATING) continue;
+
+            // 計算実行
+            const resultData = this._resolveCombat(entityId);
             
-            // 解決処理実行
-            const resultData = this._resolve(entityId);
-            
-            // 結果コンポーネントを付与
-            // 下流のシステム (BattleHistorySystem, BattleSequenceSystem) がこれを処理する
+            // 結果をコンポーネントとして付与 (BattleHistorySystem等が参照)
+            // 次のフェーズの入力データとしても機能する
             this.world.addComponent(entityId, new CombatResult(resultData));
+            
+            // パイプライン状態を更新
+            state.currentState = SequenceState.GENERATING_VISUALS;
+            // 結果をコンテキストにも保存（VisualSequenceSystemで参照しやすくするため）
+            state.contextData = resultData;
         }
     }
 
-    _resolve(attackerId) {
+    _resolveCombat(attackerId) {
         const eventsToEmit = [];
         const allStateUpdates = []; 
         
@@ -81,8 +86,6 @@ export class CombatSystem extends System {
         this.hookContext.hookRegistry.execute(HookPhase.BEFORE_EFFECT_APPLICATION, ctx);
 
         // 5. 適用データ生成 (副作用なし)
-        // ここで計算された events や stateUpdates は、結果データに含まれ、
-        // 最終的に BattleSequenceSystem や CommandSystem で実行される
         const { appliedEffects, eventsToEmit: newEvents, stateUpdates: newStateUpdates } = EffectRegistry.applyAll(ctx.rawEffects, ctx);
         ctx.appliedEffects = appliedEffects;
         eventsToEmit.push(...newEvents);
@@ -94,6 +97,8 @@ export class CombatSystem extends System {
         // 6. 結果構築
         return this._buildResult(ctx, eventsToEmit, allStateUpdates);
     }
+
+    // --- Private Methods (ロジックは変更なし、参照のみ) ---
 
     _initializeContext(attackerId) {
         const action = this.world.getComponent(attackerId, Action);
@@ -165,10 +170,7 @@ export class CombatSystem extends System {
             isGuardExpired: ctx.appliedEffects.some(e => e.isExpired && e.type === EffectType.CONSUME_GUARD),
         };
 
-        // NOTE: イベント発行を削除。必要な情報は CombatResult に含め、VisualSequenceSystem 等で処理する。
-        // eventsToEmit は VisualSequenceSystem でアニメーション同期イベントとして使用されるため保持する。
-
-        // クールダウンへの移行リクエストを追加
+        // クールダウンへの移行リクエストを追加 (アクション完了後の状態遷移)
         stateUpdates.push({
             type: 'TransitionToCooldown',
             targetId: ctx.attackerId

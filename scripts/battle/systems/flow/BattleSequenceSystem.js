@@ -1,30 +1,23 @@
 /**
  * @file BattleSequenceSystem.js
- * @description アクション実行シーケンスの管理システム。
- * キャンセル処理などをデータ駆動（コンポーネント生成）で行うよう改修。
+ * @description バトルアクションパイプラインの「開始」と「終了」を管理するシステム。
+ * アクターを選出しパイプラインへ投入(INITIALIZING)し、
+ * 最終工程(FINISHED)に達したアクターをパイプラインから除外する。
  */
 import { System } from '../../../../engine/core/System.js';
-import { GameEvents } from '../../../common/events.js'; // 参照用に定数のみ使用
-import { BattlePhase, TargetTiming, PlayerStateType, ModalType } from '../../common/constants.js';
 import { 
-    PhaseState, TurnContext,
-    GameState, Action,
-    CombatRequest, CombatResult, VisualSequenceRequest, VisualSequenceResult, VisualSequence,
-    BattleSequenceState, SequenceState, SequencePending
+    BattleSequenceState, SequenceState, SequencePending,
+    GameState, Action, TurnContext, PhaseState
 } from '../../components/index.js';
+import { Parts } from '../../../components/index.js'; // 修正: 共通コンポーネントはここからインポート
 import { 
-    TransitionStateRequest, ResetToCooldownRequest,
-    SetPlayerBrokenRequest, UpdateComponentRequest, CustomUpdateComponentRequest,
-    TransitionToCooldownRequest
+    TransitionStateRequest, ResetToCooldownRequest 
 } from '../../components/CommandRequests.js';
 import { 
-    CheckActionCancellationRequest, 
-    ActionCancelledEvent,
-    ModalRequest 
+    ActionCancelledEvent, ModalRequest, CheckActionCancellationRequest 
 } from '../../components/Requests.js';
-import { Parts } from '../../../components/index.js';
+import { PlayerStateType, BattlePhase, TargetTiming, ModalType } from '../../common/constants.js';
 import { CancellationService } from '../../services/CancellationService.js';
-import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 
 export class BattleSequenceSystem extends System {
@@ -32,143 +25,129 @@ export class BattleSequenceSystem extends System {
         super(world);
         this.phaseState = this.world.getSingletonComponent(PhaseState);
         this.turnContext = this.world.getSingletonComponent(TurnContext);
-
-        this.timelineBuilder = new TimelineBuilder(world);
-        this.currentActorId = null;
     }
 
     update(deltaTime) {
+        // ゲームオーバー時は強制終了
         if (this.phaseState.phase === BattlePhase.GAME_OVER) {
-            if (this.currentActorId) this.abortSequence();
+            this._abortAllSequences();
             return;
         }
-        
-        // 1. キャンセルチェックリクエストの処理 (前のシーケンス等から要求された場合)
+
+        // キャンセルチェックリクエストの処理 (随時)
         this._processCancellationRequests();
 
-        // 2. 実行フェーズの監視
+        // 実行フェーズでなければ何もしない
         if (this.phaseState.phase !== BattlePhase.ACTION_EXECUTION) {
-            this.currentActorId = null;
             return;
         }
 
-        // 3. シーケンス進行管理
+        // 1. パイプライン完了者の処理 (FINISHED -> 除去)
+        this._cleanupFinishedSequences();
+
+        // 2. パイプライン初期化処理 (INITIALIZING -> CALCULATING or GENERATING_VISUALS)
+        this._processInitializingSequences();
+
+        // 3. 新規アクターの投入 (Pending -> INITIALIZING)
+        // 現在パイプラインで処理中のエンティティがいなければ、次を投入する
+        if (!this._isPipelineBusy()) {
+            this._startNextSequence();
+        }
         
-        const pendingEntities = this.getEntities(SequencePending);
-        const activeEntities = this.getEntities(BattleSequenceState);
-
-        // 何も処理するものがなく、シーケンスも動いていない場合
-        if (pendingEntities.length === 0 && activeEntities.length === 0) {
-            // まだ実行待機状態のエンティティがいるか確認し、いればPendingタグを付与
-            if (this._hasUnmarkedReadyEntities()) {
-                this.startExecutionPhase();
-            } else {
-                // 全て完了 -> TurnSystemがこれを検知してフェーズ遷移させる
-                this.currentActorId = null;
-                this.turnContext.currentActorId = null;
-                return;
-            }
-        }
-
-        if (this.currentActorId) {
-            const sequenceState = this.world.getComponent(this.currentActorId, BattleSequenceState);
-            if (sequenceState) {
-                this._updateActorSequence(this.currentActorId, sequenceState);
-            } else {
-                // シーケンス状態コンポーネントが外れている = 完了
-                this.currentActorId = null;
-            }
-        } 
-        else {
-            this._processNextActor();
-        }
+        // 4. 実行待機エンティティのタグ付け (まだPendingを持っていないREADY_EXECUTEがいれば)
+        this._markReadyEntities();
     }
 
-    _processCancellationRequests() {
-        const requests = this.getEntities(CheckActionCancellationRequest);
-        if (requests.length > 0) {
-            this._checkActionCancellation();
-            for (const id of requests) this.world.destroyEntity(id);
-        }
+    // --- Core Logic ---
+
+    _isPipelineBusy() {
+        // 何らかのシーケンス状態を持っているエンティティがいればBusyとみなす
+        return this.getEntities(BattleSequenceState).length > 0;
     }
 
-    _checkActionCancellation() {
-        const actors = this.getEntities(GameState, Action);
-        for (const actorId of actors) {
-            const gameState = this.world.getComponent(actorId, GameState);
-            if (gameState.state !== PlayerStateType.SELECTED_CHARGING) continue;
-
-            // 純粋なロジックサービスによる判定
-            const check = CancellationService.checkCancellation(this.world, actorId);
-            
-            if (check.shouldCancel) {
-                // 1. ログ用イベントコンポーネント生成
-                const evt = this.world.createEntity();
-                this.world.addComponent(evt, new ActionCancelledEvent(actorId, check.reason));
-                
-                // 2. ユーザーへの通知 (メッセージ表示リクエスト)
-                const message = CancellationService.getCancelMessage(this.world, actorId, check.reason);
-                if (message) {
-                    const msgReq = this.world.createEntity();
-                    this.world.addComponent(msgReq, new ModalRequest(
-                        ModalType.MESSAGE,
-                        { message: message },
-                        {
-                            messageSequence: [{ text: message }],
-                            priority: 'high'
-                        }
-                    ));
-                }
-
-                // 3. 状態リセットリクエスト
-                const resetReq = this.world.createEntity();
-                this.world.addComponent(resetReq, new ResetToCooldownRequest(
-                    actorId,
-                    { interrupted: true }
-                ));
-            }
-        }
-    }
-
-    _hasUnmarkedReadyEntities() {
-        const entities = this.world.getEntitiesWith(GameState);
-        return entities.some(id => {
-            const state = this.world.getComponent(id, GameState);
-            return state.state === PlayerStateType.READY_EXECUTE &&
-                   !this.world.getComponent(id, SequencePending) &&
-                   !this.world.getComponent(id, BattleSequenceState);
-        });
-    }
-
-    startExecutionPhase() {
-        const entities = this.world.getEntitiesWith(GameState);
-        for (const id of entities) {
-            const state = this.world.getComponent(id, GameState);
-            if (state.state === PlayerStateType.READY_EXECUTE) {
-                if (!this.world.getComponent(id, SequencePending)) {
-                    this.world.addComponent(id, new SequencePending());
-                }
-            }
-        }
-    }
-
-    _processNextActor() {
+    _startNextSequence() {
         const nextActorId = this._getNextPendingEntity();
         if (nextActorId === null) return;
 
-        // Pendingタグを外し、SequenceStateを付与して開始
+        // Pendingタグを外し、SequenceState(INITIALIZING)を付与してパイプライン投入
         this.world.removeComponent(nextActorId, SequencePending);
-        this.world.addComponent(nextActorId, new BattleSequenceState());
-
-        this.currentActorId = nextActorId;
+        this.world.addComponent(nextActorId, new BattleSequenceState()); // Default is INITIALIZING
+        
         this.turnContext.currentActorId = nextActorId;
+    }
+
+    _processInitializingSequences() {
+        const entities = this.world.getEntitiesWith(BattleSequenceState);
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, BattleSequenceState);
+            if (state.currentState !== SequenceState.INITIALIZING) continue;
+
+            // --- 初期化フェーズの処理 ---
+
+            // 1. 状態遷移リクエスト (演出待ち状態へ)
+            const reqEntity = this.world.createEntity();
+            this.world.addComponent(reqEntity, new TransitionStateRequest(
+                entityId,
+                PlayerStateType.AWAITING_ANIMATION
+            ));
+
+            // 2. キャンセルチェック
+            const cancelCheck = CancellationService.checkCancellation(this.world, entityId);
+            if (cancelCheck.shouldCancel) {
+                // キャンセル発生時
+                state.contextData = { isCancelled: true, cancelReason: cancelCheck.reason };
+                
+                // ログイベント生成
+                const evt = this.world.createEntity();
+                this.world.addComponent(evt, new ActionCancelledEvent(entityId, cancelCheck.reason));
+                
+                // 計算フェーズをスキップして演出生成フェーズへ
+                state.currentState = SequenceState.GENERATING_VISUALS;
+            } else {
+                // 正常進行時
+                
+                // 移動後ターゲットの解決（Actionコンポーネントの更新）
+                this._resolvePostMoveTarget(entityId);
+                
+                // 計算フェーズへ
+                state.currentState = SequenceState.CALCULATING;
+            }
+        }
+    }
+
+    _cleanupFinishedSequences() {
+        const entities = this.world.getEntitiesWith(BattleSequenceState);
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, BattleSequenceState);
+            if (state.currentState === SequenceState.FINISHED) {
+                // コンポーネント削除（パイプラインから脱出）
+                this.world.removeComponent(entityId, BattleSequenceState);
+                this.turnContext.currentActorId = null;
+            }
+        }
+    }
+
+    // --- Helpers ---
+
+    _markReadyEntities() {
+        const entities = this.world.getEntitiesWith(GameState);
+        for (const id of entities) {
+            const state = this.world.getComponent(id, GameState);
+            const isReady = state.state === PlayerStateType.READY_EXECUTE;
+            const isPending = this.world.getComponent(id, SequencePending);
+            const isRunning = this.world.getComponent(id, BattleSequenceState);
+
+            if (isReady && !isPending && !isRunning) {
+                this.world.addComponent(id, new SequencePending());
+            }
+        }
     }
 
     _getNextPendingEntity() {
         const pendingEntities = this.getEntities(SequencePending);
         if (pendingEntities.length === 0) return null;
 
-        // 推進力順にソート（同時の場合の優先順位）
+        // 推進力順にソート
         pendingEntities.sort((a, b) => {
             const partsA = this.world.getComponent(a, Parts);
             const partsB = this.world.getComponent(b, Parts);
@@ -181,163 +160,19 @@ export class BattleSequenceSystem extends System {
         return pendingEntities[0];
     }
 
-    _updateActorSequence(actorId, sequenceState) {
-        switch (sequenceState.currentState) {
-            case SequenceState.IDLE:
-                this._initializeActorSequence(actorId, sequenceState);
-                break;
-
-            case SequenceState.REQUEST_COMBAT:
-                // CombatSystem へリクエスト発行
-                this.world.addComponent(actorId, new CombatRequest(actorId));
-                sequenceState.currentState = SequenceState.WAITING_COMBAT;
-                break;
-
-            case SequenceState.WAITING_COMBAT:
-                const combatResult = this.world.getComponent(actorId, CombatResult);
-                if (combatResult) {
-                    // 結果を受け取り、リクエストを消費
-                    this.world.removeComponent(actorId, CombatResult);
-                    this._requestVisuals(actorId, sequenceState, combatResult.data);
-                }
-                break;
-
-            case SequenceState.REQUEST_VISUALS:
-                // 処理待ち（現在は即座にWAITING_VISUALSへ遷移するためここは通過しない）
-                break;
-
-            case SequenceState.WAITING_VISUALS:
-                const result = this.world.getComponent(actorId, VisualSequenceResult);
-                if (result) {
-                    this.world.removeComponent(actorId, VisualSequenceResult);
-                    this._startTasks(actorId, sequenceState, result.sequence);
-                }
-                break;
-
-            case SequenceState.EXECUTING_TASKS:
-                // TaskSystemがVisualSequenceコンポーネントを削除するのを待つ
-                if (!this.world.getComponent(actorId, VisualSequence)) {
-                    sequenceState.currentState = SequenceState.COMPLETED;
-                }
-                break;
-
-            case SequenceState.COMPLETED:
-                this._finalizeActorSequence(actorId);
-                break;
-        }
-    }
-
-    _initializeActorSequence(actorId, sequenceState) {
-        const reqEntity = this.world.createEntity();
-        this.world.addComponent(reqEntity, new TransitionStateRequest(
-            actorId,
-            PlayerStateType.AWAITING_ANIMATION
-        ));
-
-        // キャンセルチェック
-        const cancelCheck = CancellationService.checkCancellation(this.world, actorId);
-        if (cancelCheck.shouldCancel) {
-            const context = { isCancelled: true, cancelReason: cancelCheck.reason };
-            
-            // ログ用イベントコンポーネント生成
-            const evt = this.world.createEntity();
-            this.world.addComponent(evt, new ActionCancelledEvent(actorId, cancelCheck.reason));
-            
-            // キャンセル演出のリクエストへ
-            this._requestVisuals(actorId, sequenceState, context);
-            return;
-        }
-
-        // 移動後ターゲットの解決（ここでActionコンポーネントを更新）
-        this._resolvePostMoveTargetForWorld(this.world, actorId);
+    _resolvePostMoveTarget(attackerId) {
+        const action = this.world.getComponent(attackerId, Action);
+        const parts = this.world.getComponent(attackerId, Parts);
         
-        sequenceState.currentState = SequenceState.REQUEST_COMBAT;
-    }
-
-    _requestVisuals(actorId, sequenceState, context) {
-        // コンテキスト保持
-        sequenceState.contextData = context;
-
-        // VisualSequenceSystem へリクエスト発行
-        this.world.addComponent(actorId, new VisualSequenceRequest(context));
-        sequenceState.currentState = SequenceState.WAITING_VISUALS;
-    }
-
-    _startTasks(actorId, sequenceState, visualTasks) {
-        const tasks = [...visualTasks];
-        const resultData = sequenceState.contextData;
-        
-        // 結果に含まれる状態更新指示をタスクとして挿入
-        if (resultData && resultData.stateUpdates && resultData.stateUpdates.length > 0) {
-            const commandTask = {
-                type: 'CUSTOM',
-                executeFn: (world) => {
-                    this._applyStateUpdates(world, resultData.stateUpdates);
-                }
-            };
-
-            // UIリフレッシュタスクの前に挿入して、見た目の反映前にデータを更新
-            const refreshIndex = tasks.findIndex(v => v.type === 'EVENT' && v.eventName === GameEvents.REFRESH_UI);
-            if (refreshIndex !== -1) {
-                tasks.splice(refreshIndex, 0, commandTask);
-            } else {
-                tasks.push(commandTask);
-            }
-        }
-
-        const builtTasks = this.timelineBuilder.buildVisualSequence(tasks);
-        this.world.addComponent(actorId, new VisualSequence(builtTasks));
-        sequenceState.currentState = SequenceState.EXECUTING_TASKS;
-    }
-
-    _applyStateUpdates(world, updates) {
-        for (const update of updates) {
-            const reqEntity = world.createEntity();
-            switch (update.type) {
-                case 'SetPlayerBroken':
-                    world.addComponent(reqEntity, new SetPlayerBrokenRequest(update.targetId));
-                    break;
-                case 'ResetToCooldown':
-                    world.addComponent(reqEntity, new ResetToCooldownRequest(update.targetId, update.options));
-                    break;
-                case 'TransitionState':
-                    world.addComponent(reqEntity, new TransitionStateRequest(update.targetId, update.newState));
-                    break;
-                case 'UpdateComponent':
-                    world.addComponent(reqEntity, new UpdateComponentRequest(update.targetId, update.componentType, update.updates));
-                    break;
-                case 'CustomUpdateComponent':
-                    world.addComponent(reqEntity, new CustomUpdateComponentRequest(update.targetId, update.componentType, update.customHandler));
-                    break;
-                case 'TransitionToCooldown':
-                    world.addComponent(reqEntity, new TransitionToCooldownRequest(update.targetId));
-                    break;
-                default:
-                    console.warn(`BattleSequenceSystem: Unknown state update type "${update.type}"`);
-                    world.destroyEntity(reqEntity);
-            }
-        }
-    }
-
-    _finalizeActorSequence(actorId) {
-        this.world.removeComponent(actorId, BattleSequenceState);
-        
-        this.currentActorId = null;
-        this.turnContext.currentActorId = null;
-    }
-
-    // --- Helpers ---
-
-    _resolvePostMoveTargetForWorld(world, attackerId) {
-        const action = world.getComponent(attackerId, Action);
-        const parts = world.getComponent(attackerId, Parts);
         if (!action || !parts || !action.partKey) return;
+        
         const attackingPart = parts[action.partKey];
+        // 移動後ターゲット決定タイミング、かつターゲット未定の場合のみ
         if (!attackingPart || attackingPart.targetTiming !== TargetTiming.POST_MOVE || action.targetId !== null) return;
 
         const strategy = targetingStrategies[attackingPart.postMoveTargeting];
         if (strategy) {
-            const targetData = strategy({ world, attackerId });
+            const targetData = strategy({ world: this.world, attackerId });
             if (targetData) {
                 action.targetId = targetData.targetId;
                 action.targetPartKey = targetData.targetPartKey;
@@ -345,21 +180,53 @@ export class BattleSequenceSystem extends System {
         }
     }
 
-    abortSequence() {
-        const pendingEntities = this.getEntities(SequencePending);
-        for (const entityId of pendingEntities) {
-            this.world.removeComponent(entityId, SequencePending);
+    _processCancellationRequests() {
+        const requests = this.getEntities(CheckActionCancellationRequest);
+        if (requests.length > 0) {
+            this._checkActionCancellationGlobal();
+            for (const id of requests) this.world.destroyEntity(id);
         }
+    }
 
-        const activeEntities = this.getEntities(BattleSequenceState);
-        for (const entityId of activeEntities) {
-            this.world.removeComponent(entityId, BattleSequenceState);
+    _checkActionCancellationGlobal() {
+        const actors = this.getEntities(GameState, Action);
+        for (const actorId of actors) {
+            const gameState = this.world.getComponent(actorId, GameState);
+            // チャージ中のプレイヤーのみ対象
+            if (gameState.state !== PlayerStateType.SELECTED_CHARGING) continue;
+
+            const check = CancellationService.checkCancellation(this.world, actorId);
+            
+            if (check.shouldCancel) {
+                // ログ
+                const evt = this.world.createEntity();
+                this.world.addComponent(evt, new ActionCancelledEvent(actorId, check.reason));
+                
+                // 通知メッセージ
+                const message = CancellationService.getCancelMessage(this.world, actorId, check.reason);
+                if (message) {
+                    const msgReq = this.world.createEntity();
+                    this.world.addComponent(msgReq, new ModalRequest(
+                        ModalType.MESSAGE,
+                        { message: message },
+                        { messageSequence: [{ text: message }], priority: 'high' }
+                    ));
+                }
+
+                // 強制中断（クールダウンへ）
+                const resetReq = this.world.createEntity();
+                this.world.addComponent(resetReq, new ResetToCooldownRequest(actorId, { interrupted: true }));
+            }
         }
+    }
+
+    _abortAllSequences() {
+        const pending = this.getEntities(SequencePending);
+        for (const id of pending) this.world.removeComponent(id, SequencePending);
+
+        const active = this.getEntities(BattleSequenceState);
+        for (const id of active) this.world.removeComponent(id, BattleSequenceState);
         
-        if (this.currentActorId) {
-            this.world.removeComponent(this.currentActorId, VisualSequence);
-        }
-        
-        this.currentActorId = null;
+        this.turnContext.currentActorId = null;
     }
 }

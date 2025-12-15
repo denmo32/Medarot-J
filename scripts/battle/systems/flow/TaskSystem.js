@@ -1,20 +1,19 @@
 /**
  * @file TaskSystem.js
- * @description VisualSequenceを持つエンティティのタスク進行を管理するシステム。
- * イベント発行タスク(EventTask)を、ECSのリクエスト生成処理に置換して処理する。
+ * @description バトルアクション実行フェーズを担当するシステム。
+ * BattleSequenceState が EXECUTING のエンティティの VisualSequence を処理し、完了したら FINISHED へ遷移させる。
  */
 import { System } from '../../../../engine/core/System.js';
-import { VisualSequence } from '../../components/index.js';
+import { 
+    BattleSequenceState, SequenceState, 
+    VisualSequence, Visual 
+} from '../../components/index.js';
 import { 
     WaitTask, MoveTask, AnimateTask, EventTask, CustomTask,
     DialogTask, VfxTask, CameraTask, UiAnimationTask, ApplyVisualEffectTask
 } from '../../components/Tasks.js';
-import { Visual } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
-import { 
-    RefreshUIRequest, 
-    CheckActionCancellationRequest 
-} from '../../components/Requests.js';
+import { RefreshUIRequest, CheckActionCancellationRequest } from '../../components/Requests.js';
 
 export class TaskSystem extends System {
     constructor(world) {
@@ -27,27 +26,34 @@ export class TaskSystem extends System {
     }
 
     update(deltaTime) {
-        // 1. 各種タスクの実行処理
+        // 1. 各種タスクコンポーネントの実行処理
         this._processWaitTasks(deltaTime);
         this._processInstantTasks(); 
         
         // 2. シーケンス進行管理
-        const entities = this.getEntities(VisualSequence);
+        const entities = this.world.getEntitiesWith(BattleSequenceState);
         for (const entityId of entities) {
-            this._updateSequence(entityId);
+            const state = this.world.getComponent(entityId, BattleSequenceState);
+            if (state.currentState !== SequenceState.EXECUTING) continue;
+
+            this._updateSequence(entityId, state);
         }
     }
 
-    _updateSequence(entityId) {
-        // 現在実行中のタスクがあるかチェック
+    _updateSequence(entityId, state) {
+        // 現在実行中のタスクがあるかチェック（タスクコンポーネントがついている間は待機）
         const hasActiveTask = this.taskComponents.some(comp => this.world.getComponent(entityId, comp));
         if (hasActiveTask) return;
 
         // 次のタスクを取得
         const sequence = this.world.getComponent(entityId, VisualSequence);
         if (!sequence || !sequence.tasks || sequence.tasks.length === 0) {
-            // シーケンス完了
+            // タスクが空になった = シーケンス完了
+            // VisualSequence コンポーネントを削除
             this.world.removeComponent(entityId, VisualSequence);
+            
+            // パイプライン状態を FINISHED に更新 (BattleSequenceSystemが回収する)
+            state.currentState = SequenceState.FINISHED;
             return;
         }
 
@@ -62,14 +68,14 @@ export class TaskSystem extends System {
         const args = nextTaskDef.args || []; 
 
         try {
-            // コンポーネント付与
+            // タスクコンポーネント付与 (これにより次のフレームからタスク処理が始まる)
             this.world.addComponent(entityId, new ComponentClass(...args));
         } catch (error) {
             console.error(`TaskSystem: Failed to create task component ${ComponentClass.name}`, error, args);
         }
     }
 
-    // --- Task Processors ---
+    // --- Task Processors (タスク自体のロジック) ---
 
     _processWaitTasks(deltaTime) {
         const entities = this.getEntities(WaitTask);
@@ -83,21 +89,17 @@ export class TaskSystem extends System {
     }
 
     _processInstantTasks() {
-        // EventTask: イベント発行の代わりに適切なリクエストコンポーネントを生成
+        // EventTask: 適切なリクエストコンポーネントへの変換
         const eventEntities = this.getEntities(EventTask);
         for (const entityId of eventEntities) {
             const task = this.world.getComponent(entityId, EventTask);
             
-            // イベント名に応じたリクエスト生成 (イベント駆動からの脱却)
             if (task.eventName === GameEvents.REFRESH_UI) {
-                const req = this.world.createEntity();
-                this.world.addComponent(req, new RefreshUIRequest());
+                this.world.addComponent(this.world.createEntity(), new RefreshUIRequest());
             } else if (task.eventName === GameEvents.CHECK_ACTION_CANCELLATION) {
-                const req = this.world.createEntity();
-                this.world.addComponent(req, new CheckActionCancellationRequest());
+                this.world.addComponent(this.world.createEntity(), new CheckActionCancellationRequest());
             } else {
-                // 互換性のために一応emitを残すが、原則使用しない
-                // console.warn(`TaskSystem: Emitting legacy event ${task.eventName}. Convert to Request Component.`);
+                // 互換性
                 this.world.emit(task.eventName, task.detail);
             }
             
