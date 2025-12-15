@@ -39,10 +39,10 @@ export const ScanEffect = {
         const stateUpdates = [];
 
         allies.forEach(targetId => {
-            // 配列操作は複雑なため、CUSTOM_UPDATE を使用するが、
-            // ハンドラ自体は純粋関数的に振る舞わせる（Worldを書き換えるロジックをApplyStateTaskに任せる）
+            // 修正: 'CUSTOM_UPDATE' -> 'CustomUpdateComponent'
+            // BattleSequenceSystem._applyStateUpdates の switch文と一致させます。
             stateUpdates.push({
-                type: 'CUSTOM_UPDATE',
+                type: 'CustomUpdateComponent',
                 targetId,
                 componentType: ActiveEffects,
                 customHandler: (activeEffects) => {
