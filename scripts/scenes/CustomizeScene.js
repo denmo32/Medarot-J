@@ -7,7 +7,7 @@ import { Scene } from '../../engine/scene/Scene.js';
 import { CustomizeInputSystem } from '../customize/systems/CustomizeInputSystem.js';
 import { CustomizeUISystem } from '../customize/systems/CustomizeUISystem.js';
 import { CustomizeLogicSystem } from '../customize/systems/CustomizeLogicSystem.js';
-import { CustomizeState } from '../customize/components/CustomizeState.js';
+import { createCustomizeContextEntity } from '../entities/createCustomizeContextEntity.js';
 
 export class CustomizeScene extends Scene {
     constructor(world, sceneManager) {
@@ -24,8 +24,7 @@ export class CustomizeScene extends Scene {
     }
 
     _setupContexts() {
-        const contextEntity = this.world.createEntity();
-        this.world.addComponent(contextEntity, new CustomizeState());
+        createCustomizeContextEntity(this.world);
     }
 
     _setupSystems() {

@@ -16,6 +16,7 @@ import { RenderSystem as MapRenderSystem } from '../map/systems/RenderSystem.js'
 import { MapUISystem } from '../map/systems/MapUISystem.js';
 import { InteractionSystem } from '../map/systems/InteractionSystem.js';
 import { ToggleMenuRequest, GameSaveRequest } from '../map/components/MapRequests.js';
+import { createPlayerEntity } from '../entities/createPlayerEntity.js';
 
 export class MapUIState {
     constructor() {
@@ -52,7 +53,7 @@ export class MapScene extends Scene {
         this.world.registerSystem(new MapUISystem(this.world));
         this.world.registerSystem(new InteractionSystem(this.world, map));
 
-        this.playerEntityId = this._setupEntities(gameDataManager);
+        this.playerEntityId = createPlayerEntity(this.world, gameDataManager);
 
         if (restoreMenu) {
             const req = this.world.createEntity();
@@ -81,19 +82,6 @@ export class MapScene extends Scene {
         this.world.addComponent(contextEntity, mapUIState);
     }
 
-    _setupEntities(gameDataManager) {
-        const playerEntityId = this.world.createEntity();
-        const mapPlayerData = gameDataManager.gameData.playerPosition;
-        
-        this.world.addComponent(playerEntityId, new MapComponents.Position(mapPlayerData.x, mapPlayerData.y));
-        this.world.addComponent(playerEntityId, new MapComponents.Renderable('circle', 'gold', MAP_CONFIG.PLAYER_SIZE));
-        this.world.addComponent(playerEntityId, new MapComponents.PlayerControllable());
-        this.world.addComponent(playerEntityId, new MapComponents.Collision(MAP_CONFIG.PLAYER_SIZE, MAP_CONFIG.PLAYER_SIZE));
-        this.world.addComponent(playerEntityId, new MapComponents.State(PLAYER_STATES.IDLE));
-        this.world.addComponent(playerEntityId, new MapComponents.FacingDirection(mapPlayerData.direction));
-
-        return playerEntityId;
-    }
 
     update(deltaTime) {
         super.update(deltaTime);

@@ -1,19 +1,21 @@
 /**
- * @file EntityFactory.js
- * @description バトルシーンにおけるエンティティ生成を担当するファクトリ。
- * TODO: このファイルのロジックを scripts/entities/ に移行・置き換えたら削除する。
+ * @file createBattleTeam.js
+ * @description バトルシーンのチーム全体のメダロットを生成する関数
  */
+
 import { CONFIG } from '../common/config.js';
 import { createBattleMedarotEntity } from '../../entities/createBattleMedarotEntity.js';
 import { TeamID, PartInfo } from '../../common/constants.js';
-import { MEDAROT_SETS } from '../../data/medarotSets.js';
 import { PARTS_DATA } from '../../data/parts.js';
 import { MEDALS_DATA } from '../../data/medals.js';
 import { MedalPersonality } from '../../common/constants.js';
-import { buildPartData } from '../../data/partDataUtils.js';
 
-
-export function createPlayers(world, playerTeamData = null) {
+/**
+ * チーム全体のメダロットを生成する
+ * @param {Object} world - ECSワールド
+ * @param {Array} playerTeamData - プレイヤーチームのデータ
+ */
+export function createBattleTeam(world, playerTeamData = null) {
     for (const teamIdString of Object.keys(CONFIG.TEAMS)) {
         const teamId = /** @type {TeamID} */ (teamIdString);
         for (let i = 0; i < CONFIG.PLAYERS_PER_TEAM; i++) {
@@ -44,7 +46,6 @@ export function createPlayers(world, playerTeamData = null) {
                 }
             } else if (teamId === TeamID.TEAM2) {
                 // 敵 (TEAM2) の場合、ランダムデータを生成
-                // (元の generateEnemyPartsIds や determineMedalInfo のロジックを移植)
                 const partKeys = Object.values(PartInfo).map(p => p.key);
                 const partIds = {};
                 for (const partKey of partKeys) {

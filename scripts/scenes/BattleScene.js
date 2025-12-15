@@ -5,13 +5,8 @@
  */
 import { Scene } from '../../engine/scene/Scene.js';
 import { initializeSystems } from '../battle/setup/SystemInitializer.js';
-import { createPlayers } from '../battle/setup/EntityFactory.js';
-import { TurnContext } from '../battle/components/TurnContext.js';
-import { PhaseState } from '../battle/components/PhaseState.js';
-import { BattleHistoryContext } from '../battle/components/BattleHistoryContext.js';
-import { BattleUIState } from '../battle/components/BattleUIState.js';
-import { BattleFlowState } from '../battle/components/BattleFlowState.js';
-import { UIManager } from '../../engine/ui/UIManager.js';
+import { createBattleTeam } from '../battle/setup/createBattleTeam.js';
+import { createBattleContextEntities, createBattleUIContextEntity } from '../entities/createBattleContextEntities.js';
 
 export class BattleScene extends Scene {
     constructor(world, sceneManager) {
@@ -33,21 +28,12 @@ export class BattleScene extends Scene {
 
     _setupEntities(gameDataManager) {
         const playerTeamData = gameDataManager.gameData.playerMedarots;
-        createPlayers(this.world, playerTeamData);
+        createBattleTeam(this.world, playerTeamData);
     }
 
     _setupBattleContext() {
-        const contextEntity = this.world.createEntity();
-
-        this.world.addComponent(contextEntity, new BattleFlowState());
-        this.world.addComponent(contextEntity, new TurnContext());
-        this.world.addComponent(contextEntity, new PhaseState());
-        this.world.addComponent(contextEntity, new BattleHistoryContext());
-        // HookContext は廃止されたため削除
-
-        const uiContextEntity = this.world.createEntity();
-        this.world.addComponent(uiContextEntity, new BattleUIState());
-        this.world.addComponent(uiContextEntity, new UIManager());
+        createBattleContextEntities(this.world);
+        createBattleUIContextEntity(this.world);
     }
 
     update(deltaTime) {
