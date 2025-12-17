@@ -6,7 +6,8 @@
 import { System } from '../../../../engine/core/System.js';
 import { 
     Position, Gauge, 
-    IsCharging, IsCooldown, IsReadyToExecute, IsGuarding, IsReadyToSelect, IsAwaitingAnimation
+    IsCharging, IsCooldown, IsReadyToExecute, IsGuarding, IsReadyToSelect, IsAwaitingAnimation,
+    IsBroken
 } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { TeamID } from '../../../common/constants.js';
@@ -21,6 +22,11 @@ export class MovementSystem extends System {
         const entities = this.getEntities(PlayerInfo, Position, Gauge);
 
         for (const entityId of entities) {
+            // 機能停止中の場合は位置更新を行わない（その場に留まる）
+            if (this.world.getComponent(entityId, IsBroken)) {
+                continue;
+            }
+
             const gauge = this.world.getComponent(entityId, Gauge);
             const playerInfo = this.world.getComponent(entityId, PlayerInfo);
             const position = this.world.getComponent(entityId, Position);
