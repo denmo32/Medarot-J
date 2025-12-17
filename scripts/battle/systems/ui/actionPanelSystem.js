@@ -4,11 +4,12 @@
  * 描画キャッシュをBattleUIStateコンポーネントに移管し、Systemをステートレス化。
  */
 import { System } from '../../../../engine/core/System.js';
-import { UIManager } from '../../../../engine/ui/UIManager.js'; 
+import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { BattleUIManager } from '../../ui/BattleUIManager.js';
 import { BattleUIState } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { UIInputState } from '../../components/States.js';
+import { BattleStartConfirmedRequest, HideModalRequest } from '../../../components/Events.js';
 
 export class ActionPanelSystem extends System {
     constructor(world) {
@@ -89,8 +90,24 @@ export class ActionPanelSystem extends System {
                 state.actorText
             );
 
-            // コンテキスト(emitはIntent変換されるためダミー)
-            const context = { emit: () => {} };
+            // UIリクエスト送信用関数
+            const createRequest = (RequestClass) => {
+                const requestEntity = this.world.createEntity();
+                this.world.addComponent(requestEntity, new RequestClass());
+            };
+
+            // 古いイベント方式から新しいリクエスト方式への変換用ダミーコンテキスト
+            const context = {
+                emit: (eventType) => {
+                    // 古いイベントタイプに対応する新しいリクエストコンポーネントに変換
+                    if (eventType === 'GAME_START_CONFIRMED') {
+                        createRequest(BattleStartConfirmedRequest);
+                    } else if (eventType === 'HIDE_MODAL') {
+                        createRequest(HideModalRequest);
+                    }
+                    // 他のイベントも必要に応じて追加
+                }
+            };
             
             this.battleUI.renderContent(state.currentModalType, state.buttonsData, context);
             this.battleUI.setPanelClickable(state.isPanelClickable);

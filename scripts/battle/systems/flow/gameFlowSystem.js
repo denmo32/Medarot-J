@@ -10,11 +10,12 @@ import { UpdateComponentRequest, TransitionStateRequest } from '../../components
 import { ModalState } from '../../components/States.js';
 import {
     BattleStartAnimationRequest,
-    BattleStartAnimationCompleted,
-    ResetButtonResult
+    BattleStartAnimationCompleted
+    // ResetButtonResult // 古いコンポーネントは削除
 } from '../../components/Requests.js';
 import { SceneChangeRequest } from '../../../components/SceneRequests.js';
 import { BattlePhase, PlayerStateType, ModalType } from '../../common/constants.js';
+import { BattleStartConfirmedRequest, ResetButtonClickedRequest } from '../../../components/Events.js';
 
 export class GameFlowSystem extends System {
     constructor(world) {
@@ -31,7 +32,14 @@ export class GameFlowSystem extends System {
             this.lastPhase = currentPhase;
         }
 
-        const resetRequests = this.getEntities(ResetButtonResult);
+        // BattleStartConfirmedRequestを検知して、BATTLE_STARTフェーズに遷移
+        const startConfirmedRequests = this.getEntities(BattleStartConfirmedRequest);
+        for (const id of startConfirmedRequests) {
+            this.battleFlowState.phase = BattlePhase.BATTLE_START;
+            this.world.destroyEntity(id); // リクエストは処理後削除
+        }
+
+        const resetRequests = this.getEntities(ResetButtonClickedRequest);
         for (const id of resetRequests) {
             this.world.destroyEntity(id);
             const req = this.world.createEntity();

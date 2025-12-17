@@ -7,8 +7,9 @@ import { ApplyEffect, EffectContext, EffectResult } from '../../components/effec
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { ActiveEffects, IsCharging, IsGuarding, Action } from '../../components/index.js';
 import { EffectType, EffectScope, PlayerStateType, ActionCancelReason } from '../../common/constants.js';
-import { GameEvents } from '../../../common/events.js';
+// import { GameEvents } from '../../../common/events.js'; // イベントシステム廃止につき削除
 import { TargetingService } from '../../services/TargetingService.js';
+import { ActionCancelledRequest } from '../../../components/Events.js';
 
 export class StatusEffectSystem extends System {
     constructor(world) {
@@ -112,17 +113,16 @@ export class StatusEffectSystem extends System {
         const isGuarding = this.world.getComponent(targetId, IsGuarding);
         const wasSuccessful = !!(isCharging || isGuarding);
 
-        const events = [];
         const stateUpdates = [];
 
         if (wasSuccessful) {
-            events.push({
-                type: GameEvents.ACTION_CANCELLED,
-                payload: { 
-                    entityId: targetId, 
-                    reason: ActionCancelReason.INTERRUPTED 
-                }
-            });
+            // アクションキャンセルを通知（リクエストコンポーネントとして追加）
+            const cancelRequestEntity = this.world.createEntity();
+            this.world.addComponent(cancelRequestEntity, new ActionCancelledRequest({
+                entityId: targetId,
+                reason: ActionCancelReason.INTERRUPTED
+            }));
+
             stateUpdates.push({
                 type: 'ResetToCooldown',
                 targetId: targetId,
@@ -134,7 +134,6 @@ export class StatusEffectSystem extends System {
             type: EffectType.APPLY_GLITCH,
             targetId,
             wasSuccessful,
-            events,
             stateUpdates
         });
     }

@@ -8,7 +8,7 @@ import { PlayerInfo, Parts } from '../../../components/index.js';
 import { TeamID } from '../../../common/constants.js';
 import { BattlePhase } from '../../common/constants.js';
 import { BattleFlowState, BattleSequenceState, SequencePending } from '../../components/index.js';
-import { GameEvents } from '../../../common/events.js';
+// import { GameEvents } from '../../../common/events.js'; // イベントシステム廃止につき削除
 
 export class WinConditionSystem extends System {
     constructor(world) {

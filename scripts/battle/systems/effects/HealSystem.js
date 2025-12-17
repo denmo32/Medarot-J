@@ -7,7 +7,8 @@ import { System } from '../../../../engine/core/System.js';
 import { ApplyEffect, EffectContext, EffectResult } from '../../components/effects/Effects.js';
 import { Parts } from '../../../components/index.js';
 import { EffectType } from '../../common/constants.js';
-import { GameEvents } from '../../../common/events.js';
+// import { GameEvents } from '../../../common/events.js'; // イベントシステム廃止につき削除
+import { HpChangedEvent } from '../../../components/Events.js';
 
 export class HealSystem extends System {
     constructor(world) {
@@ -54,20 +55,18 @@ export class HealSystem extends System {
         // 適用
         part.hp = newHp;
 
-        const events = [];
         if (actualHeal > 0) {
-            events.push({
-                type: GameEvents.HP_UPDATED,
-                payload: { 
-                    entityId: targetId, 
-                    partKey, 
-                    newHp, 
-                    oldHp, 
-                    maxHp: part.maxHp, 
-                    change: actualHeal, 
-                    isHeal: true 
-                }
-            });
+            // HP変更をUIやログ用に通知（イベントコンポーネントとして追加）
+            const hpChangeEventEntity = this.world.createEntity();
+            this.world.addComponent(hpChangeEventEntity, new HpChangedEvent({
+                entityId: targetId,
+                partKey,
+                newHp,
+                oldHp,
+                maxHp: part.maxHp,
+                change: actualHeal,
+                isHeal: true
+            }));
         }
 
         const resultData = {
@@ -76,8 +75,7 @@ export class HealSystem extends System {
             partKey,
             value: actualHeal,
             oldHp,
-            newHp,
-            events
+            newHp
         };
 
         this._finishEffect(entityId, resultData);

@@ -10,12 +10,18 @@ import { ModalType } from '../../common/constants.js';
 import { AiDecisionService } from '../../services/AiDecisionService.js';
 import { ActionService } from '../../services/ActionService.js';
 import { ModalState, PlayerInputState, ActionRequeueState, AnimationState, UIStateUpdateState, UIInputState } from '../../components/States.js';
-import {
-    BattleStartConfirmedTag,
-    BattleStartCancelledTag,
-    ResetButtonResult
-} from '../../components/Requests.js';
+// import {
+//     BattleStartConfirmedTag,
+//     BattleStartCancelledTag,
+//     ResetButtonResult
+// } from '../../components/Requests.js'; // 古いイベントコンポーネントは削除
 import { PauseState } from '../../components/PauseState.js';
+import {
+    BattleStartConfirmedRequest,
+    BattleStartCancelledRequest,
+    ResetButtonClickedRequest,
+    PartSelectedRequest
+} from '../../../components/Events.js';
 
 export class ModalSystem extends System {
     constructor(world) {
@@ -279,22 +285,26 @@ export class ModalSystem extends System {
         if (!action) return;
 
         switch(action.action) {
-            case 'EMIT_AND_CLOSE': 
+            case 'EMIT_AND_CLOSE':
                 if (action.eventName === 'PART_SELECTED') {
+                    // 古いアクション作成処理を維持（将来的にリクエスト形式に統一してもよい）
                     ActionService.createActionRequest(
-                        this.world, 
-                        action.detail.entityId, 
-                        action.detail.partKey, 
+                        this.world,
+                        action.detail.entityId,
+                        action.detail.partKey,
                         action.detail.target
                     );
                 } else if (action.eventName === 'BATTLE_START_CONFIRMED') {
-                    this.world.addComponent(this.world.createEntity(), new BattleStartConfirmedTag());
+                    const requestEntity = this.world.createEntity();
+                    this.world.addComponent(requestEntity, new BattleStartConfirmedRequest());
                 } else if (action.eventName === 'BATTLE_START_CANCELLED') {
-                    this.world.addComponent(this.world.createEntity(), new BattleStartCancelledTag());
+                    const requestEntity = this.world.createEntity();
+                    this.world.addComponent(requestEntity, new BattleStartCancelledRequest());
                 } else if (action.eventName === 'RESET_BUTTON_CLICKED') {
-                    this.world.addComponent(this.world.createEntity(), new ResetButtonResult());
+                    const requestEntity = this.world.createEntity();
+                    this.world.addComponent(requestEntity, new ResetButtonClickedRequest());
                 }
-                
+
                 this.finishCurrentModal();
                 break;
 

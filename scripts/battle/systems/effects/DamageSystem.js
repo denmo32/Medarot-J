@@ -10,7 +10,7 @@ import { Parts, PlayerInfo } from '../../../components/index.js';
 import { ActiveEffects, IsGuarding } from '../../components/index.js';
 import { EffectType } from '../../common/constants.js';
 import { PartInfo } from '../../../common/constants.js'; // パスを修正 (../../ -> ../../../)
-import { GameEvents } from '../../../common/events.js';
+import { HpChangedEvent, PartBrokenEvent } from '../../../components/Events.js'; // GameEventsの代わりに新しいイベントコンポーネントをインポート
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
 import { QueryService } from '../../services/QueryService.js';
@@ -101,16 +101,18 @@ export class DamageSystem extends System {
         let isPartBroken = false;
         let isGuardBroken = false;
         const stateUpdates = [];
-        const events = [];
+        // const events = []; // 古いイベント通知用の配列、削除
 
         if (oldHp > 0 && newHp === 0) {
             isPartBroken = true;
             part.isBroken = true;
             
-            events.push({
-                type: GameEvents.PART_BROKEN,
-                payload: { entityId: targetId, partKey }
-            });
+            // パーツ破壊をUIやログ用に通知（イベントコンポーネントとして追加）
+            const partBrokenEventEntity = this.world.createEntity();
+            this.world.addComponent(partBrokenEventEntity, new PartBrokenEvent({
+                entityId: targetId,
+                partKey
+            }));
 
             if (partKey === PartInfo.HEAD.key) {
                 targetPartsComponent.head.isBroken = true; // 明示的
@@ -135,18 +137,17 @@ export class DamageSystem extends System {
             }
         }
 
-        events.push({
-            type: GameEvents.HP_UPDATED,
-            payload: { 
-                entityId: targetId, 
-                partKey, 
-                newHp, 
-                oldHp, 
-                maxHp: part.maxHp, 
-                change: -actualDamage, 
-                isHeal: false 
-            }
-        });
+        // HP変更をUIやログ用に通知（イベントコンポーネントとして追加）
+        const hpChangeEventEntity = this.world.createEntity();
+        this.world.addComponent(hpChangeEventEntity, new HpChangedEvent({
+            entityId: targetId,
+            partKey,
+            newHp,
+            oldHp,
+            maxHp: part.maxHp,
+            change: -actualDamage,
+            isHeal: false
+        }));
 
         // 貫通処理
         const overkillDamage = finalDamage - actualDamage;
@@ -195,7 +196,6 @@ export class DamageSystem extends System {
             isGuardBroken,
             isPenetration: effect.isPenetration,
             overkillDamage,
-            events,
             stateUpdates
         };
 
