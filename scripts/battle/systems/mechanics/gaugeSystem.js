@@ -14,10 +14,10 @@ import { CombatCalculator } from '../../logic/CombatCalculator.js';
 export class GaugeSystem extends System {
     constructor(world) {
         super(world);
-        this.battleFlowState = this.world.getSingletonComponent(BattleFlowState);
     }
 
     update(deltaTime) {
+        const battleFlowState = this.world.getSingletonComponent(BattleFlowState);
         // シーケンス実行中はゲージを停止
         const isSequenceRunning =
             this.getEntities(SequencePending).length > 0 ||
@@ -37,14 +37,14 @@ export class GaugeSystem extends System {
             BattlePhase.TURN_END,
         ];
 
-        if (!activePhases.includes(this.battleFlowState.phase) || isPaused) {
+        if (!activePhases.includes(battleFlowState.phase) || isPaused) {
             return;
         }
 
         // アクション選択中はゲージを止める
         // IsReadyToSelect (ready_select) や IsReadyToExecute (ready_execute) の機体がいる場合
         // -> これはActionSelectionSystemがcurrentActorIdを設定している間、という意味に近い
-        if (this.battleFlowState.currentActorId !== null) {
+        if (battleFlowState.currentActorId !== null) {
             return;
         }
 

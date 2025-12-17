@@ -13,7 +13,6 @@ import { EffectType } from '../../common/constants.js';
 export class BattleHistorySystem extends System {
     constructor(world) {
         super(world);
-        this.battleHistoryContext = this.world.getSingletonComponent(BattleHistoryContext);
         // processedResults: 同一フレーム内で重複処理しないためのキャッシュ（必要であれば）
         // 現状は BattleSequenceSystem が CombatResult を消費するため、毎フレーム処理しても問題ないが、
         // 万が一消費されなかった場合のためにチェック機構を入れてもよい。
@@ -33,6 +32,7 @@ export class BattleHistorySystem extends System {
     }
 
     _recordHistory(detail) {
+        const battleHistoryContext = this.world.getSingletonComponent(BattleHistoryContext);
         const { attackerId, appliedEffects, attackingPart } = detail;
 
         // appliedEffects が存在しない、または空の場合は履歴更新なし
@@ -66,11 +66,11 @@ export class BattleHistorySystem extends System {
         if (!attackerInfo || !targetInfo) return;
 
         if (!attackingPart.isSupport && mainEffect.type === EffectType.DAMAGE) {
-            this.battleHistoryContext.history.teamLastAttack[attackerInfo.teamId] = { targetId, partKey };
+            battleHistoryContext.history.teamLastAttack[attackerInfo.teamId] = { targetId, partKey };
         }
 
         if (targetInfo.isLeader && !attackingPart.isSupport && mainEffect.type === EffectType.DAMAGE) {
-            this.battleHistoryContext.history.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
+            battleHistoryContext.history.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
         }
     }
 }

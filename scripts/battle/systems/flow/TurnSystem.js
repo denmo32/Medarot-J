@@ -15,21 +15,21 @@ import { TurnEndedSignal } from '../../components/Requests.js';
 export class TurnSystem extends System {
     constructor(world) {
         super(world);
-        this.battleFlowState = this.world.getSingletonComponent(BattleFlowState);
 
         this.lastPhase = null;
     }
 
     update(deltaTime) {
+        const battleFlowState = this.world.getSingletonComponent(BattleFlowState);
         // --- フェーズ遷移検知 (Enter/Exit処理) ---
-        if (this.battleFlowState.phase !== this.lastPhase) {
-            this._onPhaseEnter(this.battleFlowState.phase);
-            this.lastPhase = this.battleFlowState.phase;
+        if (battleFlowState.phase !== this.lastPhase) {
+            this._onPhaseEnter(battleFlowState.phase);
+            this.lastPhase = battleFlowState.phase;
         }
 
         // --- フェーズ完了監視と遷移ロジック ---
 
-        switch (this.battleFlowState.phase) {
+        switch (battleFlowState.phase) {
             case BattlePhase.ACTION_SELECTION:
                 this._checkActionSelectionCompletion();
                 break;
@@ -49,29 +49,32 @@ export class TurnSystem extends System {
     }
 
     _handleTurnEnd() {
-        this.battleFlowState.turnNumber++;
+        const battleFlowState = this.world.getSingletonComponent(BattleFlowState);
+        battleFlowState.turnNumber++;
 
         const signalEntity = this.world.createEntity();
-        this.world.addComponent(signalEntity, new TurnEndedSignal(this.battleFlowState.turnNumber - 1));
+        this.world.addComponent(signalEntity, new TurnEndedSignal(battleFlowState.turnNumber - 1));
 
-        this.battleFlowState.phase = BattlePhase.TURN_START;
+        battleFlowState.phase = BattlePhase.TURN_START;
     }
 
     _handleTurnStart() {
-        this.battleFlowState.phase = BattlePhase.ACTION_SELECTION;
+        const battleFlowState = this.world.getSingletonComponent(BattleFlowState);
+        battleFlowState.phase = BattlePhase.ACTION_SELECTION;
     }
 
     // --- Completion Checks ---
 
     _checkActionSelectionCompletion() {
+        const battleFlowState = this.world.getSingletonComponent(BattleFlowState);
         const pendingEntities = this.getEntities(ActionSelectionPending);
         if (pendingEntities.length > 0) return;
 
-        if (this.battleFlowState.currentActorId !== null) return;
+        if (battleFlowState.currentActorId !== null) return;
 
         // 次のフェーズを決定
         if (this._isAnyEntityReadyToExecute()) {
-            this.battleFlowState.phase = BattlePhase.ACTION_EXECUTION;
+            battleFlowState.phase = BattlePhase.ACTION_EXECUTION;
             return;
         }
 
@@ -81,19 +84,20 @@ export class TurnSystem extends System {
         }
 
         // 優先度3: 誰も動いていなければターン終了
-        this.battleFlowState.phase = BattlePhase.TURN_END;
+        battleFlowState.phase = BattlePhase.TURN_END;
     }
 
     _checkActionExecutionCompletion() {
+        const battleFlowState = this.world.getSingletonComponent(BattleFlowState);
         const pending = this.getEntities(SequencePending);
         const executing = this.getEntities(BattleSequenceState);
 
         if (pending.length === 0 && executing.length === 0) {
             // 実行フェーズ完了
             if (this._isAnyEntityInAction()) {
-                this.battleFlowState.phase = BattlePhase.ACTION_SELECTION;
+                battleFlowState.phase = BattlePhase.ACTION_SELECTION;
             } else {
-                this.battleFlowState.phase = BattlePhase.TURN_END;
+                battleFlowState.phase = BattlePhase.TURN_END;
             }
         }
     }
