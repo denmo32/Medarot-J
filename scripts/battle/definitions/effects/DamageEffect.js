@@ -1,12 +1,12 @@
 /**
  * @file DamageEffect.js
- * @description ダメージ効果の定義 (計算・適用)
- * createVisualsメソッドは削除され、VisualSequenceServiceとVisualDefinitionsに責務が移譲されました。
+ * @description ダメージ効果の定義。
+ * タグベースの状態チェックに更新。
  */
 import { PartInfo } from '../../../common/constants.js';
-import { EffectType, PlayerStateType } from '../../common/constants.js';
+import { EffectType } from '../../common/constants.js';
 import { Parts, PlayerInfo } from '../../../components/index.js';
-import { GameState, ActiveEffects } from '../../components/index.js';
+import { ActiveEffects, IsGuarding } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
@@ -14,7 +14,6 @@ import { EffectService } from '../../services/EffectService.js';
 export const DamageEffect = {
     type: EffectType.DAMAGE,
 
-    // --- 計算フェーズ ---
     process: ({ world, sourceId, targetId, effect, part, partOwner, outcome }) => {
         if (!targetId || !outcome.isHit) {
             return null;
@@ -62,7 +61,6 @@ export const DamageEffect = {
         };
     },
 
-    // --- 適用データ生成フェーズ ---
     apply: ({ world, effect, simulatedParts }) => {
         const { targetId, partKey, value } = effect;
         const part = simulatedParts?.[partKey];
@@ -78,7 +76,6 @@ export const DamageEffect = {
         const events = [];
         const stateUpdates = [];
 
-        // シミュレーション状態を直接更新
         part.hp = newHp;
         if (isPartBroken) {
             part.isBroken = true;
@@ -108,10 +105,11 @@ export const DamageEffect = {
                 stateUpdates.push({ type: 'SetPlayerBroken', targetId });
             }
 
-            const targetState = world.getComponent(targetId, GameState);
+            // ガードパーツ破壊時の処理
             const activeEffects = world.getComponent(targetId, ActiveEffects);
+            const isGuarding = world.getComponent(targetId, IsGuarding);
             
-            if (targetState && targetState.state === PlayerStateType.GUARDING && activeEffects) {
+            if (isGuarding && activeEffects) {
                 const isGuardPart = activeEffects.effects.some(
                     e => e.type === EffectType.APPLY_GUARD && e.partKey === partKey
                 );

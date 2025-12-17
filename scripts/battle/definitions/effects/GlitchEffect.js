@@ -1,11 +1,11 @@
 /**
  * @file GlitchEffect.js
- * @description 妨害効果の定義
- * createVisualsメソッドは削除され、VisualSequenceServiceとVisualDefinitionsに責務が移譲されました。
+ * @description 妨害効果の定義。
+ * 状態判定をタグコンポーネント(IsCharging, IsGuarding)に変更。
  */
-import { EffectType, PlayerStateType, ActionCancelReason } from '../../common/constants.js';
+import { EffectType, ActionCancelReason } from '../../common/constants.js';
 import { PlayerInfo } from '../../../components/index.js';
-import { GameState } from '../../components/index.js';
+import { IsCharging, IsGuarding } from '../../components/index.js';
 import { GameEvents } from '../../../common/events.js';
 
 export const GlitchEffect = {
@@ -15,11 +15,15 @@ export const GlitchEffect = {
         if (targetId === null || targetId === undefined) return null;
 
         const targetInfo = world.getComponent(targetId, PlayerInfo);
-        const targetState = world.getComponent(targetId, GameState);
-        if (!targetInfo || !targetState) return null;
+        if (!targetInfo) return null;
+
+        // IsCharging(前進中) または IsGuarding(ガード中) なら成功
+        // 注意: ActionSelectionSystemで設定される IsCharging は旧 SELECTED_CHARGING に相当
+        const isCharging = world.getComponent(targetId, IsCharging);
+        const isGuarding = world.getComponent(targetId, IsGuarding);
 
         let wasSuccessful = false;
-        if (targetState.state === PlayerStateType.SELECTED_CHARGING || targetState.state === PlayerStateType.GUARDING) {
+        if (isCharging || isGuarding) {
             wasSuccessful = true;
         }
 

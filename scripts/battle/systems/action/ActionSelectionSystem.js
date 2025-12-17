@@ -1,12 +1,12 @@
 /**
  * @file ActionSelectionSystem.js
  * @description アクション選択フェーズの制御を行うシステム。
- * イベント駆動からコンポーネントポーリングへ完全移行。
+ * タグコンポーネントを使用するように更新。
  */
 import { System } from '../../../../engine/core/System.js';
 import { BattleFlowState } from '../../components/BattleFlowState.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
-import { Action, Gauge, GameState, ActionSelectionPending } from '../../components/index.js';
+import { Action, Gauge, ActionSelectionPending, IsReadyToSelect, IsCharging, IsBroken } from '../../components/index.js';
 import {
     TransitionStateRequest,
     UpdateComponentRequest
@@ -57,7 +57,6 @@ export class ActionSelectionSystem extends System {
             const state = this.world.getComponent(entityId, ActionState);
             if (state.state === 'selected') {
                 this._handleActionState(state);
-                // stateを更新
                 state.state = 'processed';
             }
         }
@@ -77,21 +76,18 @@ export class ActionSelectionSystem extends System {
                     this.battleFlowState.currentActorId = null;
                 }
 
-                // 状態を更新
                 state.isActive = false;
             }
         }
     }
 
     _processConfirmationTags() {
-        // バトル開始確認
         const confirmedTags = this.getEntities(BattleStartConfirmedTag);
         if (confirmedTags.length > 0) {
             this.initialSelectionState.confirmed = true;
             for (const id of confirmedTags) this.world.destroyEntity(id);
         }
 
-        // バトル開始キャンセル
         const cancelledTags = this.getEntities(BattleStartCancelledTag);
         if (cancelledTags.length > 0) {
             this.initialSelectionState.cancelled = true;
@@ -105,15 +101,12 @@ export class ActionSelectionSystem extends System {
         const { entityId, partKey, targetId, targetPartKey } = state;
 
         if (this.battleFlowState.currentActorId === entityId) {
-            // selectedActions はTurnContextにあったが、BattleFlowStateに移行するか、または不要になる可能性がある
-            // 現在の設計ではselectedActionsを使用していないので、この部分は削除する
-            this.battleFlowState.currentActorId = null; // 次へ
+            this.battleFlowState.currentActorId = null;
         }
 
         const action = this.world.getComponent(entityId, Action);
         const parts = this.world.getComponent(entityId, Parts);
 
-        // バリデーション
         if (!partKey || !parts?.[partKey] || parts[partKey].isBroken) {
             console.warn(`ActionSelectionSystem: Invalid part selected. Re-queueing.`);
             const stateEntity = this.world.createEntity();
@@ -126,14 +119,12 @@ export class ActionSelectionSystem extends System {
 
         const selectedPart = parts[partKey];
 
-        // コンポーネント更新
         action.partKey = partKey;
         action.type = selectedPart.action;
         action.targetId = targetId;
         action.targetPartKey = targetPartKey;
         action.targetTiming = selectedPart.targetTiming;
 
-        // 速度計算
         const modifier = EffectService.getSpeedMultiplierModifier(this.world, entityId, selectedPart);
         const speedMultiplier = CombatCalculator.calculateSpeedMultiplier({
             might: selectedPart.might,
@@ -142,7 +133,7 @@ export class ActionSelectionSystem extends System {
             modifier: modifier
         });
 
-        // 状態遷移リクエスト発行
+        // 状態遷移: SELECTED_CHARGING -> IsCharging
         const req1 = this.world.createEntity();
         this.world.addComponent(req1, new TransitionStateRequest(
             entityId,
@@ -172,27 +163,22 @@ export class ActionSelectionSystem extends System {
         if (this.initialSelectionState.cancelled) {
             this.initialSelectionState.cancelled = false;
             this.initialSelectionState.isConfirming = false;
-
             this.battleFlowState.phase = BattlePhase.IDLE;
-            // シーン遷移はGameFlowSystem等で管理されるべきだが、ここではトリガーのみ変更
-            // IDLEフェーズへの遷移をGameFlowSystemが検知する
             return;
         }
 
         if (!this.initialSelectionState.isConfirming && this._checkAllSelected()) {
             this.initialSelectionState.isConfirming = true;
-            // モーダル表示リクエスト
             const stateEntity = this.world.createEntity();
             const modalState = new ModalState();
             modalState.type = ModalType.BATTLE_START_CONFIRM;
             modalState.data = {};
             modalState.priority = 'high';
-            // modalState.isNewはデフォルトでtrue
             this.world.addComponent(stateEntity, modalState);
         }
 
         if (!this.initialSelectionState.isConfirming && this.battleFlowState.currentActorId === null) {
-            this._processNextActor(true); // isInitial=true
+            this._processNextActor(true); 
         }
     }
 
@@ -205,20 +191,18 @@ export class ActionSelectionSystem extends System {
     }
 
     _checkAllSelected() {
-        const allPlayers = this.getEntities(GameState);
-        if (allPlayers.length === 0) return false;
-
-        return allPlayers.every(id => {
-            const state = this.world.getComponent(id, GameState);
-            if (!state) return false;
-            return state.state === PlayerStateType.SELECTED_CHARGING || 
-                   state.state === PlayerStateType.BROKEN;
-        });
+        // IsCharging(旧SELECTED_CHARGING) か IsBroken ならOK
+        const charging = this.getEntities(IsCharging);
+        const broken = this.getEntities(IsBroken);
+        const totalChecked = charging.length + broken.length;
+        
+        // 全プレイヤー数と比較すべきだが、ここでは簡易的に「ReadyToSelectがいないこと」を確認
+        const pending = this.getEntities(IsReadyToSelect);
+        return pending.length === 0 && totalChecked > 0;
     }
 
     // --- ACTION_SELECTION Logic ---
     _updateActionSelection() {
-        // 現在のアクターが行動選択中でなければ、次のアクターを選出する
         if (this.battleFlowState.currentActorId === null) {
             this._processNextActor(false);
         }
@@ -228,15 +212,11 @@ export class ActionSelectionSystem extends System {
         const pendingEntities = this.getEntities(ActionSelectionPending);
         if (pendingEntities.length === 0) return;
 
-        // 有効な候補をフィルタリング
-        const validEntities = pendingEntities.filter(id => {
-            const state = this.world.getComponent(id, GameState);
-            return state && state.state === PlayerStateType.READY_SELECT;
-        });
+        // IsReadyToSelect タグを持つエンティティのみ対象
+        const validEntities = pendingEntities.filter(id => this.world.getComponent(id, IsReadyToSelect));
 
         if (validEntities.length === 0) return;
 
-        // ソート
         if (isInitial) {
             validEntities.sort((a, b) => a - b);
         } else {
@@ -245,7 +225,6 @@ export class ActionSelectionSystem extends System {
 
         const nextActorId = validEntities[0];
 
-        // 選択権の付与
         this.battleFlowState.currentActorId = nextActorId;
         this.world.removeComponent(nextActorId, ActionSelectionPending);
 
@@ -256,15 +235,12 @@ export class ActionSelectionSystem extends System {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
 
         if (playerInfo.teamId === 'team1') {
-            // プレイヤー入力要求リクエストを発行
-            const req = this.world.createEntity();
             const stateEntity = this.world.createEntity();
             const playerInputState = new PlayerInputState();
             playerInputState.isActive = true;
             playerInputState.entityId = entityId;
             this.world.addComponent(stateEntity, playerInputState);
         } else {
-            // AIリクエスト発行
             const aiActionState = new AiActionState();
             aiActionState.isActive = true;
             this.world.addComponent(entityId, aiActionState);

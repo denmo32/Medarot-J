@@ -1,12 +1,12 @@
 /**
  * @file ShootSystem.js
  * @description 射撃アクションを処理するシステム。
- * パス修正: index.js経由でコンポーネントをインポート。
+ * InCombatCalculationタグを使用。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
-    BattleSequenceState, SequenceState, CombatContext, CombatResult,
-    IsShootingAction, TargetResolved
+    BattleSequenceState, CombatContext, CombatResult,
+    IsShootingAction, TargetResolved, InCombatCalculation, GeneratingVisuals
 } from '../../components/index.js';
 import { CombatService } from '../../services/CombatService.js';
 
@@ -16,12 +16,9 @@ export class ShootSystem extends System {
     }
 
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(BattleSequenceState, IsShootingAction, CombatContext, TargetResolved);
+        const entities = this.world.getEntitiesWith(BattleSequenceState, InCombatCalculation, IsShootingAction, CombatContext, TargetResolved);
         
         for (const entityId of entities) {
-            const state = this.world.getComponent(entityId, BattleSequenceState);
-            if (state.currentState !== SequenceState.CALCULATING) continue;
-
             this._processShooting(entityId);
         }
     }
@@ -50,7 +47,10 @@ export class ShootSystem extends System {
         this.world.removeComponent(entityId, CombatContext);
         this.world.removeComponent(entityId, TargetResolved);
 
-        state.currentState = SequenceState.GENERATING_VISUALS;
+        // 次のフェーズへ遷移
+        this.world.removeComponent(entityId, InCombatCalculation);
+        this.world.addComponent(entityId, new GeneratingVisuals());
+        
         state.contextData = resultData;
     }
 }

@@ -4,7 +4,7 @@
  * イベントリスナーを廃止し、Signalコンポーネントのポーリングに移行。
  */
 import { System } from '../../../../engine/core/System.js';
-import { ActiveEffects, GameState } from '../../components/index.js';
+import { ActiveEffects, IsGuarding } from '../../components/index.js';
 import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
 import { ModalState } from '../../components/States.js';
 import {

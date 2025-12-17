@@ -1,4 +1,9 @@
-import { Gauge, GameState, BattleSequenceState, SequencePending, PauseState } from '../../components/index.js';
+/**
+ * @file GaugeSystem.js
+ * @description ゲージ更新システム。
+ * 状態タグに基づいて動作判定を行う。
+ */
+import { Gauge, BattleSequenceState, SequencePending, PauseState, IsCharging, IsCooldown } from '../../components/index.js';
 import { GaugeFullTag } from '../../components/Requests.js';
 import { Parts } from '../../../components/index.js';
 import { BattleFlowState } from '../../components/BattleFlowState.js';
@@ -36,13 +41,10 @@ export class GaugeSystem extends System {
             return;
         }
 
-        const entitiesWithState = this.getEntities(GameState);
-        const hasActionQueued = entitiesWithState.some(entityId => {
-            const gameState = this.world.getComponent(entityId, GameState);
-            return gameState.state === 'ready_select' || gameState.state === 'ready_execute';
-        });
-
-        if (hasActionQueued) {
+        // アクション選択中はゲージを止める
+        // IsReadyToSelect (ready_select) や IsReadyToExecute (ready_execute) の機体がいる場合
+        // -> これはActionSelectionSystemがcurrentActorIdを設定している間、という意味に近い
+        if (this.battleFlowState.currentActorId !== null) {
             return;
         }
 
@@ -55,12 +57,16 @@ export class GaugeSystem extends System {
                 continue;
             }
 
-            // 既に満タンタグがついている場合は処理しない（StateSystemが処理するまで待機）
+            // 既に満タンタグがついている場合は処理しない
             if (this.world.getComponent(entityId, GaugeFullTag)) {
                 continue;
             }
 
-            if (!gauge.isActive || gauge.isFrozen()) {
+            // isActiveフラグに加え、タグチェックも行う (二重チェック)
+            // 移動中(Charging)または帰還中(Cooldown)のみ進行
+            const isMoving = this.world.getComponent(entityId, IsCharging) || this.world.getComponent(entityId, IsCooldown);
+
+            if (!gauge.isActive || !isMoving || gauge.isFrozen()) {
                 continue;
             }
 
@@ -82,7 +88,6 @@ export class GaugeSystem extends System {
 
             if (gauge.value >= gauge.max) {
                 gauge.value = gauge.max;
-                // イベント発行ではなく、タグコンポーネントを付与する
                 this.world.addComponent(entityId, new GaugeFullTag());
             }
         }

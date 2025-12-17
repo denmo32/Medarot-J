@@ -1,14 +1,16 @@
 /**
  * @file BattleSequenceSystem.js
  * @description バトルアクションパイプラインの管理システム。
- * パス修正: index.js経由でコンポーネントをインポートするように統一。
+ * currentStateプロパティによる状態管理から、タグコンポーネントによる管理へ移行。
  */
 import { System } from '../../../../engine/core/System.js';
 import {
-    BattleSequenceState, SequenceState, SequencePending,
-    GameState, Action, BattleFlowState,
+    BattleSequenceState, SequencePending,
+    Action, BattleFlowState,
     IsShootingAction, IsMeleeAction, IsSupportAction, IsHealAction, IsDefendAction, IsInterruptAction,
-    RequiresPreMoveTargeting, RequiresPostMoveTargeting
+    RequiresPreMoveTargeting, RequiresPostMoveTargeting,
+    InCombatCalculation, GeneratingVisuals, ExecutingVisuals, SequenceFinished,
+    IsReadyToExecute, IsAwaitingAnimation
 } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import {
@@ -38,18 +40,18 @@ export class BattleSequenceSystem extends System {
             return;
         }
 
-        // 1. パイプライン完了者の処理 (FINISHED -> 除去)
+        // 1. パイプライン完了者の処理 (SequenceFinished -> 除去)
         this._cleanupFinishedSequences();
 
-        // 2. パイプライン初期化処理 (INITIALIZING -> CALCULATING or GENERATING_VISUALS)
+        // 2. パイプライン初期化処理 (BattleSequenceStateを持つが、フェーズタグを持たないエンティティ)
         this._processInitializingSequences();
 
-        // 3. 新規アクターの投入 (Pending -> INITIALIZING)
+        // 3. 新規アクターの投入 (Pending -> BattleSequenceState付与)
         if (!this._isPipelineBusy()) {
             this._startNextSequence();
         }
 
-        // 4. 実行待機エンティティのタグ付け
+        // 4. 実行待機エンティティのタグ付け (SequencePending付与)
         this._markReadyEntities();
     }
 
@@ -62,16 +64,27 @@ export class BattleSequenceSystem extends System {
         if (nextActorId === null) return;
 
         this.world.removeComponent(nextActorId, SequencePending);
-        this.world.addComponent(nextActorId, new BattleSequenceState()); // Default is INITIALIZING
+        // コンポーネント追加のみ。初期タグは _processInitializingSequences で処理されるため付けない
+        this.world.addComponent(nextActorId, new BattleSequenceState());
 
         this.battleFlowState.currentActorId = nextActorId;
     }
 
     _processInitializingSequences() {
+        // BattleSequenceStateを持ち、かつ計算中・生成中・実行中・完了のいずれでもないエンティティを探す
+        // これらは「初期化待ち」の状態である
         const entities = this.world.getEntitiesWith(BattleSequenceState);
+        
         for (const entityId of entities) {
+            // 既に何らかのフェーズタグを持っていればスキップ
+            if (this.world.getComponent(entityId, InCombatCalculation) ||
+                this.world.getComponent(entityId, GeneratingVisuals) ||
+                this.world.getComponent(entityId, ExecutingVisuals) ||
+                this.world.getComponent(entityId, SequenceFinished)) {
+                continue;
+            }
+
             const state = this.world.getComponent(entityId, BattleSequenceState);
-            if (state.currentState !== SequenceState.INITIALIZING) continue;
 
             // 1. 状態遷移リクエスト (演出待ち状態へ)
             const reqEntity = this.world.createEntity();
@@ -83,18 +96,18 @@ export class BattleSequenceSystem extends System {
             // 2. キャンセルチェック
             const cancelCheck = CancellationService.checkCancellation(this.world, entityId);
             if (cancelCheck.shouldCancel) {
-                // キャンセル発生時
+                // キャンセル発生時 -> 計算をスキップしてVisual生成へ
                 state.contextData = { isCancelled: true, cancelReason: cancelCheck.reason };
                 const evt = this.world.createEntity();
                 this.world.addComponent(evt, new ActionCancelledEvent(entityId, cancelCheck.reason));
                 
-                state.currentState = SequenceState.GENERATING_VISUALS;
+                this.world.addComponent(entityId, new GeneratingVisuals());
             } else {
                 // 3. アクション特性に基づくタグの付与
                 this._applyActionTags(entityId);
 
                 // 計算フェーズへ
-                state.currentState = SequenceState.CALCULATING;
+                this.world.addComponent(entityId, new InCombatCalculation());
             }
         }
     }
@@ -146,14 +159,14 @@ export class BattleSequenceSystem extends System {
     }
 
     _cleanupFinishedSequences() {
-        const entities = this.world.getEntitiesWith(BattleSequenceState);
+        const entities = this.getEntities(SequenceFinished);
         for (const entityId of entities) {
-            const state = this.world.getComponent(entityId, BattleSequenceState);
-            if (state.currentState === SequenceState.FINISHED) {
-                // タグコンポーネントの削除
-                this._removeActionTags(entityId);
-
-                this.world.removeComponent(entityId, BattleSequenceState);
+            // タグコンポーネントの削除
+            this._removeActionTags(entityId);
+            this.world.removeComponent(entityId, SequenceFinished);
+            this.world.removeComponent(entityId, BattleSequenceState);
+            
+            if (this.battleFlowState.currentActorId === entityId) {
                 this.battleFlowState.currentActorId = null;
             }
         }
@@ -168,17 +181,19 @@ export class BattleSequenceSystem extends System {
         this.world.removeComponent(entityId, IsInterruptAction);
         this.world.removeComponent(entityId, RequiresPreMoveTargeting);
         this.world.removeComponent(entityId, RequiresPostMoveTargeting);
+        // フェーズタグも念のため削除（本来は遷移時に消えているはずだが）
+        this.world.removeComponent(entityId, InCombatCalculation);
+        this.world.removeComponent(entityId, GeneratingVisuals);
+        this.world.removeComponent(entityId, ExecutingVisuals);
     }
 
     _markReadyEntities() {
-        const entities = this.world.getEntitiesWith(GameState);
+        const entities = this.getEntities(IsReadyToExecute);
         for (const id of entities) {
-            const state = this.world.getComponent(id, GameState);
-            const isReady = state.state === PlayerStateType.READY_EXECUTE;
             const isPending = this.world.getComponent(id, SequencePending);
             const isRunning = this.world.getComponent(id, BattleSequenceState);
 
-            if (isReady && !isPending && !isRunning) {
+            if (!isPending && !isRunning) {
                 this.world.addComponent(id, new SequencePending());
             }
         }

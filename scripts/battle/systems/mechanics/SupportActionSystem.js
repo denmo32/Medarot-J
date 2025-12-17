@@ -1,12 +1,13 @@
 /**
  * @file SupportActionSystem.js
  * @description 支援・回復・妨害・防御などの非攻撃アクションを処理するシステム。
- * パス修正: index.js経由でコンポーネントをインポート。
+ * InCombatCalculationタグを使用。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
-    BattleSequenceState, SequenceState, CombatContext, CombatResult,
-    IsSupportAction, IsHealAction, IsDefendAction, IsInterruptAction, TargetResolved
+    BattleSequenceState, CombatContext, CombatResult,
+    IsSupportAction, IsHealAction, IsDefendAction, IsInterruptAction, TargetResolved,
+    InCombatCalculation, GeneratingVisuals
 } from '../../components/index.js';
 import { CombatService } from '../../services/CombatService.js';
 
@@ -19,12 +20,9 @@ export class SupportActionSystem extends System {
 
     update(deltaTime) {
         for (const Tag of this.targetTags) {
-            const entities = this.world.getEntitiesWith(BattleSequenceState, Tag, CombatContext, TargetResolved);
+            const entities = this.world.getEntitiesWith(BattleSequenceState, InCombatCalculation, Tag, CombatContext, TargetResolved);
             
             for (const entityId of entities) {
-                const state = this.world.getComponent(entityId, BattleSequenceState);
-                if (state.currentState !== SequenceState.CALCULATING) continue;
-
                 this._processSupport(entityId);
             }
         }
@@ -55,7 +53,9 @@ export class SupportActionSystem extends System {
         this.world.removeComponent(entityId, CombatContext);
         this.world.removeComponent(entityId, TargetResolved);
 
-        state.currentState = SequenceState.GENERATING_VISUALS;
+        this.world.removeComponent(entityId, InCombatCalculation);
+        this.world.addComponent(entityId, new GeneratingVisuals());
+
         state.contextData = resultData;
     }
 }

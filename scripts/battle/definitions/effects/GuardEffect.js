@@ -1,7 +1,7 @@
 /**
  * @file GuardEffect.js
- * @description ガード効果の定義
- * createVisualsメソッドは削除され、VisualSequenceServiceとVisualDefinitionsに責務が移譲されました。
+ * @description ガード効果の定義。
+ * 状態遷移リクエストの発行（IsGuardingへ）。
  */
 import { EffectType, PlayerStateType } from '../../common/constants.js';
 import { ActiveEffects } from '../../components/index.js';
@@ -31,7 +31,7 @@ export const GuardEffect = {
         stateUpdates.push({
             type: 'TransitionState',
             targetId: effect.targetId,
-            newState: PlayerStateType.GUARDING
+            newState: PlayerStateType.GUARDING // StateTransitionSystemで IsGuarding タグが付与される
         });
 
         stateUpdates.push({

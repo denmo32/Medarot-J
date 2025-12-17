@@ -1,17 +1,14 @@
 /**
  * @file VisualSequenceSystem.js
  * @description 演出生成フェーズを担当するシステム。
- * データ不整合を防ぐため、状態更新後に明示的なWaitを挿入。
+ * GeneratingVisualsタグを使用。
  */
 import { System } from '../../../../engine/core/System.js';
 import {
-    BattleSequenceState, SequenceState,
-    VisualSequence, CombatResult
+    BattleSequenceState, GeneratingVisuals, ExecutingVisuals,
+    VisualSequence, CombatResult, SequenceFinished
 } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
-import {
-    RefreshUIRequest
-} from '../../components/Requests.js';
 import { MessageService } from '../../services/MessageService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
@@ -25,18 +22,18 @@ export class VisualSequenceSystem extends System {
     }
 
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(BattleSequenceState);
+        const entities = this.world.getEntitiesWith(BattleSequenceState, GeneratingVisuals);
 
         for (const entityId of entities) {
             const state = this.world.getComponent(entityId, BattleSequenceState);
-            if (state.currentState !== SequenceState.GENERATING_VISUALS) continue;
-
             const combatResult = this.world.getComponent(entityId, CombatResult);
             const context = state.contextData || (combatResult ? combatResult.data : null);
 
             if (!context) {
                 console.error(`VisualSequenceSystem: No context data for entity ${entityId}`);
-                state.currentState = SequenceState.FINISHED; 
+                // 強制的に次へ（完了扱いにして飛ばす）
+                this.world.removeComponent(entityId, GeneratingVisuals);
+                this.world.addComponent(entityId, new SequenceFinished());
                 continue;
             }
 
@@ -52,7 +49,9 @@ export class VisualSequenceSystem extends System {
                 this.world.removeComponent(entityId, CombatResult);
             }
 
-            state.currentState = SequenceState.EXECUTING;
+            // 次のフェーズへ
+            this.world.removeComponent(entityId, GeneratingVisuals);
+            this.world.addComponent(entityId, new ExecutingVisuals());
         }
     }
 
@@ -70,9 +69,6 @@ export class VisualSequenceSystem extends System {
             updates: stateUpdates
         };
 
-        // 状態更新タスクの直後に1フレームのウェイトを挿入する。
-        // これにより、後続の RefreshUIRequest が発行される前に、
-        // ComponentUpdateSystem が確実に Parts コンポーネントを更新する時間を確保する。
         const waitTask = {
             type: 'WAIT',
             duration: 0

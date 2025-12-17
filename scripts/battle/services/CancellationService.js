@@ -1,9 +1,9 @@
 /**
  * @file CancellationService.js
  * @description アクションキャンセルの判定ロジックを提供する純粋なサービス。
- * 副作用（Worldへの書き込み、イベント発行）を排除し、情報の照会のみを行います。
+ * PlayerInfoのインポート漏れを修正。
  */
-import { GameState, Action } from '../components/index.js';
+import { Action } from '../components/index.js';
 import { Parts, PlayerInfo } from '../../components/index.js';
 import { ActionCancelReason } from '../common/constants.js';
 import { MessageKey } from '../../data/messageRepository.js';

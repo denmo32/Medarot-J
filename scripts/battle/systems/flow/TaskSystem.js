@@ -1,13 +1,12 @@
 /**
  * @file TaskSystem.js
  * @description バトルアクション実行フェーズを担当するシステム。
- * VisualSequenceSystemが生成した純粋なデータ（JSONライク）を読み取り、
- * 適切なECSコンポーネントに変換して実行する「ファクトリ」の役割も担う。
+ * ExecutingVisualsタグを使用。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
-    BattleSequenceState, SequenceState, 
-    VisualSequence, Visual 
+    BattleSequenceState, VisualSequence, Visual, 
+    ExecutingVisuals, SequenceFinished
 } from '../../components/index.js';
 import { 
     WaitTask, MoveTask, AnimateTask, CustomTask,
@@ -32,7 +31,6 @@ import {
 export class TaskSystem extends System {
     constructor(world) {
         super(world);
-        // 管理対象のタスクコンポーネント一覧 (実行中かどうかの判定に使用)
         this.taskComponents = [
             WaitTask, MoveTask, AnimateTask, CustomTask,
             DialogTask, VfxTask, CameraTask, UiAnimationTask, ApplyVisualEffectTask,
@@ -41,31 +39,30 @@ export class TaskSystem extends System {
     }
 
     update(deltaTime) {
-        // 1. 各種タスクコンポーネントの実行処理（既存）
+        // 1. 各種タスクコンポーネントの実行処理
         this._processWaitTasks(deltaTime);
         this._processInstantTasks(); 
         
-        // 2. シーケンス進行管理
-        const entities = this.world.getEntitiesWith(BattleSequenceState);
+        // 2. シーケンス進行管理 (ExecutingVisualsを持つエンティティのみ)
+        const entities = this.world.getEntitiesWith(BattleSequenceState, ExecutingVisuals);
         for (const entityId of entities) {
-            const state = this.world.getComponent(entityId, BattleSequenceState);
-            if (state.currentState !== SequenceState.EXECUTING) continue;
-
-            this._updateSequence(entityId, state);
+            this._updateSequence(entityId);
         }
     }
 
-    _updateSequence(entityId, state) {
+    _updateSequence(entityId) {
         // 現在実行中のタスクがあるかチェック
         const hasActiveTask = this.taskComponents.some(comp => this.world.getComponent(entityId, comp));
         if (hasActiveTask) return;
 
-        // 次のタスクデータを取得
         const sequence = this.world.getComponent(entityId, VisualSequence);
         if (!sequence || !sequence.tasks || sequence.tasks.length === 0) {
-            // タスクが空になった = シーケンス完了
+            // シーケンス完了
             this.world.removeComponent(entityId, VisualSequence);
-            state.currentState = SequenceState.FINISHED;
+            
+            // フェーズ遷移: ExecutingVisuals -> SequenceFinished
+            this.world.removeComponent(entityId, ExecutingVisuals);
+            this.world.addComponent(entityId, new SequenceFinished());
             return;
         }
 
@@ -73,9 +70,6 @@ export class TaskSystem extends System {
         this._activateTask(entityId, nextTaskData);
     }
 
-    /**
-     * データ定義からコンポーネントを生成・付与する
-     */
     _activateTask(entityId, taskData) {
         try {
             switch (taskData.type) {
@@ -106,16 +100,10 @@ export class TaskSystem extends System {
                 case 'CUSTOM':
                     this.world.addComponent(entityId, new CustomTask(taskData.executeFn));
                     break;
-                    
-                // 特殊: リクエスト生成タスク
                 case 'CREATE_REQUEST':
                     this._handleCreateRequest(taskData);
-                    // これは瞬時完了タスクとして扱うため、コンポーネントは付与せず再帰的に次へ進むか、
-                    // 次のフレームで完了とみなす。ここではシンプルに次のフレームで完了処理させるため、
-                    // ダミーのWait(0)を入れる。
                     this.world.addComponent(entityId, new WaitTask(0));
                     break;
-
                 default:
                     console.error(`TaskSystem: Unknown task type '${taskData.type}'`);
                     break;
@@ -142,8 +130,6 @@ export class TaskSystem extends System {
         }
     }
 
-    // --- Task Processors ---
-
     _processWaitTasks(deltaTime) {
         const entities = this.getEntities(WaitTask);
         for (const entityId of entities) {
@@ -156,7 +142,6 @@ export class TaskSystem extends System {
     }
 
     _processInstantTasks() {
-        // StateControlTask
         const stateControlEntities = this.getEntities(StateControlTask);
         for (const entityId of stateControlEntities) {
             const task = this.world.getComponent(entityId, StateControlTask);
@@ -164,7 +149,6 @@ export class TaskSystem extends System {
             this.world.removeComponent(entityId, StateControlTask);
         }
 
-        // CustomTask
         const customEntities = this.getEntities(CustomTask);
         for (const entityId of customEntities) {
             const task = this.world.getComponent(entityId, CustomTask);
@@ -172,7 +156,6 @@ export class TaskSystem extends System {
             this.world.removeComponent(entityId, CustomTask);
         }
 
-        // ApplyVisualEffectTask
         const visualEntities = this.getEntities(ApplyVisualEffectTask);
         for (const entityId of visualEntities) {
             const task = this.world.getComponent(entityId, ApplyVisualEffectTask);

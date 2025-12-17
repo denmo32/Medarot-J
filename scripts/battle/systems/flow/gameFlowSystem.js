@@ -1,11 +1,11 @@
 /**
  * @file GameFlowSystem.js
- * @description ゲーム全体の進行フロー（開始、終了、初期化など）を管理するシステム。
- * シーン遷移イベントをSceneChangeRequestコンポーネントの生成へ変更。
+ * @description ゲーム全体の進行フローを管理するシステム。
+ * コンポーネント生成による初期化へ変更。
  */
 import { System } from '../../../../engine/core/System.js';
 import { BattleFlowState } from '../../components/BattleFlowState.js';
-import { GameState, Gauge, Action, ActionSelectionPending, BattleResult } from '../../components/index.js';
+import { Gauge, Action, ActionSelectionPending, BattleResult, IsBroken } from '../../components/index.js';
 import { UpdateComponentRequest, TransitionStateRequest } from '../../components/CommandRequests.js';
 import { ModalState } from '../../components/States.js';
 import {
@@ -25,27 +25,21 @@ export class GameFlowSystem extends System {
     }
 
     update(deltaTime) {
-        // フェーズ遷移検知
         const currentPhase = this.battleFlowState.phase;
         if (currentPhase !== this.lastPhase) {
             this._onPhaseEnter(currentPhase);
             this.lastPhase = currentPhase;
         }
 
-        // リセットリクエストの監視
         const resetRequests = this.getEntities(ResetButtonResult);
         for (const id of resetRequests) {
             this.world.destroyEntity(id);
-
-            // シーン遷移リクエスト生成
             const req = this.world.createEntity();
             this.world.addComponent(req, new SceneChangeRequest('map', {
-                // 必要に応じて結果データを渡す
                 battleResult: this._getBattleResult()
             }));
         }
 
-        // アニメーション完了監視
         if (this.battleFlowState.phase === BattlePhase.BATTLE_START) {
              const completedTags = this.getEntities(BattleStartAnimationCompleted);
              if (completedTags.length > 0) {
@@ -84,16 +78,18 @@ export class GameFlowSystem extends System {
     }
 
     _initializePlayersForBattle() {
-        const players = this.getEntities(GameState, Gauge);
+        // GameStateではなくGaugeを持つエンティティ（プレイヤー）を対象にする
+        const players = this.getEntities(Gauge);
 
         players.forEach(id => {
-            const gameState = this.world.getComponent(id, GameState);
             const gauge = this.world.getComponent(id, Gauge);
+            const isBroken = this.world.getComponent(id, IsBroken);
 
             const req1 = this.world.createEntity();
             this.world.addComponent(req1, new UpdateComponentRequest(id, Gauge, { value: 0 }));
 
-            if (gameState.state !== PlayerStateType.BROKEN) {
+            if (!isBroken) {
+                // 初期状態として ReadyToSelect へ遷移させる
                 const req2 = this.world.createEntity();
                 this.world.addComponent(req2, new TransitionStateRequest(id, PlayerStateType.READY_SELECT));
 
@@ -109,12 +105,14 @@ export class GameFlowSystem extends System {
     }
 
     _onBattleAnimationCompleted() {
-        const players = this.getEntities(GameState);
-        players.forEach(id => {
-            const req = this.world.createEntity();
-            this.world.addComponent(req, new UpdateComponentRequest(id, Gauge, { value: 0 }));
-        });
-
+        // アニメーション完了後、初期選択した機体のゲージを0リセット（ここからチャージ開始）
+        // ただし初期化時にREADY_SELECTにした際、ゲージMAXにしているので、
+        // コマンド選択が完了した時点でSELECTED_CHARGINGになり、ゲージ0になっているはず。
+        // ここでのリセットは「選択されなかった機体」や「何らかの理由で残っている値」の掃除。
+        
+        // 注意: INITIAL_SELECTIONフェーズで選択された機体は既に TransitionStateRequest で SELECTED_CHARGING (IsCharging) になり、
+        // 同時にゲージ0になっている。
+        
         this.battleFlowState.phase = BattlePhase.TURN_START;
     }
 
@@ -126,7 +124,6 @@ export class GameFlowSystem extends System {
         modalState.type = ModalType.GAME_OVER;
         modalState.data = { winningTeam };
         modalState.priority = 'high';
-        // modalState.isNewはデフォルトでtrue
         this.world.addComponent(stateEntity, modalState);
     }
 }

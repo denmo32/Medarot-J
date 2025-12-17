@@ -1,6 +1,6 @@
 // 戦闘専用コンポーネントのエクスポート
 export { Gauge } from './Gauge.js';
-export { GameState } from './GameState.js';
+// export { GameState } from './GameState.js'; // 廃止
 export { Action } from './Action.js';
 export { Position } from './Position.js';
 export { BattleLog } from './BattleLog.js';
@@ -13,7 +13,7 @@ export { BattleResult } from './BattleResult.js';
 export { PauseState } from './PauseState.js';
 export { BattleHistoryContext } from './BattleHistoryContext.js';
 export { BattleFlowState } from './BattleFlowState.js';
-export { BattleSequenceState, SequenceState } from './BattleSequenceState.js';
+export { BattleSequenceState } from './BattleSequenceState.js';
 export { SequencePending } from './SequencePending.js';
 export { ActionSelectionPending } from './ActionSelectionPending.js';
 export * from './States.js';

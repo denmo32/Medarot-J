@@ -1,12 +1,13 @@
 /**
  * @file TargetingSystem.js
  * @description ターゲット解決を行うシステム。
- * パス修正: index.js経由でコンポーネントをインポート。
+ * InCombatCalculation タグを持つエンティティのみを処理する。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
-    BattleSequenceState, SequenceState, Action, CombatContext,
-    RequiresPostMoveTargeting, RequiresPreMoveTargeting, TargetResolved
+    BattleSequenceState, Action, CombatContext,
+    RequiresPostMoveTargeting, RequiresPreMoveTargeting, TargetResolved,
+    InCombatCalculation, GeneratingVisuals
 } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import { TargetingService } from '../../services/TargetingService.js';
@@ -20,13 +21,15 @@ export class TargetingSystem extends System {
 
     update(deltaTime) {
         // --- Pre-Move Targeting Resolution ---
-        const preEntities = this.world.getEntitiesWith(BattleSequenceState, RequiresPreMoveTargeting);
+        // 計算フェーズかつ、移動前ターゲット解決が必要なエンティティ
+        const preEntities = this.world.getEntitiesWith(BattleSequenceState, InCombatCalculation, RequiresPreMoveTargeting);
         for (const entityId of preEntities) {
             this._resolveTarget(entityId);
         }
 
         // --- Post-Move Targeting Resolution ---
-        const postEntities = this.world.getEntitiesWith(BattleSequenceState, RequiresPostMoveTargeting);
+        // 計算フェーズかつ、移動後ターゲット解決が必要なエンティティ
+        const postEntities = this.world.getEntitiesWith(BattleSequenceState, InCombatCalculation, RequiresPostMoveTargeting);
         for (const entityId of postEntities) {
             this._resolvePostMoveSelection(entityId);
             this._resolveTarget(entityId);
@@ -53,17 +56,19 @@ export class TargetingSystem extends System {
     }
 
     _resolveTarget(entityId) {
-        const state = this.world.getComponent(entityId, BattleSequenceState);
-        if (state.currentState !== SequenceState.CALCULATING) return;
-        
+        // 既に解決済みならスキップ
         if (this.world.getComponent(entityId, TargetResolved)) return;
 
         let ctx = this.world.getComponent(entityId, CombatContext);
         if (!ctx) {
             ctx = CombatService.initializeContext(this.world, entityId);
             if (!ctx) {
+                // コンテキスト生成失敗 -> 計算中断
+                const state = this.world.getComponent(entityId, BattleSequenceState);
                 state.contextData = { isCancelled: true, cancelReason: 'INTERRUPTED' };
-                state.currentState = SequenceState.GENERATING_VISUALS;
+                
+                this.world.removeComponent(entityId, InCombatCalculation);
+                this.world.addComponent(entityId, new GeneratingVisuals());
                 return;
             }
             this.world.addComponent(entityId, ctx);

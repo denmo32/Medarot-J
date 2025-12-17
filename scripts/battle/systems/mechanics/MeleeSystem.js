@@ -1,12 +1,12 @@
 /**
  * @file MeleeSystem.js
  * @description 格闘アクションを処理するシステム。
- * パス修正: index.js経由でコンポーネントをインポート。
+ * InCombatCalculationタグを使用。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
-    BattleSequenceState, SequenceState, CombatContext, CombatResult,
-    IsMeleeAction, TargetResolved 
+    BattleSequenceState, CombatContext, CombatResult,
+    IsMeleeAction, TargetResolved, InCombatCalculation, GeneratingVisuals
 } from '../../components/index.js';
 import { CombatService } from '../../services/CombatService.js';
 
@@ -16,12 +16,9 @@ export class MeleeSystem extends System {
     }
 
     update(deltaTime) {
-        const entities = this.world.getEntitiesWith(BattleSequenceState, IsMeleeAction, CombatContext, TargetResolved);
+        const entities = this.world.getEntitiesWith(BattleSequenceState, InCombatCalculation, IsMeleeAction, CombatContext, TargetResolved);
         
         for (const entityId of entities) {
-            const state = this.world.getComponent(entityId, BattleSequenceState);
-            if (state.currentState !== SequenceState.CALCULATING) continue;
-
             this._processMelee(entityId);
         }
     }
@@ -49,7 +46,9 @@ export class MeleeSystem extends System {
         this.world.removeComponent(entityId, CombatContext);
         this.world.removeComponent(entityId, TargetResolved);
 
-        state.currentState = SequenceState.GENERATING_VISUALS;
+        this.world.removeComponent(entityId, InCombatCalculation);
+        this.world.addComponent(entityId, new GeneratingVisuals());
+
         state.contextData = resultData;
     }
 }

@@ -1,14 +1,14 @@
 /**
  * @file PlayerRenderer.js
- * @description Web Componentsを利用するように刷新。
- * ガード表示ロジック。
+ * @description プレイヤーのDOM描画ロジック。
+ * 状態タグに基づいてスタイルを変更する。
  */
 import { el } from '../../../../../engine/utils/DOMUtils.js';
 import { CONFIG } from '../../../common/config.js';
 import { TeamID, PartInfo } from '../../../../common/constants.js';
-import { PlayerStateType, EffectType } from '../../../common/constants.js';
-import { GameState, ActiveEffects } from '../../../components/index.js';
-import { Parts, PlayerInfo } from '../../../../components/index.js';
+import { EffectType } from '../../../common/constants.js';
+import { PlayerInfo, Parts } from '../../../../components/index.js'; // scripts/components/index.js
+import { ActiveEffects, IsCharging, IsReadyToExecute, IsGuarding, IsBroken, IsReadyToSelect } from '../../../components/index.js'; // scripts/battle/components/index.js
 import '../../../ui/components/GameHealthBar.js';
 
 export class PlayerRenderer {
@@ -19,7 +19,6 @@ export class PlayerRenderer {
         this.uiManager = uiManager;
     }
 
-    // guardIndicatorElementへの参照保持は確認済みとします。
     create(entityId, visual) {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
         const parts = this.world.getComponent(entityId, Parts);
@@ -99,8 +98,6 @@ export class PlayerRenderer {
         this._updateIconClasses(visual, domElements.iconElement, cache, domElements.targetIndicatorElement);
         this._updatePartsInfo(visual, domElements.partDOMElements, cache);
         this._updateStateAppearance(entityId, domElements, cache);
-        
-        // ガードインジケーターの更新
         this._updateGuardIndicator(entityId, domElements);
     }
 
@@ -147,20 +144,29 @@ export class PlayerRenderer {
     }
 
     _updateStateAppearance(entityId, domElements, cache) {
-        const gameState = this.world.getComponent(entityId, GameState);
         const icon = domElements.iconElement;
-        if (gameState && icon && cache.state !== gameState.state) {
-            cache.state = gameState.state;
+        if (!icon) return;
 
-            // BROKEN状態ではCSSクラスによるスタイルを優先するため、JSでの直接操作を避ける
-            if (gameState.state === PlayerStateType.BROKEN) return;
-            
-            switch (gameState.state) {
-                case PlayerStateType.SELECTED_CHARGING:
+        // 状態タグのチェック (優先度順)
+        let stateKey = 'default';
+        if (this.world.getComponent(entityId, IsBroken)) stateKey = 'broken';
+        else if (this.world.getComponent(entityId, IsGuarding)) stateKey = 'guarding';
+        else if (this.world.getComponent(entityId, IsReadyToExecute)) stateKey = 'ready_execute';
+        else if (this.world.getComponent(entityId, IsCharging)) stateKey = 'charging';
+        else if (this.world.getComponent(entityId, IsReadyToSelect)) stateKey = 'ready_select';
+
+        if (cache.state !== stateKey) {
+            cache.state = stateKey;
+
+            if (stateKey === 'broken') return; // CSS class制御
+
+            switch (stateKey) {
+                case 'charging':
                     icon.style.borderColor = '#f6ad55'; break;
-                case PlayerStateType.CHARGING:
-                    icon.style.borderColor = '#4fd1c5'; break;
-                case PlayerStateType.READY_EXECUTE:
+                case 'ready_select': // 待機中
+                    icon.style.borderColor = '#4fd1c5'; break; 
+                case 'ready_execute':
+                case 'guarding':
                     icon.style.borderColor = 'var(--color-white)'; break;
                 default:
                     icon.style.borderColor = 'var(--color-border-primary)'; break;
@@ -176,11 +182,9 @@ export class PlayerRenderer {
             const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
             const count = guardEffect && guardEffect.count > 0 ? guardEffect.count : 0;
             
-            // DOM更新
             const displayStyle = count > 0 ? 'block' : 'none';
             const displayText = count > 0 ? `🛡${count}` : '';
 
-            // 頻繁な書き換えを防ぐチェックはDOMのプロパティで行う
             if (guardIndicator.style.display !== displayStyle) guardIndicator.style.display = displayStyle;
             if (guardIndicator.textContent !== displayText) guardIndicator.textContent = displayText;
         }
