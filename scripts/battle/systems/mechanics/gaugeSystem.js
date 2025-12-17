@@ -66,7 +66,7 @@ export class GaugeSystem extends System {
             // 移動中(Charging)または帰還中(Cooldown)のみ進行
             const isMoving = this.world.getComponent(entityId, IsCharging) || this.world.getComponent(entityId, IsCooldown);
 
-            if (!gauge.isActive || !isMoving || gauge.isFrozen()) {
+            if (!gauge.isActive || !isMoving || (gauge.statusFlags.has('FROZEN') || gauge.statusFlags.has('STOPPED'))) {
                 continue;
             }
 

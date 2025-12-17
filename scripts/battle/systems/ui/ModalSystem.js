@@ -243,8 +243,27 @@ export class ModalSystem extends System {
             const pauseEntities = this.getEntities(PauseState);
             for (const id of pauseEntities) this.world.destroyEntity(id);
         }
-        this.uiState.reset();
+        this._resetUIState();
         this.uiState.isProcessingQueue = false;
+    }
+
+    _resetUIState() {
+        this.uiState.isProcessingQueue = false;
+        this.uiState.isWaitingForAnimation = false;
+        this.uiState.activeModalEntityId = null;
+        this.uiState.currentModalType = null;
+        this.uiState.currentModalData = null;
+        this.uiState.currentTaskId = null;
+        this.uiState.currentModalCallback = null;
+        this.uiState.focusedButtonKey = null;
+        this.uiState.currentMessageSequence = [];
+        this.uiState.currentSequenceIndex = 0;
+        this.uiState.ownerText = '';
+        this.uiState.titleText = '';
+        this.uiState.actorText = '';
+        this.uiState.buttonsData = [];
+        this.uiState.isPanelVisible = false;
+        this.uiState.isPanelClickable = false;
     }
 
     _handleUserInput(handlerName, ...args) {

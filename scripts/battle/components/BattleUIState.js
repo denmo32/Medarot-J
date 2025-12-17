@@ -7,24 +7,7 @@
 export class BattleUIState {
     constructor() {
         this.modalQueue = [];
-        this.reset();
         
-        // --- 描画キャッシュ (ActionPanelSystem用) ---
-        // 前回の描画状態を保持し、変更がない場合のDOM操作を抑制する
-        this.renderCache = {
-            isPanelVisible: false,
-            ownerText: '',
-            titleText: '',
-            actorText: '',
-            modalType: null,
-            buttonsSignature: '',
-            isPanelClickable: false,
-            isWaiting: false,
-            focusedKey: null
-        };
-    }
-
-    reset() {
         // --- 状態管理 ---
         this.isProcessingQueue = false;
         this.isWaitingForAnimation = false;
@@ -48,5 +31,19 @@ export class BattleUIState {
         this.buttonsData = [];
         this.isPanelVisible = false;
         this.isPanelClickable = false;
+        
+        // --- 描画キャッシュ (ActionPanelSystem用) ---
+        // 前回の描画状態を保持し、変更がない場合のDOM操作を抑制する
+        this.renderCache = {
+            isPanelVisible: false,
+            ownerText: '',
+            titleText: '',
+            actorText: '',
+            modalType: null,
+            buttonsSignature: '',
+            isPanelClickable: false,
+            isWaiting: false,
+            focusedKey: null
+        };
     }
 }
