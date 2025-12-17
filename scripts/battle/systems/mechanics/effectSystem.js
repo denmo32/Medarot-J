@@ -1,19 +1,16 @@
 /**
  * @file EffectSystem.js
  * @description エフェクト（バフ・デバフ）の持続時間管理と定期更新を行うシステム。
- * イベントリスナーを廃止し、Signalコンポーネントのポーリングに移行。
+ * GameState依存を削除し、タグコンポーネント(IsGuarding)のチェックへ修正。
  */
 import { System } from '../../../../engine/core/System.js';
 import { ActiveEffects, IsGuarding } from '../../components/index.js';
 import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
-import { ModalState } from '../../components/States.js';
 import {
     TurnEndedSignal,
-    HpChangedEvent,
     EffectExpiredEvent
 } from '../../components/Requests.js';
-import { PlayerStateType, EffectType } from '../../common/constants.js';
-import { EffectRegistry } from '../../definitions/EffectRegistry.js';
+import { EffectType } from '../../common/constants.js';
 
 export class EffectSystem extends System {
     constructor(world) {
@@ -24,8 +21,8 @@ export class EffectSystem extends System {
         // 1. ターン終了シグナルの監視
         this._checkTurnEndSignal();
 
-        // 2. エフェクトの毎フレーム更新処理（DoTダメージなど）
-        this._updateContinuousEffects(deltaTime);
+        // 2. エフェクトの毎フレーム更新処理
+        // 必要に応じて実装
     }
 
     _checkTurnEndSignal() {
@@ -39,47 +36,6 @@ export class EffectSystem extends System {
             for (const id of signals) {
                 this.world.destroyEntity(id);
             }
-        }
-    }
-
-    _updateContinuousEffects(deltaTime) {
-        const entities = this.getEntities(ActiveEffects);
-        
-        for (const entityId of entities) {
-            const activeEffects = this.world.getComponent(entityId, ActiveEffects);
-            
-            activeEffects.effects.forEach(effect => {
-                const result = EffectRegistry.update(effect.type, {
-                    world: this.world,
-                    entityId,
-                    effect,
-                    deltaTime
-                });
-
-                if (result) {
-                    if (result.damage > 0) {
-                        // HP更新イベントコンポーネントを生成 (ログ/デバッグ用)
-                        const evt = this.world.createEntity();
-                        this.world.addComponent(evt, new HpChangedEvent(
-                            entityId,
-                            effect.partKey,
-                            -result.damage,
-                            false,
-                            result
-                        ));
-                    }
-                    if (result.message) {
-                        const stateEntity = this.world.createEntity();
-                        const modalState = new ModalState();
-                        modalState.type = 'MESSAGE';
-                        modalState.data = { message: result.message };
-                        modalState.messageSequence = [{ text: result.message }];
-                        modalState.priority = 'high';
-                        // modalState.isNewはデフォルトでtrue
-                        this.world.addComponent(stateEntity, modalState);
-                    }
-                }
-            });
         }
     }
 
@@ -97,7 +53,7 @@ export class EffectSystem extends System {
             const updatedEffect = { ...effect };
 
             // 持続時間の減算
-            if (updatedEffect.duration > 0) {
+            if (updatedEffect.duration > 0 && updatedEffect.duration !== Infinity) {
                 updatedEffect.duration--;
             }
 
@@ -112,8 +68,9 @@ export class EffectSystem extends System {
                 const evt = this.world.createEntity();
                 this.world.addComponent(evt, new EffectExpiredEvent(entityId, updatedEffect));
                 
-                const gameState = this.world.getComponent(entityId, GameState);
-                if (updatedEffect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
+                // ガード解除時の特別処理
+                // IsGuardingタグを持っているか確認
+                if (updatedEffect.type === EffectType.APPLY_GUARD && this.world.getComponent(entityId, IsGuarding)) {
                     const req = this.world.createEntity();
                     this.world.addComponent(req, new ResetToCooldownRequest(entityId, {}));
                 }
@@ -129,7 +86,7 @@ export class EffectSystem extends System {
                 entityId,
                 ActiveEffects,
                 (ae) => {
-                    // 現在の状態に対してフィルタリングを行う（並列更新への配慮）
+                    // 現在の状態に対してフィルタリングを行う
                     ae.effects = ae.effects.filter(e => !effectsToRemove.includes(e));
                 }
             ));

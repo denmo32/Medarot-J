@@ -1,7 +1,7 @@
 /**
  * @file CombatContext.js
  * @description 戦闘計算の途中経過と結果を保持するデータコンポーネント。
- * scripts/battle/components/combat/ 配下に配置
+ * System側で参照されているプロパティ名(appliedEffects, eventsToEmit等)に合わせて修正。
  */
 export class CombatContext {
     constructor() {
@@ -24,15 +24,12 @@ export class CombatContext {
         // 計算結果
         this.outcome = null; // 命中、クリティカル判定など
         
-        // エフェクト処理
-        this.rawEffects = [];
-        this.appliedEffects = [];
-        
         // 制御フラグ
         this.shouldCancel = false;
         this.cancelReason = null;
         
-        // 結果出力用
+        // 結果集約用
+        this.appliedEffects = [];
         this.eventsToEmit = [];
         this.stateUpdates = [];
         this.interruptions = [];

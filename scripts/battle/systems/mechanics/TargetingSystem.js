@@ -2,6 +2,7 @@
  * @file TargetingSystem.js
  * @description ターゲット解決を行うシステム。
  * InCombatCalculation タグを持つエンティティのみを処理する。
+ * Selfターゲットの自動解決ロジックを追加。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -13,6 +14,7 @@ import { Parts } from '../../../components/index.js';
 import { TargetingService } from '../../services/TargetingService.js';
 import { targetingStrategies } from '../../ai/targetingStrategies.js';
 import { CombatService } from '../../services/CombatService.js';
+import { EffectScope } from '../../common/constants.js';
 
 export class TargetingSystem extends System {
     constructor(world) {
@@ -21,14 +23,12 @@ export class TargetingSystem extends System {
 
     update(deltaTime) {
         // --- Pre-Move Targeting Resolution ---
-        // 計算フェーズかつ、移動前ターゲット解決が必要なエンティティ
         const preEntities = this.world.getEntitiesWith(BattleSequenceState, InCombatCalculation, RequiresPreMoveTargeting);
         for (const entityId of preEntities) {
             this._resolveTarget(entityId);
         }
 
         // --- Post-Move Targeting Resolution ---
-        // 計算フェーズかつ、移動後ターゲット解決が必要なエンティティ
         const postEntities = this.world.getEntitiesWith(BattleSequenceState, InCombatCalculation, RequiresPostMoveTargeting);
         for (const entityId of postEntities) {
             this._resolvePostMoveSelection(entityId);
@@ -45,25 +45,26 @@ export class TargetingSystem extends System {
         const part = parts[action.partKey];
         if (!part) return;
 
-        const strategy = targetingStrategies[part.postMoveTargeting];
-        if (strategy) {
-            const targetData = strategy({ world: this.world, attackerId: entityId });
-            if (targetData) {
-                action.targetId = targetData.targetId;
-                action.targetPartKey = targetData.targetPartKey;
+        // PostMove戦略があれば実行
+        if (part.postMoveTargeting) {
+            const strategy = targetingStrategies[part.postMoveTargeting];
+            if (strategy) {
+                const targetData = strategy({ world: this.world, attackerId: entityId });
+                if (targetData) {
+                    action.targetId = targetData.targetId;
+                    action.targetPartKey = targetData.targetPartKey;
+                }
             }
         }
     }
 
     _resolveTarget(entityId) {
-        // 既に解決済みならスキップ
         if (this.world.getComponent(entityId, TargetResolved)) return;
 
         let ctx = this.world.getComponent(entityId, CombatContext);
         if (!ctx) {
             ctx = CombatService.initializeContext(this.world, entityId);
             if (!ctx) {
-                // コンテキスト生成失敗 -> 計算中断
                 const state = this.world.getComponent(entityId, BattleSequenceState);
                 state.contextData = { isCancelled: true, cancelReason: 'INTERRUPTED' };
                 
@@ -72,6 +73,15 @@ export class TargetingSystem extends System {
                 return;
             }
             this.world.addComponent(entityId, ctx);
+        }
+
+        // 自分自身へのターゲット（SELF）の場合の自動解決
+        if (ctx.intendedTargetId === null) {
+            const part = ctx.attackingPart;
+            if (part && part.targetScope === EffectScope.SELF) {
+                ctx.intendedTargetId = entityId;
+                // targetPartKeyはnullでも良い（Effect側で適切に処理、またはActionDefinitionsで指定されている場合もある）
+            }
         }
 
         const resolution = TargetingService.resolveActualTarget(

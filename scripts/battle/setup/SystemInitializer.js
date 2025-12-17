@@ -1,7 +1,7 @@
 /**
  * @file SystemInitializer.js
  * @description バトルシーンで使用するSystemの初期化・登録を行う。
- * データの依存関係に基づき、システムの登録順序を厳密に管理する。
+ * エフェクト処理のECS化に伴い、EffectSystemsとCombatResultSystemを登録。
  */
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
@@ -21,12 +21,19 @@ import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js
 import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 import { ModalSystem } from '../systems/ui/ModalSystem.js';
 import { UIInputSystem } from '../systems/ui/UIInputSystem.js';
-// CombatSystem を廃止し、新システム群をインポート
-// import { CombatSystem } from '../systems/mechanics/CombatSystem.js';
+
+// Action Systems
 import { TargetingSystem } from '../systems/mechanics/TargetingSystem.js';
 import { ShootSystem } from '../systems/mechanics/ShootSystem.js';
 import { MeleeSystem } from '../systems/mechanics/MeleeSystem.js';
 import { SupportActionSystem } from '../systems/mechanics/SupportActionSystem.js';
+
+// Effect Systems
+import { DamageSystem } from '../systems/effects/DamageSystem.js';
+import { HealSystem } from '../systems/effects/HealSystem.js';
+import { StatusEffectSystem } from '../systems/effects/StatusEffectSystem.js';
+import { GuardSystem } from '../systems/effects/GuardSystem.js';
+import { CombatResultSystem } from '../systems/mechanics/CombatResultSystem.js';
 
 import { VisualSequenceSystem } from '../systems/visual/VisualSequenceSystem.js';
 import { TaskSystem } from '../systems/flow/TaskSystem.js'; 
@@ -68,11 +75,18 @@ export function initializeSystems(world, gameDataManager) {
     const stateTransitionSystem = new StateTransitionSystem(world);
     const componentUpdateSystem = new ComponentUpdateSystem(world);
 
-    // 新しい戦闘システム群
+    // Action Systems
     const targetingSystem = new TargetingSystem(world);
     const shootSystem = new ShootSystem(world);
     const meleeSystem = new MeleeSystem(world);
     const supportActionSystem = new SupportActionSystem(world);
+
+    // Effect Systems
+    const guardSystem = new GuardSystem(world);
+    const damageSystem = new DamageSystem(world);
+    const healSystem = new HealSystem(world);
+    const statusEffectSystem = new StatusEffectSystem(world);
+    const combatResultSystem = new CombatResultSystem(world);
 
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
@@ -95,37 +109,41 @@ export function initializeSystems(world, gameDataManager) {
     world.registerSystem(aiSystem);
     world.registerSystem(actionSelectionSystem);
     
-    // 5. 戦闘解決パイプライン (重要: 順序依存)
-    // 5-0. BattleSequenceSystem: 実行フェーズ開始、タグ付与 (INITIALIZING)
-    // Note: パイプラインの開始(INITIALIZING)はここで行い、CALCULATINGへ遷移させる
+    // 5. 戦闘解決パイプライン
+    // 5-0. BattleSequenceSystem: 実行フェーズ開始、タグ付与
     world.registerSystem(battleSequenceSystem); 
     
-    // 5-1. TargetingSystem: ターゲット解決 (CALCULATING)
+    // 5-1. TargetingSystem: ターゲット解決
     world.registerSystem(targetingSystem);
 
-    // 5-2. Action Systems: 実際の計算 (CALCULATING)
+    // 5-2. Action Systems: エフェクトエンティティの生成
     world.registerSystem(shootSystem);
     world.registerSystem(meleeSystem);
     world.registerSystem(supportActionSystem);
 
-    // 5-3. BattleHistorySystem: CombatResult を参照して履歴更新
+    // 5-3. Effect Systems: 生成されたエフェクトの処理
+    world.registerSystem(guardSystem); // ガード消費
+    world.registerSystem(damageSystem); // ダメージ、貫通処理
+    world.registerSystem(healSystem);
+    world.registerSystem(statusEffectSystem);
+
+    // 5-4. Result Collection: エフェクト処理完了待ちと結果集約
+    world.registerSystem(combatResultSystem);
+
+    // 5-5. BattleHistorySystem: CombatResult を参照して履歴更新
     world.registerSystem(battleHistorySystem);
     
-    // 5-4. VisualSequenceSystem: CombatResult を消費し、演出シーケンス生成 (GENERATING_VISUALS)
+    // 5-6. VisualSequenceSystem: CombatResult を消費し、演出シーケンス生成
     world.registerSystem(visualSequenceSystem);
     
-    // Note: BattleSequenceSystemは更新順序の関係上、FINISHEDのクリーンアップは次フレームの冒頭で行われるか、
-    // あるいはここでもう一度実行して即時クリーンアップするか。
-    // 現状はupdateメソッド内でフェーズごとの処理を行っているので、1回登録でよい。
-
-    // 6. タスク実行と演出 (EXECUTING)
+    // 6. タスク実行と演出
     world.registerSystem(taskSystem);
     world.registerSystem(visualDirectorSystem);
 
     // 7. 勝敗判定 
     world.registerSystem(winConditionSystem);
 
-    // 8. メカニクス更新 
+    // 8. メカニクス更新 (ゲージ、移動、持続エフェクト)
     world.registerSystem(timerSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(movementSystem);

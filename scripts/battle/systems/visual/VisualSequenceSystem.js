@@ -147,9 +147,14 @@ export class VisualSequenceSystem extends System {
             requestType: 'RefreshUIRequest'
         });
 
-        sequence.push({ 
-            type: 'CREATE_REQUEST', 
-            requestType: 'CheckActionCancellationRequest'
+        // シーケンス終了後にクールダウンへ移行するためのリクエストを追加
+        // ガード中の場合は StateTransitionSystem 側で無視されるため安全
+        sequence.push({
+            type: 'STATE_CONTROL',
+            updates: [{
+                type: 'TransitionToCooldown',
+                targetId: ctx.attackerId
+            }]
         });
 
         return sequence;

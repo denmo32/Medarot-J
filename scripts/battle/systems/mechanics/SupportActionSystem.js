@@ -1,20 +1,18 @@
 /**
  * @file SupportActionSystem.js
- * @description 支援・回復・妨害・防御などの非攻撃アクションを処理するシステム。
- * InCombatCalculationタグを使用。
+ * @description 支援アクションを処理するシステム。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
-    BattleSequenceState, CombatContext, CombatResult,
+    BattleSequenceState, CombatContext,
     IsSupportAction, IsHealAction, IsDefendAction, IsInterruptAction, TargetResolved,
-    InCombatCalculation, GeneratingVisuals
+    InCombatCalculation, ProcessingEffects, GeneratingVisuals
 } from '../../components/index.js';
 import { CombatService } from '../../services/CombatService.js';
 
 export class SupportActionSystem extends System {
     constructor(world) {
         super(world);
-        // 処理対象となるタグのリスト
         this.targetTags = [IsSupportAction, IsHealAction, IsDefendAction, IsInterruptAction];
     }
 
@@ -30,32 +28,27 @@ export class SupportActionSystem extends System {
 
     _processSupport(entityId) {
         const ctx = this.world.getComponent(entityId, CombatContext);
-        const state = this.world.getComponent(entityId, BattleSequenceState);
-
+        
         if (ctx.shouldCancel) {
-             this._finalize(entityId, ctx, state);
+             this._handleCancel(entityId, ctx);
              return;
         }
 
-        // 支援行動は必中扱い
-        CombatService.calculateHitOutcome(this.world, ctx);
-
-        CombatService.calculateEffects(this.world, ctx);
-        CombatService.applyEffects(this.world, ctx);
-
-        this._finalize(entityId, ctx, state);
-    }
-
-    _finalize(entityId, ctx, state) {
-        const resultData = CombatService.buildResultData(ctx);
-        this.world.addComponent(entityId, new CombatResult(resultData));
-        
-        this.world.removeComponent(entityId, CombatContext);
-        this.world.removeComponent(entityId, TargetResolved);
+        CombatService.calculateHitOutcome(this.world, ctx); // 支援は必中
+        CombatService.spawnEffectEntities(this.world, ctx);
 
         this.world.removeComponent(entityId, InCombatCalculation);
-        this.world.addComponent(entityId, new GeneratingVisuals());
+        this.world.addComponent(entityId, new ProcessingEffects());
+    }
 
+    _handleCancel(entityId, ctx) {
+        const state = this.world.getComponent(entityId, BattleSequenceState);
+        const resultData = CombatService.buildCancelledResultData(ctx);
         state.contextData = resultData;
+
+        this.world.removeComponent(entityId, CombatContext);
+        this.world.removeComponent(entityId, TargetResolved);
+        this.world.removeComponent(entityId, InCombatCalculation);
+        this.world.addComponent(entityId, new GeneratingVisuals());
     }
 }

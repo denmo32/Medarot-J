@@ -1,6 +1,5 @@
 // 戦闘専用コンポーネントのエクスポート
 export { Gauge } from './Gauge.js';
-// export { GameState } from './GameState.js'; // 廃止
 export { Action } from './Action.js';
 export { Position } from './Position.js';
 export { BattleLog } from './BattleLog.js';
@@ -21,5 +20,6 @@ export * from './Requests.js';
 export * from './Tasks.js';
 export * from './CommandRequests.js';
 
-// 新しい戦闘コンポーネント (同じディレクトリ階層のcombatフォルダから)
+// 新しい戦闘コンポーネント
 export * from './combat/index.js';
+export * from './effects/Effects.js';

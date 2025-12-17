@@ -10,7 +10,8 @@ import {
     IsShootingAction, IsMeleeAction, IsSupportAction, IsHealAction, IsDefendAction, IsInterruptAction,
     RequiresPreMoveTargeting, RequiresPostMoveTargeting,
     InCombatCalculation, GeneratingVisuals, ExecutingVisuals, SequenceFinished,
-    IsReadyToExecute, IsAwaitingAnimation
+    IsReadyToExecute, IsAwaitingAnimation,
+    TargetResolved, CombatContext, ProcessingEffects, CombatResult
 } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import {
@@ -104,25 +105,37 @@ export class BattleSequenceSystem extends System {
                 this.world.addComponent(entityId, new GeneratingVisuals());
             } else {
                 // 3. アクション特性に基づくタグの付与
-                this._applyActionTags(entityId);
+                const tagsApplied = this._applyActionTags(entityId);
 
-                // 計算フェーズへ
-                this.world.addComponent(entityId, new InCombatCalculation());
+                if (tagsApplied) {
+                    // 計算フェーズへ
+                    this.world.addComponent(entityId, new InCombatCalculation());
+                } else {
+                    // タグ付与失敗（システムエラー扱い） -> 強制キャンセル
+                    console.error(`BattleSequenceSystem: Failed to apply action tags for entity ${entityId}. Forcing cancel.`);
+                    state.contextData = { isCancelled: true, cancelReason: 'INTERRUPTED' }; // フォールバック理由
+                    
+                    const evt = this.world.createEntity();
+                    this.world.addComponent(evt, new ActionCancelledEvent(entityId, 'INTERRUPTED'));
+                    
+                    this.world.addComponent(entityId, new GeneratingVisuals());
+                }
             }
         }
     }
 
     /**
      * アクションの定義に基づいて、エンティティに適切なタグコンポーネントを付与する
+     * @returns {boolean} タグ付与に成功したかどうか
      */
     _applyActionTags(entityId) {
         const action = this.world.getComponent(entityId, Action);
         const parts = this.world.getComponent(entityId, Parts);
 
-        if (!action || !parts || !action.partKey) return;
+        if (!action || !parts || !action.partKey) return false;
         
         const part = parts[action.partKey];
-        if (!part) return;
+        if (!part) return false;
 
         // アクション種別タグの付与
         switch (part.actionType) {
@@ -156,6 +169,8 @@ export class BattleSequenceSystem extends System {
         } else {
             this.world.addComponent(entityId, new RequiresPreMoveTargeting());
         }
+
+        return true;
     }
 
     _cleanupFinishedSequences() {
@@ -181,6 +196,13 @@ export class BattleSequenceSystem extends System {
         this.world.removeComponent(entityId, IsInterruptAction);
         this.world.removeComponent(entityId, RequiresPreMoveTargeting);
         this.world.removeComponent(entityId, RequiresPostMoveTargeting);
+
+        // 状態タグの完全クリーンアップ
+        this.world.removeComponent(entityId, TargetResolved);
+        this.world.removeComponent(entityId, CombatContext);
+        this.world.removeComponent(entityId, ProcessingEffects);
+        this.world.removeComponent(entityId, CombatResult);
+
         // フェーズタグも念のため削除（本来は遷移時に消えているはずだが）
         this.world.removeComponent(entityId, InCombatCalculation);
         this.world.removeComponent(entityId, GeneratingVisuals);

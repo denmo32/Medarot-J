@@ -1,7 +1,6 @@
 /**
  * @file TagComponents.js
  * @description 戦闘システムにおける各種状態や特性を表すタグコンポーネント群。
- * Enumによる状態管理を廃止し、これらのコンポーネントの有無で状態を定義する。
  */
 
 // --- アクション種別タグ ---
@@ -22,32 +21,21 @@ export class HasDamageEffect { constructor() {} }
 export class HasHealEffect { constructor() {} }
 export class PenetratesGuard { constructor() {} }
 
-// --- プレイヤー/エンティティ状態タグ (GameState代替) ---
-/** コマンド選択待ち（スタートライン待機中） */
+// --- プレイヤー/エンティティ状態タグ ---
 export class IsReadyToSelect { constructor() {} }
-
-/** アクション実行待ち（アクションライン待機中） */
 export class IsReadyToExecute { constructor() {} }
-
-/** チャージ中（アクションラインへ移動中） */
 export class IsCharging { constructor() {} }
-
-/** クールダウン中（スタートラインへ帰還中） */
 export class IsCooldown { constructor() {} }
-
-/** ガード中（アクションラインで防御態勢） */
 export class IsGuarding { constructor() {} }
-
-/** 機能停止 */
 export class IsBroken { constructor() {} }
-
-/** 演出待ち（アクション処理開始後、アニメーション再生待ちなど） */
 export class IsAwaitingAnimation { constructor() {} }
 
-
-// --- 戦闘シーケンスフェーズタグ (BattleSequenceState代替) ---
-/** 計算フェーズ実行中 */
+// --- 戦闘シーケンスフェーズタグ ---
+/** 計算フェーズ実行中（ターゲット解決、命中判定） */
 export class InCombatCalculation { constructor() {} }
+
+/** エフェクト処理待ち（子エフェクトエンティティの完了待ち） */
+export class ProcessingEffects { constructor() {} }
 
 /** 演出生成フェーズ実行中 */
 export class GeneratingVisuals { constructor() {} }
