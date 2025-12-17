@@ -1,4 +1,4 @@
-// 戦闘専用コンポーネント
+// 戦闘専用コンポーネントのエクスポート
 export { Gauge } from './Gauge.js';
 export { GameState } from './GameState.js';
 export { Action } from './Action.js';
@@ -12,7 +12,6 @@ export { PhaseState } from './PhaseState.js';
 export { BattleResult } from './BattleResult.js';
 export { PauseState } from './PauseState.js';
 export { BattleHistoryContext } from './BattleHistoryContext.js';
-// HookContext は廃止
 export { BattleFlowState } from './BattleFlowState.js';
 export { BattleSequenceState, SequenceState } from './BattleSequenceState.js';
 export { SequencePending } from './SequencePending.js';
@@ -21,3 +20,6 @@ export * from './States.js';
 export * from './Requests.js';
 export * from './Tasks.js';
 export * from './CommandRequests.js';
+
+// 新しい戦闘コンポーネント (同じディレクトリ階層のcombatフォルダから)
+export * from './combat/index.js';

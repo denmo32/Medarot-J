@@ -8,7 +8,6 @@ import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
 import { VisualDirectorSystem } from '../systems/visual/VisualDirectorSystem.js';
 import { ActionPanelSystem } from '../systems/ui/ActionPanelSystem.js';
 import { GaugeSystem } from '../systems/mechanics/GaugeSystem.js';
-// StateSystem は廃止 (StateTransitionSystemに統合)
 import { AiSystem } from '../systems/ai/AiSystem.js';
 import { GameFlowSystem } from '../systems/flow/GameFlowSystem.js';
 import { MovementSystem } from '../systems/mechanics/MovementSystem.js';
@@ -22,7 +21,13 @@ import { BattleHistorySystem } from '../systems/mechanics/BattleHistorySystem.js
 import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 import { ModalSystem } from '../systems/ui/ModalSystem.js';
 import { UIInputSystem } from '../systems/ui/UIInputSystem.js';
-import { CombatSystem } from '../systems/mechanics/CombatSystem.js';
+// CombatSystem を廃止し、新システム群をインポート
+// import { CombatSystem } from '../systems/mechanics/CombatSystem.js';
+import { TargetingSystem } from '../systems/mechanics/TargetingSystem.js';
+import { ShootSystem } from '../systems/mechanics/ShootSystem.js';
+import { MeleeSystem } from '../systems/mechanics/MeleeSystem.js';
+import { SupportActionSystem } from '../systems/mechanics/SupportActionSystem.js';
+
 import { VisualSequenceSystem } from '../systems/visual/VisualSequenceSystem.js';
 import { TaskSystem } from '../systems/flow/TaskSystem.js'; 
 import { StateTransitionSystem } from '../systems/mechanics/StateTransitionSystem.js';
@@ -57,13 +62,17 @@ export function initializeSystems(world, gameDataManager) {
     
     // --- Mechanics Systems (計算・状態更新) ---
     const gaugeSystem = new GaugeSystem(world);
-    // stateSystem は削除
     const movementSystem = new MovementSystem(world);
     const effectSystem = new EffectSystem(world);
     const battleHistorySystem = new BattleHistorySystem(world);
-    const combatSystem = new CombatSystem(world);
     const stateTransitionSystem = new StateTransitionSystem(world);
     const componentUpdateSystem = new ComponentUpdateSystem(world);
+
+    // 新しい戦闘システム群
+    const targetingSystem = new TargetingSystem(world);
+    const shootSystem = new ShootSystem(world);
+    const meleeSystem = new MeleeSystem(world);
+    const supportActionSystem = new SupportActionSystem(world);
 
     if (CONFIG.DEBUG) {
         new DebugSystem(world);
@@ -75,7 +84,7 @@ export function initializeSystems(world, gameDataManager) {
     world.registerSystem(uiInputSystem);
 
     // 2. 基本状態の更新 (汎用的なコンポーネント更新)
-    world.registerSystem(stateTransitionSystem); // ゲージ満タン処理などもここで一括管理
+    world.registerSystem(stateTransitionSystem); 
     world.registerSystem(componentUpdateSystem);
 
     // 3. ゲームフロー制御 (フェーズ遷移、ターン管理)
@@ -87,23 +96,36 @@ export function initializeSystems(world, gameDataManager) {
     world.registerSystem(actionSelectionSystem);
     
     // 5. 戦闘解決パイプライン (重要: 順序依存)
-    // 5-1. CombatSystem: CombatRequest を処理 -> CombatResult を生成
-    world.registerSystem(combatSystem);
-    // 5-2. BattleHistorySystem: CombatResult を参照して履歴更新 (削除はしない)
-    world.registerSystem(battleHistorySystem);
-    // 5-3. VisualSequenceSystem: VisualSequenceRequest を処理 -> VisualSequenceResult を生成
-    world.registerSystem(visualSequenceSystem);
-    // 5-4. BattleSequenceSystem: CombatResult/VisualSequenceResult を消費し、タスクを発行
+    // 5-0. BattleSequenceSystem: 実行フェーズ開始、タグ付与 (INITIALIZING)
+    // Note: パイプラインの開始(INITIALIZING)はここで行い、CALCULATINGへ遷移させる
     world.registerSystem(battleSequenceSystem); 
     
-    // 6. タスク実行と演出
+    // 5-1. TargetingSystem: ターゲット解決 (CALCULATING)
+    world.registerSystem(targetingSystem);
+
+    // 5-2. Action Systems: 実際の計算 (CALCULATING)
+    world.registerSystem(shootSystem);
+    world.registerSystem(meleeSystem);
+    world.registerSystem(supportActionSystem);
+
+    // 5-3. BattleHistorySystem: CombatResult を参照して履歴更新
+    world.registerSystem(battleHistorySystem);
+    
+    // 5-4. VisualSequenceSystem: CombatResult を消費し、演出シーケンス生成 (GENERATING_VISUALS)
+    world.registerSystem(visualSequenceSystem);
+    
+    // Note: BattleSequenceSystemは更新順序の関係上、FINISHEDのクリーンアップは次フレームの冒頭で行われるか、
+    // あるいはここでもう一度実行して即時クリーンアップするか。
+    // 現状はupdateメソッド内でフェーズごとの処理を行っているので、1回登録でよい。
+
+    // 6. タスク実行と演出 (EXECUTING)
     world.registerSystem(taskSystem);
     world.registerSystem(visualDirectorSystem);
 
-    // 7. 勝敗判定 (状態が確定した後に行う)
+    // 7. 勝敗判定 
     world.registerSystem(winConditionSystem);
 
-    // 8. メカニクス更新 (時間経過、移動、エフェクト)
+    // 8. メカニクス更新 
     world.registerSystem(timerSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(movementSystem);
