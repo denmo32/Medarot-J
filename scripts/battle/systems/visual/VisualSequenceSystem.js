@@ -1,6 +1,7 @@
 /**
  * @file VisualSequenceSystem.js
- * @description 演出生成。
+ * @description 演出シーケンス生成システム。
+ * ログタイプごとのハンドリングをメソッドに分離し、構造を整理。
  */
 import { System } from '../../../../engine/core/System.js';
 import {
@@ -18,6 +19,7 @@ import { MessageKey } from '../../../data/messageRepository.js';
 export class VisualSequenceSystem extends System {
     constructor(world) {
         super(world);
+        this.messageService = new MessageService(world);
     }
 
     update(deltaTime) {
@@ -29,9 +31,7 @@ export class VisualSequenceSystem extends System {
             const context = state.contextData || (combatResult ? combatResult.data : null);
 
             if (!context) {
-                console.error(`VisualSequenceSystem: No context data for entity ${entityId}`);
-                this.world.removeComponent(entityId, GeneratingVisuals);
-                this.world.addComponent(entityId, new SequenceFinished());
+                this._abortSequence(entityId);
                 continue;
             }
 
@@ -52,6 +52,12 @@ export class VisualSequenceSystem extends System {
         }
     }
 
+    _abortSequence(entityId) {
+        console.error(`VisualSequenceSystem: No context data for entity ${entityId}`);
+        this.world.removeComponent(entityId, GeneratingVisuals);
+        this.world.addComponent(entityId, new SequenceFinished());
+    }
+
     _generateSequenceDefinitions(actorId, context) {
         if (context.isCancelled) {
             return this._createCancelSequence(actorId, context);
@@ -65,12 +71,13 @@ export class VisualSequenceSystem extends System {
             type: 'STATE_CONTROL',
             updates: stateUpdates
         };
-
         const waitTask = {
             type: 'WAIT',
             duration: 0
         };
 
+        // 最後のクリーンアップタスクの前に入れるのが理想的
+        // ここではシーケンスの最後に近い場所に挿入
         if (sequence.length >= 2) {
              sequence.splice(sequence.length - 2, 0, updateTask, waitTask);
         } else {
@@ -106,50 +113,38 @@ export class VisualSequenceSystem extends System {
     _createCombatSequence(ctx) {
         const resolutionLog = this._buildResolutionLog(ctx);
         const sequence = [];
-        const messageService = new MessageService(this.world);
         const defeatedPlayers = new Set();
 
         for (const log of resolutionLog) {
             switch (log.type) {
+                case BattleLogType.ANIMATION_START:
+                    sequence.push(this._createAnimationTask(log));
+                    break;
                 case BattleLogType.DECLARATION:
-                    sequence.push(...this._createDeclarationTasks(log, ctx, messageService));
+                    sequence.push(...this._createDeclarationTasks(log, ctx));
                     break;
                 case BattleLogType.GUARDIAN_TRIGGER:
-                    sequence.push(...this._createGuardianTasks(log, ctx, messageService));
-                    break;
-                case BattleLogType.ANIMATION_START:
-                    sequence.push({
-                        type: 'ANIMATE',
-                        animationType: log.targetId ? 'attack' : 'support',
-                        attackerId: log.actorId,
-                        targetId: log.targetId
-                    });
+                    sequence.push(...this._createGuardianTasks(log, ctx));
                     break;
                 case BattleLogType.EFFECT:
-                    sequence.push(...this._createEffectTasks(log, ctx, messageService));
+                    sequence.push(...this._createEffectTasks(log, ctx));
                     if (log.effect.isPartBroken && log.effect.partKey === PartInfo.HEAD.key) {
                         defeatedPlayers.add(log.effect.targetId);
                     }
                     break;
                 case BattleLogType.MISS:
-                    sequence.push(...this._createMissTasks(log, ctx, messageService));
+                    sequence.push(...this._createMissTasks(log, ctx));
                     break;
             }
         }
 
         this._insertDefeatVisuals(sequence, defeatedPlayers);
 
-        sequence.push({ 
-            type: 'CREATE_REQUEST', 
-            requestType: 'RefreshUIRequest'
-        });
-
+        // 終了処理
+        sequence.push({ type: 'CREATE_REQUEST', requestType: 'RefreshUIRequest' });
         sequence.push({
             type: 'STATE_CONTROL',
-            updates: [{
-                type: 'TransitionToCooldown',
-                targetId: ctx.attackerId
-            }]
+            updates: [{ type: 'TransitionToCooldown', targetId: ctx.attackerId }]
         });
 
         return sequence;
@@ -197,7 +192,16 @@ export class VisualSequenceSystem extends System {
         return log;
     }
 
-    _createDeclarationTasks(log, ctx, messageService) {
+    _createAnimationTask(log) {
+        return {
+            type: 'ANIMATE',
+            animationType: log.targetId ? 'attack' : 'support',
+            attackerId: log.actorId,
+            targetId: log.targetId
+        };
+    }
+
+    _createDeclarationTasks(log, ctx) {
         const def = VisualDefinitions.EVENTS.DECLARATION;
         let messageKey;
         
@@ -210,30 +214,30 @@ export class VisualSequenceSystem extends System {
         const attackerInfo = this.world.getComponent(log.actorId, PlayerInfo);
         const params = {
             attackerName: attackerInfo?.name || '???',
-            actionType: ctx.attackingPart.action, // PartData (Snapshot)
-            attackType: ctx.attackingPart.action, // alias
-            trait: ctx.attackingPart.name, // TODO: trait名をQueryServiceで含めるようにする
+            actionType: ctx.attackingPart.action,
+            attackType: ctx.attackingPart.action,
+            trait: ctx.attackingPart.name,
         };
 
         return [{
             type: 'DIALOG',
-            text: messageService.format(messageKey, params),
+            text: this.messageService.format(messageKey, params),
             options: { modalType: ModalType.ATTACK_DECLARATION }
         }];
     }
 
-    _createGuardianTasks(log, ctx, messageService) {
+    _createGuardianTasks(log, ctx) {
         const def = VisualDefinitions.EVENTS.GUARDIAN_TRIGGER;
         const messageKey = MessageKey[def.keys.default];
         
         return [{
             type: 'DIALOG',
-            text: messageService.format(messageKey, { guardianName: log.guardianInfo.name }),
+            text: this.messageService.format(messageKey, { guardianName: log.guardianInfo.name }),
             options: { modalType: ModalType.ATTACK_DECLARATION }
         }];
     }
 
-    _createEffectTasks(log, ctx, messageService) {
+    _createEffectTasks(log, ctx) {
         const effect = log.effect;
         const def = VisualDefinitions[effect.type];
         if (!def) return [];
@@ -259,9 +263,9 @@ export class VisualSequenceSystem extends System {
                 actorName: targetInfo?.name || '???'
             };
 
-            let text = messageService.format(messageKey, params);
+            let text = this.messageService.format(messageKey, params);
             if (prefixKey) {
-                text = messageService.format(prefixKey) + text;
+                text = this.messageService.format(prefixKey) + text;
             }
 
             tasks.push({
@@ -286,26 +290,21 @@ export class VisualSequenceSystem extends System {
         const keys = def.keys;
         if (!keys) return null;
 
-        switch (effect.type) {
-            case EffectType.DAMAGE:
-                if (effect.isGuardBroken) return MessageKey[keys.guardBroken];
-                if (effect.isPenetration) return MessageKey[keys.penetration];
-                if (effect.isDefended) return MessageKey[keys.defended];
-                if (effect.guardianName || ctx.guardianInfo) return MessageKey[keys.guardian];
-                return MessageKey[keys.default];
-            
-            case EffectType.HEAL:
-                return effect.value > 0 ? MessageKey[keys.success] : MessageKey[keys.failed];
-            
-            case EffectType.APPLY_GLITCH:
-                return effect.wasSuccessful ? MessageKey[keys.success] : MessageKey[keys.failed];
-            
-            case EffectType.CONSUME_GUARD:
-                return effect.isExpired ? MessageKey[keys.expired] : null;
-
-            default:
-                return MessageKey[keys.default] || null;
+        // 特殊条件チェック
+        if (effect.type === EffectType.DAMAGE) {
+            if (effect.isGuardBroken) return MessageKey[keys.guardBroken];
+            if (effect.isPenetration) return MessageKey[keys.penetration];
+            if (effect.isDefended) return MessageKey[keys.defended];
+            if (effect.guardianName || ctx.guardianInfo) return MessageKey[keys.guardian];
+        } else if (effect.type === EffectType.HEAL) {
+            return effect.value > 0 ? MessageKey[keys.success] : MessageKey[keys.failed];
+        } else if (effect.type === EffectType.APPLY_GLITCH) {
+            return effect.wasSuccessful ? MessageKey[keys.success] : MessageKey[keys.failed];
+        } else if (effect.type === EffectType.CONSUME_GUARD) {
+            return effect.isExpired ? MessageKey[keys.expired] : null;
         }
+
+        return MessageKey[keys.default] || null;
     }
 
     _resolveEffectPrefixKey(effect, def) {
@@ -313,14 +312,14 @@ export class VisualSequenceSystem extends System {
         return effect.isCritical ? MessageKey[def.keys.prefixCritical] : null;
     }
 
-    _createMissTasks(log, ctx, messageService) {
+    _createMissTasks(log, ctx) {
         const def = VisualDefinitions.EVENTS.MISS;
         const messageKey = MessageKey[def.keys.default];
         const targetInfo = this.world.getComponent(log.targetId, PlayerInfo);
 
         return [{
             type: 'DIALOG',
-            text: messageService.format(messageKey, { targetName: targetInfo?.name || '相手' }),
+            text: this.messageService.format(messageKey, { targetName: targetInfo?.name || '相手' }),
             options: { modalType: ModalType.EXECUTION_RESULT }
         }];
     }

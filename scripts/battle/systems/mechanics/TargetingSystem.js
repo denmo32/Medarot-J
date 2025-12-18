@@ -1,7 +1,7 @@
 /**
  * @file TargetingSystem.js
  * @description ターゲット解決を行うシステム。
- * 移動後ターゲット選択において、パーツIDから正しくデータを取得するように修正。
+ * 戦略結果の正規化ロジックをTargetingServiceへ委譲し、Systemを簡素化。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -43,9 +43,7 @@ export class TargetingSystem extends System {
         const parts = this.world.getComponent(entityId, Parts);
         if (!parts || !action.partKey) return;
         
-        // パーツID取得
         const partId = parts[action.partKey];
-        // QueryServiceを使ってデータを取得
         const part = QueryService.getPartData(this.world, partId);
         if (!part) return;
 
@@ -53,29 +51,13 @@ export class TargetingSystem extends System {
         if (part.postMoveTargeting) {
             const strategy = targetingStrategies[part.postMoveTargeting];
             if (strategy) {
-                const targetData = strategy({ world: this.world, attackerId: entityId });
-                // targetData は { targetId, targetPartKey } または [{ target: ..., weight: ... }] 形式
-                // strategies/postMoveTargeting.js の実装を見ると、
-                // NEAREST_ENEMY は QueryService.selectRandomPart ({ targetId, targetPartKey }) を返す
-                // MOST_DAMAGED_ALLY は { targetId, targetPartKey } を返す
-                // supportTargeting.js の HEALER は [{ target, weight }] を返す可能性がある
-                // 統一が必要だが、現状の実装依存で処理する。
-                // aiDecisionUtils.js などのラッパーを通していないため、戦略関数の戻り値を直接扱う。
+                const rawResult = strategy({ world: this.world, attackerId: entityId });
+                // サービスの正規化ロジックを使用
+                const normalized = TargetingService.normalizeStrategyResult(rawResult);
                 
-                // postMoveStrategies の実装確認:
-                // NEAREST_ENEMY -> object {targetId, targetPartKey}
-                // MOST_DAMAGED_ALLY -> object {targetId, targetPartKey}
-                // しかし supportStrategies は array を返す実装になっている箇所がある (HEALER)
-                
-                if (Array.isArray(targetData) && targetData.length > 0) {
-                    const topCandidate = targetData[0]; // 簡易的に先頭を使用
-                    if (topCandidate.target) {
-                        action.targetId = topCandidate.target.targetId;
-                        action.targetPartKey = topCandidate.target.targetPartKey;
-                    }
-                } else if (targetData && targetData.targetId) {
-                    action.targetId = targetData.targetId;
-                    action.targetPartKey = targetData.targetPartKey;
+                if (normalized) {
+                    action.targetId = normalized.targetId;
+                    action.targetPartKey = normalized.targetPartKey;
                 }
             }
         }
@@ -103,7 +85,6 @@ export class TargetingSystem extends System {
             const part = ctx.attackingPart;
             if (part && part.targetScope === EffectScope.SELF) {
                 ctx.intendedTargetId = entityId;
-                // targetPartKeyはnullでも良い（Effect側で適切に処理、またはActionDefinitionsで指定されている場合もある）
             }
         }
 
@@ -125,7 +106,7 @@ export class TargetingSystem extends System {
             
             if (ctx.finalTargetId !== null) {
                 const targetParts = this.world.getComponent(ctx.finalTargetId, Parts);
-                ctx.targetLegs = QueryService.getPartData(this.world, targetParts?.legs); // データとして取得
+                ctx.targetLegs = QueryService.getPartData(this.world, targetParts?.legs);
             }
         }
         

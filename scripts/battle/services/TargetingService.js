@@ -2,6 +2,7 @@
  * @file TargetingService.js
  * @description ターゲット解決サービス。
  * パーツID化に伴い、QueryServiceを使用してパーツ情報を参照する形に修正。
+ * AI戦略結果の正規化ロジックを追加し、Systemの負担を軽減。
  */
 import { PlayerInfo, Parts } from '../../components/index.js';
 import { ActiveEffects } from '../components/index.js';
@@ -9,6 +10,39 @@ import { EffectType, EffectScope } from '../common/constants.js';
 import { QueryService } from './QueryService.js';
 
 export class TargetingService {
+
+    /**
+     * AI戦略の実行結果を正規化し、単一のターゲット情報を返す
+     * @param {object|Array|null} result - 戦略関数の戻り値
+     * @returns {{targetId: number, targetPartKey: string}|null}
+     */
+    static normalizeStrategyResult(result) {
+        if (!result) return null;
+
+        // 配列形式の場合 (重み付きリスト: [{ target: {...}, weight: ... }])
+        if (Array.isArray(result)) {
+            if (result.length === 0) return null;
+            // 簡易実装: 先頭の候補を採用（本来はここで重み付け抽選を行っても良い）
+            const candidate = result[0];
+            if (candidate && candidate.target) {
+                return {
+                    targetId: candidate.target.targetId,
+                    targetPartKey: candidate.target.targetPartKey
+                };
+            }
+            return null;
+        }
+
+        // 単一オブジェクト形式の場合 ({ targetId, targetPartKey })
+        if (result.targetId !== undefined) {
+            return {
+                targetId: result.targetId,
+                targetPartKey: result.targetPartKey
+            };
+        }
+
+        return null;
+    }
 
     static resolveActualTarget(world, attackerId, intendedTargetId, intendedPartKey, isSupport) {
         if (isSupport) {
