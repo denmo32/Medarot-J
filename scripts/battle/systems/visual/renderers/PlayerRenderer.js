@@ -1,7 +1,7 @@
 /**
  * @file PlayerRenderer.js
  * @description プレイヤーのDOM描画ロジック。
- * PartsコンポーネントがIDを持つようになったため、QueryService経由でデータを取得するように修正。
+ * 脚部パーツが表示されるようにQueryServiceの引数を修正。
  */
 import { el } from '../../../../../engine/utils/DOMUtils.js';
 import { CONFIG } from '../../../common/config.js';
@@ -64,7 +64,8 @@ export class PlayerRenderer {
         ]);
 
         // パーツデータの取得
-        const partsList = QueryService.getParts(this.world, entityId, true, true);
+        // attackableOnly=false にして脚部も含める
+        const partsList = QueryService.getParts(this.world, entityId, true, false);
 
         [PartInfo.HEAD, PartInfo.RIGHT_ARM, PartInfo.LEFT_ARM, PartInfo.LEGS].forEach(info => {
             const key = info.key;
