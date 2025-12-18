@@ -1,6 +1,7 @@
 /**
  * @file TagComponents.js
  * @description 戦闘システムにおける各種状態や特性を表すタグコンポーネント群。
+ * 一括管理用のタググループ定義を追加。
  */
 
 // --- アクション種別タグ ---
@@ -45,3 +46,22 @@ export class ExecutingVisuals { constructor() {} }
 
 /** シーケンス完了 */
 export class SequenceFinished { constructor() {} }
+
+// --- Tag Groups (Helper for Systems) ---
+export const ActionTypeTags = [
+    IsShootingAction, IsMeleeAction, IsSupportAction, 
+    IsHealAction, IsDefendAction, IsInterruptAction
+];
+
+export const TargetingTags = [
+    RequiresPreMoveTargeting, RequiresPostMoveTargeting, TargetResolved
+];
+
+export const SequencePhaseTags = [
+    InCombatCalculation, ProcessingEffects, GeneratingVisuals, ExecutingVisuals
+];
+
+export const PlayerStateTags = [
+    IsReadyToSelect, IsReadyToExecute, IsCharging, IsCooldown, 
+    IsGuarding, IsBroken, IsAwaitingAnimation
+];

@@ -1,7 +1,7 @@
 /**
  * @file SystemInitializer.js
  * @description バトルシーンで使用するSystemの初期化・登録を行う。
- * エフェクト処理のECS化に伴い、EffectSystemsとCombatResultSystemを登録。
+ * リファクタリング: アクション実行系システムを ActionExecutionSystem に統合。
  */
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
@@ -22,11 +22,9 @@ import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 import { ModalSystem } from '../systems/ui/ModalSystem.js';
 import { UIInputSystem } from '../systems/ui/UIInputSystem.js';
 
-// Action Systems
+// Action Systems (Integrated)
 import { TargetingSystem } from '../systems/mechanics/TargetingSystem.js';
-import { ShootSystem } from '../systems/mechanics/ShootSystem.js';
-import { MeleeSystem } from '../systems/mechanics/MeleeSystem.js';
-import { SupportActionSystem } from '../systems/mechanics/SupportActionSystem.js';
+import { ActionExecutionSystem } from '../systems/mechanics/ActionExecutionSystem.js';
 
 // Effect Systems
 import { DamageSystem } from '../systems/effects/DamageSystem.js';
@@ -77,9 +75,7 @@ export function initializeSystems(world, gameDataManager) {
 
     // Action Systems
     const targetingSystem = new TargetingSystem(world);
-    const shootSystem = new ShootSystem(world);
-    const meleeSystem = new MeleeSystem(world);
-    const supportActionSystem = new SupportActionSystem(world);
+    const actionExecutionSystem = new ActionExecutionSystem(world);
 
     // Effect Systems
     const guardSystem = new GuardSystem(world);
@@ -116,10 +112,8 @@ export function initializeSystems(world, gameDataManager) {
     // 5-1. TargetingSystem: ターゲット解決
     world.registerSystem(targetingSystem);
 
-    // 5-2. Action Systems: エフェクトエンティティの生成
-    world.registerSystem(shootSystem);
-    world.registerSystem(meleeSystem);
-    world.registerSystem(supportActionSystem);
+    // 5-2. Action Execution: 命中判定とエフェクト生成 (統合済み)
+    world.registerSystem(actionExecutionSystem);
 
     // 5-3. Effect Systems: 生成されたエフェクトの処理
     world.registerSystem(guardSystem); // ガード消費

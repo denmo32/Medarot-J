@@ -1,25 +1,23 @@
 /**
  * @file BattleSequenceSystem.js
  * @description バトルアクションパイプラインの管理システム。
- * アクションタイプやタイミングの判定にQueryServiceを使用。
+ * リファクタリング: タグ処理を共通定義を使用して簡素化。
  */
 import { System } from '../../../../engine/core/System.js';
 import {
     BattleSequenceState, SequencePending,
-    Action, BattleFlowState,
-    IsShootingAction, IsMeleeAction, IsSupportAction, IsHealAction, IsDefendAction, IsInterruptAction,
-    RequiresPreMoveTargeting, RequiresPostMoveTargeting,
+    Action, BattleFlowState, CombatContext, CombatResult,
     InCombatCalculation, GeneratingVisuals, ExecutingVisuals, SequenceFinished,
     IsReadyToExecute,
-    TargetResolved, CombatContext, ProcessingEffects, CombatResult
+    // タグクラス定義
+    IsShootingAction, IsMeleeAction, IsSupportAction, IsHealAction, IsDefendAction, IsInterruptAction,
+    RequiresPreMoveTargeting, RequiresPostMoveTargeting,
+    // タググループ
+    ActionTypeTags, TargetingTags, SequencePhaseTags
 } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
-import {
-    TransitionStateRequest
-} from '../../components/CommandRequests.js';
-import {
-    ActionCancelledEvent
-} from '../../components/Requests.js';
+import { TransitionStateRequest } from '../../components/CommandRequests.js';
+import { ActionCancelledEvent } from '../../components/Requests.js';
 import { PlayerStateType, BattlePhase, TargetTiming, ActionType } from '../../common/constants.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { QueryService } from '../../services/QueryService.js';
@@ -68,28 +66,25 @@ export class BattleSequenceSystem extends System {
         const entities = this.world.getEntitiesWith(BattleSequenceState);
         
         for (const entityId of entities) {
-            if (this.world.getComponent(entityId, InCombatCalculation) ||
-                this.world.getComponent(entityId, GeneratingVisuals) ||
-                this.world.getComponent(entityId, ExecutingVisuals) ||
+            // 既にフェーズタグを持っている場合はスキップ（初期化済み）
+            if (SequencePhaseTags.some(Tag => this.world.getComponent(entityId, Tag)) || 
                 this.world.getComponent(entityId, SequenceFinished)) {
                 continue;
             }
 
             const state = this.world.getComponent(entityId, BattleSequenceState);
 
+            // 演出待機状態へ遷移
             const reqEntity = this.world.createEntity();
             this.world.addComponent(reqEntity, new TransitionStateRequest(
                 entityId,
                 PlayerStateType.AWAITING_ANIMATION
             ));
 
+            // キャンセルチェック
             const cancelCheck = CancellationService.checkCancellation(this.world, entityId);
             if (cancelCheck.shouldCancel) {
-                state.contextData = { isCancelled: true, cancelReason: cancelCheck.reason };
-                const evt = this.world.createEntity();
-                this.world.addComponent(evt, new ActionCancelledEvent(entityId, cancelCheck.reason));
-                
-                this.world.addComponent(entityId, new GeneratingVisuals());
+                this._handleImmediateCancel(entityId, state, cancelCheck.reason);
             } else {
                 const tagsApplied = this._applyActionTags(entityId);
 
@@ -97,15 +92,18 @@ export class BattleSequenceSystem extends System {
                     this.world.addComponent(entityId, new InCombatCalculation());
                 } else {
                     console.error(`BattleSequenceSystem: Failed to apply action tags for entity ${entityId}. Forcing cancel.`);
-                    state.contextData = { isCancelled: true, cancelReason: 'INTERRUPTED' };
-                    
-                    const evt = this.world.createEntity();
-                    this.world.addComponent(evt, new ActionCancelledEvent(entityId, 'INTERRUPTED'));
-                    
-                    this.world.addComponent(entityId, new GeneratingVisuals());
+                    this._handleImmediateCancel(entityId, state, 'INTERRUPTED');
                 }
             }
         }
+    }
+
+    _handleImmediateCancel(entityId, state, reason) {
+        state.contextData = { isCancelled: true, cancelReason: reason };
+        const evt = this.world.createEntity();
+        this.world.addComponent(evt, new ActionCancelledEvent(entityId, reason));
+        
+        this.world.addComponent(entityId, new GeneratingVisuals());
     }
 
     _applyActionTags(entityId) {
@@ -118,31 +116,11 @@ export class BattleSequenceSystem extends System {
         const partData = QueryService.getPartData(this.world, partId);
         if (!partData) return false;
 
-        switch (partData.actionType) {
-            case ActionType.SHOOT:
-                this.world.addComponent(entityId, new IsShootingAction());
-                break;
-            case ActionType.MELEE:
-                this.world.addComponent(entityId, new IsMeleeAction());
-                break;
-            case ActionType.HEAL:
-                this.world.addComponent(entityId, new IsHealAction());
-                break;
-            case ActionType.SUPPORT:
-                this.world.addComponent(entityId, new IsSupportAction());
-                break;
-            case ActionType.INTERRUPT:
-                this.world.addComponent(entityId, new IsInterruptAction());
-                break;
-            case ActionType.DEFEND:
-                this.world.addComponent(entityId, new IsDefendAction());
-                break;
-            default:
-                console.warn(`Unknown action type: ${partData.actionType}`);
-                this.world.addComponent(entityId, new IsShootingAction());
-                break;
-        }
+        // アクションタイプに応じたタグ付与
+        const TagClass = this._getActionTagClass(partData.actionType);
+        this.world.addComponent(entityId, new TagClass());
 
+        // タイミングタグ付与
         if (partData.targetTiming === TargetTiming.POST_MOVE) {
             this.world.addComponent(entityId, new RequiresPostMoveTargeting());
         } else {
@@ -150,6 +128,20 @@ export class BattleSequenceSystem extends System {
         }
 
         return true;
+    }
+
+    _getActionTagClass(actionType) {
+        switch (actionType) {
+            case ActionType.SHOOT: return IsShootingAction;
+            case ActionType.MELEE: return IsMeleeAction;
+            case ActionType.HEAL: return IsHealAction;
+            case ActionType.SUPPORT: return IsSupportAction;
+            case ActionType.INTERRUPT: return IsInterruptAction;
+            case ActionType.DEFEND: return IsDefendAction;
+            default:
+                console.warn(`Unknown action type: ${actionType}`);
+                return IsShootingAction;
+        }
     }
 
     _cleanupFinishedSequences() {
@@ -166,23 +158,13 @@ export class BattleSequenceSystem extends System {
     }
 
     _removeActionTags(entityId) {
-        this.world.removeComponent(entityId, IsShootingAction);
-        this.world.removeComponent(entityId, IsMeleeAction);
-        this.world.removeComponent(entityId, IsSupportAction);
-        this.world.removeComponent(entityId, IsHealAction);
-        this.world.removeComponent(entityId, IsDefendAction);
-        this.world.removeComponent(entityId, IsInterruptAction);
-        this.world.removeComponent(entityId, RequiresPreMoveTargeting);
-        this.world.removeComponent(entityId, RequiresPostMoveTargeting);
+        // 定義されたタググループを使用して一括削除
+        ActionTypeTags.forEach(Tag => this.world.removeComponent(entityId, Tag));
+        TargetingTags.forEach(Tag => this.world.removeComponent(entityId, Tag));
+        SequencePhaseTags.forEach(Tag => this.world.removeComponent(entityId, Tag));
 
-        this.world.removeComponent(entityId, TargetResolved);
         this.world.removeComponent(entityId, CombatContext);
-        this.world.removeComponent(entityId, ProcessingEffects);
         this.world.removeComponent(entityId, CombatResult);
-
-        this.world.removeComponent(entityId, InCombatCalculation);
-        this.world.removeComponent(entityId, GeneratingVisuals);
-        this.world.removeComponent(entityId, ExecutingVisuals);
     }
 
     _markReadyEntities() {
@@ -201,8 +183,6 @@ export class BattleSequenceSystem extends System {
         const pendingEntities = this.getEntities(SequencePending);
         if (pendingEntities.length === 0) return null;
 
-        // Propulsionの比較もQueryServiceを使ってパーツIDから取得する必要がある
-        // が、QueryService.compareByPropulsion ヘルパーがあるのでそれを使う
         pendingEntities.sort(QueryService.compareByPropulsion(this.world));
 
         return pendingEntities[0];
