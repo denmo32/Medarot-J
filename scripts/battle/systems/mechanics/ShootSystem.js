@@ -1,6 +1,7 @@
 /**
  * @file ShootSystem.js
- * @description 射撃アクションを処理するシステム。
+ * @description 射撃アクション処理。
+ * CombatContextの初期化はCombatServiceに委譲済みなので、ここではフェーズ遷移のみ。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 

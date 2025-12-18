@@ -1,7 +1,6 @@
 /**
  * @file AiDecisionService.js
- * @description AIの意思決定ロジックを提供する純粋な関数群。
- * クラスインスタンス化を廃止し、ステートレスなロジックとして定義。
+ * @description AIの意思決定ロジック。
  */
 import { determineTargetCandidatesByPersonality, selectBestActionPlan } from '../ai/aiDecisionUtils.js';
 import { ActionService } from './ActionService.js';
@@ -20,34 +19,22 @@ export const AiDecisionService = {
     processAiTurn(world, entityId) {
         const context = { world, entityId };
 
-        // 1. 性格に基づいてターゲット候補を選定
         const { candidates: targetCandidates, strategy: usedStrategy } = determineTargetCandidatesByPersonality(context);
 
         if (!targetCandidates || targetCandidates.length === 0) {
             console.warn(`AI ${entityId}: No target candidates found by personality.`);
-            const stateEntity = world.createEntity();
-            const actionRequeueState = new ActionRequeueState();
-            actionRequeueState.isActive = true;
-            actionRequeueState.entityId = entityId;
-            world.addComponent(stateEntity, actionRequeueState);
+            this._requeue(world, entityId);
             return;
         }
 
-        // 2. 実行可能な行動プランを列挙
         const actionPlans = this.generateActionPlans(world, entityId, targetCandidates);
         
         if (actionPlans.length === 0) {
-            // 有効なアクションがない場合
              console.warn(`AI ${entityId}: No valid action plans.`);
-             const stateEntity = world.createEntity();
-             const actionRequeueState = new ActionRequeueState();
-             actionRequeueState.isActive = true;
-             actionRequeueState.entityId = entityId;
-             world.addComponent(stateEntity, actionRequeueState);
+             this._requeue(world, entityId);
             return;
         }
 
-        // 3. 最適なプランを選択
         const finalPlan = selectBestActionPlan({ ...context, actionPlans });
 
         if (!finalPlan) {
@@ -56,29 +43,15 @@ export const AiDecisionService = {
             return;
         }
         
-        // 4. プランを実行 (リクエスト生成)
         this._executePlan(world, entityId, finalPlan, usedStrategy);
     },
 
-    /**
-     * プレイヤーのターゲット選択補助のために、性格に基づいた候補を取得する
-     * @param {World} world
-     * @param {number} entityId 
-     * @returns {object[]} ターゲット候補リスト
-     */
     getSuggestionForPlayer(world, entityId) {
         const context = { world, entityId };
         const { candidates } = determineTargetCandidatesByPersonality(context);
         return candidates || [];
     },
 
-    /**
-     * ターゲット候補に基づき、実行可能なアクションプランを生成する
-     * @param {World} world
-     * @param {number} entityId 
-     * @param {object[]} targetCandidates 
-     * @returns {object[]}
-     */
     generateActionPlans(world, entityId, targetCandidates) {
         if (!targetCandidates || targetCandidates.length === 0) {
             return [];
@@ -116,7 +89,6 @@ export const AiDecisionService = {
     },
 
     _executePlan(world, entityId, plan, strategyKey) {
-        // デバッグログ用イベントコンポーネントを生成
         if (strategyKey && plan.target) {
             const debugEntity = world.createEntity();
             world.addComponent(debugEntity, new StrategyExecutedEvent(
@@ -132,5 +104,13 @@ export const AiDecisionService = {
         if (actionPlans.length === 0) return;
         const randomPlan = actionPlans[Math.floor(Math.random() * actionPlans.length)];
         ActionService.createActionRequest(world, entityId, randomPlan.partKey, randomPlan.target);
+    },
+
+    _requeue(world, entityId) {
+        const stateEntity = world.createEntity();
+        const actionRequeueState = new ActionRequeueState();
+        actionRequeueState.isActive = true;
+        actionRequeueState.entityId = entityId;
+        world.addComponent(stateEntity, actionRequeueState);
     }
 };

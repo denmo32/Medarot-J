@@ -6,7 +6,6 @@ import { TargetingService } from '../../services/TargetingService.js';
 import { TargetingStrategyKey } from '../strategyKeys.js';
 import { Position } from '../../components/index.js';
 
-// TargetingServiceを利用して有効な敵を取得し、距離計算を行うロジック
 const findNearestEnemy = (world, attackerId) => {
     const attackerPos = world.getComponent(attackerId, Position);
     if (!attackerPos) return null;

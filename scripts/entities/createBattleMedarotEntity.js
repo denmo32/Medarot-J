@@ -1,17 +1,18 @@
 /**
  * @file createBattleMedarotEntity.js
  * @description バトル用のメダロットエンティティを生成する。
- * GameStateコンポーネントを削除し、初期タグ（IsCooldown）を付与。
+ * 各パーツを独立したエンティティとして生成し、IDでリンクさせる形式に変更。
  */
 
 import * as BattleComponents from '../battle/components/index.js';
 import * as CommonComponents from '../components/index.js';
 import { MEDALS_DATA } from '../data/medals.js';
-import { PARTS_DATA } from '../data/parts.js';
 import { buildPartData } from '../data/partDataUtils.js';
+import { PartEntityFactory } from './PartEntityFactory.js';
 
 export function createBattleMedarotEntity(world, medarotData, initialPosition = null, teamId = null, isLeader = false) {
-    const entityId = world.createEntity();
+    // 1. 本体エンティティ生成
+    const ownerId = world.createEntity();
 
     const { name, partsIds, medalId } = medarotData;
     let finalName = name;
@@ -25,33 +26,45 @@ export function createBattleMedarotEntity(world, medarotData, initialPosition = 
         }
     }
 
-    const initializedParts = {
-        head: buildPartData(partsIds.head, 'head'),
-        rightArm: buildPartData(partsIds.rightArm, 'rightArm'),
-        leftArm: buildPartData(partsIds.leftArm, 'leftArm'),
-        legs: buildPartData(partsIds.legs, 'legs')
-    };
+    // 2. パーツエンティティ生成
+    // データ構築ユーティリティを使ってマージ済みデータを取得し、Factoryに渡す
+    const partKeys = ['head', 'rightArm', 'leftArm', 'legs'];
+    const partEntityIds = {};
 
-    world.addComponent(entityId, new CommonComponents.PlayerInfo(finalName, teamId, isLeader));
-    world.addComponent(entityId, new BattleComponents.Gauge('ACTION'));
+    partKeys.forEach(key => {
+        const partData = buildPartData(partsIds[key], key);
+        if (partData) {
+            partEntityIds[key] = PartEntityFactory.create(world, ownerId, key, partData);
+        } else {
+            partEntityIds[key] = null;
+        }
+    });
+
+    // 3. 本体コンポーネント付与
+    world.addComponent(ownerId, new CommonComponents.PlayerInfo(finalName, teamId, isLeader));
+    world.addComponent(ownerId, new BattleComponents.Gauge('ACTION'));
     
-    // 初期状態タグ: クールダウン中（スタートラインに戻る状態、あるいはそこに居る状態）
-    world.addComponent(entityId, new BattleComponents.IsCooldown());
+    // 初期状態タグ
+    world.addComponent(ownerId, new BattleComponents.IsCooldown());
 
-    world.addComponent(entityId, new CommonComponents.Parts(
-        initializedParts.head,
-        initializedParts.rightArm,
-        initializedParts.leftArm,
-        initializedParts.legs
+    // PartsコンポーネントにはIDを渡す
+    world.addComponent(ownerId, new CommonComponents.Parts(
+        partEntityIds.head,
+        partEntityIds.rightArm,
+        partEntityIds.leftArm,
+        partEntityIds.legs
     ));
-    world.addComponent(entityId, new BattleComponents.Action());
-    world.addComponent(entityId, new CommonComponents.Medal(personality));
-    world.addComponent(entityId, new BattleComponents.BattleLog());
-    if (initialPosition) {
-        world.addComponent(entityId, new BattleComponents.Position(initialPosition.x, initialPosition.y));
-    }
-    world.addComponent(entityId, new BattleComponents.ActiveEffects());
-    world.addComponent(entityId, new BattleComponents.Visual());
 
-    return entityId;
+    world.addComponent(ownerId, new BattleComponents.Action());
+    world.addComponent(ownerId, new CommonComponents.Medal(personality));
+    world.addComponent(ownerId, new BattleComponents.BattleLog());
+    
+    if (initialPosition) {
+        world.addComponent(ownerId, new BattleComponents.Position(initialPosition.x, initialPosition.y));
+    }
+    
+    world.addComponent(ownerId, new BattleComponents.ActiveEffects());
+    world.addComponent(ownerId, new BattleComponents.Visual());
+
+    return ownerId;
 }

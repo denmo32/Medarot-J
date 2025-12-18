@@ -23,3 +23,6 @@ export * from './CommandRequests.js';
 // 新しい戦闘コンポーネント
 export * from './combat/index.js';
 export * from './effects/Effects.js';
+
+// パーツエンティティ用コンポーネント
+export * from './parts/PartComponents.js';

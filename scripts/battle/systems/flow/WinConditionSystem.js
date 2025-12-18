@@ -1,14 +1,14 @@
 /**
  * @file WinConditionSystem.js
- * @description 勝敗判定を行うシステム。
- * イベント発行を整理し、BattleFlowStateによる状態管理へ完全移行。
+ * @description 勝敗判定。
+ * パーツIDの参照を修正。
  */
 import { System } from '../../../../engine/core/System.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { TeamID } from '../../../common/constants.js';
 import { BattlePhase } from '../../common/constants.js';
 import { BattleFlowState, BattleSequenceState, SequencePending } from '../../components/index.js';
-// import { GameEvents } from '../../../common/events.js'; // イベントシステム廃止につき削除
+import { QueryService } from '../../services/QueryService.js';
 
 export class WinConditionSystem extends System {
     constructor(world) {
@@ -21,7 +21,6 @@ export class WinConditionSystem extends System {
             return;
         }
 
-        // 判定を行うべきタイミングかチェック
         if (this.battleFlowState.phase !== BattlePhase.ACTION_EXECUTION &&
             this.battleFlowState.phase !== BattlePhase.TURN_END) {
             return;
@@ -50,8 +49,9 @@ export class WinConditionSystem extends System {
         for (const entityId of players) {
             const info = this.world.getComponent(entityId, PlayerInfo);
             const parts = this.world.getComponent(entityId, Parts);
+            const headData = QueryService.getPartData(this.world, parts.head);
 
-            if (parts.head && !parts.head.isBroken) {
+            if (headData && !headData.isBroken) {
                 if (info.teamId === TeamID.TEAM1) {
                     team1Alive = true;
                     if (info.isLeader) team1LeaderAlive = true;
@@ -76,13 +76,8 @@ export class WinConditionSystem extends System {
     }
 
     _triggerGameOver(winningTeam) {
-        // フェーズを更新 (GameFlowSystemがこれを検知する)
         this.battleFlowState.phase = BattlePhase.GAME_OVER;
         this.battleFlowState.winningTeam = winningTeam;
-
-        // ログ出力用
         console.log(`Game Over! Winner: ${winningTeam}`);
-
-        // GameEvents.GAME_OVER イベント発行は廃止 (BattleFlowStateの変更で十分)
     }
 }

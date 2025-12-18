@@ -1,6 +1,7 @@
 /**
  * @file EffectService.js
- * @description 戦闘におけるステータス補正や特性効果を一元管理するサービス。
+ * @description ステータス補正サービス。
+ * パーツデータの参照方法を修正。
  */
 import { ActiveEffects } from '../components/index.js';
 import { EffectType } from '../common/constants.js';
@@ -10,9 +11,6 @@ import { TraitRegistry } from '../definitions/traits/TraitRegistry.js';
 
 export class EffectService {
     
-    /**
-     * 指定されたステータスに対する補正値を取得する
-     */
     static getStatModifier(world, entityId, statName, context = {}) {
         const fullContext = {
             ...context,
@@ -29,20 +27,14 @@ export class EffectService {
         return modifier;
     }
 
-    /**
-     * 速度係数に対する補正を取得する
-     */
     static getSpeedMultiplierModifier(world, entityId, part) {
-        // 1. 強制停止状態のチェック（拡張用）
         const activeEffects = world.getComponent(entityId, ActiveEffects);
         if (activeEffects) {
-            // 例: 'STOP_GAUGE' エフェクトがある場合は 0 を返す
             if (activeEffects.effects.some(e => e.type === 'STOP_GAUGE')) {
                 return 0;
             }
         }
 
-        // 2. 補正計算
         const context = { world, entityId, part, attackingPart: part };
         let multiplier = 1.0;
 
@@ -55,14 +47,14 @@ export class EffectService {
         return multiplier;
     }
 
-    /**
-     * クリティカル率への補正を取得する
-     */
     static getCriticalChanceModifier(part) {
         if (!part) return 0;
         const context = { attackingPart: part };
         
-        return this._executeTraitHooks('onCalculateCritical', context);
+        // パーツデータ(part)はQueryService経由で取得されたオブジェクトである前提
+        // その中に criticalBonus が含まれている場合、それを優先または加算
+        let traitBonus = this._executeTraitHooks('onCalculateCritical', context);
+        return traitBonus + (part.criticalBonus || 0);
     }
 
     // --- Internal Logic ---
@@ -74,9 +66,11 @@ export class EffectService {
         const results = [];
         let total = 0;
 
+        // attackingPartには trait 文字列や actionType が含まれている
         const definitions = [
-            TypeDefinitions[attackingPart.type],
-            TraitDefinitions[attackingPart.trait]
+            TypeDefinitions[attackingPart.actionType], // ActionType (SHOOT etc)
+            // TraitDefinitions は実装未完了だが、あれば参照
+            // TraitDefinitions[attackingPart.trait]
         ];
 
         for (const def of definitions) {
