@@ -105,8 +105,7 @@ export class TaskSystem extends System {
                     this.world.addComponent(entityId, new WaitTask(0));
                     break;
                 default:
-                    console.error(`TaskSystem: Unknown task type '${taskData.type}'`);
-                    break;
+                    throw new Error(`Unknown task type '${taskData.type}'`);
             }
         } catch (error) {
             console.error(`TaskSystem: Failed to activate task ${taskData.type}`, error);
@@ -126,7 +125,7 @@ export class TaskSystem extends System {
                 this.world.addComponent(stateEntity, state);
                 break;
             default:
-                console.warn(`TaskSystem: Unknown request type ${taskData.requestType}`);
+                throw new Error(`Unknown request type ${taskData.requestType}`);
         }
     }
 

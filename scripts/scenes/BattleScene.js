@@ -14,7 +14,6 @@ export class BattleScene extends Scene {
     }
 
     init(data) {
-        console.log("Initializing Battle Scene...");
         const { gameDataManager } = data;
 
         this._setupEntities(gameDataManager);
@@ -41,7 +40,6 @@ export class BattleScene extends Scene {
     }
 
     destroy() {
-        console.log("Destroying Battle Scene...");
         super.destroy();
     }
 }

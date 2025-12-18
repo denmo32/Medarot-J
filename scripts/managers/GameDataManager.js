@@ -138,6 +138,6 @@ export class GameDataManager {
      * @param {object} battleResult 
      */
     applyBattleResult(battleResult) {
-        console.log('Applying battle result:', battleResult);
+        // TODO: Implement battle result application
     }
 }

@@ -16,7 +16,6 @@ export class CustomizeScene extends Scene {
     }
 
     init(data) {
-        console.log("Initializing Customize Scene...");
         this.gameDataManager = data.gameDataManager;
         
         this._setupContexts();
@@ -38,7 +37,6 @@ export class CustomizeScene extends Scene {
     }
 
     destroy() {
-        console.log("Destroying Customize Scene...");
         const customizeUISystem = this.world.systems.find(s => s instanceof CustomizeUISystem);
         if (customizeUISystem && customizeUISystem.destroy) {
             customizeUISystem.destroy();

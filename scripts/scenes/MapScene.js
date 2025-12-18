@@ -35,7 +35,6 @@ export class MapScene extends Scene {
     }
 
     async init(data) {
-        console.log("Initializing Map Scene...");
         const { gameDataManager, restoreMenu = false } = data;
         this.gameDataManager = gameDataManager;
 
@@ -110,7 +109,6 @@ export class MapScene extends Scene {
 
     destroy() {
         this._savePlayerState();
-        console.log("Destroying Map Scene...");
         super.destroy();
     }
 }

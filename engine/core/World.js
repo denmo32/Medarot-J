@@ -61,11 +61,10 @@ export class World {
     addComponent(entityId, component) {
         const componentClass = component.constructor;
         const componentId = this._getComponentId(componentClass);
-        
+
         const entityComponents = this.entities.get(entityId);
         if (!entityComponents) {
-            console.error(`Attempted to add component to non-existent entity ${entityId}`);
-            return;
+            throw new Error(`Attempted to add component to non-existent entity ${entityId}`);
         }
         
         entityComponents.add(componentClass);

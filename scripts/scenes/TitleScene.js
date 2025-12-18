@@ -22,7 +22,6 @@ export class TitleScene extends Scene {
     }
 
     init(data) {
-        console.log("Initializing Title Scene...");
         this.gameDataManager = data.gameDataManager;
         
         this.input = this.world.getSingletonComponent(InputManager);
@@ -79,9 +78,6 @@ export class TitleScene extends Scene {
 
         if (isNewGame) {
             this.gameDataManager.reset();
-            console.log("Starting New Game...");
-        } else {
-            console.log("Loading Game from Save...");
         }
 
         // SceneChangeRequestを発行
@@ -90,10 +86,9 @@ export class TitleScene extends Scene {
     }
 
     destroy() {
-        console.log("Destroying Title Scene...");
         if (this.dom.startNewBtn) this.dom.startNewBtn.onclick = null;
         if (this.dom.startLoadBtn) this.dom.startLoadBtn.onclick = null;
-        
+
         super.destroy();
     }
 }

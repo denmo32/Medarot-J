@@ -66,7 +66,6 @@ export class PersistenceService {
             playerPartsInventory: inventory,
             playerMedalsInventory: medalsInventory,
         };
-        console.log('Default game data generated.');
         return defaultData;
     }
 
@@ -79,14 +78,12 @@ export class PersistenceService {
             const savedData = localStorage.getItem('medarotJSaveData');
             if (savedData) {
                 const gameData = JSON.parse(savedData);
-                console.log('Game data loaded from localStorage.', gameData);
 
                 if (this._migrateSaveData(gameData)) {
                     this.save(gameData); // माइग्रेशन後に保存
                 }
                 return gameData;
             } else {
-                console.log('No save data found. Initializing with default data.');
                 return this.reset();
             }
         } catch (error) {
@@ -102,7 +99,6 @@ export class PersistenceService {
     save(gameData) {
         try {
             localStorage.setItem('medarotJSaveData', JSON.stringify(gameData));
-            console.log('Game data saved successfully.');
         } catch (error) {
             console.error('Failed to save game data.', error);
         }
@@ -122,7 +118,6 @@ export class PersistenceService {
     _migratePartsInventory(gameData) {
         const inv = gameData.playerPartsInventory;
         if (inv?.head?.head_001?.name) {
-            console.log('Migrating parts inventory...');
             const newInventory = {};
             for (const partType in PARTS_DATA) {
                 newInventory[partType] = {};
@@ -140,7 +135,6 @@ export class PersistenceService {
 
     _migrateMedalsInventory(gameData) {
         if (!gameData.playerMedalsInventory || !gameData.playerMedalsInventory.kabuto?.count) {
-            console.log('Migrating medals inventory...');
             const newMedalsInventory = {};
             for (const medalId in MEDALS_DATA) {
                 newMedalsInventory[medalId] = { count: 1 };
@@ -160,7 +154,6 @@ export class PersistenceService {
             }
         });
         if (gameData.playerMedarots.length < 3) {
-            console.log('Completing missing medarots...');
             const existingIds = new Set(gameData.playerMedarots.map(m => m.id));
             const medarotsToAppend = defaultPlayerMedarots.filter(m => !existingIds.has(m.id));
             gameData.playerMedarots.push(...medarotsToAppend.slice(0, 3 - gameData.playerMedarots.length));

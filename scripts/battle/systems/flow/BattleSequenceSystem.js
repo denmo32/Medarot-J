@@ -29,11 +29,7 @@ export class BattleSequenceSystem extends System {
     }
 
     update(deltaTime) {
-        if (this.battleFlowState.phase === BattlePhase.GAME_OVER) {
-            this._abortAllSequences();
-            return;
-        }
-
+        this._handleGameOver();
         if (this.battleFlowState.phase !== BattlePhase.ACTION_EXECUTION) {
             return;
         }
@@ -46,6 +42,12 @@ export class BattleSequenceSystem extends System {
         }
 
         this._markReadyEntities();
+    }
+
+    _handleGameOver() {
+        if (this.battleFlowState.phase === BattlePhase.GAME_OVER) {
+            this._abortAllSequences();
+        }
     }
 
     _isPipelineBusy() {
@@ -91,8 +93,7 @@ export class BattleSequenceSystem extends System {
                 if (tagsApplied) {
                     this.world.addComponent(entityId, new InCombatCalculation());
                 } else {
-                    console.error(`BattleSequenceSystem: Failed to apply action tags for entity ${entityId}. Forcing cancel.`);
-                    this._handleImmediateCancel(entityId, state, 'INTERRUPTED');
+                    throw new Error(`Failed to apply action tags for entity ${entityId}`);
                 }
             }
         }
@@ -139,8 +140,7 @@ export class BattleSequenceSystem extends System {
             case ActionType.INTERRUPT: return IsInterruptAction;
             case ActionType.DEFEND: return IsDefendAction;
             default:
-                console.warn(`Unknown action type: ${actionType}`);
-                return IsShootingAction;
+                throw new Error(`Unknown action type: ${actionType}`);
         }
     }
 

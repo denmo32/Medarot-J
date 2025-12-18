@@ -54,8 +54,7 @@ export class SceneManager {
      */
     async switchTo(name, data = {}) {
         if (!this.scenes.has(name)) {
-            console.error(`SceneManager: Scene '${name}' not registered.`);
-            return;
+            throw new Error(`Scene '${name}' not registered.`);
         }
 
         if (this.currentScene) {

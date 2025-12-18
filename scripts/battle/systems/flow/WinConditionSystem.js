@@ -78,6 +78,5 @@ export class WinConditionSystem extends System {
     _triggerGameOver(winningTeam) {
         this.battleFlowState.phase = BattlePhase.GAME_OVER;
         this.battleFlowState.winningTeam = winningTeam;
-        console.log(`Game Over! Winner: ${winningTeam}`);
     }
 }
