@@ -1,7 +1,7 @@
 /**
  * @file GaugeSystem.js
  * @description ゲージ更新システム。
- * 機動・推進計算時のパーツデータ参照をQueryService経由に修正。
+ * 機動・推進計算時のパーツデータ参照をQueryService.getPartStats経由に最適化。
  */
 import { Gauge, BattleSequenceState, SequencePending, PauseState, IsCharging, IsCooldown } from '../../components/index.js';
 import { GaugeFullTag } from '../../components/Requests.js';
@@ -64,10 +64,11 @@ export class GaugeSystem extends System {
             }
 
             const parts = this.world.getComponent(entityId, Parts);
-            const legsData = QueryService.getPartData(this.world, parts.legs);
+            // getPartDataによる全展開を避け、Statsコンポーネントのみ取得
+            const legsStats = QueryService.getPartStats(this.world, parts.legs);
             
-            const mobility = legsData?.mobility || 0;
-            const propulsion = legsData?.propulsion || 0;
+            const mobility = legsStats?.mobility || 0;
+            const propulsion = legsStats?.propulsion || 0;
             const speedMultiplier = gauge.speedMultiplier || 1.0;
 
             const { nextSpeed, increment } = CombatCalculator.calculateGaugeUpdate({

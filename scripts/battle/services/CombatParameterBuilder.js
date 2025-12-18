@@ -2,7 +2,7 @@
  * @file CombatParameterBuilder.js
  * @description 戦闘計算に必要なパラメータオブジェクトを構築するサービス。
  * CombatContextからIDを取り出し、パーツエンティティから最新のコンポーネント値を取得して整形する。
- * CombatCalculatorへの依存を注入するために使用される。
+ * パフォーマンス最適化: 不要な全データ展開を避け、QueryService.getPartStatsを利用。
  */
 import { Parts } from '../../components/index.js';
 import { QueryService } from './QueryService.js';
@@ -23,8 +23,7 @@ export class CombatParameterBuilder {
      */
     buildHitOutcomeParams(ctx) {
         const { attackerId, finalTargetId, attackingPart } = ctx;
-        // attackingPart は initializeContext 時点のデータだが、計算には最新のステータス補正等を反映させたい
-        // ここでは攻撃側のステータス計算を行う
+        // attackingPart は initializeContext 時点のデータ (Snapshot)
 
         if (!finalTargetId) {
             return {
@@ -39,11 +38,12 @@ export class CombatParameterBuilder {
 
         // 攻撃側のパーツ情報（脚部含む）を取得
         const attackerParts = this.world.getComponent(attackerId, Parts);
-        const attackerLegsData = QueryService.getPartData(this.world, attackerParts.legs);
+        // Statsコンポーネントのみ取得 (オブジェクト生成を回避)
+        const attackerLegsStats = QueryService.getPartStats(this.world, attackerParts.legs);
 
         // 防御側のパーツ情報（脚部）を取得
         const targetParts = this.world.getComponent(finalTargetId, Parts);
-        const targetLegsData = QueryService.getPartData(this.world, targetParts.legs);
+        const targetLegsStats = QueryService.getPartStats(this.world, targetParts.legs);
 
         // 計算に使用するステータス
         const calcParams = attackingPart.effects?.find(e => e.type === 'DAMAGE')?.calculation || {};
@@ -51,19 +51,21 @@ export class CombatParameterBuilder {
         const defenseStatKey = calcParams.defenseStat || 'armor';
 
         // 補正済み攻撃成功値
+        // getStatModifierは内部でattackingPart(Snapshot)を使用するが、attackerLegs情報も渡す必要がある
+        // 互換性のため attackerLegsStats をオブジェクトとして渡す (PartStatsは単純なオブジェクトに近いのでそのまま使える)
         const attackerSuccess = EffectService.getStatModifier(this.world, attackerId, baseStatKey, {
             attackingPart: attackingPart,
-            attackerLegs: attackerLegsData
+            attackerLegs: attackerLegsStats
         }) + (attackingPart[baseStatKey] || 0);
 
         // 防御側機動
-        const targetMobility = targetLegsData?.mobility || 0;
+        const targetMobility = targetLegsStats?.mobility || 0;
 
         // 補正済みクリティカル率
-        const bonusChance = attackingPart.criticalBonus || 0; // Traitからの値はattackingPartに含まれている前提
+        const bonusChance = attackingPart.criticalBonus || 0;
 
         // 防御側装甲（回避判定用ではなく防御発生率用）
-        const targetArmor = targetLegsData?.[defenseStatKey] || 0;
+        const targetArmor = targetLegsStats?.[defenseStatKey] || 0;
 
         // 身代わり候補
         const bestDefensePartKey = QueryService.findBestDefensePart(this.world, finalTargetId);
@@ -91,8 +93,9 @@ export class CombatParameterBuilder {
         const attackerParts = this.world.getComponent(sourceId, Parts);
         const targetParts = this.world.getComponent(targetId, Parts);
         
-        const attackerLegsData = QueryService.getPartData(this.world, attackerParts.legs);
-        const targetLegsData = QueryService.getPartData(this.world, targetParts.legs);
+        // 軽量なStats取得に変更
+        const attackerLegsStats = QueryService.getPartStats(this.world, attackerParts.legs);
+        const targetLegsStats = QueryService.getPartStats(this.world, targetParts.legs);
 
         const calcParams = attackingPart.effects?.find(e => e.type === 'DAMAGE')?.calculation || {};
         const baseStatKey = calcParams.baseStat || 'success';
@@ -101,17 +104,17 @@ export class CombatParameterBuilder {
 
         const effectiveBaseVal = EffectService.getStatModifier(this.world, sourceId, baseStatKey, { 
             attackingPart, 
-            attackerLegs: attackerLegsData 
+            attackerLegs: attackerLegsStats 
         }) + (attackingPart[baseStatKey] || 0);
 
         const effectivePowerVal = EffectService.getStatModifier(this.world, sourceId, powerStatKey, { 
             attackingPart, 
-            attackerLegs: attackerLegsData 
+            attackerLegs: attackerLegsStats 
         }) + (attackingPart[powerStatKey] || 0);
 
-        const mobility = targetLegsData?.mobility || 0;
-        const defenseBase = targetLegsData?.[defenseStatKey] || 0;
-        const stabilityDefenseBonus = Math.floor((targetLegsData?.stability || 0) / 2);
+        const mobility = targetLegsStats?.mobility || 0;
+        const defenseBase = targetLegsStats?.[defenseStatKey] || 0;
+        const stabilityDefenseBonus = Math.floor((targetLegsStats?.stability || 0) / 2);
         const totalDefense = defenseBase + stabilityDefenseBonus;
 
         return {

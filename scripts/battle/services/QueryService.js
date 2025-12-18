@@ -1,7 +1,7 @@
 /**
  * @file QueryService.js
  * @description 戦闘関連のエンティティやコンポーネントを検索・フィルタリングするサービス。
- * パーツのEntity化に伴い、ID解決とデータ集約を行うメソッドを強化。
+ * ECS原則に従い、必要なコンポーネントのみへのアクセスを最適化。
  */
 import { Parts } from '../../components/index.js';
 import { PartStatus, PartStats, PartAction, PartEffects, TraitPenetrate, TraitCriticalBonus } from '../components/parts/PartComponents.js';
@@ -12,6 +12,7 @@ export class QueryService {
     /**
      * 指定されたパーツIDに対応するパーツエンティティの情報を統合して返す。
      * 従来のデータ構造との互換性を提供するためのアダプター。
+     * ※注意: 毎フレーム呼び出すような高頻度処理では使用を避けること。
      * @param {World} world 
      * @param {number} partEntityId 
      * @returns {object|null}
@@ -21,11 +22,12 @@ export class QueryService {
 
         const status = world.getComponent(partEntityId, PartStatus);
         const stats = world.getComponent(partEntityId, PartStats);
+        // 必須コンポーネントのチェック
+        if (!status || !stats) return null;
+
         const action = world.getComponent(partEntityId, PartAction);
         const effectsComp = world.getComponent(partEntityId, PartEffects);
         
-        if (!status || !stats) return null; // 最低限これらは必要
-
         // 特性タグの確認
         const penetrates = !!world.getComponent(partEntityId, TraitPenetrate);
         const critBonus = world.getComponent(partEntityId, TraitCriticalBonus);
@@ -68,7 +70,34 @@ export class QueryService {
     }
 
     /**
+     * 指定したパーツエンティティのステータスコンポーネントのみを取得する（軽量版）
+     * 複数のステータスを参照する場合に使用。
+     * @param {World} world 
+     * @param {number} partEntityId 
+     * @returns {PartStats|null}
+     */
+    static getPartStats(world, partEntityId) {
+        if (partEntityId === null || partEntityId === undefined) return null;
+        return world.getComponent(partEntityId, PartStats);
+    }
+
+    /**
+     * 指定したパーツエンティティの特定のステータス値のみを取得する（最軽量版）
+     * 単一の値を参照する場合に使用。
+     * @param {World} world 
+     * @param {number} partEntityId 
+     * @param {string} statName 
+     * @returns {number}
+     */
+    static getPartStat(world, partEntityId, statName) {
+        if (partEntityId === null || partEntityId === undefined) return 0;
+        const stats = world.getComponent(partEntityId, PartStats);
+        return stats ? (stats[statName] || 0) : 0;
+    }
+
+    /**
      * 推進力による比較関数を返す（ソート用）
+     * getPartDataによるオブジェクト生成を回避し、高速化。
      * @param {World} world 
      */
     static compareByPropulsion(world) {
@@ -76,12 +105,15 @@ export class QueryService {
             const partsA = world.getComponent(entityA, Parts);
             const partsB = world.getComponent(entityB, Parts);
 
-            const legsA = this.getPartData(world, partsA?.legs);
-            const legsB = this.getPartData(world, partsB?.legs);
+            // 脚部パーツIDの取得
+            const legsIdA = partsA?.legs;
+            const legsIdB = partsB?.legs;
 
-            const propulsionA = legsA?.propulsion || 0;
-            const propulsionB = legsB?.propulsion || 0;
+            // Statsコンポーネントへの直接アクセスで値を取得
+            const propulsionA = this.getPartStat(world, legsIdA, 'propulsion');
+            const propulsionB = this.getPartStat(world, legsIdB, 'propulsion');
 
+            // 降順ソート
             return propulsionB - propulsionA;
         };
     }
@@ -107,7 +139,10 @@ export class QueryService {
         const attackableKeys = new Set([PartInfo.HEAD.key, PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key]);
         
         return this._getPartEntries(world, entityId)
-            .map(([key, id]) => ({ key, id, data: this.getPartData(world, id) }))
+            .map(([key, id]) => {
+                // ここではUI表示などで全データが必要なため getPartData を使用する
+                return { key, id, data: this.getPartData(world, id) };
+            })
             .filter(({ key, data }) => 
                 data && 
                 (!attackableOnly || attackableKeys.has(key)) && 
@@ -123,6 +158,7 @@ export class QueryService {
         const parts = world.getComponent(entityId, Parts);
         if (!parts) return [];
         
+        // 頭部生存チェック
         const head = this.getPartData(world, parts.head);
         if (!head || head.isBroken) {
             return [];
@@ -143,9 +179,13 @@ export class QueryService {
     static findBestDefensePart(world, entityId) {
         const defendableParts = this._getPartEntries(world, entityId)
             .filter(([key]) => key !== PartInfo.HEAD.key)
-            .map(([key, id]) => ({ key, data: this.getPartData(world, id) }))
-            .filter(({ data }) => data && !data.isBroken)
-            .sort((a, b) => b.data.hp - a.data.hp);
+            .map(([key, id]) => {
+                // 最適化: HPと破壊状態だけ分かれば良い
+                const status = world.getComponent(id, PartStatus);
+                return { key, status };
+            })
+            .filter(({ status }) => status && !status.isBroken)
+            .sort((a, b) => b.status.hp - a.status.hp);
 
         return defendableParts.length > 0 ? defendableParts[0].key : null;
     }
@@ -155,13 +195,14 @@ export class QueryService {
         const parts = world.getComponent(entityId, Parts);
         if (!parts) return null;
         
-        const head = this.getPartData(world, parts.head);
-        if (!head || head.isBroken) return null;
+        const headStatus = world.getComponent(parts.head, PartStatus);
+        if (!headStatus || headStatus.isBroken) return null;
 
         const validKeys = Object.entries(parts)
             .filter(([key, id]) => {
-                const data = this.getPartData(world, id);
-                return data && !data.isBroken && filterFn(key);
+                const status = world.getComponent(id, PartStatus);
+                // コンポーネント直接参照で高速化
+                return status && !status.isBroken && filterFn(key);
             })
             .map(([key]) => key);
 
@@ -186,6 +227,7 @@ export class QueryService {
 
     /**
      * 候補エンティティ群から全ての生存パーツをリスト化して取得する
+     * AI思考ルーチンで使用
      */
     static getAllPartsFromCandidates(world, candidateIds) {
         if (!candidateIds) return [];
@@ -194,11 +236,15 @@ export class QueryService {
             const parts = world.getComponent(id, Parts);
             if (!parts) return [];
             
-            const head = this.getPartData(world, parts.head);
-            if (!head || head.isBroken) return [];
+            const headStatus = world.getComponent(parts.head, PartStatus);
+            if (!headStatus || headStatus.isBroken) return [];
             
             return Object.entries(parts)
-                .map(([key, partId]) => ({ entityId: id, partKey: key, part: this.getPartData(world, partId) }))
+                .map(([key, partId]) => ({ 
+                    entityId: id, 
+                    partKey: key, 
+                    part: this.getPartData(world, partId) // AIロジックは詳細データを必要とするためオブジェクト化
+                }))
                 .filter(item => item.part && !item.part.isBroken);
         });
     }
