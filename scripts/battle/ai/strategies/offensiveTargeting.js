@@ -1,5 +1,6 @@
 /**
  * @file AI攻撃系ターゲティング戦略
+ * QueryServiceのインターフェース変更に対応（getPartData利用）。
  */
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { BattleLog } from '../../components/index.js';
@@ -8,8 +9,6 @@ import { QueryService } from '../../services/QueryService.js';
 import { TargetingService } from '../../services/TargetingService.js';
 import { TargetingStrategyKey } from '../strategyKeys.js';
 import { PartInfo } from '../../../common/constants.js';
-
-// --- 高階関数 (戦略ジェネレータ) ---
 
 const createEnemyTargetingStrategy = (logicFn) => {
     return ({ world, attackerId }) => {
@@ -80,16 +79,16 @@ const createSinglePartStrategy = (findTargetPartFn) => ({ world, attackerId }) =
     return null;
 };
 
-
-// --- 戦略定義 ---
-
 export const offensiveStrategies = {
     [TargetingStrategyKey.SPEED]: createEnemyTargetingStrategy(({ world, candidates }) => {
         const sortedCandidates = candidates.slice().sort((a, b) => {
             const partsA = world.getComponent(a, Parts);
             const partsB = world.getComponent(b, Parts);
-            const propulsionA = partsA?.legs?.propulsion || 0;
-            const propulsionB = partsB?.legs?.propulsion || 0;
+            const legsA = QueryService.getPartData(world, partsA?.legs);
+            const legsB = QueryService.getPartData(world, partsB?.legs);
+            
+            const propulsionA = legsA?.propulsion || 0;
+            const propulsionB = legsB?.propulsion || 0;
             return propulsionB - propulsionA;
         });
 
@@ -98,7 +97,9 @@ export const offensiveStrategies = {
 
         sortedCandidates.forEach((id, index) => {
             const targetParts = world.getComponent(id, Parts);
-            if (targetParts?.legs && !targetParts.legs.isBroken) {
+            const legsData = QueryService.getPartData(world, targetParts?.legs);
+            
+            if (legsData && !legsData.isBroken) {
                 targetCandidates.push({
                     target: { targetId: id, targetPartKey: PartInfo.LEGS.key },
                     weight: weights[index] || 0.5

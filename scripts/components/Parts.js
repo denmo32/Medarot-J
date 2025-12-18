@@ -1,19 +1,22 @@
-// パーツ情報
+/**
+ * メダロットの構成パーツIDを保持するコンポーネント
+ * 以前はオブジェクトそのものを保持していたが、パーツのEntity化に伴い、Entity IDを保持するように変更。
+ */
 export class Parts {
     /**
-     * @param {object} head - 頭部パーツのマスターデータ
-     * @param {object} rightArm - 右腕パーツのマスターデータ
-     * @param {object} leftArm - 左腕パーツのマスターデータ
-     * @param {object} legs - 脚部パーツのマスターデータ
+     * @param {number} head - 頭部パーツのEntity ID
+     * @param {number} rightArm - 右腕パーツのEntity ID
+     * @param {number} leftArm - 左腕パーツのEntity ID
+     * @param {number} legs - 脚部パーツのEntity ID
      */
     constructor(head, rightArm, leftArm, legs) {
-        /** @type {object | null} */
+        /** @type {number | null} */
         this.head = head;
-        /** @type {object | null} */
+        /** @type {number | null} */
         this.rightArm = rightArm;
-        /** @type {object | null} */
+        /** @type {number | null} */
         this.leftArm = leftArm;
-        /** @type {object | null} */
+        /** @type {number | null} */
         this.legs = legs;
     }
 }

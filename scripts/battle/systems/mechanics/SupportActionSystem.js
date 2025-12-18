@@ -1,6 +1,6 @@
 /**
  * @file SupportActionSystem.js
- * @description 支援アクションを処理するシステム。
+ * @description 支援アクション処理。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -34,7 +34,7 @@ export class SupportActionSystem extends System {
              return;
         }
 
-        CombatService.calculateHitOutcome(this.world, ctx); // 支援は必中
+        CombatService.calculateHitOutcome(this.world, ctx);
         CombatService.spawnEffectEntities(this.world, ctx);
 
         this.world.removeComponent(entityId, InCombatCalculation);

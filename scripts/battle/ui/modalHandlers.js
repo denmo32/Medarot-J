@@ -1,9 +1,8 @@
 /**
  * @file modalHandlers.js
- * @description モーダルごとの挙動（入力ハンドリング）定義。
- * AiDecisionServiceのインターフェース変更に対応（world引数の追加）。
+ * @description モーダルごとの挙動定義。
+ * QueryServiceの変更に対応。
  */
-// import { GameEvents } from '../../common/events.js'; // イベントシステム廃止につき削除
 import { ModalType } from '../common/constants.js';
 import { PartInfo } from '../../common/constants.js';
 import { CONFIG } from '../common/config.js';
@@ -30,12 +29,6 @@ const NAVIGATION_MAP = {
     }
 };
 
-/**
- * @typedef {object} ModalHandlerContext
- * @property {object} data - モーダルの元データ
- * @property {object} uiState - 現在のBattleUIState
- */
-
 export const modalHandlers = {
     [ModalType.START_CONFIRM]: {
         getActorName: () => 'ロボトルを開始しますか？',
@@ -48,11 +41,10 @@ export const modalHandlers = {
 
             const { aiService } = services;
 
-            // 純粋関数呼び出しに変更し、worldを渡す
             const targetCandidates = aiService.getSuggestionForPlayer(world, entityId);
 
             if (!targetCandidates || targetCandidates.length === 0) {
-                return null; // ターゲット候補がいない場合はモーダルを出さない
+                return null;
             }
 
             const actionPlans = aiService.generateActionPlans(world, entityId, targetCandidates);
@@ -61,7 +53,7 @@ export const modalHandlers = {
             const buttonsData = allPossibleParts.map(([partKey, part]) => {
                 const plan = actionPlans.find(p => p.partKey === partKey);
                 return {
-                    text: `${part.name} (${part.type})`,
+                    text: `${part.name} (${part.actionType})`,
                     partKey: partKey,
                     isBroken: part.isBroken,
                     target: plan ? plan.target : null

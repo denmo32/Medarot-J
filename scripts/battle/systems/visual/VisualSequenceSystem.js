@@ -1,7 +1,6 @@
 /**
  * @file VisualSequenceSystem.js
- * @description 演出生成フェーズを担当するシステム。
- * GeneratingVisualsタグを使用。
+ * @description 演出生成。
  */
 import { System } from '../../../../engine/core/System.js';
 import {
@@ -31,7 +30,6 @@ export class VisualSequenceSystem extends System {
 
             if (!context) {
                 console.error(`VisualSequenceSystem: No context data for entity ${entityId}`);
-                // 強制的に次へ（完了扱いにして飛ばす）
                 this.world.removeComponent(entityId, GeneratingVisuals);
                 this.world.addComponent(entityId, new SequenceFinished());
                 continue;
@@ -49,7 +47,6 @@ export class VisualSequenceSystem extends System {
                 this.world.removeComponent(entityId, CombatResult);
             }
 
-            // 次のフェーズへ
             this.world.removeComponent(entityId, GeneratingVisuals);
             this.world.addComponent(entityId, new ExecutingVisuals());
         }
@@ -147,8 +144,6 @@ export class VisualSequenceSystem extends System {
             requestType: 'RefreshUIRequest'
         });
 
-        // シーケンス終了後にクールダウンへ移行するためのリクエストを追加
-        // ガード中の場合は StateTransitionSystem 側で無視されるため安全
         sequence.push({
             type: 'STATE_CONTROL',
             updates: [{
@@ -215,9 +210,9 @@ export class VisualSequenceSystem extends System {
         const attackerInfo = this.world.getComponent(log.actorId, PlayerInfo);
         const params = {
             attackerName: attackerInfo?.name || '???',
-            actionType: ctx.attackingPart.action,
-            attackType: ctx.attackingPart.type,
-            trait: ctx.attackingPart.trait,
+            actionType: ctx.attackingPart.action, // PartData (Snapshot)
+            attackType: ctx.attackingPart.action, // alias
+            trait: ctx.attackingPart.name, // TODO: trait名をQueryServiceで含めるようにする
         };
 
         return [{

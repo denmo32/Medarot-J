@@ -1,7 +1,7 @@
 /**
  * @file ActionSelectionSystem.js
- * @description アクション選択フェーズの制御を行うシステム。
- * タグコンポーネントを使用するように更新。
+ * @description アクション選択フェーズの制御システム。
+ * パーツデータ取得をQueryService経由に修正。
  */
 import { System } from '../../../../engine/core/System.js';
 import { BattleFlowState } from '../../components/BattleFlowState.js';
@@ -34,12 +34,10 @@ export class ActionSelectionSystem extends System {
     }
 
     update(deltaTime) {
-        // 1. 状態処理 (フェーズに関わらず処理)
         this._processActionStates();
         this._processActionRequeueStates();
         this._processConfirmationTags();
 
-        // 2. フェーズごとのロジック
         const currentPhase = this.battleFlowState.phase;
 
         if (currentPhase === BattlePhase.INITIAL_SELECTION) {
@@ -48,8 +46,6 @@ export class ActionSelectionSystem extends System {
             this._updateActionSelection();
         }
     }
-
-    // --- Request Processing ---
 
     _processActionStates() {
         const entities = this.getEntities(ActionState);
@@ -95,8 +91,6 @@ export class ActionSelectionSystem extends System {
         }
     }
 
-    // --- Core Logic ---
-
     _handleActionState(state) {
         const { entityId, partKey, targetId, targetPartKey } = state;
 
@@ -107,17 +101,19 @@ export class ActionSelectionSystem extends System {
         const action = this.world.getComponent(entityId, Action);
         const parts = this.world.getComponent(entityId, Parts);
 
-        if (!partKey || !parts?.[partKey] || parts[partKey].isBroken) {
-            console.warn(`ActionSelectionSystem: Invalid part selected. Re-queueing.`);
-            const stateEntity = this.world.createEntity();
-            const actionRequeueState = new ActionRequeueState();
-            actionRequeueState.isActive = true;
-            actionRequeueState.entityId = entityId;
-            this.world.addComponent(stateEntity, actionRequeueState);
+        if (!partKey || !parts) {
+            this._triggerRequeue(entityId);
             return;
         }
 
-        const selectedPart = parts[partKey];
+        const partId = parts[partKey];
+        const selectedPart = QueryService.getPartData(this.world, partId);
+
+        if (!selectedPart || selectedPart.isBroken) {
+            console.warn(`ActionSelectionSystem: Invalid part selected. Re-queueing.`);
+            this._triggerRequeue(entityId);
+            return;
+        }
 
         action.partKey = partKey;
         action.type = selectedPart.action;
@@ -152,7 +148,14 @@ export class ActionSelectionSystem extends System {
         ));
     }
 
-    // --- INITIAL_SELECTION Logic ---
+    _triggerRequeue(entityId) {
+        const stateEntity = this.world.createEntity();
+        const actionRequeueState = new ActionRequeueState();
+        actionRequeueState.isActive = true;
+        actionRequeueState.entityId = entityId;
+        this.world.addComponent(stateEntity, actionRequeueState);
+    }
+
     _updateInitialSelection() {
         if (this.initialSelectionState.confirmed) {
             this.battleFlowState.phase = BattlePhase.BATTLE_START;
@@ -191,17 +194,14 @@ export class ActionSelectionSystem extends System {
     }
 
     _checkAllSelected() {
-        // IsCharging(旧SELECTED_CHARGING) か IsBroken ならOK
         const charging = this.getEntities(IsCharging);
         const broken = this.getEntities(IsBroken);
         const totalChecked = charging.length + broken.length;
         
-        // 全プレイヤー数と比較すべきだが、ここでは簡易的に「ReadyToSelectがいないこと」を確認
         const pending = this.getEntities(IsReadyToSelect);
         return pending.length === 0 && totalChecked > 0;
     }
 
-    // --- ACTION_SELECTION Logic ---
     _updateActionSelection() {
         if (this.battleFlowState.currentActorId === null) {
             this._processNextActor(false);
@@ -212,7 +212,6 @@ export class ActionSelectionSystem extends System {
         const pendingEntities = this.getEntities(ActionSelectionPending);
         if (pendingEntities.length === 0) return;
 
-        // IsReadyToSelect タグを持つエンティティのみ対象
         const validEntities = pendingEntities.filter(id => this.world.getComponent(id, IsReadyToSelect));
 
         if (validEntities.length === 0) return;

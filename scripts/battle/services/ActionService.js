@@ -1,12 +1,13 @@
 /**
  * @file ActionService.js
- * @description アクションの妥当性を検証し、リクエストコンポーネントを生成する静的ヘルパー。
- * クラス構造を排除し、純粋な関数オブジェクトとして定義。
+ * @description アクションの妥当性を検証し、リクエストコンポーネントを生成する。
+ * PartsコンポーネントがID参照になったため、QueryService経由でデータを取得するように修正。
  */
 import { Parts as CommonParts } from '../../components/index.js';
 import { TargetingService } from './TargetingService.js';
 import { TargetTiming } from '../common/constants.js';
 import { ActionState, ActionRequeueState } from '../components/States.js';
+import { QueryService } from './QueryService.js';
 
 export const ActionService = {
     /**
@@ -19,17 +20,19 @@ export const ActionService = {
     createActionRequest(world, entityId, partKey, target = null) {
         const parts = world.getComponent(entityId, CommonParts);
 
-        if (!parts || !partKey || !parts[partKey] || parts[partKey].isBroken) {
-            console.warn(`ActionService: Invalid or broken part selected for entity ${entityId}. Re-queueing.`);
-            const stateEntity = world.createEntity();
-            const actionRequeueState = new ActionRequeueState();
-            actionRequeueState.isActive = true;
-            actionRequeueState.entityId = entityId;
-            world.addComponent(stateEntity, actionRequeueState);
+        if (!parts || !partKey) {
+            this._requeue(world, entityId);
             return;
         }
 
-        const selectedPart = parts[partKey];
+        const partId = parts[partKey];
+        const selectedPart = QueryService.getPartData(world, partId);
+
+        if (!selectedPart || selectedPart.isBroken) {
+            console.warn(`ActionService: Invalid or broken part selected for entity ${entityId}. Re-queueing.`);
+            this._requeue(world, entityId);
+            return;
+        }
 
         // ターゲット検証 (PRE_MOVE)
         if (selectedPart.targetTiming === TargetTiming.PRE_MOVE && 
@@ -37,7 +40,6 @@ export const ActionService = {
             !TargetingService.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
             
             console.error(`ActionService: A valid target was expected but not found. Action may fail.`, {entityId, partKey, target});
-            // 続行させてSystem側でキャンセル判定させるフローとする
         }
 
         // ActionState コンポーネントを持つエンティティを作成
@@ -48,7 +50,15 @@ export const ActionService = {
         actionState.partKey = partKey;
         actionState.targetId = target ? target.targetId : null;
         actionState.targetPartKey = target ? target.targetPartKey : null;
-        // actionState.isNewなどの初期状態があればそれに合わせる
+        
         world.addComponent(stateEntity, actionState);
+    },
+
+    _requeue(world, entityId) {
+        const stateEntity = world.createEntity();
+        const actionRequeueState = new ActionRequeueState();
+        actionRequeueState.isActive = true;
+        actionRequeueState.entityId = entityId;
+        world.addComponent(stateEntity, actionRequeueState);
     }
 };

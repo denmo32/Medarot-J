@@ -1,19 +1,17 @@
 /**
  * @file CombatContext.js
- * @description 戦闘計算の途中経過と結果を保持するデータコンポーネント。
- * System側で参照されているプロパティ名(appliedEffects, eventsToEmit等)に合わせて修正。
+ * @description 戦闘計算のコンテキスト。
+ * attackingPart は QueryService.getPartData で取得されたオブジェクトを保持する。
  */
 export class CombatContext {
     constructor() {
-        // 基本情報
         this.attackerId = null;
         this.action = null;
         this.attackerInfo = null;
         this.attackerParts = null;
-        this.attackingPart = null;
+        this.attackingPart = null; // Snapshot object
         this.isSupport = false;
 
-        // ターゲット情報
         this.intendedTargetId = null;
         this.intendedTargetPartKey = null;
         this.finalTargetId = null;
@@ -21,14 +19,11 @@ export class CombatContext {
         this.guardianInfo = null;
         this.targetLegs = null;
 
-        // 計算結果
-        this.outcome = null; // 命中、クリティカル判定など
+        this.outcome = null;
         
-        // 制御フラグ
         this.shouldCancel = false;
         this.cancelReason = null;
         
-        // 結果集約用
         this.appliedEffects = [];
         this.eventsToEmit = [];
         this.stateUpdates = [];

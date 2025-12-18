@@ -1,14 +1,15 @@
 /**
  * @file PlayerRenderer.js
  * @description プレイヤーのDOM描画ロジック。
- * 状態タグに基づいてスタイルを変更する。
+ * PartsコンポーネントがIDを持つようになったため、QueryService経由でデータを取得するように修正。
  */
 import { el } from '../../../../../engine/utils/DOMUtils.js';
 import { CONFIG } from '../../../common/config.js';
 import { TeamID, PartInfo } from '../../../../common/constants.js';
 import { EffectType } from '../../../common/constants.js';
-import { PlayerInfo, Parts } from '../../../../components/index.js'; // scripts/components/index.js
-import { ActiveEffects, IsCharging, IsReadyToExecute, IsGuarding, IsBroken, IsReadyToSelect } from '../../../components/index.js'; // scripts/battle/components/index.js
+import { PlayerInfo, Parts } from '../../../../components/index.js';
+import { ActiveEffects, IsCharging, IsReadyToExecute, IsGuarding, IsBroken, IsReadyToSelect } from '../../../components/index.js';
+import { QueryService } from '../../../services/QueryService.js';
 import '../../../ui/components/GameHealthBar.js';
 
 export class PlayerRenderer {
@@ -21,7 +22,6 @@ export class PlayerRenderer {
 
     create(entityId, visual) {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        const parts = this.world.getComponent(entityId, Parts);
         
         const homeX = playerInfo.teamId === TeamID.TEAM1
             ? CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM1
@@ -63,14 +63,20 @@ export class PlayerRenderer {
             el('div', { className: 'player-name', textContent: playerInfo.name })
         ]);
 
+        // パーツデータの取得
+        const partsList = QueryService.getParts(this.world, entityId, true, true);
+
         [PartInfo.HEAD, PartInfo.RIGHT_ARM, PartInfo.LEFT_ARM, PartInfo.LEGS].forEach(info => {
             const key = info.key;
-            const part = parts[key];
-            if (part) {
+            // partsListは [ [key, data], ... ] の配列
+            const partEntry = partsList.find(([k]) => k === key);
+            
+            if (partEntry) {
+                const partData = partEntry[1];
                 const healthBar = document.createElement('game-health-bar');
                 healthBar.setAttribute('label', info.icon);
-                healthBar.setAttribute('current', part.hp);
-                healthBar.setAttribute('max', part.maxHp);
+                healthBar.setAttribute('current', partData.hp);
+                healthBar.setAttribute('max', partData.maxHp);
                 
                 infoPanel.appendChild(healthBar);
                 partDOMElements[key] = healthBar;
@@ -147,7 +153,6 @@ export class PlayerRenderer {
         const icon = domElements.iconElement;
         if (!icon) return;
 
-        // 状態タグのチェック (優先度順)
         let stateKey = 'default';
         if (this.world.getComponent(entityId, IsBroken)) stateKey = 'broken';
         else if (this.world.getComponent(entityId, IsGuarding)) stateKey = 'guarding';
@@ -158,12 +163,12 @@ export class PlayerRenderer {
         if (cache.state !== stateKey) {
             cache.state = stateKey;
 
-            if (stateKey === 'broken') return; // CSS class制御
+            if (stateKey === 'broken') return;
 
             switch (stateKey) {
                 case 'charging':
                     icon.style.borderColor = '#f6ad55'; break;
-                case 'ready_select': // 待機中
+                case 'ready_select': 
                     icon.style.borderColor = '#4fd1c5'; break; 
                 case 'ready_execute':
                 case 'guarding':

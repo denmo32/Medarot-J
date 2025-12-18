@@ -1,12 +1,71 @@
 /**
  * @file QueryService.js
  * @description 戦闘関連のエンティティやコンポーネントを検索・フィルタリングするサービス。
- * ECSのクエリ機能を補完するドメイン特化のヘルパー群。
+ * パーツのEntity化に伴い、ID解決とデータ集約を行うメソッドを強化。
  */
 import { Parts } from '../../components/index.js';
+import { PartStatus, PartStats, PartAction, PartEffects, TraitPenetrate, TraitCriticalBonus } from '../components/parts/PartComponents.js';
 import { PartInfo } from '../../common/constants.js';
 
 export class QueryService {
+
+    /**
+     * 指定されたパーツIDに対応するパーツエンティティの情報を統合して返す。
+     * 従来のデータ構造との互換性を提供するためのアダプター。
+     * @param {World} world 
+     * @param {number} partEntityId 
+     * @returns {object|null}
+     */
+    static getPartData(world, partEntityId) {
+        if (partEntityId === null || partEntityId === undefined) return null;
+
+        const status = world.getComponent(partEntityId, PartStatus);
+        const stats = world.getComponent(partEntityId, PartStats);
+        const action = world.getComponent(partEntityId, PartAction);
+        const effectsComp = world.getComponent(partEntityId, PartEffects);
+        
+        if (!status || !stats) return null; // 最低限これらは必要
+
+        // 特性タグの確認
+        const penetrates = !!world.getComponent(partEntityId, TraitPenetrate);
+        const critBonus = world.getComponent(partEntityId, TraitCriticalBonus);
+
+        // オブジェクト統合
+        return {
+            // Stats
+            name: stats.name,
+            might: stats.might,
+            success: stats.success,
+            armor: stats.armor,
+            mobility: stats.mobility,
+            propulsion: stats.propulsion,
+            stability: stats.stability,
+            defense: stats.defense,
+            
+            // Status
+            hp: status.hp,
+            maxHp: status.maxHp,
+            isBroken: status.isBroken,
+            
+            // Action
+            actionType: action?.actionType,
+            action: action?.subType, // 表示用
+            targetTiming: action?.targetTiming,
+            targetScope: action?.targetScope,
+            postMoveTargeting: action?.postMoveTargeting,
+            isSupport: action?.isSupport,
+            
+            // Effects
+            effects: effectsComp ? effectsComp.effects : [],
+            
+            // Traits
+            penetrates: penetrates,
+            criticalBonus: critBonus ? critBonus.rate : 0,
+            
+            // Metadata
+            id: partEntityId, // 参照用ID
+        };
+    }
 
     /**
      * 推進力による比較関数を返す（ソート用）
@@ -17,18 +76,28 @@ export class QueryService {
             const partsA = world.getComponent(entityA, Parts);
             const partsB = world.getComponent(entityB, Parts);
 
-            const propulsionA = partsA?.legs?.propulsion || 0;
-            const propulsionB = partsB?.legs?.propulsion || 0;
+            const legsA = this.getPartData(world, partsA?.legs);
+            const legsB = this.getPartData(world, partsB?.legs);
+
+            const propulsionA = legsA?.propulsion || 0;
+            const propulsionB = legsB?.propulsion || 0;
 
             return propulsionB - propulsionA;
         };
     }
 
-    // ヘルパー: パーツリストを取得
+    // ヘルパー: パーツリストを取得（IDとキーのペア）
     static _getPartEntries(world, entityId) {
         if (!world || entityId == null) return [];
         const parts = world.getComponent(entityId, Parts);
-        return parts ? Object.entries(parts) : [];
+        if (!parts) return [];
+        
+        return [
+            ['head', parts.head],
+            ['rightArm', parts.rightArm],
+            ['leftArm', parts.leftArm],
+            ['legs', parts.legs]
+        ];
     }
 
     /**
@@ -38,11 +107,13 @@ export class QueryService {
         const attackableKeys = new Set([PartInfo.HEAD.key, PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key]);
         
         return this._getPartEntries(world, entityId)
-            .filter(([key, part]) => 
-                part && 
+            .map(([key, id]) => ({ key, id, data: this.getPartData(world, id) }))
+            .filter(({ key, data }) => 
+                data && 
                 (!attackableOnly || attackableKeys.has(key)) && 
-                (includeBroken || !part.isBroken)
-            );
+                (includeBroken || !data.isBroken)
+            )
+            .map(item => [item.key, item.data]); // 互換性のため [key, partData] の配列を返す
     }
 
     /**
@@ -50,7 +121,10 @@ export class QueryService {
      */
     static getAttackableParts(world, entityId) {
         const parts = world.getComponent(entityId, Parts);
-        if (parts?.head?.isBroken) {
+        if (!parts) return [];
+        
+        const head = this.getPartData(world, parts.head);
+        if (!head || head.isBroken) {
             return [];
         }
         return this.getParts(world, entityId, false, true);
@@ -68,20 +142,28 @@ export class QueryService {
      */
     static findBestDefensePart(world, entityId) {
         const defendableParts = this._getPartEntries(world, entityId)
-            .filter(([key, part]) => key !== PartInfo.HEAD.key && part && !part.isBroken)
-            .sort(([, a], [, b]) => b.hp - a.hp);
+            .filter(([key]) => key !== PartInfo.HEAD.key)
+            .map(([key, id]) => ({ key, data: this.getPartData(world, id) }))
+            .filter(({ data }) => data && !data.isBroken)
+            .sort((a, b) => b.data.hp - a.data.hp);
 
-        return defendableParts.length > 0 ? defendableParts[0][0] : null;
+        return defendableParts.length > 0 ? defendableParts[0].key : null;
     }
 
     // 共通化されたランダム選択ヘルパー
-    static _selectRandomPartKey(world, entityId, filterFn = () => true, simulatedParts = null) {
-        const parts = simulatedParts || world.getComponent(entityId, Parts);
-        if (!parts || parts.head?.isBroken) return null;
+    static _selectRandomPartKey(world, entityId, filterFn = () => true) {
+        const parts = world.getComponent(entityId, Parts);
+        if (!parts) return null;
+        
+        const head = this.getPartData(world, parts.head);
+        if (!head || head.isBroken) return null;
 
-        const validKeys = Object.keys(parts).filter(key => 
-            parts[key] && !parts[key].isBroken && filterFn(key)
-        );
+        const validKeys = Object.entries(parts)
+            .filter(([key, id]) => {
+                const data = this.getPartData(world, id);
+                return data && !data.isBroken && filterFn(key);
+            })
+            .map(([key]) => key);
 
         if (validKeys.length === 0) return null;
         return validKeys[Math.floor(Math.random() * validKeys.length)];
@@ -98,8 +180,8 @@ export class QueryService {
     /**
      * 貫通対象となるランダムなパーツを選択する（指定パーツ以外）
      */
-    static findRandomPenetrationTarget(world, entityId, excludedPartKey, simulatedParts = null) {
-        return this._selectRandomPartKey(world, entityId, key => key !== excludedPartKey, simulatedParts);
+    static findRandomPenetrationTarget(world, entityId, excludedPartKey) {
+        return this._selectRandomPartKey(world, entityId, key => key !== excludedPartKey);
     }
 
     /**
@@ -110,11 +192,14 @@ export class QueryService {
         
         return candidateIds.flatMap(id => {
             const parts = world.getComponent(id, Parts);
-            if (!parts || parts.head?.isBroken) return [];
+            if (!parts) return [];
+            
+            const head = this.getPartData(world, parts.head);
+            if (!head || head.isBroken) return [];
             
             return Object.entries(parts)
-                .filter(([_, part]) => part && !part.isBroken)
-                .map(([key, part]) => ({ entityId: id, partKey: key, part }));
+                .map(([key, partId]) => ({ entityId: id, partKey: key, part: this.getPartData(world, partId) }))
+                .filter(item => item.part && !item.part.isBroken);
         });
     }
 

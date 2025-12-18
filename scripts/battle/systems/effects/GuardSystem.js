@@ -1,7 +1,6 @@
 /**
  * @file GuardSystem.js
- * @description ガード状態の消費処理を行うシステム。
- * ApplyEffect(type=CONSUME_GUARD)を処理する。
+ * @description ガード状態の消費処理。
  */
 import { System } from '../../../../engine/core/System.js';
 import { ApplyEffect, EffectContext, EffectResult } from '../../components/effects/Effects.js';

@@ -1,8 +1,6 @@
 /**
  * @file RenderSystem.js
- * @description Visualコンポーネントの状態をDOMに反映するシステム。
- * プレイヤー描画とエフェクト描画をそれぞれ専用のレンダラーに委譲し、
- * RenderSystem自体の責務を「レンダリングプロセスの管理」に限定しました。
+ * @description 初期化時のパーツデータ同期ロジックをQueryService経由に修正。
  */
 import { System } from '../../../../engine/core/System.js';
 import { Visual, Position } from '../../components/index.js';
@@ -11,6 +9,7 @@ import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { TeamID } from '../../../common/constants.js';
 import { PlayerRenderer } from './renderers/PlayerRenderer.js';
 import { EffectRenderer } from './renderers/EffectRenderer.js';
+import { QueryService } from '../../services/QueryService.js';
 
 export class RenderSystem extends System {
     constructor(world) {
@@ -23,7 +22,6 @@ export class RenderSystem extends System {
             [TeamID.TEAM2]: document.querySelector('#team2InfoPanel .team-players-container')
         };
         
-        // レンダラーの初期化
         this.playerRenderer = new PlayerRenderer(world, this.battlefield, this.teamContainers, this.uiManager);
         this.effectRenderer = new EffectRenderer(this.battlefield, this.uiManager);
 
@@ -46,9 +44,7 @@ export class RenderSystem extends System {
             currentEntities.add(entityId);
             const visual = this.world.getComponent(entityId, Visual);
 
-            // 初期化
             if (!visual.isInitialized) {
-                // 初期座標の同期
                 const position = this.world.getComponent(entityId, Position);
                 if (position) {
                     visual.x = position.x;
@@ -61,7 +57,6 @@ export class RenderSystem extends System {
                 this.managedEntities.add(entityId);
             }
 
-            // 座標同期（アニメーション中でない場合）
             if (!visual.isAnimating) {
                 const position = this.world.getComponent(entityId, Position);
                 if (position) {
@@ -73,7 +68,6 @@ export class RenderSystem extends System {
             this._updateDOM(entityId, visual);
         }
         
-        // クリーンアップ
         for (const entityId of this.managedEntities) {
             if (!currentEntities.has(entityId)) {
                 this._removeDOM(entityId);
@@ -116,16 +110,11 @@ export class RenderSystem extends System {
     }
 
     _syncInitialValues(entityId, visual) {
-        const parts = this.world.getComponent(entityId, Parts);
-        if (parts) {
-            Object.keys(parts).forEach(key => {
-                const part = parts[key];
-                if (part && typeof part.hp === 'number') {
-                    if (!visual.partsInfo[key]) visual.partsInfo[key] = {};
-                    visual.partsInfo[key].current = part.hp;
-                    visual.partsInfo[key].max = part.maxHp;
-                }
-            });
-        }
+        const partsList = QueryService.getParts(this.world, entityId, true, true);
+        partsList.forEach(([key, partData]) => {
+            if (!visual.partsInfo[key]) visual.partsInfo[key] = {};
+            visual.partsInfo[key].current = partData.hp;
+            visual.partsInfo[key].max = partData.maxHp;
+        });
     }
 }

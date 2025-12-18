@@ -1,7 +1,6 @@
 /**
  * @file MeleeSystem.js
- * @description 格闘アクションを処理するシステム。
- * エフェクトエンティティ生成を行う。
+ * @description 格闘アクション処理。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -31,13 +30,9 @@ export class MeleeSystem extends System {
              return;
         }
 
-        // 命中判定
         CombatService.calculateHitOutcome(this.world, ctx);
-        
-        // エフェクトエンティティ生成
         CombatService.spawnEffectEntities(this.world, ctx);
 
-        // フェーズ遷移 -> ProcessingEffects
         this.world.removeComponent(entityId, InCombatCalculation);
         this.world.addComponent(entityId, new ProcessingEffects());
     }

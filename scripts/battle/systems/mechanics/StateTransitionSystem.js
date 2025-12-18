@@ -1,7 +1,7 @@
 /**
  * @file StateTransitionSystem.js
- * @description 状態遷移リクエストを処理し、適切なタグコンポーネントを付与・削除するシステム。
- * イベント発行をコンポーネント生成へ置換。GaugeSystemからのタグも直接処理する。
+ * @description 状態遷移リクエスト処理システム。
+ * クールダウン計算時のパーツデータ参照を修正。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -28,11 +28,11 @@ import { TeamID } from '../../../common/constants.js';
 import { CONFIG } from '../../common/config.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { EffectService } from '../../services/EffectService.js';
+import { QueryService } from '../../services/QueryService.js';
 
 export class StateTransitionSystem extends System {
     constructor(world) {
         super(world);
-        // 全ての状態タグのリスト
         this.stateTags = [
             IsReadyToSelect, IsReadyToExecute, IsCharging, IsCooldown, 
             IsGuarding, IsBroken, IsAwaitingAnimation
@@ -40,19 +40,14 @@ export class StateTransitionSystem extends System {
     }
 
     update(deltaTime) {
-        // Tag処理
         this._processGaugeFullTags();
-
-        // Request処理
         this._processTransitionStateRequests();
         this._processResetToCooldownRequests();
-        this._processHandleGaugeFullRequests(); // レガシーサポートまたは外部強制用
+        this._processHandleGaugeFullRequests();
         this._processSetPlayerBrokenRequests();
         this._processSnapToActionLineRequests();
         this._processTransitionToCooldownRequests();
     }
-
-    // --- Helpers ---
 
     _clearStateTags(entityId) {
         this.stateTags.forEach(Tag => this.world.removeComponent(entityId, Tag));
@@ -68,10 +63,10 @@ export class StateTransitionSystem extends System {
             case PlayerStateType.READY_EXECUTE:
                 this.world.addComponent(entityId, new IsReadyToExecute());
                 break;
-            case PlayerStateType.SELECTED_CHARGING: // 前進
+            case PlayerStateType.SELECTED_CHARGING:
                 this.world.addComponent(entityId, new IsCharging());
                 break;
-            case PlayerStateType.CHARGING: // 後退（クールダウン）
+            case PlayerStateType.CHARGING:
                 this.world.addComponent(entityId, new IsCooldown());
                 break;
             case PlayerStateType.GUARDING:
@@ -83,7 +78,6 @@ export class StateTransitionSystem extends System {
             case PlayerStateType.AWAITING_ANIMATION:
                 this.world.addComponent(entityId, new IsAwaitingAnimation());
                 break;
-            // COOLDOWN_COMPLETE は READY_SELECT と同義として扱うか、遷移ロジックで吸収
         }
     }
 
@@ -91,18 +85,10 @@ export class StateTransitionSystem extends System {
         return this.world.getComponent(entityId, TagClass) !== null;
     }
 
-    // --- Core Logic Implementations ---
-
-    /**
-     * ゲージ満タン時のロジック
-     * GaugeFullTag または HandleGaugeFullRequest から呼ばれる
-     */
     _handleGaugeFull(targetId) {
         if (this._hasStateTag(targetId, IsCooldown)) {
-            // クールダウン完了 -> 行動選択準備完了
             this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.READY_SELECT));
             
-            // ActionSelectionSystem が検知するための状態
             const stateEntity = this.world.createEntity();
             const actionRequeueState = new ActionRequeueState();
             actionRequeueState.isActive = true;
@@ -110,17 +96,13 @@ export class StateTransitionSystem extends System {
             this.world.addComponent(stateEntity, actionRequeueState);
 
         } else if (this._hasStateTag(targetId, IsCharging)) {
-            // チャージ完了 -> 行動実行準備完了
             this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.READY_EXECUTE));
         }
     }
 
-    // --- Processors ---
-
     _processGaugeFullTags() {
         const entities = this.getEntities(GaugeFullTag);
         for (const entityId of entities) {
-            // タグが付いているエンティティ自体が対象
             this._handleGaugeFull(entityId);
             this.world.removeComponent(entityId, GaugeFullTag);
         }
@@ -141,13 +123,10 @@ export class StateTransitionSystem extends System {
             const request = this.world.getComponent(entityId, TransitionStateRequest);
             const { targetId, newState } = request;
             
-            // タグの切り替え
             this._setStateTag(targetId, newState);
 
-            // ゲージのActive制御
             const gauge = this.world.getComponent(targetId, Gauge);
             if (gauge) {
-                // 前進(Charging)か後退(Cooldown)の時のみゲージ進行
                 const isActive = newState === PlayerStateType.SELECTED_CHARGING || 
                                  newState === PlayerStateType.CHARGING;
                 gauge.isActive = isActive;
@@ -158,7 +137,6 @@ export class StateTransitionSystem extends System {
                 }
             }
 
-            // 位置スナップ要求
             if (newState === PlayerStateType.GUARDING || newState === PlayerStateType.READY_EXECUTE) {
                 const reqEntity = this.world.createEntity();
                 this.world.addComponent(reqEntity, new SnapToActionLineRequest(targetId));
@@ -176,12 +154,17 @@ export class StateTransitionSystem extends System {
             const { interrupted = false } = options;
             
             const parts = this.world.getComponent(targetId, Parts);
-            if (parts?.head?.isBroken) {
+            if (!parts) {
+                this.world.destroyEntity(entityId);
+                continue;
+            }
+            const headData = QueryService.getPartData(this.world, parts.head);
+
+            if (!headData || headData.isBroken) {
                 this.world.destroyEntity(entityId);
                 continue;
             }
 
-            // ガード解除処理
             if (this._hasStateTag(targetId, IsGuarding)) {
                 const activeEffects = this.world.getComponent(targetId, ActiveEffects);
                 if (activeEffects) {
@@ -189,7 +172,6 @@ export class StateTransitionSystem extends System {
                 }
             }
             
-            // 状態遷移: クールダウンへ (旧CHARGING)
             this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.CHARGING));
 
             const gauge = this.world.getComponent(targetId, Gauge);
@@ -217,7 +199,6 @@ export class StateTransitionSystem extends System {
             this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.BROKEN));
             this.world.addComponent(targetId, new Action());
 
-            // ログ用イベントコンポーネントを生成
             const playerInfo = this.world.getComponent(targetId, PlayerInfo);
             if (playerInfo) {
                 const evt = this.world.createEntity();
@@ -252,13 +233,18 @@ export class StateTransitionSystem extends System {
             const { targetId } = request;
 
             const parts = this.world.getComponent(targetId, Parts);
-            if (parts?.head?.isBroken) {
+            if (!parts) {
+                this.world.destroyEntity(entityId);
+                continue;
+            }
+            const headData = QueryService.getPartData(this.world, parts.head);
+
+            if (!headData || headData.isBroken) {
                 this.world.destroyEntity(entityId);
                 continue;
             }
 
             if (this._hasStateTag(targetId, IsGuarding)) {
-                // ガード中はActionのみリセットして維持
                 this.world.addComponent(targetId, new Action());
                 this.world.destroyEntity(entityId);
                 continue;
@@ -268,7 +254,9 @@ export class StateTransitionSystem extends System {
             const action = this.world.getComponent(targetId, Action);
 
             if (action?.partKey && parts && gauge) {
-                const usedPart = parts[action.partKey];
+                const partId = parts[action.partKey];
+                const usedPart = QueryService.getPartData(this.world, partId);
+
                 if (usedPart) {
                     const modifier = EffectService.getSpeedMultiplierModifier(this.world, targetId, usedPart);
                     gauge.speedMultiplier = CombatCalculator.calculateSpeedMultiplier({
@@ -282,7 +270,6 @@ export class StateTransitionSystem extends System {
                 gauge.speedMultiplier = 1.0;
             }
 
-            // 状態遷移: クールダウンへ (旧CHARGING)
             this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, PlayerStateType.CHARGING));
 
             if (gauge) {

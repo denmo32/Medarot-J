@@ -1,13 +1,13 @@
 /**
  * @file HealSystem.js
- * @description 回復エフェクトを処理するシステム。
- * 失敗時にメッセージが表示されるよう修正。
+ * @description 回復エフェクト処理システム。
+ * パーツIDベースの処理へ修正。
  */
 import { System } from '../../../../engine/core/System.js';
 import { ApplyEffect, EffectContext, EffectResult } from '../../components/effects/Effects.js';
 import { Parts } from '../../../components/index.js';
+import { PartStatus } from '../../components/parts/PartComponents.js';
 import { EffectType } from '../../common/constants.js';
-// import { GameEvents } from '../../../common/events.js'; // イベントシステム廃止につき削除
 import { HpChangedEvent } from '../../../components/Events.js';
 
 export class HealSystem extends System {
@@ -29,41 +29,43 @@ export class HealSystem extends System {
         const context = this.world.getComponent(entityId, EffectContext);
         const { targetId, partKey, attackingPart } = context;
 
-        // ターゲット不在、またはパーツ指定がない場合は失敗
         if (!targetId || !partKey) {
             this._finishEffect(entityId, { type: EffectType.HEAL, value: 0 });
             return;
         }
 
         const targetParts = this.world.getComponent(targetId, Parts);
-        const part = targetParts ? targetParts[partKey] : null;
-
-        // パーツが存在しない、または既に破壊されている場合は回復不可（失敗）
-        if (!part || part.isBroken) {
+        if (!targetParts || targetParts[partKey] === null) {
             this._finishEffect(entityId, { type: EffectType.HEAL, value: 0 });
             return;
         }
 
-        // 回復量計算
+        // パーツIDからStatus取得
+        const partEntityId = targetParts[partKey];
+        const partStatus = this.world.getComponent(partEntityId, PartStatus);
+
+        if (!partStatus || partStatus.isBroken) {
+            this._finishEffect(entityId, { type: EffectType.HEAL, value: 0 });
+            return;
+        }
+
         const powerStat = effect.calculation?.powerStat || 'might';
         const healAmount = attackingPart[powerStat] || 0;
 
-        const oldHp = part.hp;
-        const newHp = Math.min(part.maxHp, part.hp + healAmount);
+        const oldHp = partStatus.hp;
+        const newHp = Math.min(partStatus.maxHp, partStatus.hp + healAmount);
         const actualHeal = newHp - oldHp;
 
-        // 適用
-        part.hp = newHp;
+        partStatus.hp = newHp;
 
         if (actualHeal > 0) {
-            // HP変更をUIやログ用に通知（イベントコンポーネントとして追加）
             const hpChangeEventEntity = this.world.createEntity();
             this.world.addComponent(hpChangeEventEntity, new HpChangedEvent({
                 entityId: targetId,
                 partKey,
                 newHp,
                 oldHp,
-                maxHp: part.maxHp,
+                maxHp: partStatus.maxHp,
                 change: actualHeal,
                 isHeal: true
             }));
