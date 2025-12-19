@@ -53,7 +53,7 @@ export const modalHandlers = {
             const buttonsData = allPossibleParts.map(([partKey, part]) => {
                 const plan = actionPlans.find(p => p.partKey === partKey);
                 return {
-                    text: `${part.name} (${part.actionType})`,
+                    text: `${part.name} (${part.type})`,
                     partKey: partKey,
                     isBroken: part.isBroken,
                     target: plan ? plan.target : null

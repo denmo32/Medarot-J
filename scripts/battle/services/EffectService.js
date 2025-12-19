@@ -66,9 +66,9 @@ export class EffectService {
         const results = [];
         let total = 0;
 
-        // attackingPartには trait 文字列や actionType が含まれている
+        // attackingPartには trait 文字列や type が含まれている
         const definitions = [
-            TypeDefinitions[attackingPart.actionType], // ActionType (SHOOT etc)
+            TypeDefinitions[attackingPart.type], // AttackType (撃つ etc)
             // TraitDefinitions は実装未完了だが、あれば参照
             // TraitDefinitions[attackingPart.trait]
         ];

@@ -5,11 +5,11 @@
 import { AttackType } from '../battle/common/constants.js';
 
 export const TypeDefinitions = {
-    [AttackType.SHOOT]: {
+    [AttackType.撃つ]: {
         // 速度補正: 充填・冷却が早い (0.75倍)
         speedMultiplier: 0.75,
     },
-    [AttackType.AIMED_SHOT]: {
+    [AttackType.狙い撃ち]: {
         // ステータス補正: 成功値に脚部安定の50%を加算
         statModifiers: [
             { targetStat: 'success', sourceStat: 'legs.stability', factor: 0.5 }
@@ -17,7 +17,7 @@ export const TypeDefinitions = {
         // クリティカル率補正: +50%
         criticalBonus: 0.50,
     },
-    [AttackType.STRIKE]: {
+    [AttackType.殴る]: {
         // ステータス補正: 成功値に脚部機動の50%を加算
         statModifiers: [
             { targetStat: 'success', sourceStat: 'legs.mobility', factor: 0.5 }
@@ -25,22 +25,22 @@ export const TypeDefinitions = {
         // クリティカル率補正: +25%
         criticalBonus: 0.25,
     },
-    [AttackType.RECKLESS]: {
+    [AttackType.我武者羅]: {
         // ステータス補正: 威力に脚部推進の50%を加算
         statModifiers: [
             { targetStat: 'might', sourceStat: 'legs.propulsion', factor: 0.5 }
         ],
     },
-    [AttackType.SUPPORT]: {
+    [AttackType.支援]: {
         // 特になし
     },
-    [AttackType.REPAIR]: {
+    [AttackType.修復]: {
         // 特になし
     },
-    [AttackType.INTERRUPT]: {
+    [AttackType.妨害]: {
         // 特になし
     },
-    [AttackType.DEFEND]: {
+    [AttackType.守る]: {
         // 特になし
     },
 };

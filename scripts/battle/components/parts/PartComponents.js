@@ -22,12 +22,14 @@ export class PartStats {
     constructor(stats = {}) {
         this.name = stats.name || 'Unknown Part';
         this.icon = stats.icon || '';
-        
+        this.action = stats.action || ''; // 追加
+        this.type = stats.type || ''; // 追加
+
         // 基本ステータス
         this.might = stats.might || 0;
         this.success = stats.success || 0;
         this.armor = stats.armor || 0;
-        
+
         // 脚部専用ステータス
         this.mobility = stats.mobility || 0;
         this.propulsion = stats.propulsion || 0;

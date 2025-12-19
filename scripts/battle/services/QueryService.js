@@ -53,9 +53,10 @@ export class QueryService {
             
             // Behaviors
             actionType: logic?.type,
-            action: stats.name, // 表示用
+            action: stats.action,
+            type: stats.type, // 追加
             isSupport: logic?.isSupport || false,
-            
+
             targetTiming: targeting?.timing,
             targetScope: targeting?.scope,
             postMoveTargeting: targeting?.autoStrategy,

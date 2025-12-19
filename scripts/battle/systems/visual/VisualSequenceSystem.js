@@ -138,14 +138,14 @@ export class VisualSequenceSystem extends System {
 
     _createDeclarationTask(ctx, visualConfig) {
         const def = DEFAULT_VISUALS.DECLARATION;
-        const templateId = visualConfig?.declaration?.templateId || 
+        const templateId = visualConfig?.declaration?.templateId ||
                           (ctx.isSupport ? def.keys.support : def.keys.default);
 
         const attackerInfo = this.world.getComponent(ctx.attackerId, PlayerInfo);
         const params = {
             attackerName: attackerInfo?.name || '???',
-            actionType: ctx.attackingPart.action,
-            attackType: ctx.attackingPart.action,
+            actionType: ctx.attackingPart.type,
+            attackType: ctx.attackingPart.type,
             trait: ctx.attackingPart.name,
         };
 

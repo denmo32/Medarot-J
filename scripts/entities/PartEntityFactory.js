@@ -22,10 +22,12 @@ export const PartEntityFactory = {
         // 1. 基本ステータス
         world.addComponent(entityId, new PartComponents.PartStats({
             name: partData.name,
-            icon: partData.icon, 
+            icon: partData.icon,
+            action: partData.action, // 追加
+            type: partData.type, // 追加
             might: partData.might,
             success: partData.success,
-            armor: partData.armor, 
+            armor: partData.armor,
             mobility: partData.mobility,
             propulsion: partData.propulsion,
             stability: partData.stability,

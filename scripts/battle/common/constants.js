@@ -92,14 +92,14 @@ export const ActionType = {
  * 攻撃の特性（タイプ）を定義する定数
  */
 export const AttackType = {
-    SHOOT: '撃つ',
-    AIMED_SHOT: '狙い撃ち',
-    STRIKE: '殴る',
-    RECKLESS: '我武者羅',
-    SUPPORT: '支援',
-    REPAIR: '修復',
-    INTERRUPT: '妨害',
-    DEFEND: '守る',
+    撃つ: '撃つ',
+    狙い撃ち: '狙い撃ち',
+    殴る: '殴る',
+    我武者羅: '我武者羅',
+    支援: '支援',
+    修復: '修復',
+    妨害: '妨害',
+    守る: '守る',
 };
 
 /**
