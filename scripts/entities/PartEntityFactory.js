@@ -25,6 +25,7 @@ export const PartEntityFactory = {
             icon: partData.icon,
             action: partData.action, // 追加
             type: partData.type, // 追加
+            trait: partData.trait, // 追加
             might: partData.might,
             success: partData.success,
             armor: partData.armor,

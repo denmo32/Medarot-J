@@ -24,6 +24,7 @@ export class PartStats {
         this.icon = stats.icon || '';
         this.action = stats.action || ''; // 追加
         this.type = stats.type || ''; // 追加
+        this.trait = stats.trait || ''; // 追加
 
         // 基本ステータス
         this.might = stats.might || 0;

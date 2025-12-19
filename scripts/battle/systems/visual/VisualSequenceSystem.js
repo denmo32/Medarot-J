@@ -146,7 +146,7 @@ export class VisualSequenceSystem extends System {
             attackerName: attackerInfo?.name || '???',
             actionType: ctx.attackingPart.type,
             attackType: ctx.attackingPart.type,
-            trait: ctx.attackingPart.name,
+            trait: ctx.attackingPart.trait,
         };
 
         return {

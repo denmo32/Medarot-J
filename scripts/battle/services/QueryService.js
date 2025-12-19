@@ -45,12 +45,12 @@ export class QueryService {
             propulsion: stats.propulsion,
             stability: stats.stability,
             defense: stats.defense,
-            
+
             // Status
             hp: status.hp,
             maxHp: status.maxHp,
             isBroken: status.isBroken,
-            
+
             // Behaviors
             actionType: logic?.type,
             action: stats.action,
@@ -60,14 +60,15 @@ export class QueryService {
             targetTiming: targeting?.timing,
             targetScope: targeting?.scope,
             postMoveTargeting: targeting?.autoStrategy,
-            
+
             accuracyType: accuracy?.type,
             effects: impact?.effects || [],
-            
+
             // Traits
             penetrates: penetrates,
             criticalBonus: critBonus ? critBonus.rate : 0,
-            
+            trait: stats.trait, // 追加
+
             id: partEntityId,
         };
     }
