@@ -101,9 +101,11 @@ export class VisualSequenceSystem extends System {
         sequence.push(this._createDeclarationTask(ctx, visualConfig));
 
         if (ctx.guardianInfo) {
+            const guardianPlayerInfo = this.world.getComponent(ctx.guardianInfo.id, PlayerInfo);
+            const guardianName = guardianPlayerInfo?.name || ctx.guardianInfo.name;
             sequence.push({
                 type: 'DIALOG',
-                text: this.messageService.format(MessageKey.GUARDIAN_TRIGGERED, { guardianName: ctx.guardianInfo.name }),
+                text: this.messageService.format(MessageKey.GUARDIAN_TRIGGERED, { guardianName: guardianName }),
                 options: { modalType: ModalType.ATTACK_DECLARATION }
             });
         }
@@ -167,7 +169,7 @@ export class VisualSequenceSystem extends System {
         
         if (templateId) {
             const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
-            
+
             // パラメータ構築の修正: templateで使用される全てのキーを網羅
             const params = {
                 targetName: targetInfo?.name || '不明',
@@ -179,6 +181,12 @@ export class VisualSequenceSystem extends System {
                 guardCount: effect.value, // APPLY_GUARD時はvalueに回数が入っている
                 actorName: targetInfo?.name || '???'
             };
+
+            // ガーディアンへのダメージの場合、guardianNameを追加
+            if (ctx.guardianInfo && templateId === 'GUARDIAN_DAMAGE') {
+                const guardianPlayerInfo = this.world.getComponent(ctx.guardianInfo.id, PlayerInfo);
+                params.guardianName = guardianPlayerInfo?.name || ctx.guardianInfo.name;
+            }
 
             let text = this.messageService.format(MessageKey[templateId] || templateId, params);
             if (effect.isCritical) text = this.messageService.format(MessageKey.CRITICAL_HIT) + text;
