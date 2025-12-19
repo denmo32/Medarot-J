@@ -1,18 +1,19 @@
 /**
  * @file VisualSequenceSystem.js
  * @description 演出シーケンス生成システム。
- * パーツEntityのPartVisualConfigコンポーネントに基づいて演出を生成します。
+ * 不具合修正: ガード解除メッセージの表示条件を厳格化。
+ * 機能追加: 単体対象のアクションにターゲット演出を追加。
  */
 import { System } from '../../../../engine/core/System.js';
 import {
     BattleSequenceState, GeneratingVisuals, ExecutingVisuals,
-    VisualSequence, CombatResult, SequenceFinished
+    VisualSequence, CombatResult, SequenceFinished, Visual
 } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
 import { MessageService } from '../../services/MessageService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
-import { BattleLogType, ModalType, EffectType } from '../../common/constants.js';
+import { BattleLogType, ModalType, EffectType, EffectScope } from '../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 import { QueryService } from '../../services/QueryService.js';
 
@@ -136,11 +137,17 @@ export class VisualSequenceSystem extends System {
         // 1. アニメーション開始
         const animType = ctx.isSupport ? 'support' : 'attack';
         const animName = visualConfig?.declaration?.animation || DEFAULT_VISUALS.DECLARATION.animation[animType];
+        
+        // 対象が一機単体であればターゲットアニメーションを描画する
+        const targetScope = ctx.attackingPart.targetScope;
+        const isSingleTarget = targetScope === EffectScope.ENEMY_SINGLE || targetScope === EffectScope.ALLY_SINGLE;
+        const visualTargetId = isSingleTarget ? (ctx.intendedTargetId || ctx.targetId) : null;
+
         sequence.push({
             type: 'ANIMATE',
             animationType: animName,
             attackerId: ctx.attackerId,
-            targetId: ctx.intendedTargetId || ctx.targetId
+            targetId: visualTargetId
         });
 
         // 2. 行動宣言メッセージ
@@ -217,6 +224,11 @@ export class VisualSequenceSystem extends System {
     _createEffectTasks(effect, ctx, visualConfig) {
         const effectVisual = visualConfig?.effects?.[effect.type] || DEFAULT_VISUALS.EFFECTS[effect.type];
         if (!effectVisual) return [];
+
+        // ガード実行(庇う)時に、残り回数がまだ残っている場合はメッセージを表示しない
+        if (effect.type === EffectType.CONSUME_GUARD && !effect.isExpired) {
+            return [];
+        }
 
         const tasks = [];
         const messageKey = this._resolveEffectMessageKey(effect, ctx, effectVisual);

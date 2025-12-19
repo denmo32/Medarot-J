@@ -1,9 +1,7 @@
 /**
  * @file AnimationSystem.js
  * @description ビジュアルコンポーネントのアニメーション制御。
- * HP更新アニメーションの参照先をパーツEntityではなく、
- * PlayerRenderer側で統合表示するためのVisualコンポーネント操作に留めているため、
- * 実は大きな変更は不要だが、Visual.partsInfoへの適用ロジックを確認。
+ * 演出の汎用化: IDの指定に基づき、攻撃以外のアクションでもターゲット演出を行えるように修正。
  */
 import { System } from '../../../../engine/core/System.js';
 import { Visual } from '../../components/index.js';
@@ -113,8 +111,10 @@ export class AnimationSystem extends System {
             task._startTime = performance.now();
             task._duration = 0;
             
-            if (task.animationType === 'attack') {
-                this._startAttackAnimation(entityId, task.targetId);
+            // アニメーションの種類に関わらず、IDが渡されていれば演出を開始する
+            this._startActionVisuals(task.attackerId || entityId, task.targetId);
+            
+            if (task.animationType === 'attack' || task.animationType === 'support') {
                 task._duration = 600; 
             } else {
                 task._duration = UI_CONFIG.ANIMATION.DURATION || 300;
@@ -125,26 +125,34 @@ export class AnimationSystem extends System {
         task._elapsed += deltaTime;
 
         if (task._elapsed >= task._duration) {
-            if (task.animationType === 'attack') {
-                this._cleanupAttackAnimation();
-            }
+            this._cleanupActionVisuals();
             this.world.removeComponent(entityId, AnimateTask);
         }
     }
 
-    _startAttackAnimation(attackerId, targetId) {
-        const visualAttacker = this.world.getComponent(attackerId, Visual);
-        const visualTarget = this.world.getComponent(targetId, Visual);
-
-        if (visualAttacker) {
-            visualAttacker.classes.add('attacker-active');
+    /**
+     * アクション実行時の視覚演出（強調、ロックオン）を開始
+     */
+    _startActionVisuals(attackerId, targetId) {
+        if (attackerId) {
+            const visualAttacker = this.world.getComponent(attackerId, Visual);
+            if (visualAttacker) {
+                visualAttacker.classes.add('attacker-active');
+            }
         }
-        if (visualTarget) {
-            visualTarget.classes.add('target-lockon');
+        
+        if (targetId) {
+            const visualTarget = this.world.getComponent(targetId, Visual);
+            if (visualTarget) {
+                visualTarget.classes.add('target-lockon');
+            }
         }
     }
 
-    _cleanupAttackAnimation() {
+    /**
+     * 全ての視覚演出クラスを解除
+     */
+    _cleanupActionVisuals() {
         const entities = this.getEntities(Visual);
         for (const entityId of entities) {
             const visual = this.world.getComponent(entityId, Visual);
