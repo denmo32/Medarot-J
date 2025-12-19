@@ -1,7 +1,7 @@
 /**
  * @file ActionExecutionSystem.js
  * @description アクションの実行処理（命中判定、エフェクト生成）を一元管理するシステム。
- * ShootSystem, MeleeSystem, SupportActionSystem を統合。
+ * パーツが持つ振る舞い（AccuracyBehavior, ImpactBehavior）に基づいて処理を汎用化。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -16,8 +16,7 @@ export class ActionExecutionSystem extends System {
     }
 
     update(deltaTime) {
-        // アクションの種類に関わらず、計算フェーズでターゲット解決済みのエンティティを処理
-        // CombatContextを持っていることが前提
+        // ターゲット解決済みかつ計算フェーズのエンティティを処理
         const entities = this.world.getEntitiesWith(
             BattleSequenceState, 
             InCombatCalculation, 
@@ -30,39 +29,45 @@ export class ActionExecutionSystem extends System {
         }
     }
 
+    /**
+     * アクションの実行ロジック
+     * @param {number} entityId - アクション実行者のID
+     */
     _executeAction(entityId) {
         const ctx = this.world.getComponent(entityId, CombatContext);
         
-        // キャンセル判定 (TargetingSystem等でフラグが立っている場合)
         if (ctx.shouldCancel) {
              this._handleCancel(entityId, ctx);
              return;
         }
 
-        // 1. 命中判定・計算
+        // 1. 命中判定・結果計算
+        // 内部的には ctx.attackingPart.accuracyType を参照してロジックを切り替え可能
         CombatService.calculateHitOutcome(this.world, ctx);
 
         // 2. エフェクトエンティティの生成
+        // 内部的には ctx.attackingPart.effects (ImpactBehaviorから抽出されたデータ) をループ処理
         CombatService.spawnEffectEntities(this.world, ctx);
 
-        // 3. フェーズ遷移: 計算完了 -> エフェクト処理待ち
+        // 3. パイプライン遷移: エフェクト処理（DamageSystem等）の完了待ちへ
         this.world.removeComponent(entityId, InCombatCalculation);
         this.world.addComponent(entityId, new ProcessingEffects());
     }
 
+    /**
+     * 中断処理
+     */
     _handleCancel(entityId, ctx) {
         const state = this.world.getComponent(entityId, BattleSequenceState);
         
-        // キャンセル用の結果データを構築
         const resultData = CombatService.buildCancelledResultData(ctx);
         state.contextData = resultData;
 
-        // コンポーネントのクリーンアップとフェーズ遷移
         this.world.removeComponent(entityId, CombatContext);
         this.world.removeComponent(entityId, TargetResolved);
         this.world.removeComponent(entityId, InCombatCalculation);
         
-        // 演出生成フェーズへスキップ (キャンセルメッセージ等の表示のため)
+        // メッセージ表示のため演出生成フェーズへ
         this.world.addComponent(entityId, new GeneratingVisuals());
     }
 }

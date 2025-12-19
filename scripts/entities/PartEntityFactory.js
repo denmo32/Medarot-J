@@ -1,6 +1,7 @@
 /**
  * @file PartEntityFactory.js
  * @description パーツデータオブジェクトからECSエンティティを生成するファクトリ。
+ * マスターデータに基づいて詳細なBehaviorコンポーネントをアセンブルします。
  */
 import * as PartComponents from '../battle/components/parts/PartComponents.js';
 
@@ -19,7 +20,7 @@ export const PartEntityFactory = {
         const entityId = world.createEntity();
 
         // 1. 基本ステータス
-        const stats = new PartComponents.PartStats({
+        world.addComponent(entityId, new PartComponents.PartStats({
             name: partData.name,
             icon: partData.icon, 
             might: partData.might,
@@ -29,55 +30,68 @@ export const PartEntityFactory = {
             propulsion: partData.propulsion,
             stability: partData.stability,
             defense: partData.defense,
-        });
-        world.addComponent(entityId, stats);
+        }));
 
         // 2. 状態（HP）
-        const status = new PartComponents.PartStatus(
+        world.addComponent(entityId, new PartComponents.PartStatus(
             partData.maxHp,
             partData.maxHp
-        );
-        world.addComponent(entityId, status);
+        ));
 
-        // 3. アクション定義
-        const action = new PartComponents.PartAction({
-            actionType: partData.actionType,
-            type: partData.type, // subType (表示用)
-            targetTiming: partData.targetTiming,
-            targetScope: partData.targetScope,
-            postMoveTargeting: partData.postMoveTargeting,
-            isSupport: partData.isSupport
-        });
-        world.addComponent(entityId, action);
+        // 3. 振る舞い (Behaviors)
+        // 基本論理
+        world.addComponent(entityId, new PartComponents.ActionLogic(
+            partData.actionType,
+            partData.isSupport
+        ));
 
-        // 4. エフェクト定義
-        if (partData.effects && Array.isArray(partData.effects)) {
-            world.addComponent(entityId, new PartComponents.PartEffects(partData.effects));
+        // ターゲット
+        world.addComponent(entityId, new PartComponents.TargetingBehavior({
+            timing: partData.targetTiming,
+            scope: partData.targetScope,
+            autoStrategy: partData.postMoveTargeting
+        }));
+
+        // 命中
+        world.addComponent(entityId, new PartComponents.AccuracyBehavior(
+            partData.accuracyType || 'STANDARD'
+        ));
+
+        // 影響
+        if (partData.effects) {
+            world.addComponent(entityId, new PartComponents.ImpactBehavior(partData.effects));
         }
 
-        // 5. 演出設定 (New!)
+        // 4. 演出設定 (Visuals)
+        // ActionDefinitionsのvisualsをテンプレート形式に変換して保持
         if (partData.visuals) {
-            world.addComponent(entityId, new PartComponents.PartVisualConfig(partData.visuals));
+            world.addComponent(entityId, new PartComponents.PartVisualConfig({
+                declaration: {
+                    templateId: partData.visuals.declaration?.messageKey,
+                    animation: partData.visuals.declaration?.animation
+                },
+                impacts: partData.visuals.effects // EffectType -> {messageKey, animation...} のマップ
+            }));
         }
 
-        // 6. 所有者リンク
+        // 5. 所有者リンク
         world.addComponent(entityId, new PartComponents.AttachedToOwner(ownerId, partKey));
 
-        // 7. 特性（Traits）の解析と付与
+        // 6. 特性（Traits）
         this._applyTraits(world, entityId, partData);
 
         return entityId;
     },
 
     _applyTraits(world, entityId, partData) {
-        // 貫通
         if (partData.penetrates) {
             world.addComponent(entityId, new PartComponents.TraitPenetrate());
         }
-
-        // クリティカル補正
         if (partData.criticalBonus) {
             world.addComponent(entityId, new PartComponents.TraitCriticalBonus(partData.criticalBonus));
+        }
+        if (partData.guardCount) {
+            world.addComponent(entityId, new PartComponents.TraitGuard(partData.guardCount));
         }
     }
 };

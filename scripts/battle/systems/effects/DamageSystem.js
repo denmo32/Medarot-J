@@ -1,13 +1,13 @@
 /**
  * @file DamageSystem.js
  * @description ダメージエフェクト処理システム。
- * パーツIDを使用してコンポーネントを操作する形に修正。
+ * 修正: 不要になった PartEffects のインポートを削除。
  */
 import { System } from '../../../../engine/core/System.js';
 import { ApplyEffect, EffectContext, EffectResult } from '../../components/effects/Effects.js';
 import { Parts } from '../../../components/index.js';
 import { ActiveEffects, IsGuarding } from '../../components/index.js';
-import { PartStatus, PartEffects } from '../../components/parts/PartComponents.js'; // 追加
+import { PartStatus } from '../../components/parts/PartComponents.js';
 import { EffectType } from '../../common/constants.js';
 import { PartInfo } from '../../../common/constants.js';
 import { HpChangedEvent, PartBrokenEvent } from '../../../components/Events.js';
@@ -90,18 +90,13 @@ export class DamageSystem extends System {
             }));
 
             if (partKey === PartInfo.HEAD.key) {
-                // 頭部破壊時は頭部パーツのStatusも更新（今回はHeadそのものが対象だが、他の場所で参照してる場合のため）
-                const headPartId = targetPartsComponent.head;
-                const headStatus = this.world.getComponent(headPartId, PartStatus);
-                if (headStatus) headStatus.isBroken = true;
-                
                 stateUpdates.push({ type: 'SetPlayerBroken', targetId });
             }
 
             // ガードブレイク判定
             const activeEffects = this.world.getComponent(targetId, ActiveEffects);
-            const isGuarding = this.world.getComponent(targetId, IsGuarding);
-            if (isGuarding && activeEffects) {
+            const isGuardingNow = this.world.getComponent(targetId, IsGuarding);
+            if (isGuardingNow && activeEffects) {
                 const isGuardPart = activeEffects.effects.some(
                     e => e.type === EffectType.APPLY_GUARD && e.partKey === partKey
                 );

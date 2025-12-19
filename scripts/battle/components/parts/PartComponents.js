@@ -1,7 +1,7 @@
 /**
  * @file PartComponents.js
  * @description パーツエンティティを構成するコンポーネント群。
- * パーツの能力、状態、所属情報を管理する。
+ * 振る舞い（Behavior）を細分化し、データ駆動設計を強化。
  */
 
 /**
@@ -36,26 +36,44 @@ export class PartStats {
     }
 }
 
-/**
- * パーツのアクション定義情報
+// --- 振る舞い記述子 (Behavior Descriptors) ---
+
+/** 
+ * アクションの基本分類 
  */
-export class PartAction {
-    constructor(definition = {}) {
-        this.actionType = definition.actionType; // 'SHOOT', 'MELEE', etc.
-        this.subType = definition.type; // '射撃', '格闘' (表示用カテゴリ)
-        this.targetTiming = definition.targetTiming; // 'pre-move', 'post-move'
-        this.targetScope = definition.targetScope; // 'ENEMY_SINGLE', etc.
-        this.postMoveTargeting = definition.postMoveTargeting; // 自動ターゲット戦略キー
-        this.isSupport = definition.isSupport || false;
+export class ActionLogic {
+    constructor(type, isSupport = false) {
+        this.type = type; // 'SHOOT', 'MELEE', 'HEAL', etc.
+        this.isSupport = isSupport;
     }
 }
 
-/**
- * パーツの効果定義リスト（ダメージ、回復、バフなど）
+/** 
+ * ターゲット選択の振る舞い 
  */
-export class PartEffects {
+export class TargetingBehavior {
+    constructor(config = {}) {
+        this.timing = config.timing; // 'pre-move', 'post-move'
+        this.scope = config.scope;   // 'ENEMY_SINGLE', 'ALLY_TEAM', etc.
+        this.autoStrategy = config.autoStrategy; // 自動選択時のロジックID
+    }
+}
+
+/** 
+ * 命中計算の振る舞い 
+ */
+export class AccuracyBehavior {
+    constructor(type = 'STANDARD') {
+        this.type = type; // 'STANDARD' (成功vs機動), 'PERFECT' (必中), etc.
+    }
+}
+
+/** 
+ * 影響（効果発生）の振る舞い 
+ */
+export class ImpactBehavior {
     constructor(effects = []) {
-        this.effects = effects; // Array of effect definition objects
+        this.effects = effects; // [{type, calculation, params}]
     }
 }
 
@@ -71,17 +89,17 @@ export class AttachedToOwner {
 
 /**
  * パーツ固有の演出設定
- * @description 行動宣言時や効果発生時のメッセージ、アニメーションを定義。
+ * @description 行動宣言時や効果発生時のメッセージテンプレートID、演出キーを保持。
  */
 export class PartVisualConfig {
     /**
      * @param {object} config
-     * @param {object} [config.declaration] - 行動宣言時の設定 { messageKey, animation, vfx }
-     * @param {object} [config.effects] - 効果ごとの設定 { [EffectType]: { messageKey, animation, vfx } }
+     * @param {object} [config.declaration] - { templateId, animation }
+     * @param {object} [config.impacts] - { [EffectType]: { templateId, animation, vfx } }
      */
     constructor(config = {}) {
         this.declaration = config.declaration || {};
-        this.effects = config.effects || {};
+        this.impacts = config.impacts || {};
     }
 }
 
@@ -101,12 +119,5 @@ export class TraitCriticalBonus {
 export class TraitGuard {
     constructor(count) {
         this.count = count;
-    }
-}
-
-/** 脚部タイプ判定用（戦車、多脚など。必要に応じて追加） */
-export class LegType {
-    constructor(type) {
-        this.type = type;
     }
 }
