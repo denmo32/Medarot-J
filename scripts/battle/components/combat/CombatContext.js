@@ -9,6 +9,7 @@ export class CombatContext {
         this.action = null;
         this.attackerInfo = null;
         this.attackerParts = null;
+        this.attackingPartId = null; // パーツEntityID
         this.attackingPart = null; // Snapshot object
         this.isSupport = false;
 

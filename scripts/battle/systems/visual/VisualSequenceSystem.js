@@ -1,7 +1,7 @@
 /**
  * @file VisualSequenceSystem.js
  * @description 演出シーケンス生成システム。
- * ログタイプごとのハンドリングをメソッドに分離し、構造を整理。
+ * パーツEntityのPartVisualConfigコンポーネントに基づいて演出を生成します。
  */
 import { System } from '../../../../engine/core/System.js';
 import {
@@ -13,8 +13,32 @@ import { MessageService } from '../../services/MessageService.js';
 import { CancellationService } from '../../services/CancellationService.js';
 import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
 import { BattleLogType, ModalType, EffectType } from '../../common/constants.js';
-import { VisualDefinitions } from '../../../data/visualDefinitions.js';
 import { MessageKey } from '../../../data/messageRepository.js';
+import { QueryService } from '../../services/QueryService.js';
+
+/**
+ * システムのデフォルト設定（フォールバック用）
+ */
+const DEFAULT_VISUALS = {
+    DECLARATION: {
+        keys: {
+            support: 'SUPPORT_DECLARATION',
+            miss: 'ATTACK_MISSED',
+            default: 'ATTACK_DECLARATION'
+        },
+        animation: { attack: 'attack', support: 'support' }
+    },
+    EFFECTS: {
+        [EffectType.DAMAGE]: { messageKey: 'DAMAGE_APPLIED', showHpBar: true },
+        [EffectType.HEAL]: { messageKey: 'HEAL_SUCCESS', showHpBar: true },
+        [EffectType.APPLY_SCAN]: { messageKey: 'SUPPORT_SCAN_SUCCESS' },
+        [EffectType.APPLY_GLITCH]: { messageKey: 'INTERRUPT_GLITCH_SUCCESS' },
+        [EffectType.APPLY_GUARD]: { messageKey: 'DEFEND_GUARD_SUCCESS' },
+        [EffectType.CONSUME_GUARD]: { messageKey: 'GUARD_EXPIRED' }
+    },
+    GUARDIAN: { messageKey: 'GUARDIAN_TRIGGERED' },
+    MISS: { messageKey: 'ATTACK_EVADED' }
+};
 
 export class VisualSequenceSystem extends System {
     constructor(world) {
@@ -35,7 +59,10 @@ export class VisualSequenceSystem extends System {
                 continue;
             }
 
-            const sequenceDefs = this._generateSequenceDefinitions(entityId, context);
+            // パーツ固有の演出設定を取得
+            const visualConfig = QueryService.getPartVisualConfig(this.world, context.attackingPartId);
+
+            const sequenceDefs = this._generateSequenceDefinitions(entityId, context, visualConfig);
 
             if (context.stateUpdates && context.stateUpdates.length > 0) {
                 this._insertStateUpdateTasks(sequenceDefs, context.stateUpdates);
@@ -58,26 +85,18 @@ export class VisualSequenceSystem extends System {
         this.world.addComponent(entityId, new SequenceFinished());
     }
 
-    _generateSequenceDefinitions(actorId, context) {
+    _generateSequenceDefinitions(actorId, context, visualConfig) {
         if (context.isCancelled) {
             return this._createCancelSequence(actorId, context);
         } else {
-            return this._createCombatSequence(context);
+            return this._createCombatSequence(context, visualConfig);
         }
     }
 
     _insertStateUpdateTasks(sequence, stateUpdates) {
-        const updateTask = {
-            type: 'STATE_CONTROL',
-            updates: stateUpdates
-        };
-        const waitTask = {
-            type: 'WAIT',
-            duration: 0
-        };
+        const updateTask = { type: 'STATE_CONTROL', updates: stateUpdates };
+        const waitTask = { type: 'WAIT', duration: 0 };
 
-        // 最後のクリーンアップタスクの前に入れるのが理想的
-        // ここではシーケンスの最後に近い場所に挿入
         if (sequence.length >= 2) {
              sequence.splice(sequence.length - 2, 0, updateTask, waitTask);
         } else {
@@ -110,37 +129,48 @@ export class VisualSequenceSystem extends System {
         return visualSequence;
     }
 
-    _createCombatSequence(ctx) {
-        const resolutionLog = this._buildResolutionLog(ctx);
+    _createCombatSequence(ctx, visualConfig) {
         const sequence = [];
         const defeatedPlayers = new Set();
+        
+        // 1. アニメーション開始
+        const animType = ctx.isSupport ? 'support' : 'attack';
+        const animName = visualConfig?.declaration?.animation || DEFAULT_VISUALS.DECLARATION.animation[animType];
+        sequence.push({
+            type: 'ANIMATE',
+            animationType: animName,
+            attackerId: ctx.attackerId,
+            targetId: ctx.intendedTargetId || ctx.targetId
+        });
 
-        for (const log of resolutionLog) {
-            switch (log.type) {
-                case BattleLogType.ANIMATION_START:
-                    sequence.push(this._createAnimationTask(log));
-                    break;
-                case BattleLogType.DECLARATION:
-                    sequence.push(...this._createDeclarationTasks(log, ctx));
-                    break;
-                case BattleLogType.GUARDIAN_TRIGGER:
-                    sequence.push(...this._createGuardianTasks(log, ctx));
-                    break;
-                case BattleLogType.EFFECT:
-                    sequence.push(...this._createEffectTasks(log, ctx));
-                    if (log.effect.isPartBroken && log.effect.partKey === PartInfo.HEAD.key) {
-                        defeatedPlayers.add(log.effect.targetId);
-                    }
-                    break;
-                case BattleLogType.MISS:
-                    sequence.push(...this._createMissTasks(log, ctx));
-                    break;
+        // 2. 行動宣言メッセージ
+        const declarationTask = this._createDeclarationTask(ctx, visualConfig);
+        if (declarationTask) sequence.push(declarationTask);
+
+        // 3. ガード演出
+        if (ctx.guardianInfo) {
+            const guardianTask = this._createGuardianTask(ctx);
+            if (guardianTask) sequence.push(guardianTask);
+        }
+
+        // 4. 効果適用演出
+        if (ctx.appliedEffects && ctx.appliedEffects.length > 0) {
+            for (const effect of ctx.appliedEffects) {
+                const effectTasks = this._createEffectTasks(effect, ctx, visualConfig);
+                sequence.push(...effectTasks);
+                
+                if (effect.isPartBroken && effect.partKey === PartInfo.HEAD.key) {
+                    defeatedPlayers.add(effect.targetId);
+                }
             }
+        } else if (!ctx.outcome.isHit && ctx.intendedTargetId) {
+            // ミス演出
+            sequence.push(this._createMissTask(ctx));
         }
 
         this._insertDefeatVisuals(sequence, defeatedPlayers);
 
-        // 終了処理
+        // 5. 終了処理
         sequence.push({ type: 'CREATE_REQUEST', requestType: 'RefreshUIRequest' });
         sequence.push({
             type: 'STATE_CONTROL',
@@ -150,68 +180,17 @@ export class VisualSequenceSystem extends System {
         return sequence;
     }
 
-    _buildResolutionLog(ctx) {
-        const log = [];
-        const { attackerId, intendedTargetId, targetId, guardianInfo, appliedEffects, isSupport, outcome } = ctx;
+    _createDeclarationTask(ctx, visualConfig) {
+        const def = DEFAULT_VISUALS.DECLARATION;
+        let messageKey = visualConfig?.declaration?.messageKey;
 
-        const animationTargetId = intendedTargetId || targetId;
-        log.push({ 
-            type: BattleLogType.ANIMATION_START, 
-            actorId: attackerId, 
-            targetId: animationTargetId 
-        });
-
-        log.push({ 
-            type: BattleLogType.DECLARATION, 
-            actorId: attackerId,
-            targetId: targetId,
-            isSupport: isSupport 
-        });
-
-        if (guardianInfo) {
-            log.push({ 
-                type: BattleLogType.GUARDIAN_TRIGGER, 
-                guardianInfo: guardianInfo 
-            });
+        if (!messageKey) {
+            if (ctx.isSupport) messageKey = def.keys.support;
+            else if (!ctx.targetId) messageKey = def.keys.miss;
+            else messageKey = def.keys.default;
         }
-
-        if (appliedEffects && appliedEffects.length > 0) {
-            for (const effect of appliedEffects) {
-                log.push({ 
-                    type: BattleLogType.EFFECT, 
-                    effect: effect 
-                });
-            }
-        } else if (!outcome.isHit && intendedTargetId) {
-            log.push({ 
-                type: BattleLogType.MISS, 
-                targetId: intendedTargetId 
-            });
-        }
-
-        return log;
-    }
-
-    _createAnimationTask(log) {
-        return {
-            type: 'ANIMATE',
-            animationType: log.targetId ? 'attack' : 'support',
-            attackerId: log.actorId,
-            targetId: log.targetId
-        };
-    }
-
-    _createDeclarationTasks(log, ctx) {
-        const def = VisualDefinitions.EVENTS.DECLARATION;
-        let messageKey;
         
-        if (ctx.isSupport) messageKey = MessageKey[def.keys.support];
-        else if (!ctx.targetId) messageKey = MessageKey[def.keys.miss];
-        else messageKey = MessageKey[def.keys.default];
-        
-        if (!messageKey) return [];
-
-        const attackerInfo = this.world.getComponent(log.actorId, PlayerInfo);
+        const attackerInfo = this.world.getComponent(ctx.attackerId, PlayerInfo);
         const params = {
             attackerName: attackerInfo?.name || '???',
             actionType: ctx.attackingPart.action,
@@ -219,32 +198,28 @@ export class VisualSequenceSystem extends System {
             trait: ctx.attackingPart.name,
         };
 
-        return [{
+        return {
             type: 'DIALOG',
-            text: this.messageService.format(messageKey, params),
+            text: this.messageService.format(MessageKey[messageKey], params),
             options: { modalType: ModalType.ATTACK_DECLARATION }
-        }];
+        };
     }
 
-    _createGuardianTasks(log, ctx) {
-        const def = VisualDefinitions.EVENTS.GUARDIAN_TRIGGER;
-        const messageKey = MessageKey[def.keys.default];
-        
-        return [{
+    _createGuardianTask(ctx) {
+        const messageKey = DEFAULT_VISUALS.GUARDIAN.messageKey;
+        return {
             type: 'DIALOG',
-            text: this.messageService.format(messageKey, { guardianName: log.guardianInfo.name }),
+            text: this.messageService.format(MessageKey[messageKey], { guardianName: ctx.guardianInfo.name }),
             options: { modalType: ModalType.ATTACK_DECLARATION }
-        }];
+        };
     }
 
-    _createEffectTasks(log, ctx) {
-        const effect = log.effect;
-        const def = VisualDefinitions[effect.type];
-        if (!def) return [];
+    _createEffectTasks(effect, ctx, visualConfig) {
+        const effectVisual = visualConfig?.effects?.[effect.type] || DEFAULT_VISUALS.EFFECTS[effect.type];
+        if (!effectVisual) return [];
 
         const tasks = [];
-        const messageKey = this._resolveEffectMessageKey(effect, ctx, def);
-        const prefixKey = this._resolveEffectPrefixKey(effect, def);
+        const messageKey = this._resolveEffectMessageKey(effect, ctx, effectVisual);
         
         if (messageKey) {
             const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
@@ -264,8 +239,8 @@ export class VisualSequenceSystem extends System {
             };
 
             let text = this.messageService.format(messageKey, params);
-            if (prefixKey) {
-                text = this.messageService.format(prefixKey) + text;
+            if (effect.isCritical) {
+                text = this.messageService.format(MessageKey.CRITICAL_HIT) + text;
             }
 
             tasks.push({
@@ -275,7 +250,7 @@ export class VisualSequenceSystem extends System {
             });
         }
 
-        if (def.showHpBar && effect.value > 0) {
+        if (effectVisual.showHpBar && effect.value > 0) {
             tasks.push({
                 type: 'UI_ANIMATION',
                 targetType: 'HP_BAR',
@@ -286,42 +261,31 @@ export class VisualSequenceSystem extends System {
         return tasks;
     }
 
-    _resolveEffectMessageKey(effect, ctx, def) {
-        const keys = def.keys;
-        if (!keys) return null;
-
-        // 特殊条件チェック
+    _resolveEffectMessageKey(effect, ctx, effectVisual) {
+        // 特殊条件の優先解決
         if (effect.type === EffectType.DAMAGE) {
-            if (effect.isGuardBroken) return MessageKey[keys.guardBroken];
-            if (effect.isPenetration) return MessageKey[keys.penetration];
-            if (effect.isDefended) return MessageKey[keys.defended];
-            if (effect.guardianName || ctx.guardianInfo) return MessageKey[keys.guardian];
+            if (effect.isGuardBroken) return MessageKey.GUARD_BROKEN;
+            if (effect.isPenetration) return MessageKey.PENETRATION_DAMAGE;
+            if (effect.isDefended) return MessageKey.DEFENSE_SUCCESS;
+            if (effect.guardianName || ctx.guardianInfo) return MessageKey.GUARDIAN_DAMAGE;
         } else if (effect.type === EffectType.HEAL) {
-            return effect.value > 0 ? MessageKey[keys.success] : MessageKey[keys.failed];
+            if (effect.value <= 0) return MessageKey.HEAL_FAILED;
         } else if (effect.type === EffectType.APPLY_GLITCH) {
-            return effect.wasSuccessful ? MessageKey[keys.success] : MessageKey[keys.failed];
-        } else if (effect.type === EffectType.CONSUME_GUARD) {
-            return effect.isExpired ? MessageKey[keys.expired] : null;
+            if (!effect.wasSuccessful) return MessageKey.INTERRUPT_GLITCH_FAILED;
         }
 
-        return MessageKey[keys.default] || null;
+        return MessageKey[effectVisual.messageKey] || null;
     }
 
-    _resolveEffectPrefixKey(effect, def) {
-        if (!def.keys || !def.keys.prefixCritical) return null;
-        return effect.isCritical ? MessageKey[def.keys.prefixCritical] : null;
-    }
+    _createMissTask(ctx) {
+        const messageKey = DEFAULT_VISUALS.MISS.messageKey;
+        const targetInfo = this.world.getComponent(ctx.intendedTargetId, PlayerInfo);
 
-    _createMissTasks(log, ctx) {
-        const def = VisualDefinitions.EVENTS.MISS;
-        const messageKey = MessageKey[def.keys.default];
-        const targetInfo = this.world.getComponent(log.targetId, PlayerInfo);
-
-        return [{
+        return {
             type: 'DIALOG',
-            text: this.messageService.format(messageKey, { targetName: targetInfo?.name || '相手' }),
+            text: this.messageService.format(MessageKey[messageKey], { targetName: targetInfo?.name || '相手' }),
             options: { modalType: ModalType.EXECUTION_RESULT }
-        }];
+        };
     }
 
     _insertDefeatVisuals(sequence, defeatedPlayers) {

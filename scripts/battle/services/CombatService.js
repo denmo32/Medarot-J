@@ -37,6 +37,7 @@ export class CombatService {
         ctx.action = action;
         ctx.attackerInfo = attackerInfo;
         ctx.attackerParts = attackerParts; // IDs
+        ctx.attackingPartId = attackingPartId; // 追加
         ctx.attackingPart = attackingPartData; // Snapshot Data for Calculation
         ctx.isSupport = attackingPartData.isSupport;
         ctx.intendedTargetId = action.targetId;
@@ -152,6 +153,7 @@ export class CombatService {
 
         return {
             attackerId: ctx.attackerId,
+            attackingPartId: ctx.attackingPartId, // 追加
             intendedTargetId: ctx.intendedTargetId,
             targetId: ctx.finalTargetId,
             attackingPart: ctx.attackingPart,
@@ -170,6 +172,7 @@ export class CombatService {
     static buildCancelledResultData(ctx) {
         return {
             attackerId: ctx.attackerId,
+            attackingPartId: ctx.attackingPartId, // 追加
             intendedTargetId: ctx.intendedTargetId,
             targetId: null,
             attackingPart: ctx.attackingPart,

@@ -69,6 +69,22 @@ export class AttachedToOwner {
     }
 }
 
+/**
+ * パーツ固有の演出設定
+ * @description 行動宣言時や効果発生時のメッセージ、アニメーションを定義。
+ */
+export class PartVisualConfig {
+    /**
+     * @param {object} config
+     * @param {object} [config.declaration] - 行動宣言時の設定 { messageKey, animation, vfx }
+     * @param {object} [config.effects] - 効果ごとの設定 { [EffectType]: { messageKey, animation, vfx } }
+     */
+    constructor(config = {}) {
+        this.declaration = config.declaration || {};
+        this.effects = config.effects || {};
+    }
+}
+
 // --- 特性（Trait）タグコンポーネント ---
 
 /** 貫通能力 */

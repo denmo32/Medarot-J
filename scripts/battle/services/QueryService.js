@@ -4,7 +4,7 @@
  * ECS原則に従い、必要なコンポーネントのみへのアクセスを最適化。
  */
 import { Parts } from '../../components/index.js';
-import { PartStatus, PartStats, PartAction, PartEffects, TraitPenetrate, TraitCriticalBonus } from '../components/parts/PartComponents.js';
+import { PartStatus, PartStats, PartAction, PartEffects, PartVisualConfig, TraitPenetrate, TraitCriticalBonus } from '../components/parts/PartComponents.js';
 import { PartInfo } from '../../common/constants.js';
 
 export class QueryService {
@@ -67,6 +67,17 @@ export class QueryService {
             // Metadata
             id: partEntityId, // 参照用ID
         };
+    }
+
+    /**
+     * パーツの演出設定を取得する
+     * @param {World} world 
+     * @param {number} partEntityId 
+     * @returns {PartVisualConfig|null}
+     */
+    static getPartVisualConfig(world, partEntityId) {
+        if (partEntityId === null || partEntityId === undefined) return null;
+        return world.getComponent(partEntityId, PartVisualConfig);
     }
 
     /**
