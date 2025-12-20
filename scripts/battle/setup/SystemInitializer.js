@@ -1,7 +1,7 @@
 /**
  * @file SystemInitializer.js
- * @description バトルシーンで使用するSystemの初期化・登録を行う。
- * リファクタリング: 個別のEffectSystemを廃止し、EffectProcessorSystemに統合。
+ * @description システム初期化。
+ * TraitRegistryの初期化を追加。
  */
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
@@ -25,7 +25,6 @@ import { UIInputSystem } from '../systems/ui/UIInputSystem.js';
 import { TargetingSystem } from '../systems/mechanics/TargetingSystem.js';
 import { ActionExecutionSystem } from '../systems/mechanics/ActionExecutionSystem.js';
 
-// Integrated Effect System
 import { EffectProcessorSystem } from '../systems/mechanics/EffectProcessorSystem.js';
 import { CombatResultSystem } from '../systems/mechanics/CombatResultSystem.js';
 
@@ -36,30 +35,28 @@ import { ComponentUpdateSystem } from '../systems/mechanics/ComponentUpdateSyste
 
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
-// レジストリの初期化
 import { EffectRegistry } from '../definitions/EffectRegistry.js';
+import { TraitRegistry } from '../definitions/traits/TraitRegistry.js'; // 追加
 
 export function initializeSystems(world, gameDataManager) {
 
     // 初期化処理
     EffectRegistry.initialize();
+    TraitRegistry.initialize(); // 追加
 
-    // --- UI/Input Systems (入力処理) ---
+    // (以下、システム登録順序は変更なし)
     const uiInputSystem = new UIInputSystem(world);
     const modalSystem = new ModalSystem(world);
     const actionPanelSystem = new ActionPanelSystem(world);
 
-    // --- AI/Player Action Systems (意思決定) ---
     const aiSystem = new AiSystem(world);
     const actionSelectionSystem = new ActionSelectionSystem(world);
     
-    // --- Visual Systems (描画・演出) ---
     const renderSystem = new RenderSystem(world);
     const animationSystem = new AnimationSystem(world);
     const visualDirectorSystem = new VisualDirectorSystem(world);
     const visualSequenceSystem = new VisualSequenceSystem(world);
 
-    // --- Flow/Core Systems (進行管理) ---
     const gameFlowSystem = new GameFlowSystem(world);
     const winConditionSystem = new WinConditionSystem(world);
     const turnSystem = new TurnSystem(world);
@@ -67,19 +64,16 @@ export function initializeSystems(world, gameDataManager) {
     const timerSystem = new TimerSystem(world);
     const taskSystem = new TaskSystem(world);
     
-    // --- Mechanics Systems (計算・状態更新) ---
     const gaugeSystem = new GaugeSystem(world);
     const movementSystem = new MovementSystem(world);
-    const effectSystem = new EffectSystem(world); // 持続エフェクトの更新用(残存)
+    const effectSystem = new EffectSystem(world); 
     const battleHistorySystem = new BattleHistorySystem(world);
     const stateTransitionSystem = new StateTransitionSystem(world);
     const componentUpdateSystem = new ComponentUpdateSystem(world);
 
-    // Action Systems
     const targetingSystem = new TargetingSystem(world);
     const actionExecutionSystem = new ActionExecutionSystem(world);
 
-    // Effect Systems (Integrated)
     const effectProcessorSystem = new EffectProcessorSystem(world);
     const combatResultSystem = new CombatResultSystem(world);
 
@@ -87,59 +81,27 @@ export function initializeSystems(world, gameDataManager) {
         new DebugSystem(world);
     }
     
-    // --- システムの登録順序 (Data Flow Pipeline) ---
-    
-    // 1. 入力とリクエストの受付
     world.registerSystem(uiInputSystem);
-
-    // 2. 基本状態の更新 (汎用的なコンポーネント更新)
     world.registerSystem(stateTransitionSystem); 
     world.registerSystem(componentUpdateSystem);
-
-    // 3. ゲームフロー制御 (フェーズ遷移、ターン管理)
     world.registerSystem(gameFlowSystem);
     world.registerSystem(turnSystem);
-    
-    // 4. 行動決定 (AI -> ActionSelection)
     world.registerSystem(aiSystem);
     world.registerSystem(actionSelectionSystem);
-    
-    // 5. 戦闘解決パイプライン
-    // 5-0. BattleSequenceSystem: 実行フェーズ開始、タグ付与
     world.registerSystem(battleSequenceSystem); 
-    
-    // 5-1. TargetingSystem: ターゲット解決
     world.registerSystem(targetingSystem);
-
-    // 5-2. Action Execution: 命中判定とエフェクト生成
     world.registerSystem(actionExecutionSystem);
-
-    // 5-3. Effect Processor: 生成されたエフェクトの処理 (統合システム)
     world.registerSystem(effectProcessorSystem);
-
-    // 5-4. Result Collection: エフェクト処理完了待ちと結果集約
     world.registerSystem(combatResultSystem);
-
-    // 5-5. BattleHistorySystem: CombatResult を参照して履歴更新
     world.registerSystem(battleHistorySystem);
-    
-    // 5-6. VisualSequenceSystem: CombatResult を消費し、演出シーケンス生成
     world.registerSystem(visualSequenceSystem);
-    
-    // 6. タスク実行と演出
     world.registerSystem(taskSystem);
     world.registerSystem(visualDirectorSystem);
-
-    // 7. 勝敗判定 
     world.registerSystem(winConditionSystem);
-
-    // 8. メカニクス更新 (ゲージ、移動、持続エフェクト)
     world.registerSystem(timerSystem);
     world.registerSystem(gaugeSystem);
     world.registerSystem(movementSystem);
     world.registerSystem(effectSystem);
-
-    // 9. UI状態管理と描画
     world.registerSystem(modalSystem);
     world.registerSystem(actionPanelSystem);
     world.registerSystem(animationSystem);

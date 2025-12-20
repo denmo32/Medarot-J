@@ -1,13 +1,13 @@
 /**
  * @file EffectService.js
  * @description ステータス補正サービス。
- * パーツデータの参照方法を修正。
+ * TraitRegistry を使用するように修正。
  */
-import { ActiveEffects } from '../components/index.js';
+import { ActiveEffects } from '../components/index.js'; // Battle
 import { EffectType } from '../common/constants.js';
 import { TypeDefinitions } from '../../data/typeDefinitions.js';
-import { TraitDefinitions } from '../../data/traitDefinitions.js';
 import { TraitRegistry } from '../definitions/traits/TraitRegistry.js';
+import { HookPhase } from '../definitions/HookRegistry.js';
 
 export class EffectService {
     
@@ -21,7 +21,7 @@ export class EffectService {
         };
 
         let modifier = 0;
-        modifier += this._executeTraitHooks('onCalculateStat', fullContext);
+        modifier += this._executeTraitHooks(HookPhase.ON_CALCULATE_STAT, fullContext);
         modifier += this._getActiveEffectModifier(world, entityId, statName);
 
         return modifier;
@@ -38,7 +38,7 @@ export class EffectService {
         const context = { world, entityId, part, attackingPart: part };
         let multiplier = 1.0;
 
-        const factors = this._executeTraitHooks('onCalculateSpeedMultiplier', context, true);
+        const factors = this._executeTraitHooks(HookPhase.ON_CALCULATE_SPEED_MULTIPLIER, context, true);
         
         if (factors.length > 0) {
             multiplier = factors.reduce((acc, val) => acc * val, 1.0);
@@ -51,9 +51,7 @@ export class EffectService {
         if (!part) return 0;
         const context = { attackingPart: part };
         
-        // パーツデータ(part)はQueryService経由で取得されたオブジェクトである前提
-        // その中に criticalBonus が含まれている場合、それを優先または加算
-        let traitBonus = this._executeTraitHooks('onCalculateCritical', context);
+        let traitBonus = this._executeTraitHooks(HookPhase.ON_CALCULATE_CRITICAL, context);
         return traitBonus + (part.criticalBonus || 0);
     }
 
@@ -66,44 +64,36 @@ export class EffectService {
         const results = [];
         let total = 0;
 
-        // attackingPartには trait 文字列や type が含まれている
         const definitions = [
-            TypeDefinitions[attackingPart.type], // AttackType (撃つ etc)
-            // TraitDefinitions は実装未完了だが、あれば参照
-            // TraitDefinitions[attackingPart.trait]
+            TypeDefinitions[attackingPart.type],
+            // 将来的に: TraitDefinitions[attackingPart.trait]
         ];
 
         for (const def of definitions) {
             if (!def) continue;
 
-            if (hookName === 'onCalculateStat' && def.statModifiers) {
-                const logic = TraitRegistry.getLogic('STAT_MODIFIER');
-                if (logic) {
-                    for (const mod of def.statModifiers) {
-                        const val = logic.onCalculateStat(context, mod);
-                        if (val !== 0) {
-                            results.push(val);
-                            total += val;
-                        }
+            if (hookName === HookPhase.ON_CALCULATE_STAT && def.statModifiers) {
+                // STAT_MODIFIER トレイトを呼び出し
+                for (const mod of def.statModifiers) {
+                    const val = TraitRegistry.executeTraitLogic('STAT_MODIFIER', hookName, { ...context, params: mod });
+                    if (val !== 0) {
+                        results.push(val);
+                        total += val;
                     }
                 }
             }
 
-            if (def.logic) {
-                const logicImpl = TraitRegistry.getLogic(def.logic);
-                if (logicImpl && typeof logicImpl[hookName] === 'function') {
-                    const val = logicImpl[hookName](context, def.params || {});
-                    results.push(val);
-                    total += val;
-                }
+            // TypeDefinition自体が Trait パラメータを持っている場合 (speedMultiplier, criticalBonus)
+            // これも汎用 STAT_MODIFIER トレイトで処理可能だが、パラメータ形式を合わせる
+            if (hookName === HookPhase.ON_CALCULATE_SPEED_MULTIPLIER && def.speedMultiplier !== undefined) {
+                const val = TraitRegistry.executeTraitLogic('STAT_MODIFIER', hookName, { ...context, params: def });
+                results.push(val);
             }
             
-            if (hookName === 'onCalculateSpeedMultiplier' && def.speedMultiplier !== undefined) {
-                results.push(def.speedMultiplier);
-            }
-            if (hookName === 'onCalculateCritical' && def.criticalBonus !== undefined) {
-                results.push(def.criticalBonus);
-                total += def.criticalBonus;
+            if (hookName === HookPhase.ON_CALCULATE_CRITICAL && def.criticalBonus !== undefined) {
+                const val = TraitRegistry.executeTraitLogic('STAT_MODIFIER', hookName, { ...context, params: def });
+                results.push(val);
+                total += val;
             }
         }
 

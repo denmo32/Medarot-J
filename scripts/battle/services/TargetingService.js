@@ -1,28 +1,21 @@
 /**
  * @file TargetingService.js
  * @description ターゲット解決サービス。
- * パーツID化に伴い、QueryServiceを使用してパーツ情報を参照する形に修正。
- * AI戦略結果の正規化ロジックを追加し、Systemの負担を軽減。
+ * ガード判定ロジックを削除し、Traitフックを使用するように変更。
  */
 import { PlayerInfo, Parts } from '../../components/index.js';
-import { ActiveEffects } from '../components/index.js';
-import { EffectType, EffectScope } from '../common/constants.js';
+import { HookRegistry, HookPhase } from '../definitions/HookRegistry.js';
+import { TraitRegistry } from '../definitions/traits/TraitRegistry.js';
 import { QueryService } from './QueryService.js';
+import { EffectScope } from '../common/constants.js';
 
 export class TargetingService {
 
-    /**
-     * AI戦略の実行結果を正規化し、単一のターゲット情報を返す
-     * @param {object|Array|null} result - 戦略関数の戻り値
-     * @returns {{targetId: number, targetPartKey: string}|null}
-     */
+    // (既存の normalizeStrategyResult 等はそのまま)
     static normalizeStrategyResult(result) {
         if (!result) return null;
-
-        // 配列形式の場合 (重み付きリスト: [{ target: {...}, weight: ... }])
         if (Array.isArray(result)) {
             if (result.length === 0) return null;
-            // 簡易実装: 先頭の候補を採用（本来はここで重み付け抽選を行っても良い）
             const candidate = result[0];
             if (candidate && candidate.target) {
                 return {
@@ -32,15 +25,12 @@ export class TargetingService {
             }
             return null;
         }
-
-        // 単一オブジェクト形式の場合 ({ targetId, targetPartKey })
         if (result.targetId !== undefined) {
             return {
                 targetId: result.targetId,
                 targetPartKey: result.targetPartKey
             };
         }
-
         return null;
     }
 
@@ -58,67 +48,32 @@ export class TargetingService {
             return { shouldCancel: true };
         }
 
-        if (intendedTargetId !== null) {
-            const foundGuardian = this._findGuardian(world, intendedTargetId);
-            if (foundGuardian) {
-                return {
-                    finalTargetId: foundGuardian.id,
-                    finalTargetPartKey: foundGuardian.partKey,
-                    guardianInfo: foundGuardian,
-                    shouldCancel: false
-                };
-            }
-        }
-
-        return {
+        // 結果オブジェクト初期化
+        const result = {
             finalTargetId: intendedTargetId,
             finalTargetPartKey: intendedPartKey,
-            guardianInfo: null,
+            guardianInfo: null
+        };
+
+        // --- Hook Execution ---
+        // 本来は HookRegistry.execute(HookPhase.ON_TARGET_RESOLVING, { ... }) だが、
+        // グローバルな登録ではなく、必要なTrait（ここではGUARD）を明示的に呼び出す形をとる。
+        // 将来的には「場にいる全員のTrait」を収集して実行するのが正しいHookの姿。
+        
+        // 簡易実装: GuardTraitを直接呼び出し (TraitRegistry経由)
+        TraitRegistry.executeTraitLogic('GUARD', HookPhase.ON_TARGET_RESOLVING, {
+            world,
+            originalTargetId: intendedTargetId,
+            attackerId,
+            result
+        });
+
+        return {
+            finalTargetId: result.finalTargetId,
+            finalTargetPartKey: result.finalTargetPartKey,
+            guardianInfo: result.guardianInfo,
             shouldCancel: false
         };
-    }
-
-    static _findGuardian(world, originalTargetId) {
-        const targetInfo = world.getComponent(originalTargetId, PlayerInfo);
-        if (!targetInfo) return null;
-
-        const allEntities = world.getEntitiesWith(PlayerInfo, ActiveEffects, Parts);
-        const potentialGuardians = [];
-
-        for (const id of allEntities) {
-            if (id === originalTargetId) continue;
-
-            const info = world.getComponent(id, PlayerInfo);
-            if (info.teamId !== targetInfo.teamId) continue;
-
-            const parts = world.getComponent(id, Parts);
-            const headData = QueryService.getPartData(world, parts.head);
-            if (!headData || headData.isBroken) continue;
-
-            const activeEffects = world.getComponent(id, ActiveEffects);
-            const guardEffect = activeEffects?.effects.find(e => e.type === EffectType.APPLY_GUARD && e.count > 0);
-
-            if (!guardEffect) continue;
-
-            // ガードパーツのIDを取得
-            const guardPartId = parts[guardEffect.partKey];
-            const guardPartData = QueryService.getPartData(world, guardPartId);
-            
-            if (!guardPartData || guardPartData.isBroken) continue;
-
-            potentialGuardians.push({
-                id: id,
-                partKey: guardEffect.partKey,
-                partHp: guardPartData.hp,
-                name: info.name,
-            });
-        }
-
-        if (potentialGuardians.length === 0) return null;
-        
-        potentialGuardians.sort((a, b) => b.partHp - a.partHp);
-        
-        return potentialGuardians[0];
     }
 
     static isValidTarget(world, targetId, partKey = null) {

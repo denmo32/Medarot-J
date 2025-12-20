@@ -1,12 +1,11 @@
 /**
  * @file DamageHandler.js
  * @description ダメージ計算と適用のロジック。
- * 貫通処理（再帰的なエフェクト生成）もここで行う。
  */
 import { EffectHandler } from './EffectHandler.js';
 import { ApplyEffect, EffectContext } from '../../components/effects/Effects.js';
-import { Parts } from '../../../components/index.js'; // Common Components
-import { ActiveEffects, IsGuarding } from '../../components/index.js'; // Battle Components
+import { Parts } from '../../../components/index.js'; // Common
+import { ActiveEffects, IsGuarding } from '../../components/index.js'; // Battle
 import { PartStatus } from '../../components/parts/PartComponents.js';
 import { EffectType } from '../../common/constants.js';
 import { PartInfo } from '../../../common/constants.js';
@@ -15,17 +14,17 @@ import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { CombatParameterBuilder } from '../../services/CombatParameterBuilder.js';
 import { QueryService } from '../../services/QueryService.js';
 import { VisualDefinitions } from '../../../data/visualDefinitions.js';
+import { TraitRegistry } from '../../definitions/traits/TraitRegistry.js';
+import { HookPhase } from '../../definitions/HookRegistry.js';
 
 export class DamageHandler extends EffectHandler {
     apply(world, effectEntityId, effect, context) {
         const { sourceId, targetId, partKey, outcome, attackingPart } = context;
 
         let finalDamage = effect.value || 0;
-        // 貫通時はエフェクトパラメータからクリティカル情報を引き継ぐ、通常時は命中判定結果を使用
         let isCritical = effect.isPenetration ? (effect.params?.isCritical || false) : outcome.isCritical;
         let isDefended = outcome.isDefended;
 
-        // 計算フェーズ (値が未設定の場合のみ計算)
         if (finalDamage === 0 && !effect.isPenetration) {
             const builder = new CombatParameterBuilder(world);
             const params = builder.buildDamageParams({
@@ -34,18 +33,15 @@ export class DamageHandler extends EffectHandler {
                 attackingPart,
                 outcome
             });
-            
             finalDamage = CombatCalculator.calculateDamage(params);
         }
 
-        // 適用フェーズ
         const targetPartsComponent = world.getComponent(targetId, Parts);
         if (!targetPartsComponent || targetPartsComponent[partKey] === null) {
             this.finish(world, effectEntityId, { value: 0 });
             return;
         }
 
-        // パーツIDを取得
         const partEntityId = targetPartsComponent[partKey];
         const partStatus = world.getComponent(partEntityId, PartStatus);
 
@@ -58,7 +54,6 @@ export class DamageHandler extends EffectHandler {
         const newHp = Math.max(0, oldHp - finalDamage);
         const actualDamage = oldHp - newHp;
         
-        // 状態更新
         partStatus.hp = newHp;
         
         let isPartBroken = false;
@@ -79,7 +74,6 @@ export class DamageHandler extends EffectHandler {
                 stateUpdates.push({ type: 'SetPlayerBroken', targetId });
             }
 
-            // ガードブレイク判定
             const activeEffects = world.getComponent(targetId, ActiveEffects);
             const isGuardingNow = world.getComponent(targetId, IsGuarding);
             if (isGuardingNow && activeEffects) {
@@ -108,40 +102,7 @@ export class DamageHandler extends EffectHandler {
             isHeal: false
         }));
 
-        // 貫通処理 (再帰的エフェクト生成)
         const overkillDamage = finalDamage - actualDamage;
-        if (isPartBroken && overkillDamage > 0 && effect.penetrates) {
-            // 頭部生存確認
-            const headStatus = world.getComponent(targetPartsComponent.head, PartStatus);
-            if (headStatus && !headStatus.isBroken) {
-                const nextTargetPartKey = QueryService.findRandomPenetrationTarget(
-                    world,
-                    targetId,
-                    partKey
-                );
-
-                if (nextTargetPartKey) {
-                    const nextEffectEntity = world.createEntity();
-                    world.addComponent(nextEffectEntity, new ApplyEffect({
-                        type: EffectType.DAMAGE,
-                        value: overkillDamage,
-                        calculation: effect.calculation,
-                        penetrates: true,
-                        isPenetration: true,
-                        params: { isCritical }
-                    }));
-                    world.addComponent(nextEffectEntity, new EffectContext({
-                        sourceId,
-                        targetId,
-                        partKey: nextTargetPartKey,
-                        parentId: context.parentId,
-                        outcome,
-                        attackingPart
-                    }));
-                }
-            }
-        }
-
         const resultData = {
             type: EffectType.DAMAGE,
             targetId,
@@ -156,8 +117,17 @@ export class DamageHandler extends EffectHandler {
             isPenetration: effect.isPenetration,
             overkillDamage,
             stateUpdates,
-            guardianInfo: context.guardianInfo // 必要に応じてコンテキストから引き継ぐ
+            guardianInfo: context.guardianInfo
         };
+
+        if (effect.penetrates) {
+            TraitRegistry.executeTraitLogic('PENETRATE', HookPhase.AFTER_EFFECT_APPLIED, {
+                world,
+                effectResult: resultData,
+                effectContext: context,
+                originalEffect: effect
+            });
+        }
 
         this.finish(world, effectEntityId, resultData);
     }
@@ -170,10 +140,7 @@ export class DamageHandler extends EffectHandler {
         if (resultData.isGuardBroken) messageKey = keys.guardBroken;
         else if (resultData.isPenetration) messageKey = keys.penetration;
         else if (resultData.isDefended) messageKey = keys.defended;
-        // GuardianInfoはResultDataには直接含まれない場合があるが、文脈上推定可能。
-        // ※厳密にはCombatResultSystemで集約されるが、単体EffectResultとしてはここで判定
         
-        // パーツ固有のオーバーライドがあれば優先 (例: 特定のパーツだけ特別なメッセージ)
         const overrideKey = visualConfig?.messageKey;
         if (overrideKey) messageKey = overrideKey;
 
