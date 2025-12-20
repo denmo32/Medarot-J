@@ -2,6 +2,7 @@
  * @file StateTransitionSystem.js
  * @description 状態遷移リクエスト処理システム。
  * 冗長な記述をマッピングとヘルパーメソッドで整理。
+ * 修正: 座標不整合（揺れ）を防ぐため、リクエスト処理時に状態タグを即時反映するよう変更。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -76,12 +77,38 @@ export class StateTransitionSystem extends System {
         return this.world.getComponent(entityId, TagClass) !== null;
     }
 
+    /**
+     * 状態タグの更新とゲージのアクティブ制御を即時実行するヘルパー
+     * @private
+     */
+    _applyStateTransition(targetId, newState) {
+        this._setStateTag(targetId, newState);
+
+        const gauge = this.world.getComponent(targetId, Gauge);
+        if (gauge) {
+            // ゲージのActive状態制御
+            const isActive = newState === PlayerStateType.SELECTED_CHARGING || 
+                             newState === PlayerStateType.CHARGING;
+            gauge.isActive = isActive;
+            
+            // 機能停止時はゲージ完全リセット
+            if (newState === PlayerStateType.BROKEN) {
+                this._resetGauge(targetId);
+            }
+        }
+
+        // ラインへのスナップ要求
+        if (newState === PlayerStateType.GUARDING || newState === PlayerStateType.READY_EXECUTE) {
+            this.world.addComponent(this.world.createEntity(), new SnapToActionLineRequest(targetId));
+        }
+    }
+
     // --- Core Logic Helpers ---
 
     _handleGaugeFull(targetId) {
         if (this._hasStateTag(targetId, IsCooldown)) {
             // 帰還完了 -> コマンド選択待機へ
-            this._requestTransition(targetId, PlayerStateType.READY_SELECT);
+            this._applyStateTransition(targetId, PlayerStateType.READY_SELECT);
             
             // AI/入力待ちキューへの登録
             const stateEntity = this.world.createEntity();
@@ -92,12 +119,8 @@ export class StateTransitionSystem extends System {
 
         } else if (this._hasStateTag(targetId, IsCharging)) {
             // 充填完了 -> 行動実行待機へ
-            this._requestTransition(targetId, PlayerStateType.READY_EXECUTE);
+            this._applyStateTransition(targetId, PlayerStateType.READY_EXECUTE);
         }
-    }
-
-    _requestTransition(targetId, newState) {
-        this.world.addComponent(this.world.createEntity(), new TransitionStateRequest(targetId, newState));
     }
 
     _resetGauge(targetId, options = {}) {
@@ -154,28 +177,7 @@ export class StateTransitionSystem extends System {
         const entities = this.getEntities(TransitionStateRequest);
         for (const entityId of entities) {
             const request = this.world.getComponent(entityId, TransitionStateRequest);
-            const { targetId, newState } = request;
-            
-            this._setStateTag(targetId, newState);
-
-            const gauge = this.world.getComponent(targetId, Gauge);
-            if (gauge) {
-                // ゲージのActive状態制御
-                const isActive = newState === PlayerStateType.SELECTED_CHARGING || 
-                                 newState === PlayerStateType.CHARGING;
-                gauge.isActive = isActive;
-                
-                // 機能停止時はゲージ完全リセット
-                if (newState === PlayerStateType.BROKEN) {
-                    this._resetGauge(targetId);
-                }
-            }
-
-            // ラインへのスナップ要求
-            if (newState === PlayerStateType.GUARDING || newState === PlayerStateType.READY_EXECUTE) {
-                this.world.addComponent(this.world.createEntity(), new SnapToActionLineRequest(targetId));
-            }
-            
+            this._applyStateTransition(request.targetId, request.newState);
             this.world.destroyEntity(entityId);
         }
     }
@@ -200,7 +202,8 @@ export class StateTransitionSystem extends System {
                 }
             }
             
-            this._requestTransition(targetId, PlayerStateType.CHARGING);
+            // 状態とゲージを即時更新（同一フレーム内で行うことで揺れを防ぐ）
+            this._applyStateTransition(targetId, PlayerStateType.CHARGING);
             
             // 中断時はゲージ反転、それ以外は0リセット
             this._resetGauge(targetId, { 
@@ -252,7 +255,7 @@ export class StateTransitionSystem extends System {
                 }
             }
 
-            this._requestTransition(targetId, PlayerStateType.CHARGING);
+            this._applyStateTransition(targetId, PlayerStateType.CHARGING);
             this._resetGauge(targetId, { speedMultiplier: nextSpeedMultiplier });
             this._clearAction(targetId);
             
@@ -266,7 +269,7 @@ export class StateTransitionSystem extends System {
             const request = this.world.getComponent(entityId, SetPlayerBrokenRequest);
             const { targetId } = request;
             
-            this._requestTransition(targetId, PlayerStateType.BROKEN);
+            this._applyStateTransition(targetId, PlayerStateType.BROKEN);
             this._clearAction(targetId);
 
             const playerInfo = this.world.getComponent(targetId, PlayerInfo);

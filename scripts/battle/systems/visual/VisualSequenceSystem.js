@@ -1,7 +1,7 @@
 /**
  * @file VisualSequenceSystem.js
  * @description 演出シーケンス生成システム。
- * 修正: メッセージテンプレート用のパラメータ（guardCount, duration等）を正しく構築するように修正。
+ * 修正: APPLY_GLITCH失敗時のメッセージキー解決ロジックを追加。
  */
 import { System } from '../../../../engine/core/System.js';
 import {
@@ -213,6 +213,8 @@ export class VisualSequenceSystem extends System {
             if (ctx.guardianInfo) return 'GUARDIAN_DAMAGE';
         } else if (effect.type === EffectType.HEAL && effect.value <= 0) {
             return 'HEAL_FAILED';
+        } else if (effect.type === EffectType.APPLY_GLITCH && effect.wasSuccessful === false) {
+            return 'INTERRUPT_GLITCH_FAILED';
         }
         return effectVisual.messageKey || effectVisual.templateId;
     }
