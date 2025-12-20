@@ -1,10 +1,12 @@
 /**
- * @file AI移動後ターゲティング戦略
+ * @file Unit AI: Post-Move Strategies
+ * @description 移動後のターゲット選定（格闘攻撃時など）の戦略。
+ * 旧 strategies/postMoveTargeting.js
  */
-import { QueryService } from '../../services/QueryService.js';
-import { TargetingService } from '../../services/TargetingService.js';
-import { TargetingStrategyKey } from '../strategyKeys.js';
-import { Position } from '../../components/index.js';
+import { QueryService } from '../../../services/QueryService.js';
+import { TargetingService } from '../../../services/TargetingService.js';
+import { TargetingStrategyKey } from '../../AIDefinitions.js';
+import { Position } from '../../../components/index.js';
 
 const findNearestEnemy = (world, attackerId) => {
     const attackerPos = world.getComponent(attackerId, Position);

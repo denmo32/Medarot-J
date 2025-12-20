@@ -1,16 +1,21 @@
 /**
- * @file AI性格レジストリ
+ * @file Unit AI: PersonalityRegistry
+ * @description メダルの性格ごとの思考ルーチン定義。
+ * Unit AI（ターゲット選択）とCommander AI（パーツ選択）の方針を紐付けます。
+ * 旧 personalityRegistry.js
  */
-import { MedalPersonality } from '../../common/constants.js';
-import { TargetingStrategyKey } from './targetingStrategies.js';
-import { PartSelectionStrategyKey } from './partSelectionStrategies.js';
-import { ConditionEvaluatorKey } from './conditionEvaluators.js';
+import { MedalPersonality } from '../../../common/constants.js';
+import { TargetingStrategyKey } from '../AIDefinitions.js';
+import { PartSelectionStrategyKey } from '../commander/PartStrategies.js';
+import { ConditionEvaluatorKey } from './Conditions.js';
 
 const basePersonality = {
+    // ターゲット決定後のパーツ選択方針 (Commander AIへの指示)
     partStrategyMap: {
         enemy: PartSelectionStrategyKey.POWER_FOCUS,
         ally: null,
     },
+    // ルーチンに合致しなかった場合のターゲット選択フォールバック
     fallbackTargeting: TargetingStrategyKey.RANDOM,
 };
 

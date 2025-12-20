@@ -1,7 +1,6 @@
 /**
  * @file TargetingSystem.js
  * @description ターゲット解決を行うシステム。
- * 戦略結果の正規化ロジックをTargetingServiceへ委譲し、Systemを簡素化。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -11,7 +10,7 @@ import {
 } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import { TargetingService } from '../../services/TargetingService.js';
-import { targetingStrategies } from '../../ai/targetingStrategies.js';
+import { targetingStrategies } from '../../ai/unit/strategies/index.js';
 import { CombatService } from '../../services/CombatService.js';
 import { EffectScope } from '../../common/constants.js';
 import { QueryService } from '../../services/QueryService.js';

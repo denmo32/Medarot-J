@@ -1,5 +1,7 @@
 /**
- * @file AI戦略キー定義
+ * @file AI定義定数
+ * @description AI関連の戦略キーなどの定数を一元管理します。
+ * 旧 strategyKeys.js
  */
 import { MedalPersonality } from '../../common/constants.js';
 

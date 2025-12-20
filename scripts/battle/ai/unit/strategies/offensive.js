@@ -1,14 +1,15 @@
 /**
- * @file AI攻撃系ターゲティング戦略
- * QueryServiceのインターフェース変更に対応（getPartData利用）。
+ * @file Unit AI: Offensive Strategies
+ * @description 攻撃的なターゲット選定ロジック（機動が高い敵を狙う、HPが低いパーツを狙うなど）。
+ * 旧 strategies/offensiveTargeting.js
  */
-import { PlayerInfo, Parts } from '../../../components/index.js';
-import { BattleLog } from '../../components/index.js';
-import { BattleHistoryContext } from '../../components/BattleHistoryContext.js';
-import { QueryService } from '../../services/QueryService.js';
-import { TargetingService } from '../../services/TargetingService.js';
-import { TargetingStrategyKey } from '../strategyKeys.js';
-import { PartInfo } from '../../../common/constants.js';
+import { PlayerInfo, Parts } from '../../../../components/index.js';
+import { BattleLog } from '../../../components/index.js';
+import { BattleHistoryContext } from '../../../components/BattleHistoryContext.js';
+import { QueryService } from '../../../services/QueryService.js';
+import { TargetingService } from '../../../services/TargetingService.js';
+import { TargetingStrategyKey } from '../../AIDefinitions.js';
+import { PartInfo } from '../../../../common/constants.js';
 
 const createEnemyTargetingStrategy = (logicFn) => {
     return ({ world, attackerId }) => {

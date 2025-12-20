@@ -1,8 +1,10 @@
 /**
- * @file AI支援系ターゲティング戦略
+ * @file Unit AI: Support Strategies
+ * @description 支援・回復行動時のターゲット選定戦略。
+ * 旧 strategies/supportTargeting.js
  */
-import { TargetingService } from '../../services/TargetingService.js';
-import { TargetingStrategyKey } from '../strategyKeys.js';
+import { TargetingService } from '../../../services/TargetingService.js';
+import { TargetingStrategyKey } from '../../AIDefinitions.js';
 
 const findMostDamagedStrategy = ({ world, attackerId }) => {
     const allies = TargetingService.getValidAllies(world, attackerId, true); 

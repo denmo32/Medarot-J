@@ -3,7 +3,7 @@
  * アクションごとの効果、ターゲットルール、計算パラメータを定義する。
  */
 import { TargetTiming, EffectType, EffectScope } from '../battle/common/constants.js';
-import { TargetingStrategyKey } from '../battle/ai/strategyKeys.js';
+import { TargetingStrategyKey } from '../battle/ai/AIDefinitions.js';
 
 export const ActionDefinitions = {
     // --- 射撃系 ---

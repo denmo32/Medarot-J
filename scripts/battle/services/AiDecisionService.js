@@ -1,8 +1,10 @@
 /**
  * @file AiDecisionService.js
- * @description AIの意思決定ロジック。
+ * @description AIの意思決定ロジックのエントリーポイント。
+ * Commander AI（ActionPlanner）とUnit AI（TargetSelector）を調整します。
  */
-import { determineTargetCandidatesByPersonality, selectBestActionPlan } from '../ai/aiDecisionUtils.js';
+import { determineTargetCandidatesByPersonality } from '../ai/unit/TargetSelector.js';
+import { selectBestActionPlan } from '../ai/commander/ActionPlanner.js';
 import { ActionService } from './ActionService.js';
 import { QueryService } from './QueryService.js';
 import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
@@ -19,6 +21,7 @@ export const AiDecisionService = {
     processAiTurn(world, entityId) {
         const context = { world, entityId };
 
+        // 1. Unit AI: 性格に基づいて誰を狙うか（候補）を決める
         const { candidates: targetCandidates, strategy: usedStrategy } = determineTargetCandidatesByPersonality(context);
 
         if (!targetCandidates || targetCandidates.length === 0) {
@@ -27,6 +30,7 @@ export const AiDecisionService = {
             return;
         }
 
+        // 2. 候補に基づいて可能なアクションプランを生成する
         const actionPlans = this.generateActionPlans(world, entityId, targetCandidates);
         
         if (actionPlans.length === 0) {
@@ -35,6 +39,7 @@ export const AiDecisionService = {
             return;
         }
 
+        // 3. Commander AI: 最適なパーツ（手段）を選ぶ
         const finalPlan = selectBestActionPlan({ ...context, actionPlans });
 
         if (!finalPlan) {
