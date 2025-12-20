@@ -2,8 +2,8 @@
  * @file アクション定義マスターデータ
  * アクションごとの効果、ターゲットルール、計算パラメータを定義する。
  */
-import { TargetTiming, EffectType, EffectScope } from '../common/constants.js';
-import { TargetingStrategyKey } from '../battle/ai/strategyKeys.js';
+import { TargetTiming, EffectType, EffectScope } from '../battle/common/constants.js';
+import { TargetingStrategyKey } from '../battle/ai/AIDefinitions.js';
 
 export const ActionDefinitions = {
     // --- 射撃系 ---
@@ -15,14 +15,19 @@ export const ActionDefinitions = {
         effects: [
             { 
                 type: EffectType.DAMAGE, 
-                // ダメージ計算パラメータ
                 calculation: {
-                    baseStat: 'success', // 命中判定の基準
-                    powerStat: 'might',  // 威力の基準
-                    defenseStat: 'armor', // 防御の基準
+                    baseStat: 'success',
+                    powerStat: 'might',
+                    defenseStat: 'armor',
                 }
             }
-        ]
+        ],
+        visuals: {
+            declaration: { messageKey: 'ATTACK_DECLARATION', animation: 'attack' },
+            effects: {
+                [EffectType.DAMAGE]: { messageKey: 'DAMAGE_APPLIED', showHpBar: true }
+            }
+        }
     },
 
     // --- 格闘系 ---
@@ -41,7 +46,13 @@ export const ActionDefinitions = {
                     defenseStat: 'armor',
                 }
             }
-        ]
+        ],
+        visuals: {
+            declaration: { messageKey: 'ATTACK_DECLARATION', animation: 'attack' },
+            effects: {
+                [EffectType.DAMAGE]: { messageKey: 'DAMAGE_APPLIED', showHpBar: true }
+            }
+        }
     },
 
     RECKLESS_STRIKE: {
@@ -57,10 +68,16 @@ export const ActionDefinitions = {
                 calculation: {
                     baseStat: 'success',
                     powerStat: 'might',
-                    defenseStat: 'armor', // がむしゃらは防御無視などの特性をここで指定可能
+                    defenseStat: 'armor',
                 }
             }
-        ]
+        ],
+        visuals: {
+            declaration: { messageKey: 'ATTACK_DECLARATION', animation: 'attack' },
+            effects: {
+                [EffectType.DAMAGE]: { messageKey: 'DAMAGE_APPLIED', showHpBar: true }
+            }
+        }
     },
 
     // --- 回復系 ---
@@ -73,12 +90,17 @@ export const ActionDefinitions = {
         effects: [
             { 
                 type: EffectType.HEAL, 
-                // 回復計算パラメータ
                 calculation: {
                     powerStat: 'might'
                 }
             }
-        ]
+        ],
+        visuals: {
+            declaration: { messageKey: 'SUPPORT_DECLARATION', animation: 'support' },
+            effects: {
+                [EffectType.HEAL]: { messageKey: 'HEAL_SUCCESS', showHpBar: true }
+            }
+        }
     },
     
     // --- 援護系 ---
@@ -90,14 +112,19 @@ export const ActionDefinitions = {
         effects: [
             { 
                 type: EffectType.APPLY_SCAN, 
-                // 効果パラメータ
                 params: {
                     duration: 3,
                     valueSource: 'might',
-                    valueFactor: 0.1 // 威力値の10%を加算
+                    valueFactor: 0.1
                 }
             }
-        ]
+        ],
+        visuals: {
+            declaration: { messageKey: 'SUPPORT_DECLARATION', animation: 'support' },
+            effects: {
+                [EffectType.APPLY_SCAN]: { messageKey: 'SUPPORT_SCAN_SUCCESS' }
+            }
+        }
     },
 
     // --- 妨害系 ---
@@ -109,7 +136,13 @@ export const ActionDefinitions = {
         targetScope: EffectScope.ENEMY_SINGLE,
         effects: [
             { type: EffectType.APPLY_GLITCH }
-        ]
+        ],
+        visuals: {
+            declaration: { messageKey: 'SUPPORT_DECLARATION', animation: 'support' },
+            effects: {
+                [EffectType.APPLY_GLITCH]: { messageKey: 'INTERRUPT_GLITCH_SUCCESS' }
+            }
+        }
     },
     
     // --- 防御系 ---
@@ -123,10 +156,16 @@ export const ActionDefinitions = {
                 type: EffectType.APPLY_GUARD, 
                 params: {
                     countSource: 'might',
-                    countFactor: 0.1 // 威力値の10%を回数とする
+                    countFactor: 0.1
                 }
             }
-        ]
+        ],
+        visuals: {
+            declaration: { messageKey: 'SUPPORT_DECLARATION', animation: 'support' },
+            effects: {
+                [EffectType.APPLY_GUARD]: { messageKey: 'DEFEND_GUARD_SUCCESS' }
+            }
+        }
     },
 };
 

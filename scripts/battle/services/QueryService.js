@@ -1,63 +1,152 @@
 /**
  * @file QueryService.js
  * @description 戦闘関連のエンティティやコンポーネントを検索・フィルタリングするサービス。
- * ECSのクエリ機能を補完するドメイン特化のヘルパー群。
+ * ECSの振る舞いコンポーネント（Behavior）に対応し、統合データを提供します。
  */
 import { Parts } from '../../components/index.js';
+import { 
+    PartStatus, PartStats, PartVisualConfig, 
+    ActionLogic, TargetingBehavior, AccuracyBehavior, ImpactBehavior,
+    TraitPenetrate, TraitCriticalBonus 
+} from '../components/parts/PartComponents.js';
 import { PartInfo } from '../../common/constants.js';
 
 export class QueryService {
 
     /**
-     * 推進力による比較関数を返す（ソート用）
+     * 指定されたパーツIDに対応するパーツエンティティの情報を統合して返す。
+     * 従来のデータ構造との互換性を保ちつつ、新しいBehaviorコンポーネントを反映。
      * @param {World} world 
+     * @param {number} partEntityId 
+     * @returns {object|null}
+     */
+    static getPartData(world, partEntityId) {
+        if (partEntityId === null || partEntityId === undefined) return null;
+
+        const status = world.getComponent(partEntityId, PartStatus);
+        const stats = world.getComponent(partEntityId, PartStats);
+        if (!status || !stats) return null;
+
+        const logic = world.getComponent(partEntityId, ActionLogic);
+        const targeting = world.getComponent(partEntityId, TargetingBehavior);
+        const accuracy = world.getComponent(partEntityId, AccuracyBehavior);
+        const impact = world.getComponent(partEntityId, ImpactBehavior);
+        
+        const penetrates = !!world.getComponent(partEntityId, TraitPenetrate);
+        const critBonus = world.getComponent(partEntityId, TraitCriticalBonus);
+
+        return {
+            // Stats
+            name: stats.name,
+            might: stats.might,
+            success: stats.success,
+            armor: stats.armor,
+            mobility: stats.mobility,
+            propulsion: stats.propulsion,
+            stability: stats.stability,
+            defense: stats.defense,
+
+            // Status
+            hp: status.hp,
+            maxHp: status.maxHp,
+            isBroken: status.isBroken,
+
+            // Behaviors
+            actionType: logic?.type,
+            action: stats.action,
+            type: stats.type, // 追加
+            isSupport: logic?.isSupport || false,
+
+            targetTiming: targeting?.timing,
+            targetScope: targeting?.scope,
+            postMoveTargeting: targeting?.autoStrategy,
+
+            accuracyType: accuracy?.type,
+            effects: impact?.effects || [],
+
+            // Traits
+            penetrates: penetrates,
+            criticalBonus: critBonus ? critBonus.rate : 0,
+            trait: stats.trait, // 追加
+
+            id: partEntityId,
+        };
+    }
+
+    /**
+     * パーツの演出設定を取得する
+     */
+    static getPartVisualConfig(world, partEntityId) {
+        if (partEntityId === null || partEntityId === undefined) return null;
+        return world.getComponent(partEntityId, PartVisualConfig);
+    }
+
+    /**
+     * 指定したパーツエンティティのステータスコンポーネントのみを取得する（軽量版）
+     */
+    static getPartStats(world, partEntityId) {
+        if (partEntityId === null || partEntityId === undefined) return null;
+        return world.getComponent(partEntityId, PartStats);
+    }
+
+    /**
+     * 指定したパーツエンティティの特定のステータス値のみを取得する
+     */
+    static getPartStat(world, partEntityId, statName) {
+        const stats = this.getPartStats(world, partEntityId);
+        return stats ? (stats[statName] || 0) : 0;
+    }
+
+    /**
+     * 推進力による比較関数（ソート用）
      */
     static compareByPropulsion(world) {
         return (entityA, entityB) => {
             const partsA = world.getComponent(entityA, Parts);
             const partsB = world.getComponent(entityB, Parts);
-
-            const propulsionA = partsA?.legs?.propulsion || 0;
-            const propulsionB = partsB?.legs?.propulsion || 0;
-
-            return propulsionB - propulsionA;
+            const propA = this.getPartStat(world, partsA?.legs, 'propulsion');
+            const propB = this.getPartStat(world, partsB?.legs, 'propulsion');
+            return propB - propA;
         };
     }
 
-    // ヘルパー: パーツリストを取得
-    static _getPartEntries(world, entityId) {
-        if (!world || entityId == null) return [];
-        const parts = world.getComponent(entityId, Parts);
-        return parts ? Object.entries(parts) : [];
-    }
-
     /**
-     * 指定エンティティのパーツ一覧を取得する
+     * 指定エンティティのパーツ一覧を取得
      */
     static getParts(world, entityId, includeBroken = false, attackableOnly = true) {
+        const parts = world.getComponent(entityId, Parts);
+        if (!parts) return [];
+
         const attackableKeys = new Set([PartInfo.HEAD.key, PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key]);
+        const entries = [
+            ['head', parts.head],
+            ['rightArm', parts.rightArm],
+            ['leftArm', parts.leftArm],
+            ['legs', parts.legs]
+        ];
         
-        return this._getPartEntries(world, entityId)
-            .filter(([key, part]) => 
-                part && 
+        return entries
+            .map(([key, id]) => ({ key, id, data: this.getPartData(world, id) }))
+            .filter(({ key, data }) => 
+                data && 
                 (!attackableOnly || attackableKeys.has(key)) && 
-                (includeBroken || !part.isBroken)
-            );
+                (includeBroken || !data.isBroken)
+            )
+            .map(item => [item.key, item.data]);
     }
 
     /**
-     * 攻撃可能なパーツ一覧を取得する（頭部破壊時は空）
+     * 攻撃可能なパーツ一覧を取得（頭部破壊時は空）
      */
     static getAttackableParts(world, entityId) {
         const parts = world.getComponent(entityId, Parts);
-        if (parts?.head?.isBroken) {
-            return [];
-        }
+        const headStatus = world.getComponent(parts?.head, PartStatus);
+        if (!headStatus || headStatus.isBroken) return [];
         return this.getParts(world, entityId, false, true);
     }
 
     /**
-     * アクション可能な全パーツ一覧を取得する（破壊済み含む）
+     * アクション可能な全パーツ一覧を取得（UI表示用）
      */
     static getAllActionParts(world, entityId) {
         return this.getParts(world, entityId, true, true);
@@ -67,28 +156,19 @@ export class QueryService {
      * 防御に最適なパーツ（HP最大）を探す
      */
     static findBestDefensePart(world, entityId) {
-        const defendableParts = this._getPartEntries(world, entityId)
-            .filter(([key, part]) => key !== PartInfo.HEAD.key && part && !part.isBroken)
-            .sort(([, a], [, b]) => b.hp - a.hp);
-
-        return defendableParts.length > 0 ? defendableParts[0][0] : null;
-    }
-
-    // 共通化されたランダム選択ヘルパー
-    static _selectRandomPartKey(world, entityId, filterFn = () => true) {
         const parts = world.getComponent(entityId, Parts);
-        if (!parts || parts.head?.isBroken) return null;
+        if (!parts) return null;
 
-        const validKeys = Object.keys(parts).filter(key => 
-            parts[key] && !parts[key].isBroken && filterFn(key)
-        );
+        const candidates = ['rightArm', 'leftArm', 'legs']
+            .map(key => ({ key, status: world.getComponent(parts[key], PartStatus) }))
+            .filter(({ status }) => status && !status.isBroken)
+            .sort((a, b) => b.status.hp - a.status.hp);
 
-        if (validKeys.length === 0) return null;
-        return validKeys[Math.floor(Math.random() * validKeys.length)];
+        return candidates.length > 0 ? candidates[0].key : null;
     }
 
     /**
-     * ランダムなパーツを選択する
+     * ランダムなパーツを選択する（AI思考で使用）
      */
     static selectRandomPart(world, entityId) {
         const partKey = this._selectRandomPartKey(world, entityId);
@@ -99,34 +179,51 @@ export class QueryService {
      * 貫通対象となるランダムなパーツを選択する（指定パーツ以外）
      */
     static findRandomPenetrationTarget(world, entityId, excludedPartKey) {
-        return this._selectRandomPartKey(world, entityId, key => key !== excludedPartKey);
+        const partKey = this._selectRandomPartKey(world, entityId, key => key !== excludedPartKey);
+        return partKey;
     }
 
     /**
-     * 候補エンティティ群から全ての生存パーツをリスト化して取得する
+     * 共通化されたランダムパーツキー選択ヘルパー
+     * @private
+     */
+    static _selectRandomPartKey(world, entityId, filterFn = () => true) {
+        const parts = world.getComponent(entityId, Parts);
+        if (!parts) return null;
+        
+        // 頭部が壊れている場合は何もできない
+        const headStatus = world.getComponent(parts.head, PartStatus);
+        if (!headStatus || headStatus.isBroken) return null;
+
+        const validKeys = Object.entries(parts)
+            .filter(([key, id]) => {
+                const status = world.getComponent(id, PartStatus);
+                return status && !status.isBroken && filterFn(key);
+            })
+            .map(([key]) => key);
+
+        if (validKeys.length === 0) return null;
+        return validKeys[Math.floor(Math.random() * validKeys.length)];
+    }
+
+    /**
+     * 候補エンティティ群から生存パーツをリスト化して取得（AI用）
      */
     static getAllPartsFromCandidates(world, candidateIds) {
         if (!candidateIds) return [];
-        
         return candidateIds.flatMap(id => {
             const parts = world.getComponent(id, Parts);
-            if (!parts || parts.head?.isBroken) return [];
+            if (!parts) return [];
+            const headStatus = world.getComponent(parts.head, PartStatus);
+            if (!headStatus || headStatus.isBroken) return [];
             
             return Object.entries(parts)
-                .filter(([_, part]) => part && !part.isBroken)
-                .map(([key, part]) => ({ entityId: id, partKey: key, part }));
+                .map(([key, partId]) => ({ 
+                    entityId: id, 
+                    partKey: key, 
+                    part: this.getPartData(world, partId) 
+                }))
+                .filter(item => item.part && !item.part.isBroken);
         });
-    }
-
-    /**
-     * 条件に基づいてパーツを選択し、ターゲット情報として返す
-     */
-    static selectPartByCondition(world, candidates, sortFn) {
-        const allParts = this.getAllPartsFromCandidates(world, candidates);
-        if (allParts.length === 0) return null;
-        
-        allParts.sort(sortFn);
-        const selectedPart = allParts[0];
-        return { targetId: selectedPart.entityId, targetPartKey: selectedPart.partKey };
     }
 }

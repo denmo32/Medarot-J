@@ -26,12 +26,4 @@ export class Gauge {
         /** @type {Set<string>} */
         this.statusFlags = new Set();
     }
-
-    /**
-     * ゲージが強制停止状態か判定する
-     * @returns {boolean}
-     */
-    isFrozen() {
-        return this.statusFlags.has('FROZEN') || this.statusFlags.has('STOPPED');
-    }
 }

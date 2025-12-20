@@ -1,37 +1,37 @@
 /**
  * @file ECS (Entity-Component-System) の中核クラス
- * @description エンティティ、コンポーネント、システムの管理とオーケストレーションを行います。
- * Queryシステム導入によるパフォーマンス最適化版。Mapによるクエリキャッシュに対応。
+ * @description エンティティ、コンポーネント、システムの管理を行います。
+ * イベントバス(EventManager)を削除し、純粋なデータ駆動アーキテクチャを強制します。
  */
-import { EventEmitter } from '../event/EventEmitter.js';
 import { Query } from './Query.js';
 
-export class World extends EventEmitter {
+export class World {
     constructor() {
-        super();
-
         // key: entityId, value: Set<ComponentClass>
         this.entities = new Map();
         this.nextEntityId = 0;
-
-        // key: ComponentClass, value: Map<entityId, componentInstance>
-        this.components = new Map();
-
+        
+        // key: componentId (number), value: ComponentClass
+        this.componentClasses = new Map();
+        
         // --- System Storage ---
         this.systems = [];
-
+        
         // --- Query Storage ---
-        // key: querySignature (string), value: Query
+        // key: componentIdSignature (string), value: Query
         this.queries = new Map();
-
-        // --- Component ID Management (Minification Safety) ---
+        
+        // --- Component ID Management ---
         // key: ComponentClass, value: number (unique ID)
         this.componentIdMap = new Map();
         this.nextComponentId = 0;
+        
+        // --- 高速アクセス用マッピング ---
+        // key: componentId, value: { entities: Set<number>, components: Map<number, any> }
+        this.componentRegistry = new Map();
     }
-
+    
     // === Component ID Management ===
-
     /**
      * コンポーネントクラスに対する一意な内部IDを取得または発行する
      * @param {Function} componentClass 
@@ -39,119 +39,141 @@ export class World extends EventEmitter {
      */
     _getComponentId(componentClass) {
         if (!this.componentIdMap.has(componentClass)) {
-            this.componentIdMap.set(componentClass, this.nextComponentId++);
+            const id = this.nextComponentId++;
+            this.componentIdMap.set(componentClass, id);
+            this.componentClasses.set(id, componentClass);
+            // レジストリの初期化
+            this.componentRegistry.set(id, {
+                entities: new Set(),
+                components: new Map()
+            });
         }
         return this.componentIdMap.get(componentClass);
     }
-
+    
     // === Entity and Component Methods ===
-
     createEntity() {
         const entityId = this.nextEntityId++;
         this.entities.set(entityId, new Set());
         return entityId;
     }
-
+    
     addComponent(entityId, component) {
         const componentClass = component.constructor;
+        const componentId = this._getComponentId(componentClass);
+
         const entityComponents = this.entities.get(entityId);
-        
         if (!entityComponents) {
-            console.error(`Attempted to add component to non-existent entity ${entityId}`);
-            return;
+            throw new Error(`Attempted to add component to non-existent entity ${entityId}`);
         }
-
-        const isNew = !entityComponents.has(componentClass);
+        
         entityComponents.add(componentClass);
-
-        if (!this.components.has(componentClass)) {
-            this.components.set(componentClass, new Map());
-        }
-        this.components.get(componentClass).set(entityId, component);
-
+        
+        // コンポーネントレジストリへの登録
+        const registry = this.componentRegistry.get(componentId);
+        registry.entities.add(entityId);
+        registry.components.set(entityId, component);
+        
         // クエリの更新
-        this._updateQueries(entityId);
+        this._updateQueriesForComponent(entityId, componentId, true);
     }
-
+    
     getComponent(entityId, componentClass) {
-        return this.components.get(componentClass)?.get(entityId);
+        const componentId = this.componentIdMap.get(componentClass);
+        if (componentId === undefined) return null;
+        
+        const registry = this.componentRegistry.get(componentId);
+        if (!registry) return null;
+        
+        return registry.components.get(entityId) || null;
     }
-
+    
     removeComponent(entityId, componentClass) {
+        const componentId = this.componentIdMap.get(componentClass);
+        if (componentId === undefined) return;
+        
         const entityComponents = this.entities.get(entityId);
         if (entityComponents && entityComponents.has(componentClass)) {
             entityComponents.delete(componentClass);
             
-            if (this.components.has(componentClass)) {
-                this.components.get(componentClass).delete(entityId);
-            }
+            // コンポーネントレジストリからの削除
+            const registry = this.componentRegistry.get(componentId);
+            registry.entities.delete(entityId);
+            registry.components.delete(entityId);
             
             // クエリの更新
-            this._updateQueries(entityId);
+            this._updateQueriesForComponent(entityId, componentId, false);
         }
     }
-
+    
+    /**
+     * シングルトンコンポーネント（TagやManager等）の取得
+     * @param {Function} componentClass 
+     * @returns {Object|null}
+     */
     getSingletonComponent(componentClass) {
-        const componentMap = this.components.get(componentClass);
-        if (!componentMap || componentMap.size === 0) {
+        const componentId = this.componentIdMap.get(componentClass);
+        if (componentId === undefined) return null;
+        
+        const registry = this.componentRegistry.get(componentId);
+        if (!registry || registry.entities.size === 0) {
             return null;
         }
-        return componentMap.values().next().value;
+        
+        // 最初に見つかったコンポーネントを返す
+        const firstEntityId = registry.entities.values().next().value;
+        return registry.components.get(firstEntityId) || null;
     }
-
+    
     /**
      * コンポーネントの組み合わせを指定してエンティティを取得します。
-     * O(1) でキャッシュされたクエリを取得します。
      * @param  {...Function} componentClasses
      * @returns {number[]}
      */
     getEntitiesWith(...componentClasses) {
-        // クエリ署名の生成
-        // クラス名(c.name)ではなく、実行時に割り当てた一意なIDを使用する。
-        // これによりMinificationでクラス名が変わっても、同一実行環境内での一意性が保たれる。
-        const signature = componentClasses
-            .map(c => this._getComponentId(c))
-            .sort((a, b) => a - b) // IDで数値ソート
-            .join('|');
-
+        // 署名の生成
+        const componentIds = componentClasses.map(c => this._getComponentId(c)).sort((a, b) => a - b);
+        const signature = componentIds.join('|');
+        
         let query = this.queries.get(signature);
-
         // なければ作成
         if (!query) {
-            query = new Query(this, componentClasses);
+            query = new Query(this, componentClasses, componentIds);
             this.queries.set(signature, query);
         }
-
         return query.getEntities();
     }
-
+    
     destroyEntity(entityId) {
         const componentClasses = this.entities.get(entityId);
         if (componentClasses) {
+            // 全てのコンポーネントを削除
             for (const componentClass of componentClasses) {
-                this.components.get(componentClass)?.delete(entityId);
+                this.removeComponent(entityId, componentClass);
             }
         }
         this.entities.delete(entityId);
-
+        
         // クエリから削除
         for (const query of this.queries.values()) {
             query.onEntityRemoved(entityId);
         }
     }
-
-    _updateQueries(entityId) {
-        for (const query of this.queries.values()) {
-            query.onEntityUpdated(entityId);
+    
+    _updateQueriesForComponent(entityId, componentId, isAdded) {
+        // 単純な部分一致検索ではなく、IDが含まれるか厳密にチェック（Queryクラス側で詳細判定）
+        for (const [, query] of this.queries) {
+             if (query.componentIds.has(componentId)) {
+                query.onEntityComponentUpdated(entityId, componentId, isAdded);
+             }
         }
     }
-
+    
     // === System Methods ===
-
     registerSystem(system) {
         this.systems.push(system);
     }
-
+    
     update(deltaTime) {
         for (const system of this.systems) {
             if (system.execute) {
@@ -161,21 +183,22 @@ export class World extends EventEmitter {
             }
         }
     }
-
+    
     reset() {
         for (const system of this.systems) {
             if (system.destroy) {
                 system.destroy();
             }
         }
-        
-        this.clearListeners();
         this.systems = [];
+        
         this.entities.clear();
-        this.components.clear();
-        this.queries.clear();
-        this.nextEntityId = 0;
+        this.componentRegistry.clear();
+        this.componentClasses.clear();
         this.componentIdMap.clear();
+        this.queries.clear();
+        
+        this.nextEntityId = 0;
         this.nextComponentId = 0;
     }
 }

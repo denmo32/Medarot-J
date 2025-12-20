@@ -3,7 +3,8 @@
  * @description カスタマイズシーンのDOM操作を担当するクラス。
  */
 import { el } from '../../../engine/utils/DOMUtils.js';
-import { PartKeyToInfoMap, EquipSlotType } from '../../common/constants.js';
+import { PartKeyToInfoMap } from '../../common/constants.js';
+import { EquipSlotType } from '../common/constants.js';
 
 export class CustomizeUIManager {
     constructor() {

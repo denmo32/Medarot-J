@@ -1,92 +1,105 @@
+/**
+ * @file EffectSystem.js
+ * @description エフェクト（バフ・デバフ）の持続時間管理と定期更新を行うシステム。
+ * GameState依存を削除し、タグコンポーネント(IsGuarding)のチェックへ修正。
+ */
 import { System } from '../../../../engine/core/System.js';
-import { ActiveEffects, GameState } from '../../components/index.js';
-import { GameEvents } from '../../../common/events.js';
-import { PlayerStateType } from '../../common/constants.js';
-import { EffectType } from '../../../common/constants.js';
-import { EffectRegistry } from '../../definitions/EffectRegistry.js';
+import { ActiveEffects, IsGuarding } from '../../components/index.js';
+import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
+import {
+    TurnEndedSignal,
+    EffectExpiredEvent
+} from '../../components/Requests.js';
+import { EffectType } from '../../common/constants.js';
 
 export class EffectSystem extends System {
     constructor(world) {
         super(world);
-        this.on(GameEvents.TURN_END, this.onTurnEnd.bind(this));
     }
 
-    /**
-     * 毎フレームの更新処理
-     * @param {number} deltaTime 
-     */
     update(deltaTime) {
-        const entities = this.getEntities(ActiveEffects);
-        
-        for (const entityId of entities) {
-            const activeEffects = this.world.getComponent(entityId, ActiveEffects);
-            
-            // 各エフェクトに対して更新処理を委譲
-            activeEffects.effects.forEach(effect => {
-                const result = EffectRegistry.update(effect.type, {
-                    world: this.world,
-                    entityId,
-                    effect,
-                    deltaTime
-                });
+        // 1. ターン終了シグナルの監視
+        this._checkTurnEndSignal();
 
-                // 時間経過処理による副作用のハンドリング
-                if (result) {
-                    if (result.damage > 0) {
-                        this.world.emit(GameEvents.HP_UPDATED, {
-                            entityId,
-                            partKey: effect.partKey,
-                            change: -result.damage,
-                            isHeal: false,
-                            ...result // oldHp, newHpなどが含まれる場合
-                        });
-                    }
-                    if (result.message) {
-                        this.world.emit(GameEvents.SHOW_MODAL, {
-                            type: 'MESSAGE',
-                            data: { message: result.message },
-                            immediate: true
-                        });
-                    }
-                }
-            });
+        // 2. エフェクトの毎フレーム更新処理
+        // 必要に応じて実装
+    }
+
+    _checkTurnEndSignal() {
+        const signals = this.getEntities(TurnEndedSignal);
+        if (signals.length > 0) {
+            // ターン終了処理の実行
+            const allEntities = this.getEntities(ActiveEffects);
+            allEntities.forEach(id => this._processTurnEndForEntity(id));
+
+            // シグナルを消費（エンティティ削除）
+            for (const id of signals) {
+                this.world.destroyEntity(id);
+            }
         }
     }
 
-    onTurnEnd(detail) {
-        const allEntities = this.getEntities(ActiveEffects);
-        allEntities.forEach(id => this._updateEffectsForEntity(id));
-    }
-
-    _updateEffectsForEntity(entityId) {
+    _processTurnEndForEntity(entityId) {
         const activeEffects = this.world.getComponent(entityId, ActiveEffects);
         if (!activeEffects || activeEffects.effects.length === 0) {
             return;
         }
 
+        const effectsToRemove = [];
         const nextEffects = [];
 
         for (const effect of activeEffects.effects) {
-            if (effect.duration > 0) {
-                effect.duration--;
+            let isExpired = false;
+            const updatedEffect = { ...effect };
+
+            // 持続時間の減算
+            if (updatedEffect.duration > 0 && updatedEffect.duration !== Infinity) {
+                updatedEffect.duration--;
             }
 
-            if (effect.duration === undefined || effect.duration > 0 || effect.duration === Infinity) {
-                nextEffects.push(effect);
-            } else {
-                this.world.emit(GameEvents.EFFECT_EXPIRED, { entityId, effect });
+            if (updatedEffect.duration !== undefined && updatedEffect.duration <= 0 && updatedEffect.duration !== Infinity) {
+                isExpired = true;
+            }
+
+            if (isExpired) {
+                effectsToRemove.push(effect);
                 
-                const gameState = this.world.getComponent(entityId, GameState);
-                if (effect.type === EffectType.APPLY_GUARD && gameState?.state === PlayerStateType.GUARDING) {
-                    this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
-                        type: 'RESET_TO_COOLDOWN',
-                        targetId: entityId,
-                        options: {}
-                    }]);
+                // 期限切れイベントコンポーネントを生成 (ログ用)
+                const evt = this.world.createEntity();
+                this.world.addComponent(evt, new EffectExpiredEvent(entityId, updatedEffect));
+                
+                // ガード解除時の特別処理
+                // IsGuardingタグを持っているか確認
+                if (updatedEffect.type === EffectType.APPLY_GUARD && this.world.getComponent(entityId, IsGuarding)) {
+                    const req = this.world.createEntity();
+                    this.world.addComponent(req, new ResetToCooldownRequest(entityId, {}));
                 }
+            } else {
+                nextEffects.push(updatedEffect);
             }
         }
-
-        activeEffects.effects = nextEffects;
+        
+        // 状態更新リクエストの発行
+        if (effectsToRemove.length > 0) {
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new CustomUpdateComponentRequest(
+                entityId,
+                ActiveEffects,
+                (ae) => {
+                    // 現在の状態に対してフィルタリングを行う
+                    ae.effects = ae.effects.filter(e => !effectsToRemove.includes(e));
+                }
+            ));
+        } else if (nextEffects.length !== activeEffects.effects.length) {
+            // 単純な置換で済む場合
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new CustomUpdateComponentRequest(
+                entityId,
+                ActiveEffects,
+                (ae) => {
+                    ae.effects = nextEffects;
+                }
+            ));
+        }
     }
 }

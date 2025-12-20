@@ -1,5 +1,5 @@
 import { System } from '../../../engine/core/System.js';
-import * as MapComponents from '../components.js';
+import * as MapComponents from '../MapComponents.js'; // パス修正
 
 export class RenderSystem extends System {
     constructor(world, renderer, map, camera) {

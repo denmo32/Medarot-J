@@ -1,14 +1,15 @@
 /**
  * @file PlayerRenderer.js
- * @description Web Componentsを利用するように刷新。
- * ガード表示ロジック。
+ * @description プレイヤーのDOM描画ロジック。
+ * 脚部パーツが表示されるようにQueryServiceの引数を修正。
  */
 import { el } from '../../../../../engine/utils/DOMUtils.js';
 import { CONFIG } from '../../../common/config.js';
-import { TeamID, PartInfo, EffectType } from '../../../../common/constants.js';
-import { PlayerStateType } from '../../../common/constants.js';
-import { GameState, ActiveEffects } from '../../../components/index.js';
-import { Parts, PlayerInfo } from '../../../../components/index.js';
+import { TeamID, PartInfo } from '../../../../common/constants.js';
+import { EffectType } from '../../../common/constants.js';
+import { PlayerInfo, Parts } from '../../../../components/index.js';
+import { ActiveEffects, IsCharging, IsReadyToExecute, IsGuarding, IsBroken, IsReadyToSelect } from '../../../components/index.js';
+import { QueryService } from '../../../services/QueryService.js';
 import '../../../ui/components/GameHealthBar.js';
 
 export class PlayerRenderer {
@@ -19,10 +20,8 @@ export class PlayerRenderer {
         this.uiManager = uiManager;
     }
 
-    // guardIndicatorElementへの参照保持は確認済みとします。
     create(entityId, visual) {
         const playerInfo = this.world.getComponent(entityId, PlayerInfo);
-        const parts = this.world.getComponent(entityId, Parts);
         
         const homeX = playerInfo.teamId === TeamID.TEAM1
             ? CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM1
@@ -64,14 +63,21 @@ export class PlayerRenderer {
             el('div', { className: 'player-name', textContent: playerInfo.name })
         ]);
 
+        // パーツデータの取得
+        // attackableOnly=false にして脚部も含める
+        const partsList = QueryService.getParts(this.world, entityId, true, false);
+
         [PartInfo.HEAD, PartInfo.RIGHT_ARM, PartInfo.LEFT_ARM, PartInfo.LEGS].forEach(info => {
             const key = info.key;
-            const part = parts[key];
-            if (part) {
+            // partsListは [ [key, data], ... ] の配列
+            const partEntry = partsList.find(([k]) => k === key);
+            
+            if (partEntry) {
+                const partData = partEntry[1];
                 const healthBar = document.createElement('game-health-bar');
                 healthBar.setAttribute('label', info.icon);
-                healthBar.setAttribute('current', part.hp);
-                healthBar.setAttribute('max', part.maxHp);
+                healthBar.setAttribute('current', partData.hp);
+                healthBar.setAttribute('max', partData.maxHp);
                 
                 infoPanel.appendChild(healthBar);
                 partDOMElements[key] = healthBar;
@@ -99,8 +105,6 @@ export class PlayerRenderer {
         this._updateIconClasses(visual, domElements.iconElement, cache, domElements.targetIndicatorElement);
         this._updatePartsInfo(visual, domElements.partDOMElements, cache);
         this._updateStateAppearance(entityId, domElements, cache);
-        
-        // ガードインジケーターの更新
         this._updateGuardIndicator(entityId, domElements);
     }
 
@@ -147,17 +151,28 @@ export class PlayerRenderer {
     }
 
     _updateStateAppearance(entityId, domElements, cache) {
-        const gameState = this.world.getComponent(entityId, GameState);
         const icon = domElements.iconElement;
-        if (gameState && icon && cache.state !== gameState.state) {
-            cache.state = gameState.state;
-            icon.classList.toggle('broken', gameState.state === PlayerStateType.BROKEN);
-            switch (gameState.state) {
-                case PlayerStateType.SELECTED_CHARGING:
+        if (!icon) return;
+
+        let stateKey = 'default';
+        if (this.world.getComponent(entityId, IsBroken)) stateKey = 'broken';
+        else if (this.world.getComponent(entityId, IsGuarding)) stateKey = 'guarding';
+        else if (this.world.getComponent(entityId, IsReadyToExecute)) stateKey = 'ready_execute';
+        else if (this.world.getComponent(entityId, IsCharging)) stateKey = 'charging';
+        else if (this.world.getComponent(entityId, IsReadyToSelect)) stateKey = 'ready_select';
+
+        if (cache.state !== stateKey) {
+            cache.state = stateKey;
+
+            if (stateKey === 'broken') return;
+
+            switch (stateKey) {
+                case 'charging':
                     icon.style.borderColor = '#f6ad55'; break;
-                case PlayerStateType.CHARGING:
-                    icon.style.borderColor = '#4fd1c5'; break;
-                case PlayerStateType.READY_EXECUTE:
+                case 'ready_select': 
+                    icon.style.borderColor = '#4fd1c5'; break; 
+                case 'ready_execute':
+                case 'guarding':
                     icon.style.borderColor = 'var(--color-white)'; break;
                 default:
                     icon.style.borderColor = 'var(--color-border-primary)'; break;
@@ -173,11 +188,9 @@ export class PlayerRenderer {
             const guardEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_GUARD);
             const count = guardEffect && guardEffect.count > 0 ? guardEffect.count : 0;
             
-            // DOM更新
             const displayStyle = count > 0 ? 'block' : 'none';
             const displayText = count > 0 ? `🛡${count}` : '';
 
-            // 頻繁な書き換えを防ぐチェックはDOMのプロパティで行う
             if (guardIndicator.style.display !== displayStyle) guardIndicator.style.display = displayStyle;
             if (guardIndicator.textContent !== displayText) guardIndicator.textContent = displayText;
         }

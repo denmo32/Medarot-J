@@ -1,20 +1,35 @@
+/**
+ * @file BattleHistorySystem.js
+ * @description 戦闘履歴記録。
+ */
 import { System } from '../../../../engine/core/System.js';
-import { BattleContext } from '../../components/BattleContext.js'; // 修正
-import { BattleLog } from '../../components/index.js';
+import { BattleHistoryContext } from '../../components/BattleHistoryContext.js';
+import { BattleLog, CombatResult } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
-import { GameEvents } from '../../../common/events.js';
-import { EffectType } from '../../../common/constants.js';
+import { EffectType } from '../../common/constants.js';
 
 export class BattleHistorySystem extends System {
     constructor(world) {
         super(world);
-        this.battleContext = this.world.getSingletonComponent(BattleContext);
-        this.on(GameEvents.COMBAT_SEQUENCE_RESOLVED, this.onCombatSequenceResolved.bind(this));
     }
 
-    onCombatSequenceResolved(detail) {
-        const { attackerId, appliedEffects, attackingPart } = detail;
+    update(deltaTime) {
+        const entities = this.getEntities(CombatResult);
         
+        for (const entityId of entities) {
+            const result = this.world.getComponent(entityId, CombatResult);
+            if (!result || !result.data) continue;
+
+            this._recordHistory(result.data);
+        }
+    }
+
+    _recordHistory(detail) {
+        const battleHistoryContext = this.world.getSingletonComponent(BattleHistoryContext);
+        const { attackerId, appliedEffects, attackingPart } = detail;
+
+        if (!appliedEffects || appliedEffects.length === 0) return;
+
         const mainEffect = appliedEffects.find(e => e.type === EffectType.DAMAGE || e.type === EffectType.HEAL);
         if (!mainEffect) return;
 
@@ -39,11 +54,11 @@ export class BattleHistorySystem extends System {
         if (!attackerInfo || !targetInfo) return;
 
         if (!attackingPart.isSupport && mainEffect.type === EffectType.DAMAGE) {
-            this.battleContext.history.teamLastAttack[attackerInfo.teamId] = { targetId, partKey };
+            battleHistoryContext.history.teamLastAttack[attackerInfo.teamId] = { targetId, partKey };
         }
 
         if (targetInfo.isLeader && !attackingPart.isSupport && mainEffect.type === EffectType.DAMAGE) {
-            this.battleContext.history.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
+            battleHistoryContext.history.leaderLastAttackedBy[targetInfo.teamId] = attackerId;
         }
     }
 }

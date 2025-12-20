@@ -1,66 +1,82 @@
+/**
+ * @file WinConditionSystem.js
+ * @description 勝敗判定。
+ * パーツIDの参照を修正。
+ */
 import { System } from '../../../../engine/core/System.js';
-import { GameEvents } from '../../../common/events.js';
-import { PlayerInfo } from '../../../components/index.js';
+import { PlayerInfo, Parts } from '../../../components/index.js';
 import { TeamID } from '../../../common/constants.js';
 import { BattlePhase } from '../../common/constants.js';
-import { BattleContext } from '../../components/BattleContext.js'; // 修正
-import { TargetingService } from '../../services/TargetingService.js';
+import { BattleFlowState, BattleSequenceState, SequencePending } from '../../components/index.js';
+import { QueryService } from '../../services/QueryService.js';
 
 export class WinConditionSystem extends System {
     constructor(world) {
         super(world);
-        this.battleContext = this.world.getSingletonComponent(BattleContext);
-        this.brokenEventsQueue = [];
-
-        this.on(GameEvents.PLAYER_BROKEN, this.onPlayerBroken.bind(this));
-        
-        // シーケンス完了時に判定を行う
-        this.on(GameEvents.ACTION_SEQUENCE_COMPLETED, this.checkWinCondition.bind(this));
-        // フェーズ終了時にも念のため
-        this.on(GameEvents.ACTION_EXECUTION_COMPLETED, this.checkWinCondition.bind(this));
+        this.battleFlowState = this.world.getSingletonComponent(BattleFlowState);
     }
 
-    onPlayerBroken(detail) {
-        this.brokenEventsQueue.push(detail);
-    }
-
-    checkWinCondition() {
-        if (this.battleContext.phase === BattlePhase.GAME_OVER) {
+    update(deltaTime) {
+        if (this.battleFlowState.phase === BattlePhase.GAME_OVER) {
             return;
         }
 
-        if (this.brokenEventsQueue.length === 0) {
+        if (this.battleFlowState.phase !== BattlePhase.ACTION_EXECUTION &&
+            this.battleFlowState.phase !== BattlePhase.TURN_END) {
             return;
         }
 
-        // 溜まった破壊イベントを処理
-        for (const detail of this.brokenEventsQueue) {
-            const { entityId: brokenEntityId, teamId: losingTeamId } = detail;
-            const brokenPlayerInfo = this.world.getComponent(brokenEntityId, PlayerInfo);
+        if (this._isSequenceRunning()) {
+            return;
+        }
 
-            let isGameOver = false;
-            
-            // リーダー破壊判定
-            if (brokenPlayerInfo && brokenPlayerInfo.isLeader) {
-                isGameOver = true;
-            }
+        this._checkWinCondition();
+    }
 
-            // 全滅判定
-            const remainingAllies = TargetingService.getValidAllies(this.world, brokenEntityId, true);
-            if (remainingAllies.length === 0) {
-                isGameOver = true;
-            }
+    _isSequenceRunning() {
+        const activeSequences = this.getEntities(BattleSequenceState);
+        const pendingSequences = this.getEntities(SequencePending);
+        return activeSequences.length > 0 || pendingSequences.length > 0;
+    }
 
-            if (isGameOver) {
-                const winningTeam = losingTeamId === TeamID.TEAM1 ? TeamID.TEAM2 : TeamID.TEAM1;
-                this.world.emit(GameEvents.GAME_OVER, { winningTeam });
-                // 一度ゲームオーバーになったら以降の判定は不要
-                this.brokenEventsQueue = []; 
-                return;
+    _checkWinCondition() {
+        const players = this.getEntities(PlayerInfo, Parts);
+        let team1Alive = false;
+        let team2Alive = false;
+        let team1LeaderAlive = false;
+        let team2LeaderAlive = false;
+
+        for (const entityId of players) {
+            const info = this.world.getComponent(entityId, PlayerInfo);
+            const parts = this.world.getComponent(entityId, Parts);
+            const headData = QueryService.getPartData(this.world, parts.head);
+
+            if (headData && !headData.isBroken) {
+                if (info.teamId === TeamID.TEAM1) {
+                    team1Alive = true;
+                    if (info.isLeader) team1LeaderAlive = true;
+                } else if (info.teamId === TeamID.TEAM2) {
+                    team2Alive = true;
+                    if (info.isLeader) team2LeaderAlive = true;
+                }
             }
         }
-        
-        // 処理済みイベントをクリア
-        this.brokenEventsQueue = [];
+
+        let winningTeam = null;
+
+        if (!team1LeaderAlive || !team1Alive) {
+            winningTeam = TeamID.TEAM2;
+        } else if (!team2LeaderAlive || !team2Alive) {
+            winningTeam = TeamID.TEAM1;
+        }
+
+        if (winningTeam) {
+            this._triggerGameOver(winningTeam);
+        }
+    }
+
+    _triggerGameOver(winningTeam) {
+        this.battleFlowState.phase = BattlePhase.GAME_OVER;
+        this.battleFlowState.winningTeam = winningTeam;
     }
 }

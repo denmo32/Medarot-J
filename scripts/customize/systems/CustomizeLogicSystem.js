@@ -1,38 +1,46 @@
+/**
+ * @file CustomizeLogicSystem.js
+ * @description カスタマイズロジックシステム。
+ * リクエストコンポーネントを処理し、結果タグを発行する。
+ */
 import { System } from '../../../engine/core/System.js';
-import { GameEvents } from '../../common/events.js';
+import { EquipPartRequest, EquipMedalRequest, ItemEquippedTag } from '../components/CustomizeRequests.js';
 
 export class CustomizeLogicSystem extends System {
-    /**
-     * @param {World} world 
-     * @param {GameDataManager} gameDataManager 依存性注入
-     */
     constructor(world, gameDataManager) {
         super(world);
         this.dataManager = gameDataManager;
-
-        this.on(GameEvents.EQUIP_PART_REQUESTED, this.onEquipPartRequested.bind(this));
-        this.on(GameEvents.EQUIP_MEDAL_REQUESTED, this.onEquipMedalRequested.bind(this));
     }
 
-    onEquipPartRequested(detail) {
-        const { medarotIndex, partSlot, newPartId } = detail;
-        this.equipPart(medarotIndex, partSlot, newPartId);
-    }
+    update(deltaTime) {
+        const partRequests = this.getEntities(EquipPartRequest);
+        for (const id of partRequests) {
+            const req = this.world.getComponent(id, EquipPartRequest);
+            this.equipPart(req.medarotIndex, req.partSlot, req.newPartId);
+            this.world.destroyEntity(id);
+        }
 
-    onEquipMedalRequested(detail) {
-        const { medarotIndex, newMedalId } = detail;
-        this.equipMedal(medarotIndex, newMedalId);
+        const medalRequests = this.getEntities(EquipMedalRequest);
+        for (const id of medalRequests) {
+            const req = this.world.getComponent(id, EquipMedalRequest);
+            this.equipMedal(req.medarotIndex, req.newMedalId);
+            this.world.destroyEntity(id);
+        }
     }
 
     equipPart(medarotIndex, partSlot, newPartId) {
         if (!newPartId) return;
         this.dataManager.updateMedarotPart(medarotIndex, partSlot, newPartId);
-        this.world.emit(GameEvents.PART_EQUIPPED);
+        
+        // 完了通知タグ発行
+        this.world.addComponent(this.world.createEntity(), new ItemEquippedTag());
     }
 
     equipMedal(medarotIndex, newMedalId) {
         if (!newMedalId) return;
         this.dataManager.updateMedarotMedal(medarotIndex, newMedalId);
-        this.world.emit(GameEvents.MEDAL_EQUIPPED);
+        
+        // 完了通知タグ発行
+        this.world.addComponent(this.world.createEntity(), new ItemEquippedTag());
     }
 }

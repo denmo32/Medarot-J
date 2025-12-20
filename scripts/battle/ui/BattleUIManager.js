@@ -6,7 +6,8 @@
 import { el } from '../../../../engine/utils/DOMUtils.js';
 import { ModalType } from '../common/constants.js';
 import { PartInfo } from '../../common/constants.js';
-import { GameEvents } from '../../common/events.js';
+// import { GameEvents } from '../../common/events.js'; // 旧イベント方式を削除
+import { BattleStartConfirmedRequest, HideModalRequest } from '../../components/Events.js'; // 新イベントコンポーネントをインポート
 
 export class BattleUIManager {
     constructor() {

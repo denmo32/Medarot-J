@@ -1,196 +1,203 @@
 /**
  * @file BattleSequenceSystem.js
- * @description アクションシーケンスの進行管理。
+ * @description バトルアクションパイプラインの管理システム。
+ * リファクタリング: タグ処理を共通定義を使用して簡素化。
  */
 import { System } from '../../../../engine/core/System.js';
-import { GameEvents } from '../../../common/events.js';
-import { PlayerStateType, BattlePhase } from '../../common/constants.js';
-import { BattleContext } from '../../components/BattleContext.js';
-import { GameState, Action } from '../../components/index.js';
-import { TaskRunner } from '../../tasks/TaskRunner.js';
-import { ActionSequenceService } from '../../services/ActionSequenceService.js';
+import {
+    BattleSequenceState, SequencePending,
+    Action, BattleFlowState, CombatContext, CombatResult,
+    InCombatCalculation, GeneratingVisuals, ExecutingVisuals, SequenceFinished,
+    IsReadyToExecute,
+    // タグクラス定義
+    IsShootingAction, IsMeleeAction, IsSupportAction, IsHealAction, IsDefendAction, IsInterruptAction,
+    RequiresPreMoveTargeting, RequiresPostMoveTargeting,
+    // タググループ
+    ActionTypeTags, TargetingTags, SequencePhaseTags
+} from '../../components/index.js';
+import { Parts } from '../../../components/index.js';
+import { TransitionStateRequest } from '../../components/CommandRequests.js';
+import { ActionCancelledEvent } from '../../components/Requests.js';
+import { PlayerStateType, BattlePhase, TargetTiming, ActionType } from '../../common/constants.js';
 import { CancellationService } from '../../services/CancellationService.js';
-import { TimelineBuilder } from '../../tasks/TimelineBuilder.js';
-import { BattleResolutionService } from '../../services/BattleResolutionService.js'; // インポートを追加
-
-// 内部ステート定義
-const SequenceState = {
-    IDLE: 'IDLE',
-    PREPARING: 'PREPARING',
-    PROCESSING_QUEUE: 'PROCESSING_QUEUE',
-    EXECUTING_TASK: 'EXECUTING_TASK',
-    FINISHING: 'FINISHING'
-};
+import { QueryService } from '../../services/QueryService.js';
 
 export class BattleSequenceSystem extends System {
     constructor(world) {
         super(world);
-        this.battleContext = this.world.getSingletonComponent(BattleContext);
-        
-        this.service = new ActionSequenceService(world);
-        this.timelineBuilder = new TimelineBuilder(world);
-        this.taskRunner = new TaskRunner(world);
-        this.battleResolver = new BattleResolutionService(world); // 初期化処理を追加
-        
-        this.executionQueue = [];
-        this.internalState = SequenceState.IDLE;
-        this.currentActorId = null;
-
-        // イベントは入力トリガーとしてのみ使用
-        this.on(GameEvents.REQUEST_RESET_TO_COOLDOWN, this.onRequestResetToCooldown.bind(this));
-        this.on(GameEvents.CHECK_ACTION_CANCELLATION, this.onCheckActionCancellation.bind(this));
-        this.on(GameEvents.GAME_OVER, this.abortSequence.bind(this));
-        
-        this.on(GameEvents.GAME_PAUSED, () => { this.taskRunner.isPaused = true; });
-        this.on(GameEvents.GAME_RESUMED, () => { this.taskRunner.isPaused = false; });
+        this.battleFlowState = this.world.getSingletonComponent(BattleFlowState);
     }
 
     update(deltaTime) {
-        // TaskRunnerは常に更新
-        this.taskRunner.update(deltaTime);
-
-        // ゲームオーバー時は処理しない
-        if (this.battleContext.phase === BattlePhase.GAME_OVER) {
-            if (this.internalState !== SequenceState.IDLE) this.abortSequence();
+        this._handleGameOver();
+        if (this.battleFlowState.phase !== BattlePhase.ACTION_EXECUTION) {
             return;
         }
 
-        // メインステートマシン
-        switch (this.internalState) {
-            case SequenceState.IDLE:
-                if (this.battleContext.phase === BattlePhase.ACTION_EXECUTION && !this.battleContext.isSequenceRunning) {
-                    this._startExecutionPhase();
+        this._cleanupFinishedSequences();
+        this._processInitializingSequences();
+
+        if (!this._isPipelineBusy()) {
+            this._startNextSequence();
+        }
+
+        this._markReadyEntities();
+    }
+
+    _handleGameOver() {
+        if (this.battleFlowState.phase === BattlePhase.GAME_OVER) {
+            this._abortAllSequences();
+        }
+    }
+
+    _isPipelineBusy() {
+        return this.getEntities(BattleSequenceState).length > 0;
+    }
+
+    _startNextSequence() {
+        const nextActorId = this._getNextPendingEntity();
+        if (nextActorId === null) return;
+
+        this.world.removeComponent(nextActorId, SequencePending);
+        this.world.addComponent(nextActorId, new BattleSequenceState());
+
+        this.battleFlowState.currentActorId = nextActorId;
+    }
+
+    _processInitializingSequences() {
+        const entities = this.world.getEntitiesWith(BattleSequenceState);
+        
+        for (const entityId of entities) {
+            // 既にフェーズタグを持っている場合はスキップ（初期化済み）
+            if (SequencePhaseTags.some(Tag => this.world.getComponent(entityId, Tag)) || 
+                this.world.getComponent(entityId, SequenceFinished)) {
+                continue;
+            }
+
+            const state = this.world.getComponent(entityId, BattleSequenceState);
+
+            // 演出待機状態へ遷移
+            const reqEntity = this.world.createEntity();
+            this.world.addComponent(reqEntity, new TransitionStateRequest(
+                entityId,
+                PlayerStateType.AWAITING_ANIMATION
+            ));
+
+            // キャンセルチェック
+            const cancelCheck = CancellationService.checkCancellation(this.world, entityId);
+            if (cancelCheck.shouldCancel) {
+                this._handleImmediateCancel(entityId, state, cancelCheck.reason);
+            } else {
+                const tagsApplied = this._applyActionTags(entityId);
+
+                if (tagsApplied) {
+                    this.world.addComponent(entityId, new InCombatCalculation());
+                } else {
+                    throw new Error(`Failed to apply action tags for entity ${entityId}`);
                 }
-                break;
-
-            case SequenceState.PREPARING:
-                this._prepareQueue();
-                break;
-
-            case SequenceState.PROCESSING_QUEUE:
-                this._processQueueNext();
-                break;
-                
-            case SequenceState.EXECUTING_TASK:
-                if (this.taskRunner.isIdle) {
-                    this._onTaskCompleted();
-                }
-                break;
-                
-            case SequenceState.FINISHING:
-                this._finishSequence();
-                break;
-        }
-    }
-
-    _startExecutionPhase() {
-        this.internalState = SequenceState.PREPARING;
-        this.battleContext.isSequenceRunning = true;
-    }
-
-    _prepareQueue() {
-        this.executionQueue = this.service.getSortedReadyEntities();
-        
-        if (this.executionQueue.length === 0) {
-            this.internalState = SequenceState.FINISHING;
-        } else {
-            this.internalState = SequenceState.PROCESSING_QUEUE;
-        }
-    }
-
-    _processQueueNext() {
-        if (this.executionQueue.length === 0) {
-            this.internalState = SequenceState.FINISHING;
-            return;
-        }
-
-        const actorId = this.executionQueue.shift();
-        if (!this.isValidEntity(actorId)) {
-            return; // 次のループで再試行
-        }
-
-        this.currentActorId = actorId;
-        this.battleContext.turn.currentActorId = actorId;
-        
-        this._startActorSequence(actorId);
-        this.internalState = SequenceState.EXECUTING_TASK;
-    }
-
-    _startActorSequence(actorId) {
-        // --- 1. ロジック解決と適用 ---
-        const resultData = this.battleResolver.resolve(actorId);
-        
-        // 状態変更コマンドを即時発行
-        if (resultData.stateUpdates && resultData.stateUpdates.length > 0) {
-            this.world.emit(GameEvents.EXECUTE_COMMANDS, resultData.stateUpdates);
-        }
-        
-        // 副作用イベントを発行 (ログ出力やUI通知用)
-        if (resultData.eventsToEmit) {
-            resultData.eventsToEmit.forEach(event => {
-                this.world.emit(event.type, event.payload);
-            });
-        }
-        
-        if (resultData.isCancelled) {
-            this.taskRunner.setSequence([], actorId); 
-            return;
-        }
-
-        // --- 2. 演出シーケンスの構築と実行 ---
-        const visualTasks = this.timelineBuilder.buildVisualSequence(resultData.visualSequence);
-        this.taskRunner.setSequence(visualTasks, actorId);
-    }
-
-    _onTaskCompleted() {
-        if (this.currentActorId) {
-            this.world.emit(GameEvents.ACTION_SEQUENCE_COMPLETED, { entityId: this.currentActorId });
-        }
-        
-        this.currentActorId = null;
-        this.battleContext.turn.currentActorId = null;
-        this.internalState = SequenceState.PROCESSING_QUEUE;
-    }
-
-    _finishSequence() {
-        this.internalState = SequenceState.IDLE;
-        this.battleContext.isSequenceRunning = false;
-        
-        this.world.emit(GameEvents.ACTION_EXECUTION_COMPLETED);
-    }
-
-    abortSequence() {
-        this.executionQueue = [];
-        this.taskRunner.abort();
-        this.internalState = SequenceState.IDLE;
-        this.currentActorId = null;
-        this.battleContext.isSequenceRunning = false;
-    }
-
-    onRequestResetToCooldown(detail) {
-        const { entityId, options } = detail;
-        this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
-            type: 'RESET_TO_COOLDOWN',
-            targetId: entityId,
-            options: options
-        }]);
-    }
-    
-    onCheckActionCancellation() {
-        const actors = this.getEntities(GameState, Action);
-        for (const actorId of actors) {
-            const gameState = this.world.getComponent(actorId, GameState);
-            if (gameState.state !== PlayerStateType.SELECTED_CHARGING) continue;
-            
-            const check = CancellationService.checkCancellation(this.world, actorId);
-            if (check.shouldCancel) {
-                CancellationService.executeCancel(this.world, actorId, check.reason);
-                this.world.emit(GameEvents.EXECUTE_COMMANDS, [{
-                    type: 'RESET_TO_COOLDOWN',
-                    targetId: actorId,
-                    options: { interrupted: true }
-                }]);
             }
         }
+    }
+
+    _handleImmediateCancel(entityId, state, reason) {
+        state.contextData = { isCancelled: true, cancelReason: reason };
+        const evt = this.world.createEntity();
+        this.world.addComponent(evt, new ActionCancelledEvent(entityId, reason));
+        
+        this.world.addComponent(entityId, new GeneratingVisuals());
+    }
+
+    _applyActionTags(entityId) {
+        const action = this.world.getComponent(entityId, Action);
+        const parts = this.world.getComponent(entityId, Parts);
+
+        if (!action || !parts || !action.partKey) return false;
+        
+        const partId = parts[action.partKey];
+        const partData = QueryService.getPartData(this.world, partId);
+        if (!partData) return false;
+
+        // アクションタイプに応じたタグ付与
+        const TagClass = this._getActionTagClass(partData.actionType);
+        this.world.addComponent(entityId, new TagClass());
+
+        // タイミングタグ付与
+        if (partData.targetTiming === TargetTiming.POST_MOVE) {
+            this.world.addComponent(entityId, new RequiresPostMoveTargeting());
+        } else {
+            this.world.addComponent(entityId, new RequiresPreMoveTargeting());
+        }
+
+        return true;
+    }
+
+    _getActionTagClass(actionType) {
+        switch (actionType) {
+            case ActionType.SHOOT: return IsShootingAction;
+            case ActionType.MELEE: return IsMeleeAction;
+            case ActionType.HEAL: return IsHealAction;
+            case ActionType.SUPPORT: return IsSupportAction;
+            case ActionType.INTERRUPT: return IsInterruptAction;
+            case ActionType.DEFEND: return IsDefendAction;
+            default:
+                throw new Error(`Unknown action type: ${actionType}`);
+        }
+    }
+
+    _cleanupFinishedSequences() {
+        const entities = this.getEntities(SequenceFinished);
+        for (const entityId of entities) {
+            this._removeActionTags(entityId);
+            this.world.removeComponent(entityId, SequenceFinished);
+            this.world.removeComponent(entityId, BattleSequenceState);
+            
+            if (this.battleFlowState.currentActorId === entityId) {
+                this.battleFlowState.currentActorId = null;
+            }
+        }
+    }
+
+    _removeActionTags(entityId) {
+        // 定義されたタググループを使用して一括削除
+        ActionTypeTags.forEach(Tag => this.world.removeComponent(entityId, Tag));
+        TargetingTags.forEach(Tag => this.world.removeComponent(entityId, Tag));
+        SequencePhaseTags.forEach(Tag => this.world.removeComponent(entityId, Tag));
+
+        this.world.removeComponent(entityId, CombatContext);
+        this.world.removeComponent(entityId, CombatResult);
+    }
+
+    _markReadyEntities() {
+        const entities = this.getEntities(IsReadyToExecute);
+        for (const id of entities) {
+            const isPending = this.world.getComponent(id, SequencePending);
+            const isRunning = this.world.getComponent(id, BattleSequenceState);
+
+            if (!isPending && !isRunning) {
+                this.world.addComponent(id, new SequencePending());
+            }
+        }
+    }
+
+    _getNextPendingEntity() {
+        const pendingEntities = this.getEntities(SequencePending);
+        if (pendingEntities.length === 0) return null;
+
+        pendingEntities.sort(QueryService.compareByPropulsion(this.world));
+
+        return pendingEntities[0];
+    }
+
+    _abortAllSequences() {
+        const pending = this.getEntities(SequencePending);
+        for (const id of pending) this.world.removeComponent(id, SequencePending);
+
+        const active = this.getEntities(BattleSequenceState);
+        for (const id of active) {
+            this._removeActionTags(id);
+            this.world.removeComponent(id, BattleSequenceState);
+        }
+
+        this.battleFlowState.currentActorId = null;
     }
 }

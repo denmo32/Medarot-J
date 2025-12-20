@@ -1,15 +1,15 @@
 /**
  * @file modalHandlers.js
- * @description モーダルごとの挙動（入力ハンドリング）定義。
- * 副作用を起こさず、実行すべきアクションを記述したオブジェクトを返す。
+ * @description モーダルごとの挙動定義。
+ * QueryServiceの変更に対応。
  */
-import { GameEvents } from '../../common/events.js';
 import { ModalType } from '../common/constants.js';
 import { PartInfo } from '../../common/constants.js';
 import { CONFIG } from '../common/config.js';
 import { AiDecisionService } from '../services/AiDecisionService.js';
 import { QueryService } from '../services/QueryService.js';
 import { PlayerInfo } from '../../components/index.js';
+import { PartSelectedRequest, BattleStartConfirmedRequest, BattleStartCancelledRequest, ResetButtonClickedRequest } from '../../components/Events.js';
 
 const NAVIGATION_MAP = {
     [PartInfo.HEAD.key]: {
@@ -29,32 +29,25 @@ const NAVIGATION_MAP = {
     }
 };
 
-/**
- * @typedef {object} ModalHandlerContext
- * @property {object} data - モーダルの元データ
- * @property {object} uiState - 現在のBattleUIState
- */
-
 export const modalHandlers = {
     [ModalType.START_CONFIRM]: {
         getActorName: () => 'ロボトルを開始しますか？',
     },
     [ModalType.SELECTION]: {
-        prepareData: ({ world, data: detail }) => {
+        prepareData: ({ world, data: detail, services }) => {
             const { entityId } = detail;
             const playerInfo = world.getComponent(entityId, PlayerInfo);
             if (!playerInfo) return null;
 
-            // AiDecisionServiceは一時的にインスタンス化して使用
-            const aiService = new AiDecisionService(world);
-            
-            const targetCandidates = aiService.getSuggestionForPlayer(entityId);
-            
+            const { aiService } = services;
+
+            const targetCandidates = aiService.getSuggestionForPlayer(world, entityId);
+
             if (!targetCandidates || targetCandidates.length === 0) {
-                return null; // ターゲット候補がいない場合はモーダルを出さない
+                return null;
             }
 
-            const actionPlans = aiService.generateActionPlans(entityId, targetCandidates);
+            const actionPlans = aiService.generateActionPlans(world, entityId, targetCandidates);
             const allPossibleParts = QueryService.getAllActionParts(world, entityId);
 
             const buttonsData = allPossibleParts.map(([partKey, part]) => {
@@ -114,9 +107,9 @@ export const modalHandlers = {
             const buttonData = data.buttons.find(b => b.partKey === uiState.focusedButtonKey);
             if (!buttonData) return null;
             
-            return { 
-                action: 'EMIT_AND_CLOSE', 
-                eventName: GameEvents.PART_SELECTED, 
+            return {
+                action: 'EMIT_AND_CLOSE',
+                eventName: 'PART_SELECTED',
                 detail: {
                     entityId: data.entityId,
                     partKey: buttonData.partKey,
@@ -136,8 +129,8 @@ export const modalHandlers = {
     [ModalType.BATTLE_START_CONFIRM]: {
         isClickable: true,
         getActorName: () => '合意と見てよろしいですね！？',
-        handleConfirm: () => ({ action: 'EMIT', eventName: GameEvents.BATTLE_START_CONFIRMED }),
-        handleCancel: () => ({ action: 'EMIT', eventName: GameEvents.BATTLE_START_CANCELLED })
+        handleConfirm: () => ({ action: 'EMIT_AND_CLOSE', eventName: 'BATTLE_START_CONFIRMED' }),
+        handleCancel: () => ({ action: 'EMIT_AND_CLOSE', eventName: 'BATTLE_START_CANCELLED' })
     },
     [ModalType.MESSAGE]: {
         isClickable: true,
@@ -153,6 +146,6 @@ export const modalHandlers = {
         isClickable: true,
         getTitle: (data) => `${CONFIG.TEAMS[data.winningTeam].name} の勝利！`,
         getActorName: () => 'ロボトル終了！',
-        handleConfirm: () => ({ action: 'EMIT_AND_CLOSE', eventName: GameEvents.RESET_BUTTON_CLICKED })
+        handleConfirm: () => ({ action: 'EMIT_AND_CLOSE', eventName: 'RESET_BUTTON_CLICKED' })
     }
 };

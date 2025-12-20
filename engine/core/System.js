@@ -1,18 +1,30 @@
 /**
  * @file システム基底クラス
+ * @description すべてのSystemの親クラス。
+ * イベントリスナー機能を除去し、純粋な更新処理のみを定義します。
  */
 import { ErrorHandler } from '../utils/ErrorHandler.js';
 
 export class System {
+    /**
+     * @param {World} world 
+     */
     constructor(world) {
         this.world = world;
-        this._boundListeners = [];
     }
 
+    /**
+     * フレームごとの更新処理
+     * @param {number} deltaTime - 前フレームからの経過時間(ms)
+     */
     update(deltaTime) {
-        // デフォルトでは何もしない
+        // サブクラスで実装
     }
 
+    /**
+     * 安全な実行ラッパー
+     * @param {number} deltaTime 
+     */
     execute(deltaTime) {
         try {
             this.update(deltaTime);
@@ -24,54 +36,20 @@ export class System {
         }
     }
 
-    on(eventName, callback) {
-        const wrappedCallback = (...args) => {
-            try {
-                callback(...args);
-            } catch (error) {
-                ErrorHandler.handle(error, {
-                    system: this.constructor.name,
-                    event: eventName,
-                    method: 'eventHandler'
-                });
-            }
-        };
-
-        this.world.on(eventName, wrappedCallback);
-        this._boundListeners.push({ eventName, callback: wrappedCallback });
-    }
-
+    /**
+     * システム終了時のクリーンアップ
+     * 必要に応じてサブクラスでオーバーライド
+     */
     destroy() {
-        for (const { eventName, callback } of this._boundListeners) {
-            this.world.off(eventName, callback);
-        }
-        this._boundListeners = [];
+        // デフォルトでは何もしない
     }
 
+    /**
+     * コンポーネントの組み合わせ条件に一致するエンティティを取得するヘルパー
+     * @param {...Function} componentClasses 
+     * @returns {number[]}
+     */
     getEntities(...componentClasses) {
         return this.world.getEntitiesWith(...componentClasses);
-    }
-
-    isValidEntity(entityId) {
-        return this.world.entities.has(entityId);
-    }
-
-    getCachedComponent(entityId, componentClass, cache = null) {
-        if (!this.isValidEntity(entityId)) return null;
-
-        const cacheKey = `${entityId}-${componentClass.name}`;
-        if (cache && cache.has(cacheKey)) {
-            return cache.get(cacheKey);
-        }
-
-        const component = this.world.getComponent(entityId, componentClass);
-        if (cache) {
-            cache.set(cacheKey, component);
-        }
-        return component;
-    }
-
-    emitEvent(eventName, detail = {}) {
-        this.world.emit(eventName, detail);
     }
 }

@@ -1,76 +1,99 @@
 /**
  * @file VisualDirectorSystem.js
  * @description バトル中の視覚演出を一元管理する監督システム。
- * RequestIDを用いた厳密な同期処理を実装。
+ * イベント監視を廃止し、リクエスト/結果コンポーネントの監視へ移行。
  */
 import { System } from '../../../../engine/core/System.js';
-import { GameEvents } from '../../../common/events.js';
 import { ModalType } from '../../common/constants.js';
-import { 
-    DialogRequest, 
-    VfxRequest, 
-    CameraRequest 
-} from '../../components/VisualRequest.js';
+import { ModalState } from '../../components/States.js';
+import {
+    DialogTask, VfxTask, CameraTask
+} from '../../components/Tasks.js';
 
 export class VisualDirectorSystem extends System {
     constructor(world) {
         super(world);
-        this.bindWorldEvents();
-    }
-
-    bindWorldEvents() {
-        this.on(GameEvents.MODAL_CLOSED, this.onModalClosed.bind(this));
     }
 
     update(deltaTime) {
-        const dialogRequests = this.getEntities(DialogRequest);
-        for (const entityId of dialogRequests) {
-            this._processDialogRequest(entityId);
-        }
+        // --- Modal Closed Check ---
+        // モーダルの状態完了を検知し、対応するDialogTaskを完了させる
+        this._processModalCompletedStates();
 
-        const vfxRequests = this.getEntities(VfxRequest);
-        for (const entityId of vfxRequests) {
-            const request = this.world.getComponent(entityId, VfxRequest);
-            console.log(`[VisualDirector] Play VFX: ${request.effectName}`);
-            this.world.removeComponent(entityId, VfxRequest);
-        }
+        // --- Dialog ---
+        this._processDialogTasks();
 
-        const cameraRequests = this.getEntities(CameraRequest);
-        for (const entityId of cameraRequests) {
-            const request = this.world.getComponent(entityId, CameraRequest);
-            console.log(`[VisualDirector] Camera Action: ${request.action}`);
-            this.world.removeComponent(entityId, CameraRequest);
-        }
+        // --- VFX ---
+        this._processInstantTasks(VfxTask, (task) => console.log(`[VisualDirector] Play VFX: ${task.effectName}`));
+
+        // --- Camera ---
+        this._processInstantTasks(CameraTask, (task) => console.log(`[VisualDirector] Camera Action: ${task.action}`));
     }
 
-    _processDialogRequest(entityId) {
-        const request = this.world.getComponent(entityId, DialogRequest);
-        
-        if (!request.isDisplayed) {
-            this.world.emit(GameEvents.SHOW_MODAL, {
-                type: request.options.modalType || ModalType.MESSAGE,
-                data: { 
-                    message: request.text,
-                    ...request.options 
-                },
-                messageSequence: [{ text: request.text }],
-                taskId: request.id // Request自体のIDを渡す
-            });
-            request.isDisplayed = true;
-        }
-    }
-
-    onModalClosed(detail) {
-        const { taskId } = detail; // 閉じられたモーダルのtaskId (RequestID)
-        
-        const dialogRequests = this.getEntities(DialogRequest);
-        for (const entityId of dialogRequests) {
-            const request = this.world.getComponent(entityId, DialogRequest);
-            // IDが一致するものだけを削除
-            if (request.isDisplayed && request.id === taskId) {
-                this.world.removeComponent(entityId, DialogRequest);
-                break;
+    _processModalCompletedStates() {
+        const entities = this.getEntities(ModalState);
+        for (const entityId of entities) {
+            const state = this.world.getComponent(entityId, ModalState);
+            if (state.isCompleted) {
+                const result = {
+                    modalType: state.type,
+                    taskId: state.taskId
+                };
+                this._handleModalClosed(result);
+                // isCompletedをfalseにするか、ModalStateを削除
+                // ここではModalStateを削除する
+                this.world.removeComponent(entityId, ModalState);
             }
+        }
+    }
+
+    _handleModalClosed(result) {
+        const { taskId } = result;
+        if (!taskId) return;
+
+        // taskIdに一致するDialogTaskを探して削除（完了扱いにする）
+        const entities = this.getEntities(DialogTask);
+        for (const entityId of entities) {
+            const task = this.world.getComponent(entityId, DialogTask);
+            
+            if (task.isDisplayed && task.taskId === taskId) {
+                this.world.removeComponent(entityId, DialogTask);
+                break; // 1つのモーダルにつき1つのタスクと仮定
+            }
+        }
+    }
+
+    _processDialogTasks() {
+        const entities = this.getEntities(DialogTask);
+        for (const entityId of entities) {
+            const task = this.world.getComponent(entityId, DialogTask);
+            
+            if (!task.isDisplayed) {
+                // ModalStateコンポーネントを生成してModalSystemへ依頼
+                const stateEntity = this.world.createEntity();
+                const modalState = new ModalState();
+                modalState.type = task.options?.modalType || ModalType.MESSAGE;
+                modalState.data = {
+                    message: task.text,
+                    ...task.options
+                };
+                modalState.messageSequence = [{ text: task.text }];
+                modalState.taskId = task.taskId;
+                modalState.priority = 'normal';
+                // modalState.isNewはデフォルトでtrue
+                this.world.addComponent(stateEntity, modalState);
+                
+                task.isDisplayed = true;
+            }
+        }
+    }
+
+    _processInstantTasks(ComponentClass, actionFn) {
+        const entities = this.getEntities(ComponentClass);
+        for (const entityId of entities) {
+            const task = this.world.getComponent(entityId, ComponentClass);
+            actionFn(task);
+            this.world.removeComponent(entityId, ComponentClass);
         }
     }
 }

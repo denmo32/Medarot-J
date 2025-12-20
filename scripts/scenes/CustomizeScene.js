@@ -1,12 +1,13 @@
 /**
  * @file CustomizeScene.js
+ * @description カスタマイズシーンクラス。
+ * イベント発行を廃止。
  */
 import { Scene } from '../../engine/scene/Scene.js';
 import { CustomizeInputSystem } from '../customize/systems/CustomizeInputSystem.js';
 import { CustomizeUISystem } from '../customize/systems/CustomizeUISystem.js';
 import { CustomizeLogicSystem } from '../customize/systems/CustomizeLogicSystem.js';
-import { CustomizeState } from '../customize/components/CustomizeState.js';
-import { GameEvents } from '../common/events.js';
+import { createCustomizeContextEntity } from '../entities/createCustomizeContextEntity.js';
 
 export class CustomizeScene extends Scene {
     constructor(world, sceneManager) {
@@ -15,17 +16,14 @@ export class CustomizeScene extends Scene {
     }
 
     init(data) {
-        console.log("Initializing Customize Scene...");
         this.gameDataManager = data.gameDataManager;
         
         this._setupContexts();
         this._setupSystems();
-        this._bindEvents();
     }
 
     _setupContexts() {
-        const contextEntity = this.world.createEntity();
-        this.world.addComponent(contextEntity, new CustomizeState());
+        createCustomizeContextEntity(this.world);
     }
 
     _setupSystems() {
@@ -34,18 +32,11 @@ export class CustomizeScene extends Scene {
         this.world.registerSystem(new CustomizeLogicSystem(this.world, this.gameDataManager));
     }
 
-    _bindEvents() {
-        this.world.on(GameEvents.CUSTOMIZE_EXIT_REQUESTED, () => {
-            this.sceneManager.switchTo('map', { restoreMenu: true });
-        });
-    }
-
     update(deltaTime) {
         super.update(deltaTime);
     }
 
     destroy() {
-        console.log("Destroying Customize Scene...");
         const customizeUISystem = this.world.systems.find(s => s instanceof CustomizeUISystem);
         if (customizeUISystem && customizeUISystem.destroy) {
             customizeUISystem.destroy();

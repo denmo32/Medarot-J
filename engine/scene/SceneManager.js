@@ -1,7 +1,10 @@
 /**
  * @file シーン管理クラス
  * @description シーンの切り替え、ライフサイクル管理、UIコンテナの制御を行います。
+ * SceneChangeRequestコンポーネントを監視して遷移を実行します。
  */
+import { SceneChangeRequest } from '../../scripts/components/SceneRequests.js';
+
 export class SceneManager {
     /**
      * @param {World} world 
@@ -51,8 +54,7 @@ export class SceneManager {
      */
     async switchTo(name, data = {}) {
         if (!this.scenes.has(name)) {
-            console.error(`SceneManager: Scene '${name}' not registered.`);
-            return;
+            throw new Error(`Scene '${name}' not registered.`);
         }
 
         if (this.currentScene) {
@@ -83,12 +85,29 @@ export class SceneManager {
     }
 
     /**
-     * 現在のシーンを更新します。
+     * 現在のシーンを更新し、シーン遷移リクエストを監視します。
      * @param {number} deltaTime
      */
     update(deltaTime) {
         if (this.currentScene) {
             this.currentScene.update(deltaTime);
+        }
+
+        // シーン遷移リクエストの処理
+        // Note: SceneChangeRequestはscripts側で定義されているため、
+        // 厳密な依存関係管理としてはmain.js等でクラスを渡すのが良いが、
+        // 今回はimportで対応。
+        const requestEntities = this.world.getEntitiesWith(SceneChangeRequest);
+        for (const entityId of requestEntities) {
+            const request = this.world.getComponent(entityId, SceneChangeRequest);
+            // リクエストを消費（エンティティ削除）
+            this.world.destroyEntity(entityId);
+            
+            // 遷移実行
+            this.switchTo(request.sceneName, request.data);
+            
+            // 1フレームに1回の遷移のみ許可（ループ中のScene破棄によるエラー防止）
+            break; 
         }
     }
 }

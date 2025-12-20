@@ -236,11 +236,13 @@ body {
 }
         
 /* プレイヤーアイコンの状態 */
-.player-icon.broken {
+/* 機能停止時の演出用クラス */
+.player-icon.is-defeated {
     background-color: var(--color-disabled) !important;
     color: var(--color-text-secondary);
     box-shadow: none;
     filter: grayscale(1);
+    border-color: var(--color-border-primary) !important;
 }
 
 /* アクションパネル */

@@ -1,8 +1,10 @@
 /**
  * @file TitleScene.js
+ * @description タイトル画面シーン。
  */
 import { Scene } from '../../engine/scene/Scene.js';
 import { InputManager } from '../../engine/input/InputManager.js';
+import { SceneChangeRequest } from '../components/SceneRequests.js';
 
 export class TitleScene extends Scene {
     constructor(world, sceneManager) {
@@ -20,7 +22,6 @@ export class TitleScene extends Scene {
     }
 
     init(data) {
-        console.log("Initializing Title Scene...");
         this.gameDataManager = data.gameDataManager;
         
         this.input = this.world.getSingletonComponent(InputManager);
@@ -76,21 +77,18 @@ export class TitleScene extends Scene {
         if (!this.gameDataManager) return;
 
         if (isNewGame) {
-            this.gameDataManager.resetToDefault();
-            console.log("Starting New Game...");
-        } else {
-            this.gameDataManager.loadGame();
-            console.log("Loading Game from Save...");
+            this.gameDataManager.reset();
         }
 
-        await this.sceneManager.switchTo('map');
+        // SceneChangeRequestを発行
+        const req = this.world.createEntity();
+        this.world.addComponent(req, new SceneChangeRequest('map'));
     }
 
     destroy() {
-        console.log("Destroying Title Scene...");
         if (this.dom.startNewBtn) this.dom.startNewBtn.onclick = null;
         if (this.dom.startLoadBtn) this.dom.startLoadBtn.onclick = null;
-        
+
         super.destroy();
     }
 }

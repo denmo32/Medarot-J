@@ -1,8 +1,22 @@
+/**
+ * @file CustomizeUISystem.js
+ * @description カスタマイズ画面のUI制御システム。
+ * イベントリスナーをコンポーネントポーリングへ変更。
+ */
 import { System } from '../../../engine/core/System.js';
-import { PartKeyToInfoMap, EquipSlotType } from '../../common/constants.js';
+import { PartKeyToInfoMap } from '../../common/constants.js';
+import { EquipSlotType } from '../common/constants.js';
 import { CustomizeState } from '../components/CustomizeState.js';
-import { GameEvents } from '../../common/events.js';
 import { CustomizeUIManager } from '../ui/CustomizeUIManager.js';
+import { SceneChangeRequest } from '../../components/SceneRequests.js';
+import { 
+    CustomizeNavigateRequest, 
+    CustomizeConfirmRequest, 
+    CustomizeCancelRequest,
+    EquipPartRequest,
+    EquipMedalRequest,
+    ItemEquippedTag
+} from '../components/CustomizeRequests.js';
 
 const focusTransitionMap = {
     MEDAROT_SELECT: { confirm: 'EQUIP_PANEL', cancel: 'EXIT' },
@@ -11,10 +25,6 @@ const focusTransitionMap = {
 };
 
 export class CustomizeUISystem extends System {
-    /**
-     * @param {World} world 
-     * @param {GameDataManager} gameDataManager 依存性注入
-     */
     constructor(world, gameDataManager) {
         super(world);
         this.dataManager = gameDataManager;
@@ -26,8 +36,6 @@ export class CustomizeUISystem extends System {
         this.currentPartListData = [];
         this.currentMedalListData = [];
 
-        this._bindEvents();
-        
         // 初期表示
         this.uiManager.show();
         this.renderAll();
@@ -38,15 +46,48 @@ export class CustomizeUISystem extends System {
         super.destroy();
     }
 
-    _bindEvents() {
-        this.on(GameEvents.CUST_NAVIGATE_INPUT, this.handleNavigation.bind(this));
-        this.on(GameEvents.CUST_CONFIRM_INPUT, this.handleConfirm.bind(this));
-        this.on(GameEvents.CUST_CANCEL_INPUT, this.handleCancel.bind(this));
-        this.on(GameEvents.PART_EQUIPPED, this.onItemEquipped.bind(this));
-        this.on(GameEvents.MEDAL_EQUIPPED, this.onItemEquipped.bind(this));
+    update(deltaTime) {
+        // リクエスト処理
+        this._processNavigation();
+        this._processConfirm();
+        this._processCancel();
+        this._processEquippedTags();
     }
 
-    handleNavigation({ direction }) {
+    _processNavigation() {
+        const requests = this.getEntities(CustomizeNavigateRequest);
+        for (const id of requests) {
+            const req = this.world.getComponent(id, CustomizeNavigateRequest);
+            this.handleNavigation(req.direction);
+            this.world.destroyEntity(id);
+        }
+    }
+
+    _processConfirm() {
+        const requests = this.getEntities(CustomizeConfirmRequest);
+        for (const id of requests) {
+            this.handleConfirm();
+            this.world.destroyEntity(id);
+        }
+    }
+
+    _processCancel() {
+        const requests = this.getEntities(CustomizeCancelRequest);
+        for (const id of requests) {
+            this.handleCancel();
+            this.world.destroyEntity(id);
+        }
+    }
+
+    _processEquippedTags() {
+        const tags = this.getEntities(ItemEquippedTag);
+        if (tags.length > 0) {
+            this.onItemEquipped();
+            for (const id of tags) this.world.destroyEntity(id);
+        }
+    }
+
+    handleNavigation(direction) {
         let stateChanged = false;
 
         switch (this.uiState.focus) {
@@ -128,7 +169,9 @@ export class CustomizeUISystem extends System {
         const nextFocus = focusTransitionMap[currentFocus]?.cancel;
 
         if (nextFocus === 'EXIT') {
-            this.world.emit(GameEvents.CUSTOMIZE_EXIT_REQUESTED);
+            // シーン遷移リクエスト発行
+            const req = this.world.createEntity();
+            this.world.addComponent(req, new SceneChangeRequest('map', { restoreMenu: true }));
         } else if (nextFocus) {
             this.uiState.focus = nextFocus;
             this.renderAll();
@@ -139,19 +182,14 @@ export class CustomizeUISystem extends System {
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
         const medarotIndex = this.uiState.selectedMedarotIndex;
 
+        const req = this.world.createEntity();
+
         if (selectedSlotType === EquipSlotType.MEDAL) {
             const selectedMedal = this.currentMedalListData[this.uiState.selectedMedalListIndex];
-            this.world.emit(GameEvents.EQUIP_MEDAL_REQUESTED, {
-                medarotIndex,
-                newMedalId: selectedMedal?.id,
-            });
+            this.world.addComponent(req, new EquipMedalRequest(medarotIndex, selectedMedal?.id));
         } else {
             const selectedPart = this.currentPartListData[this.uiState.selectedPartListIndex];
-            this.world.emit(GameEvents.EQUIP_PART_REQUESTED, {
-                medarotIndex,
-                partSlot: selectedSlotType,
-                newPartId: selectedPart?.id,
-            });
+            this.world.addComponent(req, new EquipPartRequest(medarotIndex, selectedSlotType, selectedPart?.id));
         }
     }
 
@@ -171,13 +209,15 @@ export class CustomizeUISystem extends System {
         if (!medarot) return;
 
         if (slotKey === EquipSlotType.MEDAL) {
-            this._changeItem(medarotIndex, medarot.medal?.id, this.dataManager.getAvailableMedals(), move, (newId) => 
-                this.world.emit(GameEvents.EQUIP_MEDAL_REQUESTED, { medarotIndex, newMedalId: newId })
-            );
+            this._changeItem(medarotIndex, medarot.medal?.id, this.dataManager.getAvailableMedals(), move, (newId) => {
+                const req = this.world.createEntity();
+                this.world.addComponent(req, new EquipMedalRequest(medarotIndex, newId));
+            });
         } else {
-            this._changeItem(medarotIndex, medarot.parts[slotKey]?.id, this.dataManager.getAvailableParts(slotKey), move, (newId) =>
-                this.world.emit(GameEvents.EQUIP_PART_REQUESTED, { medarotIndex, partSlot: slotKey, newPartId: newId })
-            );
+            this._changeItem(medarotIndex, medarot.parts[slotKey]?.id, this.dataManager.getAvailableParts(slotKey), move, (newId) => {
+                const req = this.world.createEntity();
+                this.world.addComponent(req, new EquipPartRequest(medarotIndex, slotKey, newId));
+            });
         }
     }
 
@@ -194,16 +234,13 @@ export class CustomizeUISystem extends System {
     }
 
     renderAll() {
+        // (前回と同じ描画ロジック)
         const medarots = this.dataManager.gameData.playerMedarots;
         const medarot = this.dataManager.getMedarot(this.uiState.selectedMedarotIndex);
         
-        // 1. メダロットリスト更新
         this.uiManager.renderMedarotList(medarots);
-
-        // 2. 装備アイテム更新
         this.uiManager.renderEquippedItems(medarot);
 
-        // 3. 選択リスト更新 (アイテム一覧)
         const selectedSlotType = this.equipSlots[this.uiState.selectedEquipIndex];
         const isMedalSelected = selectedSlotType === EquipSlotType.MEDAL;
         
@@ -218,7 +255,6 @@ export class CustomizeUISystem extends System {
             this.uiManager.renderSelectionList(listTitle, this.currentPartListData);
         }
 
-        // 4. 詳細パネル更新
         let itemToShow = null;
         if (this.uiState.focus === 'EQUIP_PANEL') {
             itemToShow = isMedalSelected ? medarot?.medal?.data : medarot?.parts[selectedSlotType]?.data;
@@ -229,7 +265,6 @@ export class CustomizeUISystem extends System {
         }
         this.uiManager.renderDetails(itemToShow);
 
-        // 5. フォーカス表示の更新
         this.uiManager.updateFocus({
             focus: this.uiState.focus,
             selectedMedarotIndex: this.uiState.selectedMedarotIndex,
