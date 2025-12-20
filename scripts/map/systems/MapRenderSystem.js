@@ -1,7 +1,11 @@
+/**
+ * @file MapRenderSystem.js
+ * @description マップシーンの描画システム。
+ */
 import { System } from '../../../engine/core/System.js';
 import * as MapComponents from '../MapComponents.js'; // パス修正
 
-export class RenderSystem extends System {
+export class MapRenderSystem extends System {
     constructor(world, renderer, map, camera) {
         super(world);
         this.renderer = renderer;

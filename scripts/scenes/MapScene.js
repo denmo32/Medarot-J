@@ -12,7 +12,7 @@ import * as MapComponents from '../map/MapComponents.js'; // パス修正
 import { PlayerInputSystem } from '../map/systems/PlayerInputSystem.js';
 import { MovementSystem } from '../map/systems/MovementSystem.js';
 import { CameraSystem } from '../map/systems/CameraSystem.js';
-import { RenderSystem as MapRenderSystem } from '../map/systems/RenderSystem.js';
+import { MapRenderSystem } from '../map/systems/MapRenderSystem.js';
 import { MapUISystem } from '../map/systems/MapUISystem.js';
 import { InteractionSystem } from '../map/systems/InteractionSystem.js';
 import { ToggleMenuRequest, GameSaveRequest } from '../map/components/MapRequests.js';
