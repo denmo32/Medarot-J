@@ -1,34 +1,19 @@
 /**
- * @file GuardSystem.js
- * @description ガード状態の消費処理。
+ * @file GuardConsumeHandler.js
+ * @description ガード消費 (CONSUME_GUARD) のロジック。
  */
-import { System } from '../../../../engine/core/System.js';
-import { ApplyEffect, EffectContext, EffectResult } from '../../components/effects/Effects.js';
-import { ActiveEffects } from '../../components/index.js';
+import { EffectHandler } from './EffectHandler.js';
+import { ActiveEffects } from '../../components/index.js'; // Battle
 import { EffectType } from '../../common/constants.js';
+import { VisualDefinitions } from '../../../data/visualDefinitions.js';
 
-export class GuardSystem extends System {
-    constructor(world) {
-        super(world);
-    }
-
-    update(deltaTime) {
-        const entities = this.getEntities(ApplyEffect, EffectContext);
-        for (const entityId of entities) {
-            const effect = this.world.getComponent(entityId, ApplyEffect);
-            if (effect.type !== EffectType.CONSUME_GUARD) continue;
-
-            this._processConsumeGuard(entityId, effect);
-        }
-    }
-
-    _processConsumeGuard(entityId, effect) {
-        const context = this.world.getComponent(entityId, EffectContext);
+export class GuardConsumeHandler extends EffectHandler {
+    apply(world, effectEntityId, effect, context) {
         const { targetId, partKey } = context;
 
-        const activeEffects = this.world.getComponent(targetId, ActiveEffects);
+        const activeEffects = world.getComponent(targetId, ActiveEffects);
         if (!activeEffects) {
-            this._finishEffect(entityId, { type: EffectType.CONSUME_GUARD, value: 0 });
+            this.finish(world, effectEntityId, { type: EffectType.CONSUME_GUARD, value: 0 });
             return;
         }
 
@@ -52,6 +37,7 @@ export class GuardSystem extends System {
                 }
             });
 
+            // 今回の消費で0になるなら期限切れ扱い
             if (guardEffect.count - 1 <= 0) {
                 isExpired = true;
                 stateUpdates.push({
@@ -62,20 +48,22 @@ export class GuardSystem extends System {
             }
         }
 
-        const resultData = {
+        this.finish(world, effectEntityId, {
             type: EffectType.CONSUME_GUARD,
             targetId,
             partKey,
             isExpired,
             value: 0,
             stateUpdates
-        };
-
-        this._finishEffect(entityId, resultData);
+        });
     }
 
-    _finishEffect(entityId, resultData) {
-        this.world.removeComponent(entityId, ApplyEffect);
-        this.world.addComponent(entityId, new EffectResult(resultData));
+    resolveVisual(resultData, visualConfig) {
+        // 消費自体にはメッセージを出さず、期限切れ時のみ出す想定
+        if (resultData.isExpired) {
+            const def = VisualDefinitions[EffectType.CONSUME_GUARD];
+            return { messageKey: def.keys.expired };
+        }
+        return null;
     }
 }

@@ -1,7 +1,7 @@
 /**
  * @file VisualSequenceSystem.js
  * @description 演出シーケンス生成システム。
- * 修正: APPLY_GLITCH失敗時のメッセージキー解決ロジックを追加。
+ * エフェクトハンドラへメッセージ解決ロジックを委譲。
  */
 import { System } from '../../../../engine/core/System.js';
 import {
@@ -15,6 +15,7 @@ import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
 import { ModalType, EffectType, EffectScope } from '../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 import { QueryService } from '../../services/QueryService.js';
+import { EffectRegistry } from '../../definitions/EffectRegistry.js';
 
 /**
  * システムのデフォルト設定（フォールバック用）
@@ -29,12 +30,9 @@ const DEFAULT_VISUALS = {
         animation: { attack: 'attack', support: 'support' }
     },
     EFFECTS: {
-        [EffectType.DAMAGE]: { messageKey: 'DAMAGE_APPLIED', showHpBar: true },
-        [EffectType.HEAL]: { messageKey: 'HEAL_SUCCESS', showHpBar: true },
-        [EffectType.APPLY_SCAN]: { messageKey: 'SUPPORT_SCAN_SUCCESS' },
-        [EffectType.APPLY_GLITCH]: { messageKey: 'INTERRUPT_GLITCH_SUCCESS' },
-        [EffectType.APPLY_GUARD]: { messageKey: 'DEFEND_GUARD_SUCCESS' },
-        [EffectType.CONSUME_GUARD]: { messageKey: 'GUARD_EXPIRED' }
+        // Fallback definitions for showHpBar if handler doesn't specify
+        [EffectType.DAMAGE]: { showHpBar: true },
+        [EffectType.HEAL]: { showHpBar: true },
     }
 };
 
@@ -159,64 +157,58 @@ export class VisualSequenceSystem extends System {
     }
 
     _createEffectTasks(effect, ctx, visualConfig) {
-        const effectVisual = visualConfig?.impacts?.[effect.type] || DEFAULT_VISUALS.EFFECTS[effect.type];
-        if (!effectVisual) return [];
+        // Handlerから演出情報を取得
+        const handler = EffectRegistry.get(effect.type);
+        if (!handler) return [];
 
-        if (effect.type === EffectType.CONSUME_GUARD && !effect.isExpired) return [];
+        const visualResult = handler.resolveVisual(effect, visualConfig);
+        if (!visualResult || !visualResult.messageKey) return [];
 
         const tasks = [];
-        const templateId = this._resolveEffectTemplateId(effect, ctx, effectVisual);
         
-        if (templateId) {
-            const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
+        const targetInfo = this.world.getComponent(effect.targetId, PlayerInfo);
 
-            // パラメータ構築の修正: templateで使用される全てのキーを網羅
-            const params = {
-                targetName: targetInfo?.name || '不明',
-                partName: PartKeyToInfoMap[effect.partKey]?.name || '不明部位',
-                damage: effect.value,
-                healAmount: effect.value,
-                scanBonus: effect.value,
-                duration: effect.duration || 0,
-                guardCount: effect.value, // APPLY_GUARD時はvalueに回数が入っている
-                actorName: targetInfo?.name || '???'
-            };
+        const params = {
+            targetName: targetInfo?.name || '不明',
+            partName: PartKeyToInfoMap[effect.partKey]?.name || '不明部位',
+            damage: effect.value,
+            healAmount: effect.value,
+            scanBonus: effect.value,
+            duration: effect.duration || 0,
+            guardCount: effect.value,
+            actorName: targetInfo?.name || '???',
+            // マージされたパラメータ (resolveVisualで追加された場合)
+            ...(visualResult.params || {})
+        };
 
-            // ガーディアンへのダメージの場合、guardianNameを追加
-            if (ctx.guardianInfo && templateId === 'GUARDIAN_DAMAGE') {
-                const guardianPlayerInfo = this.world.getComponent(ctx.guardianInfo.id, PlayerInfo);
-                params.guardianName = guardianPlayerInfo?.name || ctx.guardianInfo.name;
-            }
-
-            let text = this.messageService.format(MessageKey[templateId] || templateId, params);
-            if (effect.isCritical) text = this.messageService.format(MessageKey.CRITICAL_HIT) + text;
-
-            tasks.push({
-                type: 'DIALOG',
-                text,
-                options: { modalType: ModalType.EXECUTION_RESULT }
-            });
+        // ガーディアンコンテキストの補完
+        if (ctx.guardianInfo) {
+            const guardianPlayerInfo = this.world.getComponent(ctx.guardianInfo.id, PlayerInfo);
+            params.guardianName = guardianPlayerInfo?.name || ctx.guardianInfo.name;
         }
 
-        if (effectVisual.showHpBar && effect.value > 0) {
+        let text = this.messageService.format(MessageKey[visualResult.messageKey] || visualResult.messageKey, params);
+        
+        if (effect.type === EffectType.DAMAGE && effect.isCritical) {
+            text = this.messageService.format(MessageKey.CRITICAL_HIT) + text;
+        }
+
+        tasks.push({
+            type: 'DIALOG',
+            text,
+            options: { modalType: ModalType.EXECUTION_RESULT }
+        });
+
+        // HPバー演出の有無判定
+        // EffectVisualConfig -> Default Fallback
+        const effectVisualDef = visualConfig?.impacts?.[effect.type] || DEFAULT_VISUALS.EFFECTS[effect.type];
+        const shouldShowHpBar = effectVisualDef?.showHpBar;
+
+        if (shouldShowHpBar && effect.value > 0) {
             tasks.push({ type: 'UI_ANIMATION', targetType: 'HP_BAR', data: { appliedEffects: [effect] } });
         }
 
         return tasks;
-    }
-
-    _resolveEffectTemplateId(effect, ctx, effectVisual) {
-        if (effect.type === EffectType.DAMAGE) {
-            if (effect.isGuardBroken) return 'GUARD_BROKEN';
-            if (effect.isPenetration) return 'PENETRATION_DAMAGE';
-            if (effect.isDefended) return 'DEFENSE_SUCCESS';
-            if (ctx.guardianInfo) return 'GUARDIAN_DAMAGE';
-        } else if (effect.type === EffectType.HEAL && effect.value <= 0) {
-            return 'HEAL_FAILED';
-        } else if (effect.type === EffectType.APPLY_GLITCH && effect.wasSuccessful === false) {
-            return 'INTERRUPT_GLITCH_FAILED';
-        }
-        return effectVisual.messageKey || effectVisual.templateId;
     }
 
     _createCancelSequence(actorId, context) {

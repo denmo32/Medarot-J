@@ -1,7 +1,7 @@
 /**
  * @file SystemInitializer.js
  * @description バトルシーンで使用するSystemの初期化・登録を行う。
- * リファクタリング: アクション実行系システムを ActionExecutionSystem に統合。
+ * リファクタリング: 個別のEffectSystemを廃止し、EffectProcessorSystemに統合。
  */
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
@@ -22,15 +22,11 @@ import { BattleSequenceSystem } from '../systems/flow/BattleSequenceSystem.js';
 import { ModalSystem } from '../systems/ui/ModalSystem.js';
 import { UIInputSystem } from '../systems/ui/UIInputSystem.js';
 
-// Action Systems (Integrated)
 import { TargetingSystem } from '../systems/mechanics/TargetingSystem.js';
 import { ActionExecutionSystem } from '../systems/mechanics/ActionExecutionSystem.js';
 
-// Effect Systems
-import { DamageSystem } from '../systems/effects/DamageSystem.js';
-import { HealSystem } from '../systems/effects/HealSystem.js';
-import { StatusEffectSystem } from '../systems/effects/StatusEffectSystem.js';
-import { GuardSystem } from '../systems/effects/GuardSystem.js';
+// Integrated Effect System
+import { EffectProcessorSystem } from '../systems/mechanics/EffectProcessorSystem.js';
 import { CombatResultSystem } from '../systems/mechanics/CombatResultSystem.js';
 
 import { VisualSequenceSystem } from '../systems/visual/VisualSequenceSystem.js';
@@ -40,7 +36,13 @@ import { ComponentUpdateSystem } from '../systems/mechanics/ComponentUpdateSyste
 
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
+// レジストリの初期化
+import { EffectRegistry } from '../definitions/EffectRegistry.js';
+
 export function initializeSystems(world, gameDataManager) {
+
+    // 初期化処理
+    EffectRegistry.initialize();
 
     // --- UI/Input Systems (入力処理) ---
     const uiInputSystem = new UIInputSystem(world);
@@ -68,7 +70,7 @@ export function initializeSystems(world, gameDataManager) {
     // --- Mechanics Systems (計算・状態更新) ---
     const gaugeSystem = new GaugeSystem(world);
     const movementSystem = new MovementSystem(world);
-    const effectSystem = new EffectSystem(world);
+    const effectSystem = new EffectSystem(world); // 持続エフェクトの更新用(残存)
     const battleHistorySystem = new BattleHistorySystem(world);
     const stateTransitionSystem = new StateTransitionSystem(world);
     const componentUpdateSystem = new ComponentUpdateSystem(world);
@@ -77,11 +79,8 @@ export function initializeSystems(world, gameDataManager) {
     const targetingSystem = new TargetingSystem(world);
     const actionExecutionSystem = new ActionExecutionSystem(world);
 
-    // Effect Systems
-    const guardSystem = new GuardSystem(world);
-    const damageSystem = new DamageSystem(world);
-    const healSystem = new HealSystem(world);
-    const statusEffectSystem = new StatusEffectSystem(world);
+    // Effect Systems (Integrated)
+    const effectProcessorSystem = new EffectProcessorSystem(world);
     const combatResultSystem = new CombatResultSystem(world);
 
     if (CONFIG.DEBUG) {
@@ -112,14 +111,11 @@ export function initializeSystems(world, gameDataManager) {
     // 5-1. TargetingSystem: ターゲット解決
     world.registerSystem(targetingSystem);
 
-    // 5-2. Action Execution: 命中判定とエフェクト生成 (統合済み)
+    // 5-2. Action Execution: 命中判定とエフェクト生成
     world.registerSystem(actionExecutionSystem);
 
-    // 5-3. Effect Systems: 生成されたエフェクトの処理
-    world.registerSystem(guardSystem); // ガード消費
-    world.registerSystem(damageSystem); // ダメージ、貫通処理
-    world.registerSystem(healSystem);
-    world.registerSystem(statusEffectSystem);
+    // 5-3. Effect Processor: 生成されたエフェクトの処理 (統合システム)
+    world.registerSystem(effectProcessorSystem);
 
     // 5-4. Result Collection: エフェクト処理完了待ちと結果集約
     world.registerSystem(combatResultSystem);
