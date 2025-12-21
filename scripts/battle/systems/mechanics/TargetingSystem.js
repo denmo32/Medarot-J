@@ -14,8 +14,8 @@ import { targetingStrategies } from '../../ai/unit/strategies/index.js';
 import { EffectScope } from '../../common/constants.js';
 import { BattleQueries } from '../../queries/BattleQueries.js';
 import { TargetingLogic } from '../../logic/TargetingLogic.js';
-import { HookPhase } from '../../definitions/HookRegistry.js';
-import { TraitRegistry } from '../../definitions/traits/TraitRegistry.js';
+import { HookPhase } from '../../registries/HookRegistry.js';
+import { TraitRegistry } from '../../registries/TraitRegistry.js';
 
 export class TargetingSystem extends System {
     constructor(world) {

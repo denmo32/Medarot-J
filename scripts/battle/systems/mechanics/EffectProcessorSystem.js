@@ -6,7 +6,7 @@
  */
 import { System } from '../../../../engine/core/System.js';
 import { ApplyEffect, EffectContext } from '../../components/effects/Effects.js';
-import { EffectRegistry } from '../../definitions/EffectRegistry.js';
+import { EffectRegistry } from '../../registries/EffectRegistry.js';
 
 export class EffectProcessorSystem extends System {
     constructor(world) {

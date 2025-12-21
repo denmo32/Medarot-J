@@ -34,8 +34,8 @@ import { ComponentUpdateSystem } from '../systems/mechanics/ComponentUpdateSyste
 
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
-import { EffectRegistry } from '../definitions/EffectRegistry.js';
-import { TraitRegistry } from '../definitions/traits/TraitRegistry.js';
+import { EffectRegistry } from '../registries/EffectRegistry.js';
+import { TraitRegistry } from '../registries/TraitRegistry.js';
 
 export function initializeSystems(world, gameDataManager) {
 

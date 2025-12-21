@@ -6,8 +6,8 @@
 import { ActiveEffects } from '../components/index.js'; 
 import { EffectType } from '../common/constants.js';
 import { TypeDefinitions } from '../../data/typeDefinitions.js';
-import { TraitRegistry } from '../definitions/traits/TraitRegistry.js';
-import { HookPhase } from '../definitions/HookRegistry.js';
+import { TraitRegistry } from '../registries/TraitRegistry.js';
+import { HookPhase } from '../registries/HookRegistry.js';
 
 export const StatCalculator = {
     

@@ -2,7 +2,7 @@
  * @file HookContext.js
  * @description フックレジストリの状態を保持するコンポーネント。
  */
-import { HookRegistry } from '../definitions/HookRegistry.js';
+import { HookRegistry } from '../registries/HookRegistry.js';
 
 export class HookContext {
     constructor() {

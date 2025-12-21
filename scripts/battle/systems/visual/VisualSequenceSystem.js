@@ -15,7 +15,7 @@ import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
 import { ModalType, EffectType, EffectScope } from '../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
 import { BattleQueries } from '../../queries/BattleQueries.js';
-import { EffectRegistry } from '../../definitions/EffectRegistry.js';
+import { EffectRegistry } from '../../registries/EffectRegistry.js';
 
 /**
  * システムのデフォルト設定（フォールバック用）

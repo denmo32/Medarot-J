@@ -13,8 +13,8 @@ import { HpChangedEvent, PartBrokenEvent } from '../../../components/Events.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
 import { buildDamageParams } from '../../logic/CombatParameterBuilder.js';
 import { VisualDefinitions } from '../../../data/visualDefinitions.js';
-import { TraitRegistry } from '../../definitions/traits/TraitRegistry.js';
-import { HookPhase } from '../../definitions/HookRegistry.js';
+import { TraitRegistry } from '../../registries/TraitRegistry.js';
+import { HookPhase } from '../../registries/HookRegistry.js';
 
 export class DamageHandler extends EffectHandler {
     apply(world, effectEntityId, effect, context) {

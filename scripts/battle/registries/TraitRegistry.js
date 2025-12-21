@@ -2,9 +2,9 @@
  * @file TraitRegistry.js
  * @description Traitロジックの管理クラス。
  */
-import { GuardTrait } from '../../logic/traits/GuardTrait.js';
-import { PenetrateTrait } from '../../logic/traits/PenetrateTrait.js';
-import { StatModifierTrait } from '../../logic/traits/StatModifierTrait.js';
+import { GuardTrait } from '../logic/traits/GuardTrait.js';
+import { PenetrateTrait } from '../logic/traits/PenetrateTrait.js';
+import { StatModifierTrait } from '../logic/traits/StatModifierTrait.js';
 
 class TraitRegistryImpl {
     constructor() {
