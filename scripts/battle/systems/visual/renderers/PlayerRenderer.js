@@ -10,7 +10,7 @@ import { EffectType } from '../../../common/constants.js';
 import { PlayerInfo, Parts } from '../../../../components/index.js';
 import { ActiveEffects, IsCharging, IsReadyToExecute, IsGuarding, IsBroken, IsReadyToSelect } from '../../../components/index.js';
 import { BattleQueries } from '../../../queries/BattleQueries.js';
-import '../../../ui/components/GameHealthBar.js';
+import '../../../ui/GameHealthBar.js';
 
 export class PlayerRenderer {
     constructor(world, battlefield, teamContainers, uiManager) {
