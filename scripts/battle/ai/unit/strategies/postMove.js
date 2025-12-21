@@ -1,10 +1,8 @@
 /**
  * @file Unit AI: Post-Move Strategies
- * @description 移動後のターゲット選定（格闘攻撃時など）の戦略。
- * 旧 strategies/postMoveTargeting.js
+ * @description TargetingServiceへの依存をQueryServiceへ変更。
  */
 import { QueryService } from '../../../services/QueryService.js';
-import { TargetingService } from '../../../services/TargetingService.js';
 import { TargetingStrategyKey } from '../../AIDefinitions.js';
 import { Position } from '../../../components/index.js';
 
@@ -12,7 +10,7 @@ const findNearestEnemy = (world, attackerId) => {
     const attackerPos = world.getComponent(attackerId, Position);
     if (!attackerPos) return null;
     
-    const enemies = TargetingService.getValidEnemies(world, attackerId);
+    const enemies = QueryService.getValidEnemies(world, attackerId);
     if (enemies.length === 0) return null;
 
     const enemiesWithDistance = enemies
@@ -36,7 +34,7 @@ export const postMoveStrategies = {
     },
     
     [TargetingStrategyKey.MOST_DAMAGED_ALLY]: ({ world, attackerId }) => {
-        const allies = TargetingService.getValidAllies(world, attackerId, true);
-        return TargetingService.findMostDamagedAllyPart(world, allies);
+        const allies = QueryService.getValidAllies(world, attackerId, true);
+        return QueryService.findMostDamagedAllyPart(world, allies);
     },
 };

@@ -1,19 +1,17 @@
 /**
  * @file Unit AI: Offensive Strategies
- * @description 攻撃的なターゲット選定ロジック（機動が高い敵を狙う、HPが低いパーツを狙うなど）。
- * 旧 strategies/offensiveTargeting.js
+ * @description TargetingServiceへの依存をQueryServiceへ変更。
  */
 import { PlayerInfo, Parts } from '../../../../components/index.js';
 import { BattleLog } from '../../../components/index.js';
 import { BattleHistoryContext } from '../../../components/BattleHistoryContext.js';
 import { QueryService } from '../../../services/QueryService.js';
-import { TargetingService } from '../../../services/TargetingService.js';
 import { TargetingStrategyKey } from '../../AIDefinitions.js';
 import { PartInfo } from '../../../../common/constants.js';
 
 const createEnemyTargetingStrategy = (logicFn) => {
     return ({ world, attackerId }) => {
-        const candidates = TargetingService.getValidEnemies(world, attackerId);
+        const candidates = QueryService.getValidEnemies(world, attackerId);
         if (candidates.length === 0) return null;
         return logicFn({ world, attackerId, candidates });
     };
@@ -53,7 +51,7 @@ const createTargetedEntityStrategy = (findTargetIdFn) => createEnemyTargetingStr
 
 const createSingleEntityStrategy = (findTargetIdFn) => ({ world, attackerId }) => {
     const targetId = findTargetIdFn({ world, attackerId });
-    if (targetId && TargetingService.isValidTarget(world, targetId)) {
+    if (targetId && QueryService.isValidTarget(world, targetId)) {
         const allParts = QueryService.getAllPartsFromCandidates(world, [targetId]);
         return allParts.map(p => ({
             target: { targetId: p.entityId, targetPartKey: p.partKey },
@@ -71,7 +69,7 @@ const createSinglePartStrategy = (findTargetPartFn) => ({ world, attackerId }) =
     const targetInfo = world.getComponent(target.targetId, PlayerInfo);
     const isEnemy = targetInfo && targetInfo.teamId !== attackerInfo.teamId;
 
-    if (isEnemy && TargetingService.isValidTarget(world, target.targetId, target.partKey)) {
+    if (isEnemy && QueryService.isValidTarget(world, target.targetId, target.partKey)) {
         return [{
             target: { targetId: target.targetId, targetPartKey: target.partKey },
             weight: 10

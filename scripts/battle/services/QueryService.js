@@ -2,8 +2,9 @@
  * @file QueryService.js
  * @description 戦闘関連のエンティティやコンポーネントを検索・フィルタリングするサービス。
  * ECSの振る舞いコンポーネント（Behavior）に対応し、統合データを提供します。
+ * TargetingServiceからクエリ・検証ロジックを統合しました。
  */
-import { Parts } from '../../components/index.js';
+import { Parts, PlayerInfo } from '../../components/index.js';
 import { 
     PartStatus, PartStats, PartVisualConfig, 
     ActionLogic, TargetingBehavior, AccuracyBehavior, ImpactBehavior,
@@ -54,7 +55,7 @@ export class QueryService {
             // Behaviors
             actionType: logic?.type,
             action: stats.action,
-            type: stats.type, // 追加
+            type: stats.type,
             isSupport: logic?.isSupport || false,
 
             targetTiming: targeting?.timing,
@@ -67,7 +68,7 @@ export class QueryService {
             // Traits
             penetrates: penetrates,
             criticalBonus: critBonus ? critBonus.rate : 0,
-            trait: stats.trait, // 追加
+            trait: stats.trait,
 
             id: partEntityId,
         };
@@ -225,5 +226,82 @@ export class QueryService {
                 }))
                 .filter(item => item.part && !item.part.isBroken);
         });
+    }
+
+    // --- Validation Logic ---
+
+    static isValidTarget(world, targetId, partKey = null) {
+        if (targetId === null || targetId === undefined) return false;
+        const parts = world.getComponent(targetId, Parts);
+        if (!parts) return false;
+        
+        const headData = this.getPartData(world, parts.head);
+        if (!headData || headData.isBroken) return false;
+
+        if (partKey) {
+            const partId = parts[partKey];
+            const partData = this.getPartData(world, partId);
+            if (!partData || partData.isBroken) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // --- Entity Filtering ---
+
+    static getValidEnemies(world, attackerId) {
+        const attackerInfo = world.getComponent(attackerId, PlayerInfo);
+        if (!attackerInfo) return [];
+        return this._getValidEntitiesByTeam(world, attackerInfo.teamId, false);
+    }
+
+    static getValidAllies(world, sourceId, includeSelf = false) {
+        const sourceInfo = world.getComponent(sourceId, PlayerInfo);
+        if (!sourceInfo) return [];
+        const allies = this._getValidEntitiesByTeam(world, sourceInfo.teamId, true);
+        return includeSelf ? allies : allies.filter(id => id !== sourceId);
+    }
+
+    static _getValidEntitiesByTeam(world, sourceTeamId, isAlly) {
+        return world.getEntitiesWith(PlayerInfo, Parts)
+            .filter(id => {
+                const pInfo = world.getComponent(id, PlayerInfo);
+                const parts = world.getComponent(id, Parts);
+                const isSameTeam = pInfo.teamId === sourceTeamId;
+                
+                const headData = this.getPartData(world, parts.head);
+                const isAlive = headData && !headData.isBroken;
+                
+                return (isAlly ? isSameTeam : !isSameTeam) && isAlive;
+            });
+    }
+
+    static findMostDamagedAllyPart(world, candidates) {
+        if (!candidates || candidates.length === 0) return null;
+
+        const damagedParts = candidates.flatMap(allyId => {
+            const parts = world.getComponent(allyId, Parts);
+            if (!parts) return [];
+            
+            return Object.entries(parts)
+                .map(([key, partId]) => ({ 
+                    targetId: allyId, 
+                    targetPartKey: key, 
+                    data: this.getPartData(world, partId) 
+                }))
+                .filter(item => item.data && !item.data.isBroken && item.data.maxHp > item.data.hp)
+                .map(item => ({
+                    targetId: item.targetId,
+                    targetPartKey: item.targetPartKey,
+                    damage: item.data.maxHp - item.data.hp
+                }));
+        });
+
+        if (damagedParts.length === 0) return null;
+
+        damagedParts.sort((a, b) => b.damage - a.damage);
+        
+        return { targetId: damagedParts[0].targetId, targetPartKey: damagedParts[0].targetPartKey };
     }
 }

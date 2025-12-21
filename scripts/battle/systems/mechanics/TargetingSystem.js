@@ -1,6 +1,7 @@
 /**
  * @file TargetingSystem.js
  * @description ターゲット解決を行うシステム。
+ * CombatContextの初期化とターゲット解決ロジックを統合。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -8,12 +9,13 @@ import {
     RequiresPostMoveTargeting, RequiresPreMoveTargeting, TargetResolved,
     InCombatCalculation, GeneratingVisuals
 } from '../../components/index.js';
-import { Parts } from '../../../components/index.js';
-import { TargetingService } from '../../services/TargetingService.js';
+import { Parts, PlayerInfo } from '../../../components/index.js';
 import { targetingStrategies } from '../../ai/unit/strategies/index.js';
-import { CombatService } from '../../services/CombatService.js';
 import { EffectScope } from '../../common/constants.js';
 import { QueryService } from '../../services/QueryService.js';
+import { TargetingLogic } from '../../logic/TargetingLogic.js';
+import { HookPhase } from '../../definitions/HookRegistry.js';
+import { TraitRegistry } from '../../definitions/traits/TraitRegistry.js';
 
 export class TargetingSystem extends System {
     constructor(world) {
@@ -51,8 +53,8 @@ export class TargetingSystem extends System {
             const strategy = targetingStrategies[part.postMoveTargeting];
             if (strategy) {
                 const rawResult = strategy({ world: this.world, attackerId: entityId });
-                // サービスの正規化ロジックを使用
-                const normalized = TargetingService.normalizeStrategyResult(rawResult);
+                // Logicで正規化
+                const normalized = TargetingLogic.normalizeStrategyResult(rawResult);
                 
                 if (normalized) {
                     action.targetId = normalized.targetId;
@@ -67,13 +69,9 @@ export class TargetingSystem extends System {
 
         let ctx = this.world.getComponent(entityId, CombatContext);
         if (!ctx) {
-            ctx = CombatService.initializeContext(this.world, entityId);
+            ctx = this._initializeCombatContext(entityId);
             if (!ctx) {
-                const state = this.world.getComponent(entityId, BattleSequenceState);
-                state.contextData = { isCancelled: true, cancelReason: 'INTERRUPTED' };
-                
-                this.world.removeComponent(entityId, InCombatCalculation);
-                this.world.addComponent(entityId, new GeneratingVisuals());
+                this._abortWithError(entityId, 'INTERRUPT_BY_ERROR');
                 return;
             }
             this.world.addComponent(entityId, ctx);
@@ -87,28 +85,92 @@ export class TargetingSystem extends System {
             }
         }
 
-        const resolution = TargetingService.resolveActualTarget(
-            this.world,
-            ctx.attackerId,
-            ctx.intendedTargetId,
-            ctx.intendedTargetPartKey,
-            ctx.isSupport
-        );
-
-        if (resolution.shouldCancel) {
-            ctx.shouldCancel = true;
-            ctx.cancelReason = 'TARGET_LOST';
-        } else {
-            ctx.finalTargetId = resolution.finalTargetId;
-            ctx.finalTargetPartKey = resolution.finalTargetPartKey;
-            ctx.guardianInfo = resolution.guardianInfo;
-            
-            if (ctx.finalTargetId !== null) {
-                const targetParts = this.world.getComponent(ctx.finalTargetId, Parts);
-                ctx.targetLegs = QueryService.getPartData(this.world, targetParts?.legs);
-            }
-        }
+        this._applyTargetResolution(entityId, ctx);
         
         this.world.addComponent(entityId, new TargetResolved());
+    }
+
+    /**
+     * CombatContextの初期化（旧CombatService.initializeContext）
+     */
+    _initializeCombatContext(attackerId) {
+        const action = this.world.getComponent(attackerId, Action);
+        const attackerInfo = this.world.getComponent(attackerId, PlayerInfo);
+        const attackerParts = this.world.getComponent(attackerId, Parts);
+        
+        if (!action || !attackerInfo || !attackerParts || !action.partKey) return null;
+        
+        const attackingPartId = attackerParts[action.partKey];
+        if (attackingPartId === null) return null;
+
+        const attackingPartData = QueryService.getPartData(this.world, attackingPartId);
+        if (!attackingPartData) return null;
+
+        const ctx = new CombatContext();
+        ctx.attackerId = attackerId;
+        ctx.action = action;
+        ctx.attackerInfo = attackerInfo;
+        ctx.attackerParts = attackerParts;
+        ctx.attackingPartId = attackingPartId;
+        ctx.attackingPart = attackingPartData;
+        ctx.isSupport = attackingPartData.isSupport;
+        ctx.intendedTargetId = action.targetId;
+        ctx.intendedTargetPartKey = action.targetPartKey;
+
+        return ctx;
+    }
+
+    /**
+     * 実際のターゲット解決（旧TargetingService.resolveActualTarget）
+     */
+    _applyTargetResolution(attackerId, ctx) {
+        const { intendedTargetId, intendedTargetPartKey, isSupport } = ctx;
+
+        if (isSupport) {
+            ctx.finalTargetId = intendedTargetId;
+            ctx.finalTargetPartKey = intendedTargetPartKey;
+            return;
+        }
+
+        if (!QueryService.isValidTarget(this.world, intendedTargetId, intendedTargetPartKey)) {
+            ctx.shouldCancel = true;
+            ctx.cancelReason = 'TARGET_LOST';
+            return;
+        }
+
+        // 初期設定
+        const result = {
+            finalTargetId: intendedTargetId,
+            finalTargetPartKey: intendedTargetPartKey,
+            guardianInfo: null
+        };
+
+        // ガード判定等のフック実行
+        // システムが主導してTraitロジックを呼び出す
+        TraitRegistry.executeTraitLogic('GUARD', HookPhase.ON_TARGET_RESOLVING, {
+            world: this.world,
+            originalTargetId: intendedTargetId,
+            attackerId,
+            result
+        });
+
+        // 結果反映
+        ctx.finalTargetId = result.finalTargetId;
+        ctx.finalTargetPartKey = result.finalTargetPartKey;
+        ctx.guardianInfo = result.guardianInfo;
+
+        if (ctx.finalTargetId !== null) {
+            const targetParts = this.world.getComponent(ctx.finalTargetId, Parts);
+            ctx.targetLegs = QueryService.getPartData(this.world, targetParts?.legs);
+        }
+    }
+
+    _abortWithError(entityId, reason) {
+        const state = this.world.getComponent(entityId, BattleSequenceState);
+        if (state) {
+            state.contextData = { isCancelled: true, cancelReason: reason };
+        }
+        this.world.removeComponent(entityId, InCombatCalculation);
+        this.world.addComponent(entityId, new GeneratingVisuals());
     }
 }

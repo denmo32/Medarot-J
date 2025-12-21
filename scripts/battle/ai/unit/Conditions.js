@@ -1,16 +1,15 @@
 /**
  * @file Unit AI: Conditions
- * @description 思考ルーチン（PersonalityRegistry）で使用される条件判定ロジック。
- * 旧 conditionEvaluators.js
+ * @description TargetingServiceへの依存をQueryServiceへ変更。
  */
-import { TargetingService } from '../../services/TargetingService.js';
+import { QueryService } from '../../services/QueryService.js';
 
 export const conditionEvaluators = {
     // 味方の誰かがダメージを受けているか
     ANY_ALLY_DAMAGED: ({ world, entityId, params }) => {
         const { includeSelf = false } = params || {};
-        const allies = TargetingService.getValidAllies(world, entityId, includeSelf);
-        return TargetingService.findMostDamagedAllyPart(world, allies) !== null;
+        const allies = QueryService.getValidAllies(world, entityId, includeSelf);
+        return QueryService.findMostDamagedAllyPart(world, allies) !== null;
     },
 };
 

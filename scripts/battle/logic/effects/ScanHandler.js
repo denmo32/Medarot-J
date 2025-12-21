@@ -1,11 +1,11 @@
 /**
  * @file ScanHandler.js
- * @description スキャン付与 (APPLY_SCAN) のロジック。
+ * @description TargetingServiceへの依存をQueryServiceへ変更。
  */
 import { EffectHandler } from './EffectHandler.js';
 import { ActiveEffects } from '../../components/index.js'; // Battle
 import { EffectType } from '../../common/constants.js';
-import { TargetingService } from '../../services/TargetingService.js';
+import { QueryService } from '../../services/QueryService.js';
 import { VisualDefinitions } from '../../../data/visualDefinitions.js';
 
 export class ScanHandler extends EffectHandler {
@@ -20,12 +20,8 @@ export class ScanHandler extends EffectHandler {
         const baseValue = attackingPart[valueSource] || 0;
         const scanBonusValue = Math.floor(baseValue * valueFactor);
 
-        // コンテキストのターゲット（通常はALLY_TEAM）に対して効果を付与
-        // Note: EffectContext生成時にTargetingSystemで解決されたターゲットが入っているが、
-        // TEAM_SCANのような全体効果の場合、TargetingServiceで範囲取得し直すのが確実。
-        // ここではEffectContext.targetIdを「主ターゲット（味方リーダー等）」とし、
-        // そこからチーム全体を取得するロジックとする。
-        const targets = TargetingService.getValidAllies(world, targetId, true);
+        // 主ターゲット（リーダー等）からチーム全体を取得
+        const targets = QueryService.getValidAllies(world, targetId, true);
         const stateUpdates = [];
 
         targets.forEach(tid => {

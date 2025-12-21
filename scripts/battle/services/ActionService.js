@@ -1,10 +1,9 @@
 /**
  * @file ActionService.js
- * @description アクションの妥当性を検証し、リクエストコンポーネントを生成する。
- * PartsコンポーネントがID参照になったため、QueryService経由でデータを取得するように修正。
+ * @description アクションリクエスト生成ヘルパー。
+ * TargetingServiceへの依存をQueryServiceに変更。
  */
 import { Parts as CommonParts } from '../../components/index.js';
-import { TargetingService } from './TargetingService.js';
 import { TargetTiming } from '../common/constants.js';
 import { ActionState, ActionRequeueState } from '../components/States.js';
 import { QueryService } from './QueryService.js';
@@ -35,9 +34,10 @@ export const ActionService = {
         }
 
         // ターゲット検証 (PRE_MOVE)
+        // QueryService.isValidTarget を使用
         if (selectedPart.targetTiming === TargetTiming.PRE_MOVE && 
             selectedPart.targetScope?.endsWith('_SINGLE') && 
-            !TargetingService.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
+            !QueryService.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
             
             console.error(`ActionService: A valid target was expected but not found. Action may fail.`, {entityId, partKey, target});
         }

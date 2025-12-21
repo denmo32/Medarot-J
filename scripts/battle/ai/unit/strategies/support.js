@@ -1,14 +1,13 @@
 /**
  * @file Unit AI: Support Strategies
- * @description 支援・回復行動時のターゲット選定戦略。
- * 旧 strategies/supportTargeting.js
+ * @description TargetingServiceへの依存をQueryServiceへ変更。
  */
-import { TargetingService } from '../../../services/TargetingService.js';
+import { QueryService } from '../../../services/QueryService.js';
 import { TargetingStrategyKey } from '../../AIDefinitions.js';
 
 const findMostDamagedStrategy = ({ world, attackerId }) => {
-    const allies = TargetingService.getValidAllies(world, attackerId, true); 
-    const mostDamagedTarget = TargetingService.findMostDamagedAllyPart(world, allies);
+    const allies = QueryService.getValidAllies(world, attackerId, true); 
+    const mostDamagedTarget = QueryService.findMostDamagedAllyPart(world, allies);
 
     if (mostDamagedTarget) {
         return [{
