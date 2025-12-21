@@ -1,18 +1,19 @@
 /**
- * @file AiDecisionService.js
+ * @file AiLogic.js
  * @description AIの意思決定ロジックのエントリーポイント。
  * Commander AI（ActionPlanner）とUnit AI（TargetSelector）を調整します。
+ * 旧 AiDecisionService.js
  */
 import { determineTargetCandidatesByPersonality } from '../ai/unit/TargetSelector.js';
 import { selectBestActionPlan } from '../ai/commander/ActionPlanner.js';
-import { ActionService } from './ActionService.js';
-import { QueryService } from './QueryService.js';
+import { BattleRequestFactory } from '../utils/BattleRequestFactory.js';
+import { BattleQueries } from '../queries/BattleQueries.js';
 import { selectItemByProbability } from '../../../engine/utils/MathUtils.js';
 import { TargetTiming } from '../common/constants.js';
 import { ActionRequeueState } from '../components/States.js';
 import { StrategyExecutedEvent } from '../components/Requests.js';
 
-export const AiDecisionService = {
+export const AiLogic = {
     /**
      * 指定されたエンティティのAI思考を実行し、アクションリクエストを生成する
      * @param {World} world
@@ -62,7 +63,7 @@ export const AiDecisionService = {
             return [];
         }
         
-        const availableParts = QueryService.getAttackableParts(world, entityId);
+        const availableParts = BattleQueries.getAttackableParts(world, entityId);
         if (availableParts.length === 0) {
             return [];
         }
@@ -102,13 +103,13 @@ export const AiDecisionService = {
                 plan.target
             ));
         }
-        ActionService.createActionRequest(world, entityId, plan.partKey, plan.target);
+        BattleRequestFactory.createActionRequest(world, entityId, plan.partKey, plan.target);
     },
 
     _executeRandomFallback(world, entityId, actionPlans) {
         if (actionPlans.length === 0) return;
         const randomPlan = actionPlans[Math.floor(Math.random() * actionPlans.length)];
-        ActionService.createActionRequest(world, entityId, randomPlan.partKey, randomPlan.target);
+        BattleRequestFactory.createActionRequest(world, entityId, randomPlan.partKey, randomPlan.target);
     },
 
     _requeue(world, entityId) {

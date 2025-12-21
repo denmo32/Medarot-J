@@ -1,7 +1,7 @@
 /**
  * @file AnimationSystem.js
  * @description ビジュアルコンポーネントのアニメーション制御。
- * 演出の汎用化: IDの指定に基づき、攻撃以外のアクションでもターゲット演出を行えるように修正。
+ * QueryService -> BattleQueries
  */
 import { System } from '../../../../engine/core/System.js';
 import { Visual } from '../../components/index.js';
@@ -16,7 +16,7 @@ import { Parts } from '../../../components/index.js';
 import { UI_CONFIG } from '../../common/UIConfig.js';
 import { EffectType } from '../../common/constants.js';
 import { Easing, lerp } from '../../../../engine/utils/Tween.js';
-import { QueryService } from '../../services/QueryService.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 
 export class AnimationSystem extends System {
     constructor(world) {
@@ -243,11 +243,10 @@ export class AnimationSystem extends System {
             const parts = this.world.getComponent(entityId, Parts);
             const visual = this.world.getComponent(entityId, Visual);
             
-            // QueryServiceを使ってパーツデータを取得
             const partKeys = ['head', 'rightArm', 'leftArm', 'legs'];
             partKeys.forEach(key => {
                 const partId = parts[key];
-                const partData = QueryService.getPartData(this.world, partId);
+                const partData = BattleQueries.getPartData(this.world, partId);
                 
                 if (partData) {
                     if (!visual.partsInfo[key]) visual.partsInfo[key] = {};

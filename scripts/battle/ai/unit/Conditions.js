@@ -1,15 +1,15 @@
 /**
  * @file Unit AI: Conditions
- * @description TargetingServiceへの依存をQueryServiceへ変更。
+ * @description QueryServiceの参照をBattleQueriesへ変更。
  */
-import { QueryService } from '../../services/QueryService.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 
 export const conditionEvaluators = {
     // 味方の誰かがダメージを受けているか
     ANY_ALLY_DAMAGED: ({ world, entityId, params }) => {
         const { includeSelf = false } = params || {};
-        const allies = QueryService.getValidAllies(world, entityId, includeSelf);
-        return QueryService.findMostDamagedAllyPart(world, allies) !== null;
+        const allies = BattleQueries.getValidAllies(world, entityId, includeSelf);
+        return BattleQueries.findMostDamagedAllyPart(world, allies) !== null;
     },
 };
 

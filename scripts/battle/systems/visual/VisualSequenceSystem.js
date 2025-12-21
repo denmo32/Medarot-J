@@ -1,7 +1,7 @@
 /**
  * @file VisualSequenceSystem.js
  * @description 演出シーケンス生成システム。
- * エフェクトハンドラへメッセージ解決ロジックを委譲。
+ * MessageService, CancellationService -> MessageFormatter, ValidationLogic, BattleQueries
  */
 import { System } from '../../../../engine/core/System.js';
 import {
@@ -9,12 +9,12 @@ import {
     VisualSequence, CombatResult, SequenceFinished
 } from '../../components/index.js';
 import { PlayerInfo } from '../../../components/index.js';
-import { MessageService } from '../../services/MessageService.js';
-import { CancellationService } from '../../services/CancellationService.js';
+import { MessageFormatter } from '../../utils/MessageFormatter.js';
+import { ValidationLogic } from '../../logic/ValidationLogic.js';
 import { PartInfo, PartKeyToInfoMap } from '../../../common/constants.js';
 import { ModalType, EffectType, EffectScope } from '../../common/constants.js';
 import { MessageKey } from '../../../data/messageRepository.js';
-import { QueryService } from '../../services/QueryService.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 import { EffectRegistry } from '../../definitions/EffectRegistry.js';
 
 /**
@@ -39,7 +39,6 @@ const DEFAULT_VISUALS = {
 export class VisualSequenceSystem extends System {
     constructor(world) {
         super(world);
-        this.messageService = new MessageService(world);
     }
 
     update(deltaTime) {
@@ -55,7 +54,7 @@ export class VisualSequenceSystem extends System {
                 continue;
             }
 
-            const visualConfig = QueryService.getPartVisualConfig(this.world, context.attackingPartId);
+            const visualConfig = BattleQueries.getPartVisualConfig(this.world, context.attackingPartId);
 
             const sequenceDefs = context.isCancelled 
                 ? this._createCancelSequence(entityId, context)
@@ -103,7 +102,7 @@ export class VisualSequenceSystem extends System {
             const guardianName = guardianPlayerInfo?.name || ctx.guardianInfo.name;
             sequence.push({
                 type: 'DIALOG',
-                text: this.messageService.format(MessageKey.GUARDIAN_TRIGGERED, { guardianName: guardianName }),
+                text: MessageFormatter.format(MessageKey.GUARDIAN_TRIGGERED, { guardianName: guardianName }),
                 options: { modalType: ModalType.ATTACK_DECLARATION }
             });
         }
@@ -120,7 +119,7 @@ export class VisualSequenceSystem extends System {
         } else if (!ctx.outcome.isHit && ctx.intendedTargetId) {
             sequence.push({
                 type: 'DIALOG',
-                text: this.messageService.format(MessageKey.ATTACK_EVADED, { 
+                text: MessageFormatter.format(MessageKey.ATTACK_EVADED, { 
                     targetName: this.world.getComponent(ctx.intendedTargetId, PlayerInfo)?.name || '相手' 
                 }),
                 options: { modalType: ModalType.EXECUTION_RESULT }
@@ -151,7 +150,7 @@ export class VisualSequenceSystem extends System {
 
         return {
             type: 'DIALOG',
-            text: this.messageService.format(MessageKey[templateId] || templateId, params),
+            text: MessageFormatter.format(MessageKey[templateId] || templateId, params),
             options: { modalType: ModalType.ATTACK_DECLARATION }
         };
     }
@@ -187,10 +186,10 @@ export class VisualSequenceSystem extends System {
             params.guardianName = guardianPlayerInfo?.name || ctx.guardianInfo.name;
         }
 
-        let text = this.messageService.format(MessageKey[visualResult.messageKey] || visualResult.messageKey, params);
+        let text = MessageFormatter.format(MessageKey[visualResult.messageKey] || visualResult.messageKey, params);
         
         if (effect.type === EffectType.DAMAGE && effect.isCritical) {
-            text = this.messageService.format(MessageKey.CRITICAL_HIT) + text;
+            text = MessageFormatter.format(MessageKey.CRITICAL_HIT) + text;
         }
 
         tasks.push({
@@ -212,7 +211,7 @@ export class VisualSequenceSystem extends System {
     }
 
     _createCancelSequence(actorId, context) {
-        const message = CancellationService.getCancelMessage(this.world, actorId, context.cancelReason);
+        const message = ValidationLogic.getCancelMessage(this.world, actorId, context.cancelReason);
         return [
             { type: 'DIALOG', text: message, options: { modalType: ModalType.MESSAGE } },
             { type: 'STATE_CONTROL', updates: [{ type: 'ResetToCooldown', targetId: actorId, options: { interrupted: true } }] }

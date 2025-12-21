@@ -1,27 +1,25 @@
 /**
- * @file QueryService.js
- * @description 戦闘関連のエンティティやコンポーネントを検索・フィルタリングするサービス。
- * ECSの振る舞いコンポーネント（Behavior）に対応し、統合データを提供します。
- * TargetingServiceからクエリ・検証ロジックを統合しました。
+ * @file BattleQueries.js
+ * @description 戦闘関連のエンティティやコンポーネントを検索・取得する読み取り専用ヘルパー。
+ * importパス修正: Parts, PlayerInfoはCommon, 他はBattle
  */
-import { Parts, PlayerInfo } from '../../components/index.js';
+import { Parts, PlayerInfo } from '../../components/index.js'; // Common
 import { 
     PartStatus, PartStats, PartVisualConfig, 
     ActionLogic, TargetingBehavior, AccuracyBehavior, ImpactBehavior,
     TraitPenetrate, TraitCriticalBonus 
 } from '../components/parts/PartComponents.js';
-import { PartInfo } from '../../common/constants.js';
+import { PartInfo as PartInfoConst } from '../../common/constants.js';
 
-export class QueryService {
+export const BattleQueries = {
 
     /**
      * 指定されたパーツIDに対応するパーツエンティティの情報を統合して返す。
-     * 従来のデータ構造との互換性を保ちつつ、新しいBehaviorコンポーネントを反映。
      * @param {World} world 
      * @param {number} partEntityId 
      * @returns {object|null}
      */
-    static getPartData(world, partEntityId) {
+    getPartData(world, partEntityId) {
         if (partEntityId === null || partEntityId === undefined) return null;
 
         const status = world.getComponent(partEntityId, PartStatus);
@@ -72,36 +70,36 @@ export class QueryService {
 
             id: partEntityId,
         };
-    }
+    },
 
     /**
      * パーツの演出設定を取得する
      */
-    static getPartVisualConfig(world, partEntityId) {
+    getPartVisualConfig(world, partEntityId) {
         if (partEntityId === null || partEntityId === undefined) return null;
         return world.getComponent(partEntityId, PartVisualConfig);
-    }
+    },
 
     /**
      * 指定したパーツエンティティのステータスコンポーネントのみを取得する（軽量版）
      */
-    static getPartStats(world, partEntityId) {
+    getPartStats(world, partEntityId) {
         if (partEntityId === null || partEntityId === undefined) return null;
         return world.getComponent(partEntityId, PartStats);
-    }
+    },
 
     /**
      * 指定したパーツエンティティの特定のステータス値のみを取得する
      */
-    static getPartStat(world, partEntityId, statName) {
+    getPartStat(world, partEntityId, statName) {
         const stats = this.getPartStats(world, partEntityId);
         return stats ? (stats[statName] || 0) : 0;
-    }
+    },
 
     /**
      * 推進力による比較関数（ソート用）
      */
-    static compareByPropulsion(world) {
+    compareByPropulsion(world) {
         return (entityA, entityB) => {
             const partsA = world.getComponent(entityA, Parts);
             const partsB = world.getComponent(entityB, Parts);
@@ -109,16 +107,16 @@ export class QueryService {
             const propB = this.getPartStat(world, partsB?.legs, 'propulsion');
             return propB - propA;
         };
-    }
+    },
 
     /**
      * 指定エンティティのパーツ一覧を取得
      */
-    static getParts(world, entityId, includeBroken = false, attackableOnly = true) {
+    getParts(world, entityId, includeBroken = false, attackableOnly = true) {
         const parts = world.getComponent(entityId, Parts);
         if (!parts) return [];
 
-        const attackableKeys = new Set([PartInfo.HEAD.key, PartInfo.RIGHT_ARM.key, PartInfo.LEFT_ARM.key]);
+        const attackableKeys = new Set([PartInfoConst.HEAD.key, PartInfoConst.RIGHT_ARM.key, PartInfoConst.LEFT_ARM.key]);
         const entries = [
             ['head', parts.head],
             ['rightArm', parts.rightArm],
@@ -134,29 +132,29 @@ export class QueryService {
                 (includeBroken || !data.isBroken)
             )
             .map(item => [item.key, item.data]);
-    }
+    },
 
     /**
      * 攻撃可能なパーツ一覧を取得（頭部破壊時は空）
      */
-    static getAttackableParts(world, entityId) {
+    getAttackableParts(world, entityId) {
         const parts = world.getComponent(entityId, Parts);
         const headStatus = world.getComponent(parts?.head, PartStatus);
         if (!headStatus || headStatus.isBroken) return [];
         return this.getParts(world, entityId, false, true);
-    }
+    },
 
     /**
      * アクション可能な全パーツ一覧を取得（UI表示用）
      */
-    static getAllActionParts(world, entityId) {
+    getAllActionParts(world, entityId) {
         return this.getParts(world, entityId, true, true);
-    }
+    },
 
     /**
      * 防御に最適なパーツ（HP最大）を探す
      */
-    static findBestDefensePart(world, entityId) {
+    findBestDefensePart(world, entityId) {
         const parts = world.getComponent(entityId, Parts);
         if (!parts) return null;
 
@@ -166,29 +164,29 @@ export class QueryService {
             .sort((a, b) => b.status.hp - a.status.hp);
 
         return candidates.length > 0 ? candidates[0].key : null;
-    }
+    },
 
     /**
      * ランダムなパーツを選択する（AI思考で使用）
      */
-    static selectRandomPart(world, entityId) {
+    selectRandomPart(world, entityId) {
         const partKey = this._selectRandomPartKey(world, entityId);
         return partKey ? { targetId: entityId, targetPartKey: partKey } : null;
-    }
+    },
 
     /**
      * 貫通対象となるランダムなパーツを選択する（指定パーツ以外）
      */
-    static findRandomPenetrationTarget(world, entityId, excludedPartKey) {
+    findRandomPenetrationTarget(world, entityId, excludedPartKey) {
         const partKey = this._selectRandomPartKey(world, entityId, key => key !== excludedPartKey);
         return partKey;
-    }
+    },
 
     /**
      * 共通化されたランダムパーツキー選択ヘルパー
      * @private
      */
-    static _selectRandomPartKey(world, entityId, filterFn = () => true) {
+    _selectRandomPartKey(world, entityId, filterFn = () => true) {
         const parts = world.getComponent(entityId, Parts);
         if (!parts) return null;
         
@@ -205,12 +203,12 @@ export class QueryService {
 
         if (validKeys.length === 0) return null;
         return validKeys[Math.floor(Math.random() * validKeys.length)];
-    }
+    },
 
     /**
      * 候補エンティティ群から生存パーツをリスト化して取得（AI用）
      */
-    static getAllPartsFromCandidates(world, candidateIds) {
+    getAllPartsFromCandidates(world, candidateIds) {
         if (!candidateIds) return [];
         return candidateIds.flatMap(id => {
             const parts = world.getComponent(id, Parts);
@@ -226,11 +224,11 @@ export class QueryService {
                 }))
                 .filter(item => item.part && !item.part.isBroken);
         });
-    }
+    },
 
     // --- Validation Logic ---
 
-    static isValidTarget(world, targetId, partKey = null) {
+    isValidTarget(world, targetId, partKey = null) {
         if (targetId === null || targetId === undefined) return false;
         const parts = world.getComponent(targetId, Parts);
         if (!parts) return false;
@@ -246,24 +244,24 @@ export class QueryService {
             }
         }
         return true;
-    }
+    },
 
     // --- Entity Filtering ---
 
-    static getValidEnemies(world, attackerId) {
+    getValidEnemies(world, attackerId) {
         const attackerInfo = world.getComponent(attackerId, PlayerInfo);
         if (!attackerInfo) return [];
         return this._getValidEntitiesByTeam(world, attackerInfo.teamId, false);
-    }
+    },
 
-    static getValidAllies(world, sourceId, includeSelf = false) {
+    getValidAllies(world, sourceId, includeSelf = false) {
         const sourceInfo = world.getComponent(sourceId, PlayerInfo);
         if (!sourceInfo) return [];
         const allies = this._getValidEntitiesByTeam(world, sourceInfo.teamId, true);
         return includeSelf ? allies : allies.filter(id => id !== sourceId);
-    }
+    },
 
-    static _getValidEntitiesByTeam(world, sourceTeamId, isAlly) {
+    _getValidEntitiesByTeam(world, sourceTeamId, isAlly) {
         return world.getEntitiesWith(PlayerInfo, Parts)
             .filter(id => {
                 const pInfo = world.getComponent(id, PlayerInfo);
@@ -275,9 +273,9 @@ export class QueryService {
                 
                 return (isAlly ? isSameTeam : !isSameTeam) && isAlive;
             });
-    }
+    },
 
-    static findMostDamagedAllyPart(world, candidates) {
+    findMostDamagedAllyPart(world, candidates) {
         if (!candidates || candidates.length === 0) return null;
 
         const damagedParts = candidates.flatMap(allyId => {
@@ -304,4 +302,4 @@ export class QueryService {
         
         return { targetId: damagedParts[0].targetId, targetPartKey: damagedParts[0].targetPartKey };
     }
-}
+};

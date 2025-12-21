@@ -6,7 +6,7 @@ import { TraitLogic } from './TraitLogic.js';
 import { PartStatus } from '../../components/parts/PartComponents.js';
 import { ApplyEffect, EffectContext } from '../../components/effects/Effects.js';
 import { EffectType } from '../../common/constants.js';
-import { QueryService } from '../../services/QueryService.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 import { Parts } from '../../../components/index.js'; 
 
 export class PenetrateTrait extends TraitLogic {
@@ -24,7 +24,7 @@ export class PenetrateTrait extends TraitLogic {
 
             const headStatus = world.getComponent(targetParts.head, PartStatus);
             if (headStatus && !headStatus.isBroken) {
-                const nextTargetPartKey = QueryService.findRandomPenetrationTarget(
+                const nextTargetPartKey = BattleQueries.findRandomPenetrationTarget(
                     world,
                     targetId,
                     partKey

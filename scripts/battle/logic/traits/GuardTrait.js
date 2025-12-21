@@ -6,7 +6,7 @@ import { TraitLogic } from './TraitLogic.js';
 import { PlayerInfo, Parts } from '../../../components/index.js'; 
 import { ActiveEffects } from '../../components/index.js'; 
 import { EffectType } from '../../common/constants.js';
-import { QueryService } from '../../services/QueryService.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 
 export class GuardTrait extends TraitLogic {
     ON_TARGET_RESOLVING(context) {
@@ -28,7 +28,7 @@ export class GuardTrait extends TraitLogic {
             if (info.teamId !== targetInfo.teamId) continue;
 
             const parts = world.getComponent(id, Parts);
-            const headData = QueryService.getPartData(world, parts.head);
+            const headData = BattleQueries.getPartData(world, parts.head);
             if (!headData || headData.isBroken) continue;
 
             const activeEffects = world.getComponent(id, ActiveEffects);
@@ -37,7 +37,7 @@ export class GuardTrait extends TraitLogic {
             if (!guardEffect) continue;
 
             const guardPartId = parts[guardEffect.partKey];
-            const guardPartData = QueryService.getPartData(world, guardPartId);
+            const guardPartData = BattleQueries.getPartData(world, guardPartId);
             
             if (!guardPartData || guardPartData.isBroken) continue;
 

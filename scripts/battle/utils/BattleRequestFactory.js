@@ -1,14 +1,14 @@
 /**
- * @file ActionService.js
+ * @file BattleRequestFactory.js
  * @description アクションリクエスト生成ヘルパー。
- * TargetingServiceへの依存をQueryServiceに変更。
+ * importパス修正: PartsはCommon
  */
-import { Parts as CommonParts } from '../../components/index.js';
+import { Parts as CommonParts } from '../../components/index.js'; // Common, via index
 import { TargetTiming } from '../common/constants.js';
 import { ActionState, ActionRequeueState } from '../components/States.js';
-import { QueryService } from './QueryService.js';
+import { BattleQueries } from '../queries/BattleQueries.js';
 
-export const ActionService = {
+export const BattleRequestFactory = {
     /**
      * アクションリクエストを作成し、Worldに追加する
      * @param {World} world 
@@ -25,21 +25,20 @@ export const ActionService = {
         }
 
         const partId = parts[partKey];
-        const selectedPart = QueryService.getPartData(world, partId);
+        const selectedPart = BattleQueries.getPartData(world, partId);
 
         if (!selectedPart || selectedPart.isBroken) {
-            console.warn(`ActionService: Invalid or broken part selected for entity ${entityId}. Re-queueing.`);
+            console.warn(`BattleRequestFactory: Invalid or broken part selected for entity ${entityId}. Re-queueing.`);
             this._requeue(world, entityId);
             return;
         }
 
         // ターゲット検証 (PRE_MOVE)
-        // QueryService.isValidTarget を使用
         if (selectedPart.targetTiming === TargetTiming.PRE_MOVE && 
             selectedPart.targetScope?.endsWith('_SINGLE') && 
-            !QueryService.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
+            !BattleQueries.isValidTarget(world, target?.targetId, target?.targetPartKey)) {
             
-            console.error(`ActionService: A valid target was expected but not found. Action may fail.`, {entityId, partKey, target});
+            console.error(`BattleRequestFactory: A valid target was expected but not found. Action may fail.`, {entityId, partKey, target});
         }
 
         // ActionState コンポーネントを持つエンティティを作成

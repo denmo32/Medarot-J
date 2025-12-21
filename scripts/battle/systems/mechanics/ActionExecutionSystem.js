@@ -1,7 +1,7 @@
 /**
  * @file ActionExecutionSystem.js
  * @description アクションの実行（計算とエフェクト生成）を行うシステム。
- * CombatServiceに委譲していたループ処理をSystem内に展開し、処理内容を明確化。
+ * CombatParameterBuilder の import を関数版に変更。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -10,7 +10,7 @@ import {
 } from '../../components/index.js';
 import { ApplyEffect, EffectContext } from '../../components/effects/Effects.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
-import { CombatParameterBuilder } from '../../services/CombatParameterBuilder.js';
+import { buildHitOutcomeParams } from '../../logic/CombatParameterBuilder.js';
 import { EffectType } from '../../common/constants.js';
 
 export class ActionExecutionSystem extends System {
@@ -40,8 +40,7 @@ export class ActionExecutionSystem extends System {
         }
 
         // 1. 命中判定・結果計算 (Calculator + Builder)
-        const builder = new CombatParameterBuilder(this.world);
-        const params = builder.buildHitOutcomeParams(ctx);
+        const params = buildHitOutcomeParams(this.world, ctx);
         
         // 確率計算（Calculatorへ委譲）
         const calcParams = {

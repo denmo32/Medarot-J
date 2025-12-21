@@ -1,7 +1,7 @@
 /**
  * @file TargetingSystem.js
  * @description ターゲット解決を行うシステム。
- * CombatContextの初期化とターゲット解決ロジックを統合。
+ * QueryService -> BattleQueries
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -12,7 +12,7 @@ import {
 import { Parts, PlayerInfo } from '../../../components/index.js';
 import { targetingStrategies } from '../../ai/unit/strategies/index.js';
 import { EffectScope } from '../../common/constants.js';
-import { QueryService } from '../../services/QueryService.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 import { TargetingLogic } from '../../logic/TargetingLogic.js';
 import { HookPhase } from '../../definitions/HookRegistry.js';
 import { TraitRegistry } from '../../definitions/traits/TraitRegistry.js';
@@ -45,7 +45,7 @@ export class TargetingSystem extends System {
         if (!parts || !action.partKey) return;
         
         const partId = parts[action.partKey];
-        const part = QueryService.getPartData(this.world, partId);
+        const part = BattleQueries.getPartData(this.world, partId);
         if (!part) return;
 
         // PostMove戦略があれば実行
@@ -91,7 +91,7 @@ export class TargetingSystem extends System {
     }
 
     /**
-     * CombatContextの初期化（旧CombatService.initializeContext）
+     * CombatContextの初期化
      */
     _initializeCombatContext(attackerId) {
         const action = this.world.getComponent(attackerId, Action);
@@ -103,7 +103,7 @@ export class TargetingSystem extends System {
         const attackingPartId = attackerParts[action.partKey];
         if (attackingPartId === null) return null;
 
-        const attackingPartData = QueryService.getPartData(this.world, attackingPartId);
+        const attackingPartData = BattleQueries.getPartData(this.world, attackingPartId);
         if (!attackingPartData) return null;
 
         const ctx = new CombatContext();
@@ -121,7 +121,7 @@ export class TargetingSystem extends System {
     }
 
     /**
-     * 実際のターゲット解決（旧TargetingService.resolveActualTarget）
+     * 実際のターゲット解決
      */
     _applyTargetResolution(attackerId, ctx) {
         const { intendedTargetId, intendedTargetPartKey, isSupport } = ctx;
@@ -132,7 +132,7 @@ export class TargetingSystem extends System {
             return;
         }
 
-        if (!QueryService.isValidTarget(this.world, intendedTargetId, intendedTargetPartKey)) {
+        if (!BattleQueries.isValidTarget(this.world, intendedTargetId, intendedTargetPartKey)) {
             ctx.shouldCancel = true;
             ctx.cancelReason = 'TARGET_LOST';
             return;
@@ -161,7 +161,7 @@ export class TargetingSystem extends System {
 
         if (ctx.finalTargetId !== null) {
             const targetParts = this.world.getComponent(ctx.finalTargetId, Parts);
-            ctx.targetLegs = QueryService.getPartData(this.world, targetParts?.legs);
+            ctx.targetLegs = BattleQueries.getPartData(this.world, targetParts?.legs);
         }
     }
 

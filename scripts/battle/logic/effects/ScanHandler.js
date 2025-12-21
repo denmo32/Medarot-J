@@ -1,11 +1,11 @@
 /**
  * @file ScanHandler.js
- * @description TargetingServiceへの依存をQueryServiceへ変更。
+ * @description QueryServiceの参照をBattleQueriesへ変更。
  */
 import { EffectHandler } from './EffectHandler.js';
 import { ActiveEffects } from '../../components/index.js'; // Battle
 import { EffectType } from '../../common/constants.js';
-import { QueryService } from '../../services/QueryService.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 import { VisualDefinitions } from '../../../data/visualDefinitions.js';
 
 export class ScanHandler extends EffectHandler {
@@ -21,7 +21,7 @@ export class ScanHandler extends EffectHandler {
         const scanBonusValue = Math.floor(baseValue * valueFactor);
 
         // 主ターゲット（リーダー等）からチーム全体を取得
-        const targets = QueryService.getValidAllies(world, targetId, true);
+        const targets = BattleQueries.getValidAllies(world, targetId, true);
         const stateUpdates = [];
 
         targets.forEach(tid => {

@@ -1,26 +1,19 @@
 /**
  * @file ModalSystem.js
  * @description モーダルの状態管理とフロー制御を行うシステム。
- * 内部状態(currentModalEntityId)を排除し、BattleUIStateコンポーネントを使用。
+ * importパスを修正: ../utils -> ../../utils
  */
 import { System } from '../../../../engine/core/System.js';
 import { BattleUIState } from '../../components/index.js';
 import { modalHandlers } from '../../ui/modalHandlers.js';
 import { ModalType } from '../../common/constants.js';
-import { AiDecisionService } from '../../services/AiDecisionService.js';
-import { ActionService } from '../../services/ActionService.js';
+import { BattleRequestFactory } from '../../utils/BattleRequestFactory.js';
 import { ModalState, PlayerInputState, ActionRequeueState, AnimationState, UIStateUpdateState, UIInputState } from '../../components/States.js';
-// import {
-//     BattleStartConfirmedTag,
-//     BattleStartCancelledTag,
-//     ResetButtonResult
-// } from '../../components/Requests.js'; // 古いイベントコンポーネントは削除
 import { PauseState } from '../../components/PauseState.js';
 import {
     BattleStartConfirmedRequest,
     BattleStartCancelledRequest,
-    ResetButtonClickedRequest,
-    PartSelectedRequest
+    ResetButtonClickedRequest
 } from '../../../components/Events.js';
 
 export class ModalSystem extends System {
@@ -28,7 +21,6 @@ export class ModalSystem extends System {
         super(world);
         this.uiState = this.world.getSingletonComponent(BattleUIState);
         this.handlers = modalHandlers;
-        // ステートレス: currentModalEntityId は削除
     }
 
     update(deltaTime) {
@@ -64,11 +56,10 @@ export class ModalSystem extends System {
                     taskId: state.taskId,
                     onComplete: state.onComplete,
                     priority: state.priority,
-                    entityId: entityId // キューにエンティティIDを保持
+                    entityId: entityId 
                 });
                 state.isNew = false;
                 state.isOpen = true;
-                // activeModalEntityId は _startNextModalInQueue で設定
             }
         }
     }
@@ -83,7 +74,7 @@ export class ModalSystem extends System {
                     const modalData = handler.prepareData({
                         world: this.world,
                         data: { entityId: state.entityId },
-                        services: { aiService: AiDecisionService }
+                        services: {} // modalHandlers内で直接importするため不要
                     });
 
                     if (modalData) {
@@ -135,7 +126,7 @@ export class ModalSystem extends System {
         this.uiState.currentModalCallback = modalContext.onComplete || null;
         this.uiState.currentMessageSequence = modalContext.messageSequence || [{}];
         this.uiState.currentSequenceIndex = 0;
-        this.uiState.activeModalEntityId = modalContext.entityId || null; // コンポーネントでID管理
+        this.uiState.activeModalEntityId = modalContext.entityId || null; 
 
         if (this.getEntities(PauseState).length === 0) {
             const pauseEntity = this.world.createEntity();
@@ -233,7 +224,6 @@ export class ModalSystem extends System {
             this.uiState.currentModalCallback();
         }
 
-        // BattleUIStateに保持したIDを使用してコンポーネントを更新
         if (this.uiState.activeModalEntityId) {
             const state = this.world.getComponent(this.uiState.activeModalEntityId, ModalState);
             if (state) {
@@ -287,8 +277,7 @@ export class ModalSystem extends System {
         switch(action.action) {
             case 'EMIT_AND_CLOSE':
                 if (action.eventName === 'PART_SELECTED') {
-                    // 古いアクション作成処理を維持（将来的にリクエスト形式に統一してもよい）
-                    ActionService.createActionRequest(
+                    BattleRequestFactory.createActionRequest(
                         this.world,
                         action.detail.entityId,
                         action.detail.partKey,

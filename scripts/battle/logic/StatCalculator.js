@@ -1,17 +1,17 @@
 /**
- * @file EffectService.js
- * @description ステータス補正サービス。
- * TraitRegistry を使用するように修正。
+ * @file StatCalculator.js
+ * @description ステータス補正計算を行うロジック関数群。
+ * importパス修正: ../components/index.js (battle/components)
  */
-import { ActiveEffects } from '../components/index.js'; // Battle
+import { ActiveEffects } from '../components/index.js'; 
 import { EffectType } from '../common/constants.js';
 import { TypeDefinitions } from '../../data/typeDefinitions.js';
 import { TraitRegistry } from '../definitions/traits/TraitRegistry.js';
 import { HookPhase } from '../definitions/HookRegistry.js';
 
-export class EffectService {
+export const StatCalculator = {
     
-    static getStatModifier(world, entityId, statName, context = {}) {
+    getStatModifier(world, entityId, statName, context = {}) {
         const fullContext = {
             ...context,
             world,
@@ -25,9 +25,9 @@ export class EffectService {
         modifier += this._getActiveEffectModifier(world, entityId, statName);
 
         return modifier;
-    }
+    },
 
-    static getSpeedMultiplierModifier(world, entityId, part) {
+    getSpeedMultiplierModifier(world, entityId, part) {
         const activeEffects = world.getComponent(entityId, ActiveEffects);
         if (activeEffects) {
             if (activeEffects.effects.some(e => e.type === 'STOP_GAUGE')) {
@@ -45,19 +45,19 @@ export class EffectService {
         }
 
         return multiplier;
-    }
+    },
 
-    static getCriticalChanceModifier(part) {
+    getCriticalChanceModifier(part) {
         if (!part) return 0;
         const context = { attackingPart: part };
         
         let traitBonus = this._executeTraitHooks(HookPhase.ON_CALCULATE_CRITICAL, context);
         return traitBonus + (part.criticalBonus || 0);
-    }
+    },
 
     // --- Internal Logic ---
 
-    static _executeTraitHooks(hookName, context, returnArray = false) {
+    _executeTraitHooks(hookName, context, returnArray = false) {
         const { attackingPart } = context;
         if (!attackingPart) return returnArray ? [] : 0;
 
@@ -84,7 +84,6 @@ export class EffectService {
             }
 
             // TypeDefinition自体が Trait パラメータを持っている場合 (speedMultiplier, criticalBonus)
-            // これも汎用 STAT_MODIFIER トレイトで処理可能だが、パラメータ形式を合わせる
             if (hookName === HookPhase.ON_CALCULATE_SPEED_MULTIPLIER && def.speedMultiplier !== undefined) {
                 const val = TraitRegistry.executeTraitLogic('STAT_MODIFIER', hookName, { ...context, params: def });
                 results.push(val);
@@ -98,9 +97,9 @@ export class EffectService {
         }
 
         return returnArray ? results : total;
-    }
+    },
 
-    static _getActiveEffectModifier(world, entityId, statName) {
+    _getActiveEffectModifier(world, entityId, statName) {
         let bonus = 0;
         if (!world || entityId === undefined || entityId === null) return 0;
 
@@ -114,4 +113,4 @@ export class EffectService {
 
         return bonus;
     }
-}
+};

@@ -1,7 +1,7 @@
 /**
  * @file BattleSequenceSystem.js
  * @description バトルアクションパイプラインの管理システム。
- * リファクタリング: タグ処理を共通定義を使用して簡素化。
+ * CancellationService, QueryServiceの置換。
  */
 import { System } from '../../../../engine/core/System.js';
 import {
@@ -19,8 +19,8 @@ import { Parts } from '../../../components/index.js';
 import { TransitionStateRequest } from '../../components/CommandRequests.js';
 import { ActionCancelledEvent } from '../../components/Requests.js';
 import { PlayerStateType, BattlePhase, TargetTiming, ActionType } from '../../common/constants.js';
-import { CancellationService } from '../../services/CancellationService.js';
-import { QueryService } from '../../services/QueryService.js';
+import { ValidationLogic } from '../../logic/ValidationLogic.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 
 export class BattleSequenceSystem extends System {
     constructor(world) {
@@ -84,7 +84,7 @@ export class BattleSequenceSystem extends System {
             ));
 
             // キャンセルチェック
-            const cancelCheck = CancellationService.checkCancellation(this.world, entityId);
+            const cancelCheck = ValidationLogic.checkCancellation(this.world, entityId);
             if (cancelCheck.shouldCancel) {
                 this._handleImmediateCancel(entityId, state, cancelCheck.reason);
             } else {
@@ -114,7 +114,7 @@ export class BattleSequenceSystem extends System {
         if (!action || !parts || !action.partKey) return false;
         
         const partId = parts[action.partKey];
-        const partData = QueryService.getPartData(this.world, partId);
+        const partData = BattleQueries.getPartData(this.world, partId);
         if (!partData) return false;
 
         // アクションタイプに応じたタグ付与
@@ -183,7 +183,7 @@ export class BattleSequenceSystem extends System {
         const pendingEntities = this.getEntities(SequencePending);
         if (pendingEntities.length === 0) return null;
 
-        pendingEntities.sort(QueryService.compareByPropulsion(this.world));
+        pendingEntities.sort(BattleQueries.compareByPropulsion(this.world));
 
         return pendingEntities[0];
     }

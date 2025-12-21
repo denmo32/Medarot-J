@@ -1,7 +1,7 @@
 /**
  * @file PlayerRenderer.js
  * @description プレイヤーのDOM描画ロジック。
- * 脚部パーツが表示されるようにQueryServiceの引数を修正。
+ * QueryService -> BattleQueries
  */
 import { el } from '../../../../../engine/utils/DOMUtils.js';
 import { CONFIG } from '../../../common/config.js';
@@ -9,7 +9,7 @@ import { TeamID, PartInfo } from '../../../../common/constants.js';
 import { EffectType } from '../../../common/constants.js';
 import { PlayerInfo, Parts } from '../../../../components/index.js';
 import { ActiveEffects, IsCharging, IsReadyToExecute, IsGuarding, IsBroken, IsReadyToSelect } from '../../../components/index.js';
-import { QueryService } from '../../../services/QueryService.js';
+import { BattleQueries } from '../../../queries/BattleQueries.js';
 import '../../../ui/components/GameHealthBar.js';
 
 export class PlayerRenderer {
@@ -65,7 +65,7 @@ export class PlayerRenderer {
 
         // パーツデータの取得
         // attackableOnly=false にして脚部も含める
-        const partsList = QueryService.getParts(this.world, entityId, true, false);
+        const partsList = BattleQueries.getParts(this.world, entityId, true, false);
 
         [PartInfo.HEAD, PartInfo.RIGHT_ARM, PartInfo.LEFT_ARM, PartInfo.LEGS].forEach(info => {
             const key = info.key;

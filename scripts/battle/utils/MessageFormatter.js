@@ -1,17 +1,12 @@
 /**
- * @file MessageService.js
- * @description メッセージフォーマットのサービス。
- * メッセージテンプレートの置換機能を提供する。
- * 以前の演出生成ロジックはVisualSequenceServiceへ移行されたため、純粋なフォーマッターとして機能する。
+ * @file MessageFormatter.js
+ * @description メッセージフォーマットの純粋関数群。
+ * 旧 MessageService.js
  */
 
 import { MessageTemplates } from '../../data/messageRepository.js';
 
-export class MessageService {
-    constructor(world) {
-        this.world = world;
-    }
-
+export const MessageFormatter = {
     /**
      * メッセージテンプレートに変数を埋め込みます。
      * @param {string} key - メッセージキー
@@ -25,4 +20,4 @@ export class MessageService {
         }
         return template;
     }
-}
+};

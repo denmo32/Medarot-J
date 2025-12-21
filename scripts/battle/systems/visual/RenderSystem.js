@@ -9,7 +9,7 @@ import { UIManager } from '../../../../engine/ui/UIManager.js';
 import { TeamID } from '../../../common/constants.js';
 import { PlayerRenderer } from './renderers/PlayerRenderer.js';
 import { EffectRenderer } from './renderers/EffectRenderer.js';
-import { QueryService } from '../../services/QueryService.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 
 export class RenderSystem extends System {
     constructor(world) {
@@ -110,7 +110,7 @@ export class RenderSystem extends System {
     }
 
     _syncInitialValues(entityId, visual) {
-        const partsList = QueryService.getParts(this.world, entityId, true, true);
+        const partsList = BattleQueries.getParts(this.world, entityId, true, true);
         partsList.forEach(([key, partData]) => {
             if (!visual.partsInfo[key]) visual.partsInfo[key] = {};
             visual.partsInfo[key].current = partData.hp;

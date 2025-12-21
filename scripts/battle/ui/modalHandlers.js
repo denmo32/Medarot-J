@@ -1,13 +1,16 @@
 /**
  * @file modalHandlers.js
  * @description モーダルごとの挙動定義。
- * QueryServiceの変更に対応。
+ * AiDecisionService -> AiLogic
+ * ActionService -> BattleRequestFactory
+ * QueryService -> BattleQueries
  */
 import { ModalType } from '../common/constants.js';
 import { PartInfo } from '../../common/constants.js';
 import { CONFIG } from '../common/config.js';
-import { AiDecisionService } from '../services/AiDecisionService.js';
-import { QueryService } from '../services/QueryService.js';
+import { AiLogic } from '../ai/AiLogic.js';
+import { BattleRequestFactory } from '../utils/BattleRequestFactory.js';
+import { BattleQueries } from '../queries/BattleQueries.js';
 import { PlayerInfo } from '../../components/index.js';
 import { PartSelectedRequest, BattleStartConfirmedRequest, BattleStartCancelledRequest, ResetButtonClickedRequest } from '../../components/Events.js';
 
@@ -39,16 +42,15 @@ export const modalHandlers = {
             const playerInfo = world.getComponent(entityId, PlayerInfo);
             if (!playerInfo) return null;
 
-            const { aiService } = services;
-
-            const targetCandidates = aiService.getSuggestionForPlayer(world, entityId);
+            // services.aiService is replaced by direct AiLogic import
+            const targetCandidates = AiLogic.getSuggestionForPlayer(world, entityId);
 
             if (!targetCandidates || targetCandidates.length === 0) {
                 return null;
             }
 
-            const actionPlans = aiService.generateActionPlans(world, entityId, targetCandidates);
-            const allPossibleParts = QueryService.getAllActionParts(world, entityId);
+            const actionPlans = AiLogic.generateActionPlans(world, entityId, targetCandidates);
+            const allPossibleParts = BattleQueries.getAllActionParts(world, entityId);
 
             const buttonsData = allPossibleParts.map(([partKey, part]) => {
                 const plan = actionPlans.find(p => p.partKey === partKey);

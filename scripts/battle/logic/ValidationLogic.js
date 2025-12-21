@@ -1,14 +1,14 @@
 /**
- * @file CancellationService.js
- * @description アクションキャンセル判定。
- * パーツIDの参照を修正。
+ * @file ValidationLogic.js
+ * @description アクションのキャンセル判定などの妥当性検証ロジック。
+ * importパス修正
  */
-import { Action } from '../components/index.js';
-import { Parts, PlayerInfo } from '../../components/index.js';
+import { Action } from '../components/index.js'; // Battle components
+import { Parts, PlayerInfo } from '../../components/index.js'; // Common components
 import { ActionCancelReason } from '../common/constants.js';
 import { MessageKey } from '../../data/messageRepository.js';
-import { MessageService } from './MessageService.js';
-import { QueryService } from './QueryService.js';
+import { MessageFormatter } from '../utils/MessageFormatter.js';
+import { BattleQueries } from '../queries/BattleQueries.js';
 
 const cancelReasonToMessageKey = {
     [ActionCancelReason.PART_BROKEN]: MessageKey.CANCEL_PART_BROKEN,
@@ -16,14 +16,14 @@ const cancelReasonToMessageKey = {
     [ActionCancelReason.INTERRUPTED]: MessageKey.CANCEL_INTERRUPTED,
 };
 
-export class CancellationService {
+export const ValidationLogic = {
     /**
      * 指定されたエンティティのアクションがキャンセルされるべきか判定する
      * @param {World} world 
      * @param {number} entityId 
      * @returns {{ shouldCancel: boolean, reason: string|null }}
      */
-    static checkCancellation(world, entityId) {
+    checkCancellation(world, entityId) {
         const action = world.getComponent(entityId, Action);
         const actorParts = world.getComponent(entityId, Parts);
 
@@ -32,7 +32,7 @@ export class CancellationService {
         }
 
         const partId = actorParts[action.partKey];
-        const partData = QueryService.getPartData(world, partId);
+        const partData = BattleQueries.getPartData(world, partId);
 
         if (!partData || partData.isBroken) {
             return { shouldCancel: true, reason: ActionCancelReason.PART_BROKEN };
@@ -44,14 +44,14 @@ export class CancellationService {
                 return { shouldCancel: true, reason: ActionCancelReason.TARGET_LOST };
             }
             
-            const headData = QueryService.getPartData(world, targetParts.head);
+            const headData = BattleQueries.getPartData(world, targetParts.head);
             if (!headData || headData.isBroken) {
                 return { shouldCancel: true, reason: ActionCancelReason.TARGET_LOST };
             }
 
             if (action.targetPartKey) {
                  const targetPartId = targetParts[action.targetPartKey];
-                 const targetPartData = QueryService.getPartData(world, targetPartId);
+                 const targetPartData = BattleQueries.getPartData(world, targetPartId);
                  if (!targetPartData || targetPartData.isBroken) {
                     return { shouldCancel: true, reason: ActionCancelReason.TARGET_LOST };
                  }
@@ -59,15 +59,14 @@ export class CancellationService {
         }
 
         return { shouldCancel: false, reason: null };
-    }
+    },
 
-    static getCancelMessage(world, entityId, reason) {
-        const messageService = new MessageService(world);
+    getCancelMessage(world, entityId, reason) {
         const actorInfo = world.getComponent(entityId, PlayerInfo);
         
         if (!actorInfo) return '';
 
         const messageKey = cancelReasonToMessageKey[reason] || MessageKey.CANCEL_INTERRUPTED;
-        return messageService.format(messageKey, { actorName: actorInfo.name });
+        return MessageFormatter.format(messageKey, { actorName: actorInfo.name });
     }
-}
+};

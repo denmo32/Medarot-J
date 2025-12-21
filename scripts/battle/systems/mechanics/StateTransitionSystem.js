@@ -1,8 +1,7 @@
 /**
  * @file StateTransitionSystem.js
  * @description 状態遷移リクエスト処理システム。
- * 冗長な記述をマッピングとヘルパーメソッドで整理。
- * 修正: 座標不整合（揺れ）を防ぐため、リクエスト処理時に状態タグを即時反映するよう変更。
+ * QueryService, EffectService -> BattleQueries, StatCalculator
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -31,8 +30,8 @@ import { PlayerStateType, EffectType } from '../../common/constants.js';
 import { TeamID } from '../../../common/constants.js';
 import { CONFIG } from '../../common/config.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
-import { EffectService } from '../../services/EffectService.js';
-import { QueryService } from '../../services/QueryService.js';
+import { StatCalculator } from '../../logic/StatCalculator.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 
 export class StateTransitionSystem extends System {
     constructor(world) {
@@ -150,7 +149,7 @@ export class StateTransitionSystem extends System {
         const parts = this.world.getComponent(targetId, Parts);
         if (!parts) return false;
         
-        const headData = QueryService.getPartData(this.world, parts.head);
+        const headData = BattleQueries.getPartData(this.world, parts.head);
         return headData && !headData.isBroken;
     }
 
@@ -242,10 +241,10 @@ export class StateTransitionSystem extends System {
 
             if (action?.partKey && parts) {
                 const partId = parts[action.partKey];
-                const usedPart = QueryService.getPartData(this.world, partId);
+                const usedPart = BattleQueries.getPartData(this.world, partId);
 
                 if (usedPart) {
-                    const modifier = EffectService.getSpeedMultiplierModifier(this.world, targetId, usedPart);
+                    const modifier = StatCalculator.getSpeedMultiplierModifier(this.world, targetId, usedPart);
                     nextSpeedMultiplier = CombatCalculator.calculateSpeedMultiplier({
                         might: usedPart.might,
                         success: usedPart.success,

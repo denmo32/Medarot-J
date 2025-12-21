@@ -1,8 +1,8 @@
 /**
  * @file Unit AI: Post-Move Strategies
- * @description TargetingServiceへの依存をQueryServiceへ変更。
+ * @description QueryServiceの参照をBattleQueriesへ変更。
  */
-import { QueryService } from '../../../services/QueryService.js';
+import { BattleQueries } from '../../../queries/BattleQueries.js';
 import { TargetingStrategyKey } from '../../AIDefinitions.js';
 import { Position } from '../../../components/index.js';
 
@@ -10,7 +10,7 @@ const findNearestEnemy = (world, attackerId) => {
     const attackerPos = world.getComponent(attackerId, Position);
     if (!attackerPos) return null;
     
-    const enemies = QueryService.getValidEnemies(world, attackerId);
+    const enemies = BattleQueries.getValidEnemies(world, attackerId);
     if (enemies.length === 0) return null;
 
     const enemiesWithDistance = enemies
@@ -28,13 +28,13 @@ export const postMoveStrategies = {
     [TargetingStrategyKey.NEAREST_ENEMY]: ({ world, attackerId }) => {
         const nearestEnemyId = findNearestEnemy(world, attackerId);
         if (nearestEnemyId !== null) {
-            return QueryService.selectRandomPart(world, nearestEnemyId);
+            return BattleQueries.selectRandomPart(world, nearestEnemyId);
         }
         return null;
     },
     
     [TargetingStrategyKey.MOST_DAMAGED_ALLY]: ({ world, attackerId }) => {
-        const allies = QueryService.getValidAllies(world, attackerId, true);
-        return QueryService.findMostDamagedAllyPart(world, allies);
+        const allies = BattleQueries.getValidAllies(world, attackerId, true);
+        return BattleQueries.findMostDamagedAllyPart(world, allies);
     },
 };

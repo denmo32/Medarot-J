@@ -1,7 +1,6 @@
 /**
  * @file SystemInitializer.js
  * @description システム初期化。
- * TraitRegistryの初期化を追加。
  */
 import { RenderSystem } from '../systems/visual/RenderSystem.js';
 import { AnimationSystem } from '../systems/visual/AnimationSystem.js';
@@ -36,15 +35,14 @@ import { ComponentUpdateSystem } from '../systems/mechanics/ComponentUpdateSyste
 import { TimerSystem } from '../../../engine/stdlib/systems/TimerSystem.js';
 
 import { EffectRegistry } from '../definitions/EffectRegistry.js';
-import { TraitRegistry } from '../definitions/traits/TraitRegistry.js'; // 追加
+import { TraitRegistry } from '../definitions/traits/TraitRegistry.js';
 
 export function initializeSystems(world, gameDataManager) {
 
     // 初期化処理
     EffectRegistry.initialize();
-    TraitRegistry.initialize(); // 追加
+    TraitRegistry.initialize();
 
-    // (以下、システム登録順序は変更なし)
     const uiInputSystem = new UIInputSystem(world);
     const modalSystem = new ModalSystem(world);
     const actionPanelSystem = new ActionPanelSystem(world);

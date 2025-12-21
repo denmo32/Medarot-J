@@ -1,14 +1,14 @@
 /**
  * @file WinConditionSystem.js
  * @description 勝敗判定。
- * パーツIDの参照を修正。
+ * QueryService -> BattleQueries
  */
 import { System } from '../../../../engine/core/System.js';
 import { PlayerInfo, Parts } from '../../../components/index.js';
 import { TeamID } from '../../../common/constants.js';
 import { BattlePhase } from '../../common/constants.js';
 import { BattleFlowState, BattleSequenceState, SequencePending } from '../../components/index.js';
-import { QueryService } from '../../services/QueryService.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 
 export class WinConditionSystem extends System {
     constructor(world) {
@@ -49,7 +49,7 @@ export class WinConditionSystem extends System {
         for (const entityId of players) {
             const info = this.world.getComponent(entityId, PlayerInfo);
             const parts = this.world.getComponent(entityId, Parts);
-            const headData = QueryService.getPartData(this.world, parts.head);
+            const headData = BattleQueries.getPartData(this.world, parts.head);
 
             if (headData && !headData.isBroken) {
                 if (info.teamId === TeamID.TEAM1) {

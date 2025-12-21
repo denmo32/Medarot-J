@@ -11,8 +11,7 @@ import { EffectType } from '../../common/constants.js';
 import { PartInfo } from '../../../common/constants.js';
 import { HpChangedEvent, PartBrokenEvent } from '../../../components/Events.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
-import { CombatParameterBuilder } from '../../services/CombatParameterBuilder.js';
-import { QueryService } from '../../services/QueryService.js';
+import { buildDamageParams } from '../../logic/CombatParameterBuilder.js';
 import { VisualDefinitions } from '../../../data/visualDefinitions.js';
 import { TraitRegistry } from '../../definitions/traits/TraitRegistry.js';
 import { HookPhase } from '../../definitions/HookRegistry.js';
@@ -26,8 +25,7 @@ export class DamageHandler extends EffectHandler {
         let isDefended = outcome.isDefended;
 
         if (finalDamage === 0 && !effect.isPenetration) {
-            const builder = new CombatParameterBuilder(world);
-            const params = builder.buildDamageParams({
+            const params = buildDamageParams(world, {
                 sourceId,
                 targetId,
                 attackingPart,

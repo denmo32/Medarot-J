@@ -1,24 +1,24 @@
 /**
  * @file Unit AI: Offensive Strategies
- * @description TargetingServiceへの依存をQueryServiceへ変更。
+ * @description QueryServiceの参照をBattleQueriesへ変更。
  */
 import { PlayerInfo, Parts } from '../../../../components/index.js';
 import { BattleLog } from '../../../components/index.js';
 import { BattleHistoryContext } from '../../../components/BattleHistoryContext.js';
-import { QueryService } from '../../../services/QueryService.js';
+import { BattleQueries } from '../../../queries/BattleQueries.js';
 import { TargetingStrategyKey } from '../../AIDefinitions.js';
 import { PartInfo } from '../../../../common/constants.js';
 
 const createEnemyTargetingStrategy = (logicFn) => {
     return ({ world, attackerId }) => {
-        const candidates = QueryService.getValidEnemies(world, attackerId);
+        const candidates = BattleQueries.getValidEnemies(world, attackerId);
         if (candidates.length === 0) return null;
         return logicFn({ world, attackerId, candidates });
     };
 };
 
 const createSortedPartsStrategy = (sortFn) => createEnemyTargetingStrategy(({ world, candidates }) => {
-    const allParts = QueryService.getAllPartsFromCandidates(world, candidates);
+    const allParts = BattleQueries.getAllPartsFromCandidates(world, candidates);
     if (allParts.length === 0) return null;
     allParts.sort(sortFn);
     const weights = [4, 3, 1];
@@ -29,7 +29,7 @@ const createSortedPartsStrategy = (sortFn) => createEnemyTargetingStrategy(({ wo
 });
 
 const createUniformWeightStrategy = () => createEnemyTargetingStrategy(({ world, candidates }) => {
-    const allParts = QueryService.getAllPartsFromCandidates(world, candidates);
+    const allParts = BattleQueries.getAllPartsFromCandidates(world, candidates);
     if (allParts.length === 0) return null;
     return allParts.map(p => ({
         target: { targetId: p.entityId, targetPartKey: p.partKey },
@@ -40,7 +40,7 @@ const createUniformWeightStrategy = () => createEnemyTargetingStrategy(({ world,
 const createTargetedEntityStrategy = (findTargetIdFn) => createEnemyTargetingStrategy(({ world, candidates }) => {
     const targetId = findTargetIdFn({ world, candidates });
     if (targetId) {
-        const allParts = QueryService.getAllPartsFromCandidates(world, [targetId]);
+        const allParts = BattleQueries.getAllPartsFromCandidates(world, [targetId]);
         return allParts.map(p => ({
             target: { targetId: p.entityId, targetPartKey: p.partKey },
             weight: 1
@@ -51,8 +51,8 @@ const createTargetedEntityStrategy = (findTargetIdFn) => createEnemyTargetingStr
 
 const createSingleEntityStrategy = (findTargetIdFn) => ({ world, attackerId }) => {
     const targetId = findTargetIdFn({ world, attackerId });
-    if (targetId && QueryService.isValidTarget(world, targetId)) {
-        const allParts = QueryService.getAllPartsFromCandidates(world, [targetId]);
+    if (targetId && BattleQueries.isValidTarget(world, targetId)) {
+        const allParts = BattleQueries.getAllPartsFromCandidates(world, [targetId]);
         return allParts.map(p => ({
             target: { targetId: p.entityId, targetPartKey: p.partKey },
             weight: 1
@@ -69,7 +69,7 @@ const createSinglePartStrategy = (findTargetPartFn) => ({ world, attackerId }) =
     const targetInfo = world.getComponent(target.targetId, PlayerInfo);
     const isEnemy = targetInfo && targetInfo.teamId !== attackerInfo.teamId;
 
-    if (isEnemy && QueryService.isValidTarget(world, target.targetId, target.partKey)) {
+    if (isEnemy && BattleQueries.isValidTarget(world, target.targetId, target.partKey)) {
         return [{
             target: { targetId: target.targetId, targetPartKey: target.partKey },
             weight: 10
@@ -83,8 +83,8 @@ export const offensiveStrategies = {
         const sortedCandidates = candidates.slice().sort((a, b) => {
             const partsA = world.getComponent(a, Parts);
             const partsB = world.getComponent(b, Parts);
-            const legsA = QueryService.getPartData(world, partsA?.legs);
-            const legsB = QueryService.getPartData(world, partsB?.legs);
+            const legsA = BattleQueries.getPartData(world, partsA?.legs);
+            const legsB = BattleQueries.getPartData(world, partsB?.legs);
             
             const propulsionA = legsA?.propulsion || 0;
             const propulsionB = legsB?.propulsion || 0;
@@ -96,7 +96,7 @@ export const offensiveStrategies = {
 
         sortedCandidates.forEach((id, index) => {
             const targetParts = world.getComponent(id, Parts);
-            const legsData = QueryService.getPartData(world, targetParts?.legs);
+            const legsData = BattleQueries.getPartData(world, targetParts?.legs);
             
             if (legsData && !legsData.isBroken) {
                 targetCandidates.push({
@@ -104,7 +104,7 @@ export const offensiveStrategies = {
                     weight: weights[index] || 0.5
                 });
             } else {
-                const randomPart = QueryService.selectRandomPart(world, id);
+                const randomPart = BattleQueries.selectRandomPart(world, id);
                 if (randomPart) {
                     targetCandidates.push({ target: randomPart, weight: 0.5 });
                 }

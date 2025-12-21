@@ -1,7 +1,8 @@
 /**
  * @file ActionSelectionSystem.js
  * @description アクション選択フェーズの制御システム。
- * パーツデータ取得をQueryService経由に修正。
+ * QueryService -> BattleQueries
+ * CombatCalculator, EffectService -> StatCalculator, CombatCalculator
  */
 import { System } from '../../../../engine/core/System.js';
 import { BattleFlowState } from '../../components/BattleFlowState.js';
@@ -18,8 +19,8 @@ import {
 } from '../../components/Requests.js';
 import { PlayerStateType, BattlePhase, ModalType } from '../../common/constants.js';
 import { CombatCalculator } from '../../logic/CombatCalculator.js';
-import { EffectService } from '../../services/EffectService.js';
-import { QueryService } from '../../services/QueryService.js';
+import { StatCalculator } from '../../logic/StatCalculator.js';
+import { BattleQueries } from '../../queries/BattleQueries.js';
 
 export class ActionSelectionSystem extends System {
     constructor(world) {
@@ -107,7 +108,7 @@ export class ActionSelectionSystem extends System {
         }
 
         const partId = parts[partKey];
-        const selectedPart = QueryService.getPartData(this.world, partId);
+        const selectedPart = BattleQueries.getPartData(this.world, partId);
 
         if (!selectedPart || selectedPart.isBroken) {
             console.warn(`ActionSelectionSystem: Invalid part selected. Re-queueing.`);
@@ -121,7 +122,7 @@ export class ActionSelectionSystem extends System {
         action.targetPartKey = targetPartKey;
         action.targetTiming = selectedPart.targetTiming;
 
-        const modifier = EffectService.getSpeedMultiplierModifier(this.world, entityId, selectedPart);
+        const modifier = StatCalculator.getSpeedMultiplierModifier(this.world, entityId, selectedPart);
         const speedMultiplier = CombatCalculator.calculateSpeedMultiplier({
             might: selectedPart.might,
             success: selectedPart.success,
@@ -219,7 +220,7 @@ export class ActionSelectionSystem extends System {
         if (isInitial) {
             validEntities.sort((a, b) => a - b);
         } else {
-            validEntities.sort(QueryService.compareByPropulsion(this.world));
+            validEntities.sort(BattleQueries.compareByPropulsion(this.world));
         }
 
         const nextActorId = validEntities[0];
