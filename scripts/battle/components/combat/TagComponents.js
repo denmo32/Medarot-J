@@ -3,6 +3,7 @@
  * @description 戦闘システムにおける各種状態や特性を表すタグコンポーネント群。
  * 一括管理用のタググループ定義を追加。
  */
+import { ActionType } from '../../common/constants.js';
 
 // --- アクション種別タグ ---
 export class IsShootingAction { constructor() {} }
@@ -65,3 +66,22 @@ export const PlayerStateTags = [
     IsReadyToSelect, IsReadyToExecute, IsCharging, IsCooldown, 
     IsGuarding, IsBroken, IsAwaitingAnimation
 ];
+
+// --- Mapping Helper ---
+export const ActionTypeToTagMap = {
+    [ActionType.SHOOT]: IsShootingAction,
+    [ActionType.MELEE]: IsMeleeAction,
+    [ActionType.HEAL]: IsHealAction,
+    [ActionType.SUPPORT]: IsSupportAction,
+    [ActionType.INTERRUPT]: IsInterruptAction,
+    [ActionType.DEFEND]: IsDefendAction,
+};
+
+/**
+ * アクションタイプに対応するタグクラスを取得する
+ * @param {string} actionType 
+ * @returns {class|null}
+ */
+export function getActionTagClass(actionType) {
+    return ActionTypeToTagMap[actionType] || null;
+}

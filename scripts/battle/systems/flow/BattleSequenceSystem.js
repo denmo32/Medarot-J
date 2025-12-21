@@ -7,18 +7,18 @@ import { System } from '../../../../engine/core/System.js';
 import {
     BattleSequenceState, SequencePending,
     Action, BattleFlowState, CombatContext, CombatResult,
-    InCombatCalculation, GeneratingVisuals, ExecutingVisuals, SequenceFinished,
-    IsReadyToExecute,
+    InCombatCalculation, GeneratingVisuals,
+    IsReadyToExecute, SequenceFinished, // 追加: SequenceFinished
     // タグクラス定義
-    IsShootingAction, IsMeleeAction, IsSupportAction, IsHealAction, IsDefendAction, IsInterruptAction,
     RequiresPreMoveTargeting, RequiresPostMoveTargeting,
-    // タググループ
-    ActionTypeTags, TargetingTags, SequencePhaseTags
+    // タググループとヘルパー
+    ActionTypeTags, TargetingTags, SequencePhaseTags,
+    getActionTagClass
 } from '../../components/index.js';
 import { Parts } from '../../../components/index.js';
 import { TransitionStateRequest } from '../../components/CommandRequests.js';
 import { ActionCancelledEvent } from '../../components/Requests.js';
-import { PlayerStateType, BattlePhase, TargetTiming, ActionType } from '../../common/constants.js';
+import { PlayerStateType, BattlePhase, TargetTiming } from '../../common/constants.js';
 import { ValidationLogic } from '../../logic/ValidationLogic.js';
 import { BattleQueries } from '../../queries/BattleQueries.js';
 
@@ -118,7 +118,11 @@ export class BattleSequenceSystem extends System {
         if (!partData) return false;
 
         // アクションタイプに応じたタグ付与
-        const TagClass = this._getActionTagClass(partData.actionType);
+        const TagClass = getActionTagClass(partData.actionType);
+        if (!TagClass) {
+            console.error(`Unknown action type: ${partData.actionType}`);
+            return false;
+        }
         this.world.addComponent(entityId, new TagClass());
 
         // タイミングタグ付与
@@ -129,19 +133,6 @@ export class BattleSequenceSystem extends System {
         }
 
         return true;
-    }
-
-    _getActionTagClass(actionType) {
-        switch (actionType) {
-            case ActionType.SHOOT: return IsShootingAction;
-            case ActionType.MELEE: return IsMeleeAction;
-            case ActionType.HEAL: return IsHealAction;
-            case ActionType.SUPPORT: return IsSupportAction;
-            case ActionType.INTERRUPT: return IsInterruptAction;
-            case ActionType.DEFEND: return IsDefendAction;
-            default:
-                throw new Error(`Unknown action type: ${actionType}`);
-        }
     }
 
     _cleanupFinishedSequences() {
