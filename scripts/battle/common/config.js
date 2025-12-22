@@ -64,25 +64,4 @@ export const CONFIG = {
         FIELD_HEIGHT: 100,
         MAX_MOVEMENT_DISTANCE: 0.1,
     },
-    
-    // ターンとフェーズ関連の設定
-    TURN: {
-        MAX_TURN_COUNT: 99,
-        PHASE_TRANSITION_DELAY: 500,
-        SELECTION_TIME_LIMIT: 30000,
-    },
-    
-    // AI関連の設定
-    AI: {
-        DECISION_MAKING_DELAY: 1000,
-        REACTION_TIME_VARIANCE: 0.2,
-    },
-    
-    // ゲームルール関連の設定
-    RULES: {
-        ALLOW_PART_DESTROY: true,
-        ALLOW_TEAM_KO: true,
-        HOME_POSITION_BONUS: false,
-        FRIENDLY_FIRE: false,
-    },
 };
