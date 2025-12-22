@@ -1,0 +1,38 @@
+.main-container {
+    background-color: var(--color-background-panel);
+    padding: 20px;
+    border-radius: 12px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: stretch;
+    transform-origin: center center;
+}
+
+/* チーム内のプレイヤーを縦に並べるためのコンテナ */
+.team-players-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* 上端と下端を揃え、均等配置 */
+    gap: 16px;
+    margin-top: 0px;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+/* 三角形レイアウト */
+.triangle-layout {
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+.top-row, .bottom-row {
+    display: flex;
+    justify-content: center;
+}
+.bottom-row {
+    justify-content: space-between;
+    margin-top: 5px;
+}

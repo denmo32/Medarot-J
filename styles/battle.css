@@ -1,0 +1,248 @@
+/* バトルフィールド */
+.battlefield {
+    flex-grow: 1; 
+    height: 356px; /* 高さ固定 */
+    background-color: var(--color-background-panel-inner);
+    border: 2px solid var(--color-border-primary);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    min-width: 400px; 
+}
+
+/* 情報表示エリア */
+.team-info-panel {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 8px;
+    flex-basis: 160px; 
+    flex-shrink: 0;
+    height: 356px; /* バトルフィールドと高さを揃える */
+}
+
+/* プレイヤー情報を縦に並べる */
+.player-info {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0px;
+    font-size: 0.9em;
+    border: 1px solid var(--color-border-secondary);
+    padding: 4px; /* パディングを縮小 */
+    border-radius: 8px;
+    background-color: var(--color-background-panel-inner);
+    width: 100%;
+    box-sizing: border-box;
+    /* 高さを均等に分配 */
+    flex: 1; 
+    justify-content: center; /* 内部要素を中央寄せ */
+}
+
+.player-info > game-health-bar + game-health-bar {
+    margin-top: 0px; /* マージン削除 */
+}
+
+.player-name {
+    font-weight: normal;
+    font-size: 0.75em; /* フォントサイズ縮小 */
+    text-align: center;
+    margin-bottom: 2px; /* 下マージン縮小 */
+    line-height: 1.2;
+}
+
+/* アクションライン */
+.action-line-1 {
+    position: absolute;
+    left: 45%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: rgba(255, 255, 255, 0.2);
+    transform: translateX(-50%);
+}
+.action-line-2 {
+    position: absolute;
+    left: 55%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: rgba(255, 255, 255, 0.2);
+    transform: translateX(-50%);
+}
+
+/* 「ロボトルファイト！」テキスト */
+.battle-start-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.5);
+    font-size: 2.2em;
+    font-weight: bold;
+    white-space: nowrap;
+    color: var(--color-white);
+    text-shadow: 0 0 10px #ff0000, 0 0 20px #ff00, 0 0 30px #ff0000;
+    opacity: 0;
+    pointer-events: none;
+    animation: battle-start-anim 2s ease-in-out forwards;
+}
+
+@keyframes battle-start-anim {
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 0;
+    }
+    20% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 1;
+    }
+    80% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0;
+    }
+}
+
+/* ホームポジションマーカー */
+.home-marker {
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+}
+
+/* プレイヤーアイコン */
+.player-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: var(--color-background);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+    transition: left 0.1s linear, transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+    cursor: pointer;
+    border: 4px solid var(--color-border-primary);
+    z-index: 10;
+}
+
+/* 攻撃実行時の強調表示 */
+.player-icon.attacker-active {
+    box-shadow: 0 0 15px 5px rgba(25, 255, 255, 0.8);
+    z-index: 50;
+    border-color: var(--color-white) !important;
+}
+
+/* ガードインジケーター */
+.guard-indicator {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--color-guard-indicator);
+    color: var(--color-white);
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 0.8em;
+    font-weight: bold;
+    white-space: nowrap;
+    display: none;
+    z-index: 10;
+    border: 1px solid var(--color-white);
+}
+
+/* スキャンインジケーター */
+.scan-indicator {
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.2em;
+    display: none;
+    z-index: 20;
+}
+        
+/* プレイヤーアイコンの状態 */
+/* 機能停止時の演出用クラス */
+.player-icon.is-defeated {
+    background-color: var(--color-disabled) !important;
+    color: var(--color-text-secondary);
+    box-shadow: none;
+    filter: grayscale(1);
+    border-color: var(--color-border-primary) !important;
+}
+
+/* ターゲットインジケーター */
+.target-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 70px;
+    height: 70px;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.target-indicator.active {
+    opacity: 1;
+    animation: radar-zoom-loop 1.5s infinite ease-in-out;
+}
+
+.target-indicator.lockon {
+    opacity: 1;
+    animation: radar-zoom-lockon 0.6s ease-out forwards;
+}
+
+.corner {
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    border-color: cyan;
+    border-style: solid;
+}
+.corner-1 { top: 0; left: 0; border-width: 4px 0 0 4px; }
+.corner-2 { top: 0; right: 0; border-width: 4px 4px 0 0; }
+.corner-3 { bottom: 0; left: 0; border-width: 0 0 4px 4px; }
+.corner-4 { bottom: 0; right: 0; border-width: 0 4px 4px 0; }
+
+@keyframes radar-zoom-loop {
+    0% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0.5;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0.5;
+    }
+}
+
+@keyframes radar-zoom-lockon {
+    0% {
+        transform: translate(-50%, -50%) scale(1.8);
+        opacity: 0;
+    }
+    40% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 1;
+    }
+    70% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.0);
+        opacity: 1;
+    }
+}

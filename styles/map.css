@@ -1,0 +1,74 @@
+/* --- Map System Styles --- */
+.map-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    transform-origin: center center;
+}
+#game-canvas {
+    width: 100%;
+    height: 100%;
+    border: 2px solid var(--color-white);
+    background-color: #2a8a2a;
+}
+
+/* Map Menu */
+.map-menu {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: var(--color-background-panel);
+    border: 2px solid var(--color-border-primary);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    width: 220px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.map-menu-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    position: relative;
+    padding-left: 20px;
+}
+
+.map-menu p {
+    margin: 0;
+    font-size: 1em;
+    color: var(--color-text-primary);
+    text-align: center;
+}
+
+.map-menu-button {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    width: 100%;
+    margin-bottom: 5px;
+    position: relative;
+}
+
+.map-menu-button:hover {
+    background-color: var(--color-primary-hover);
+}
+
+.map-menu-button.focused::before {
+    content: '▶';
+    color: #ffd700;
+    position: absolute;
+    left: -15px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.9em;
+}

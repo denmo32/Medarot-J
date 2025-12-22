@@ -1,0 +1,47 @@
+/* Title Screen */
+.title-container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    background-color: var(--color-background);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.title-header {
+    font-size: 3em;
+    color: var(--color-text-primary);
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.title-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.title-button {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    padding: 15px 30px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.2em;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    min-width: 300px;
+}
+
+.title-button:hover,
+.title-button:focus {
+    background-color: var(--color-primary-hover);
+}
+
+.title-button:focus {
+    outline: 2px solid var(--color-text-primary);
+    outline-offset: 2px;
+}

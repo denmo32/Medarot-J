@@ -1,0 +1,28 @@
+/* CSSカスタムプロパティ (変数) を定義 */
+:root {
+    /* --- Colors --- */
+    --color-background: #1a202c;
+    --color-background-panel: #2d3748;
+    --color-background-panel-inner: #4a5568;
+    --color-text-primary: #e2e8f0;
+    --color-text-secondary: #a0aec0;
+    --color-border-primary: #718096;
+    --color-border-secondary: #a0aec0;
+    --color-primary: #4299e1;
+    --color-primary-hover: #3182ce;
+    --color-team1: #63b3ed;
+    --color-team2: #f56565;
+    --color-confirm: #68d391;
+    --color-confirm-hover: #48bb78;
+    --color-cancel: #e53e3e;
+    --color-cancel-hover: #c53030;
+    --color-disabled: #718096;
+    --color-focus-outline: #63b3ed;
+    --color-hp-full: #68d391;
+    --color-hp-medium: #f6e05e;
+    --color-hp-low: #f56565;
+    --color-hp-broken: #4a5568;
+    --color-guard-indicator: rgba(29, 161, 242, 0.9);
+    --color-white: #fff;
+    --color-black: #000;
+}

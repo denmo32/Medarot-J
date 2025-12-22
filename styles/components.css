@@ -1,0 +1,154 @@
+/* 汎用hiddenクラス */
+.hidden { display: none !important; }
+
+/* ボタン */
+.buttons-center { display: flex; justify-content: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+button { background-color: var(--color-primary); color: var(--color-white); padding: 10px 20px; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; transition: background-color 0.3s; }
+button:hover { background-color: var(--color-primary-hover); }
+button:disabled { background-color: var(--color-text-secondary); cursor: not-allowed; }
+
+/* 汎用パーツアクションボタンのスタイル */
+.part-action-button { background: var(--color-primary); color: var(--color-white); padding: 4px 15px; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease; border:none; }
+.part-action-button:hover:not(:disabled) { background: var(--color-primary-hover); }
+.part-action-button:disabled { background: var(--color-disabled); cursor: not-allowed; opacity: 0.6; }
+.part-action-button.focused {
+    box-shadow: 0 0 0 3px var(--color-focus-outline);
+    background-color: var(--color-primary-hover);
+}
+
+/* アクションパネル */
+.action-panel {
+    flex-basis: 100%;
+    width: 100%;
+    height: 160px;
+    background-color: var(--color-background-panel-inner);
+    border-radius: 8px;
+    padding: 15px;
+    box-sizing: border-box;
+    transition: opacity 0.3s ease;
+    position: relative;
+}
+.action-panel.clickable {
+    cursor: pointer;
+}
+.action-panel-owner {
+    position: absolute;
+    top: 10px;
+    left: 15px;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: var(--color-text-secondary);
+}
+.action-panel-content {
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+}
+.action-panel-title {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+.action-panel-actor {
+    font-size: 1.1em;
+    margin-bottom: 15px;
+    min-height: 1.2em;
+}
+.action-panel-title:empty,
+.action-panel-actor:empty {
+    display: none;
+}
+.action-panel-button {
+    background: var(--color-confirm);
+    color: var(--color-background);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: none;
+}
+.action-panel-button:hover {
+    background: var(--color-confirm-hover);
+}
+
+.action-panel-indicator {
+    position: absolute;
+    bottom: 10px;
+    right: 20px;
+    font-size: 1.5em;
+    color: var(--color-text-primary);
+    animation: blink-animation 1.5s infinite;
+}
+
+@keyframes blink-animation {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* --- Message Window Styles --- */
+.message-window {
+    position: absolute;
+    top: unset;
+    left: unset;
+    transform: unset;
+    background-color: var(--color-background-panel);
+    border: 2px solid var(--color-border-primary);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0.3);
+    z-index: 1000;
+}
+
+.message-window-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.message-window p {
+    margin: 0;
+    font-size: 1.2em;
+    text-align: center;
+    color: var(--color-text-primary);
+}
+
+.message-window-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.message-window-button {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.message-window-button:hover,
+.message-window-button:focus {
+    background-color: var(--color-primary-hover);
+}
+
+.message-window-button:focus {
+    outline: 2px solid var(--color-text-primary);
+    outline-offset: 2px;
+}
+
+#cancel-battle-button {
+    background-color: var(--color-cancel);
+}
+
+#cancel-battle-button:hover {
+    background-color: var(--color-cancel-hover);
+}
