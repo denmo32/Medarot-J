@@ -17,8 +17,14 @@ export class ScanHandler extends EffectHandler {
         const valueFactor = params.valueFactor || 0.1;
         const duration = params.duration || 3;
 
-        const baseValue = attackingPart[valueSource] || 0;
-        const scanBonusValue = Math.floor(baseValue * valueFactor);
+        // mightパラメータに基づいてパラメータ上昇量を計算
+        const mightValue = attackingPart['might'] || 0;
+        const scanBonusValue = Math.floor(mightValue * valueFactor);
+        
+        // successパラメータに基づいて効果持続時間を計算（時間ベース）
+        const successValue = attackingPart['success'] || 0;
+        // success値をもとにミリ秒単位の持続時間を計算（例: success値×1000ms）
+        const durationMs = successValue * 1000;
 
         // チーム全体が対象の場合、targetIdがnullになるケースがあるため、
         // sourceId（自分自身）を基点に有効な味方（自分を含む）を取得する
@@ -37,8 +43,10 @@ export class ScanHandler extends EffectHandler {
                     activeEffects.effects.push({
                         type: EffectType.APPLY_SCAN,
                         value: scanBonusValue,
-                        duration: duration,
-                        partKey: partKey // 発動に使用したパーツ情報
+                        duration: durationMs, // ターン数からミリ秒に変更
+                        tickInterval: 1000,   // 1秒ごとに経過をチェック
+                        elapsedTime: 0,       // 経過時間初期値
+                        partKey: partKey      // 発動に使用したパーツ情報
                     });
                 }
             });
@@ -48,7 +56,7 @@ export class ScanHandler extends EffectHandler {
             type: EffectType.APPLY_SCAN,
             targetId: anchorId,
             value: scanBonusValue,
-            duration,
+            duration: Math.floor(durationMs / 1000), // ミリ秒から秒に変換
             stateUpdates
         });
     }

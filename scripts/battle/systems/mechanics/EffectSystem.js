@@ -7,7 +7,6 @@ import { System } from '../../../../engine/core/System.js';
 import { ActiveEffects, IsGuarding } from '../../components/index.js';
 import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
 import {
-    TurnEndedSignal,
     EffectExpiredEvent
 } from '../../components/Requests.js';
 import { EffectType } from '../../common/constants.js';
@@ -18,34 +17,37 @@ export class EffectSystem extends System {
     }
 
     update(deltaTime) {
-        // 1. ターン終了シグナルの監視
-        this._checkTurnEndSignal();
-
-        // 2. エフェクトの毎フレーム更新処理 (必要に応じて実装)
+        // 時間ベースのエフェクトの更新処理
+        this._processTimeBasedEffects(deltaTime);
     }
 
-    _checkTurnEndSignal() {
-        const signals = this.getEntities(TurnEndedSignal);
-        if (signals.length > 0) {
-            // ターン終了処理の実行
-            const allEntities = this.getEntities(ActiveEffects);
-            allEntities.forEach(id => this._processTurnEndForEntity(id));
-
-            // シグナルを消費（エンティティ削除）
-            for (const id of signals) {
-                this.world.destroyEntity(id);
-            }
+    /**
+     * 時間ベースのエフェクトの更新処理
+     */
+    _processTimeBasedEffects(deltaTime) {
+        const allEntities = this.getEntities(ActiveEffects);
+        for (const entityId of allEntities) {
+            this._processTimeBasedEffectsForEntity(entityId, deltaTime);
         }
     }
 
-    _processTurnEndForEntity(entityId) {
+    /**
+     * 特定のエンティティの時間ベースエフェクトを更新する
+     */
+    _processTimeBasedEffectsForEntity(entityId, deltaTime) {
         const activeEffects = this.world.getComponent(entityId, ActiveEffects);
         if (!activeEffects || activeEffects.effects.length === 0) {
             return;
         }
 
+        // 時間ベースのエフェクトのみを処理
+        const timeBasedEffects = activeEffects.effects.filter(e => e.tickInterval !== undefined);
+        if (timeBasedEffects.length === 0) {
+            return;
+        }
+
         // 1. 期間の更新と期限切れ判定
-        const { nextEffects, expiredEffects } = this._updateEffectsDuration(activeEffects.effects);
+        const { nextEffects, expiredEffects } = this._updateTimeBasedEffectsDuration(activeEffects.effects, deltaTime);
 
         // 2. 期限切れエフェクトの処理
         if (expiredEffects.length > 0) {
@@ -54,29 +56,33 @@ export class EffectSystem extends System {
 
         // 3. コンポーネントの更新反映
         // 内容に変更があった場合のみ更新リクエストを発行
-        if (nextEffects.length !== activeEffects.effects.length) {
+        if (nextEffects.length !== activeEffects.effects.length || this._hasTimeElapsed(timeBasedEffects, nextEffects)) {
             this._applyActiveEffectsUpdate(entityId, nextEffects);
         }
     }
 
     /**
-     * エフェクトの持続時間を更新し、継続するものと期限切れになるものに分類する
+     * 時間ベースのエフェクトの持続時間を更新し、継続するものと期限切れになるものに分類する
      */
-    _updateEffectsDuration(currentEffects) {
+    _updateTimeBasedEffectsDuration(currentEffects, deltaTime) {
         const nextEffects = [];
         const expiredEffects = [];
 
         for (const effect of currentEffects) {
+            // ターンベースのエフェクト（tickIntervalが未定義）はそのまま
+            if (effect.tickInterval === undefined) {
+                nextEffects.push({ ...effect });
+                continue;
+            }
+
             let isExpired = false;
             const updatedEffect = { ...effect };
 
-            // 持続時間の減算 (Infinityの場合は減算しない)
-            if (updatedEffect.duration > 0 && updatedEffect.duration !== Infinity) {
-                updatedEffect.duration--;
-            }
+            // 経過時間の加算
+            updatedEffect.elapsedTime = (updatedEffect.elapsedTime || 0) + deltaTime;
 
             // 期限切れ判定
-            if (updatedEffect.duration !== undefined && updatedEffect.duration <= 0 && updatedEffect.duration !== Infinity) {
+            if (updatedEffect.duration !== undefined && updatedEffect.elapsedTime >= updatedEffect.duration && updatedEffect.duration !== Infinity) {
                 isExpired = true;
             }
 
@@ -88,6 +94,20 @@ export class EffectSystem extends System {
         }
 
         return { nextEffects, expiredEffects };
+    }
+
+    /**
+     * 時間経過があるかどうかを判定
+     */
+    _hasTimeElapsed(originalEffects, updatedEffects) {
+        for (let i = 0; i < originalEffects.length; i++) {
+            if (originalEffects[i].tickInterval !== undefined) {
+                if (originalEffects[i].elapsedTime !== updatedEffects[i].elapsedTime) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

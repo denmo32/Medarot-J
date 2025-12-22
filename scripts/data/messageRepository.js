@@ -19,7 +19,7 @@ export const MessageTemplates = {
     HEAL_FAILED: 'リペア失敗！　味方はダメージを受けていない！',
 
     // --- 状態異常・バフ・デバフ ---
-    SUPPORT_SCAN_SUCCESS: '味方チームの命中精度が{scanBonus}上昇！　（{duration}ターン）',
+    SUPPORT_SCAN_SUCCESS: '味方チームの命中精度が{scanBonus}上昇！　（{duration}秒）',
     INTERRUPT_GLITCH_SUCCESS: 'システムエラー！　{targetName}は放熱へ移行！',
     INTERRUPT_GLITCH_FAILED: '妨害失敗！　放熱中機体には効果がない！',
     DEFEND_GUARD_SUCCESS: '味方への攻撃を{guardCount}回庇う！',
