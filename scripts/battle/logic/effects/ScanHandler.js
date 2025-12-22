@@ -1,6 +1,6 @@
 /**
  * @file ScanHandler.js
- * @description QueryServiceの参照をBattleQueriesへ変更。
+ * @description スキャン（命中バフ）適用のロジック。
  */
 import { EffectHandler } from './EffectHandler.js';
 import { ActiveEffects } from '../../components/index.js'; // Battle
@@ -20,8 +20,10 @@ export class ScanHandler extends EffectHandler {
         const baseValue = attackingPart[valueSource] || 0;
         const scanBonusValue = Math.floor(baseValue * valueFactor);
 
-        // 主ターゲット（リーダー等）からチーム全体を取得
-        const targets = BattleQueries.getValidAllies(world, targetId, true);
+        // チーム全体が対象の場合、targetIdがnullになるケースがあるため、
+        // sourceId（自分自身）を基点に有効な味方（自分を含む）を取得する
+        const anchorId = targetId !== null ? targetId : sourceId;
+        const targets = BattleQueries.getValidAllies(world, anchorId, true);
         const stateUpdates = [];
 
         targets.forEach(tid => {
@@ -44,6 +46,7 @@ export class ScanHandler extends EffectHandler {
 
         this.finish(world, effectEntityId, {
             type: EffectType.APPLY_SCAN,
+            targetId: anchorId,
             value: scanBonusValue,
             duration,
             stateUpdates

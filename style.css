@@ -234,6 +234,17 @@ body {
     z-index: 10;
     border: 1px solid var(--color-white);
 }
+
+/* スキャンインジケーター */
+.scan-indicator {
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.2em;
+    display: none;
+    z-index: 20;
+}
         
 /* プレイヤーアイコンの状態 */
 /* 機能停止時の演出用クラス */

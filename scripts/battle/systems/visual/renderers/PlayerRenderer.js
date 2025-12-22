@@ -28,10 +28,18 @@ export class PlayerRenderer {
             : CONFIG.BATTLEFIELD.HOME_MARGIN_TEAM2;
         const homeY = visual.y;
 
+        // スキャン中を示すインジケーター要素
+        const scanIndicator = el('div', { 
+            className: 'scan-indicator',
+            style: { display: 'none' } 
+        });
+
         const marker = el('div', {
             className: 'home-marker',
             style: { left: `${homeX * 100}%`, top: `${homeY}%` }
-        });
+        }, [
+            scanIndicator
+        ]);
 
         const targetIndicator = el('div', { className: 'target-indicator' }, [
              el('div', { className: 'corner corner-1' }),
@@ -64,12 +72,10 @@ export class PlayerRenderer {
         ]);
 
         // パーツデータの取得
-        // attackableOnly=false にして脚部も含める
         const partsList = BattleQueries.getParts(this.world, entityId, true, false);
 
         [PartInfo.HEAD, PartInfo.RIGHT_ARM, PartInfo.LEFT_ARM, PartInfo.LEGS].forEach(info => {
             const key = info.key;
-            // partsListは [ [key, data], ... ] の配列
             const partEntry = partsList.find(([k]) => k === key);
             
             if (partEntry) {
@@ -92,7 +98,8 @@ export class PlayerRenderer {
             infoPanel: infoPanel,
             partDOMElements: partDOMElements,
             targetIndicatorElement: targetIndicator,
-            guardIndicatorElement: guardIndicator
+            guardIndicatorElement: guardIndicator,
+            scanIndicatorElement: scanIndicator
         });
 
         visual.domId = `player-${entityId}`;
@@ -106,6 +113,7 @@ export class PlayerRenderer {
         this._updatePartsInfo(visual, domElements.partDOMElements, cache);
         this._updateStateAppearance(entityId, domElements, cache);
         this._updateGuardIndicator(entityId, domElements);
+        this._updateScanIndicator(entityId, domElements);
     }
 
     _updatePartsInfo(visual, partElements, cache) {
@@ -193,6 +201,24 @@ export class PlayerRenderer {
 
             if (guardIndicator.style.display !== displayStyle) guardIndicator.style.display = displayStyle;
             if (guardIndicator.textContent !== displayText) guardIndicator.textContent = displayText;
+        }
+    }
+
+    _updateScanIndicator(entityId, domElements) {
+        const activeEffects = this.world.getComponent(entityId, ActiveEffects);
+        const scanIndicator = domElements.scanIndicatorElement;
+        
+        if (activeEffects && scanIndicator) {
+            const hasScan = activeEffects.effects.some(e => e.type === EffectType.APPLY_SCAN);
+            const displayStyle = hasScan ? 'block' : 'none';
+            const displayText = hasScan ? '📡' : '';
+
+            if (scanIndicator.style.display !== displayStyle) {
+                scanIndicator.style.display = displayStyle;
+            }
+            if (scanIndicator.textContent !== displayText) {
+                scanIndicator.textContent = displayText;
+            }
         }
     }
 }
