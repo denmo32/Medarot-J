@@ -1,7 +1,7 @@
 /**
  * @file PlayerRenderer.js
  * @description プレイヤーのDOM描画ロジック。
- * QueryService -> BattleQueries
+ * スキャンインジケーターに残り時間を表示するように修正。
  */
 import { el } from '../../../../../engine/utils/DOMUtils.js';
 import { CONFIG } from '../../../common/config.js';
@@ -209,15 +209,28 @@ export class PlayerRenderer {
         const scanIndicator = domElements.scanIndicatorElement;
         
         if (activeEffects && scanIndicator) {
-            const hasScan = activeEffects.effects.some(e => e.type === EffectType.APPLY_SCAN);
-            const displayStyle = hasScan ? 'block' : 'none';
-            const displayText = hasScan ? '📡' : '';
+            const scanEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_SCAN);
+            
+            if (scanEffect) {
+                // 残り時間（秒）を計算
+                let timeText = '';
+                if (scanEffect.duration && scanEffect.duration !== Infinity) {
+                    const remainingMs = Math.max(0, scanEffect.duration - (scanEffect.elapsedTime || 0));
+                    timeText = Math.ceil(remainingMs / 1000).toString();
+                }
 
-            if (scanIndicator.style.display !== displayStyle) {
-                scanIndicator.style.display = displayStyle;
-            }
-            if (scanIndicator.textContent !== displayText) {
-                scanIndicator.textContent = displayText;
+                const displayText = `📡${timeText}`;
+
+                if (scanIndicator.style.display !== 'block') {
+                    scanIndicator.style.display = 'block';
+                }
+                if (scanIndicator.textContent !== displayText) {
+                    scanIndicator.textContent = displayText;
+                }
+            } else {
+                if (scanIndicator.style.display !== 'none') {
+                    scanIndicator.style.display = 'none';
+                }
             }
         }
     }

@@ -1,15 +1,16 @@
 /**
  * @file EffectSystem.js
  * @description エフェクト（バフ・デバフ）の持続時間管理と定期更新を行うシステム。
- * リファクタリング: メソッド分割による可読性向上
+ * ゲージ進行と同様に、ウェイト時には時間経過を停止するように修正。
  */
 import { System } from '../../../../engine/core/System.js';
-import { ActiveEffects, IsGuarding } from '../../components/index.js';
+import { ActiveEffects, IsGuarding, PauseState, BattleSequenceState, SequencePending } from '../../components/index.js';
+import { BattleFlowState } from '../../components/BattleFlowState.js';
 import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
 import {
     EffectExpiredEvent
 } from '../../components/Requests.js';
-import { EffectType } from '../../common/constants.js';
+import { EffectType, BattlePhase } from '../../common/constants.js';
 
 export class EffectSystem extends System {
     constructor(world) {
@@ -17,8 +18,45 @@ export class EffectSystem extends System {
     }
 
     update(deltaTime) {
+        // 時間進行が可能かチェック
+        if (this._shouldPauseTime()) {
+            return;
+        }
+
         // 時間ベースのエフェクトの更新処理
         this._processTimeBasedEffects(deltaTime);
+    }
+
+    /**
+     * 時間経過を停止すべきか判定する
+     * GaugeSystemと同様の停止条件を適用
+     */
+    _shouldPauseTime() {
+        const battleFlowState = this.world.getSingletonComponent(BattleFlowState);
+
+        // 1. シーケンス実行中（演出中など）
+        const isSequenceRunning =
+            this.getEntities(SequencePending).length > 0 ||
+            this.getEntities(BattleSequenceState).length > 0;
+        if (isSequenceRunning) return true;
+
+        // 2. 一時停止状態（モーダル表示中など）
+        const isPaused = this.getEntities(PauseState).length > 0;
+        if (isPaused) return true;
+
+        // 3. アクティブなフェーズでない
+        const activePhases = [
+            BattlePhase.TURN_START,
+            BattlePhase.ACTION_SELECTION,
+            BattlePhase.ACTION_EXECUTION,
+            BattlePhase.TURN_END,
+        ];
+        if (!activePhases.includes(battleFlowState.phase)) return true;
+
+        // 4. アクターが行動中
+        if (battleFlowState.currentActorId !== null) return true;
+
+        return false;
     }
 
     /**
