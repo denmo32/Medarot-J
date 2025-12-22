@@ -113,9 +113,8 @@ export const ActionDefinitions = {
             { 
                 type: EffectType.APPLY_SCAN, 
                 params: {
-                    duration: 3,
                     valueSource: 'might',
-                    valueFactor: 0.1
+                    valueFactor: 0.5
                 }
             }
         ],
