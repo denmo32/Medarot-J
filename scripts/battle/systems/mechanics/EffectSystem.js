@@ -4,7 +4,7 @@
  * ゲージ進行と同様に、ウェイト時には時間経過を停止するように修正。
  */
 import { System } from '../../../../engine/core/System.js';
-import { ActiveEffects, IsGuarding, PauseState, BattleSequenceState, SequencePending } from '../../components/index.js';
+import { ActiveEffects, IsGuarding, IsStunned, PauseState, BattleSequenceState, SequencePending } from '../../components/index.js';
 import { BattleFlowState } from '../../components/BattleFlowState.js';
 import { ResetToCooldownRequest, CustomUpdateComponentRequest } from '../../components/CommandRequests.js';
 import {
@@ -161,6 +161,11 @@ export class EffectSystem extends System {
             if (effect.type === EffectType.APPLY_GUARD && this.world.getComponent(entityId, IsGuarding)) {
                 const req = this.world.createEntity();
                 this.world.addComponent(req, new ResetToCooldownRequest(entityId, {}));
+            }
+
+            // スタン解除時の特別処理
+            if (effect.type === EffectType.APPLY_STUN && this.world.getComponent(entityId, IsStunned)) {
+                this.world.removeComponent(entityId, IsStunned);
             }
         }
     }

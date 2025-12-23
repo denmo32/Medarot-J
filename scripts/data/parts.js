@@ -1,7 +1,6 @@
 /**
  * @file パーツマスターデータ
  * @description ゲームに登場するすべてのパーツの性能（数値データ）を定義します。
- * 振る舞い（Action, Role）は typeDefinitions.js に定義されています。
  */
 
 import { PartInfo } from '../common/constants.js';
@@ -17,6 +16,7 @@ export const PARTS_DATA = {
         'head_006': { name: 'ヘッドリペア', maxHp: 50, type: '修復', trait: 'リペア', success: 50, might: 40 },
         'head_007': { name: 'ヘッドグリッチ', maxHp: 45, type: '妨害', trait: 'グリッチ', success: 70, might: 0 },
         'head_008': { name: 'ヘッドガード', maxHp: 120, type: '守る', trait: 'ガード', success: 0, might: 30 },
+        'head_009': { name: 'ヘッドスタン', maxHp: 45, type: '殴る', trait: 'スタン', success: 60, might: 15 },
     },
     // --- 右腕パーツ ---
     [PartInfo.RIGHT_ARM.key]: {
@@ -28,6 +28,7 @@ export const PARTS_DATA = {
 		'rarm_006': { name: 'ライトリペア', maxHp: 50, type: '修復', trait: 'リペア', success: 50, might: 40 },
         'rarm_007': { name: 'ライトグリッチ', maxHp: 55, type: '妨害', trait: 'グリッチ', success: 80, might: 0 },
         'rarm_008': { name: 'ライトガード', maxHp: 120, type: '守る', trait: 'ガード', success: 0, might: 30 },
+        'rarm_009': { name: 'ライトスタン', maxHp: 50, type: '殴る', trait: 'スタン', success: 65, might: 25 },
     },
     // --- 左腕パーツ ---
     [PartInfo.LEFT_ARM.key]: {
@@ -39,6 +40,7 @@ export const PARTS_DATA = {
     	'larm_006': { name: 'レフトリペア', maxHp: 50, type: '修復', trait: 'リペア', success: 50, might: 40 },
         'larm_007': { name: 'レフトグリッチ', maxHp: 55, type: '妨害', trait: 'グリッチ', success: 80, might: 0 },
         'larm_008': { name: 'レフトガード', maxHp: 120, type: '守る', trait: 'ガード', success: 0, might: 30 },
+        'larm_009': { name: 'レフトスタン', maxHp: 50, type: '我武者羅', trait: 'スタン', success: 70, might: 35 },
     },
     // --- 脚部パーツ ---
     [PartInfo.LEGS.key]: {
@@ -50,5 +52,6 @@ export const PARTS_DATA = {
     	'legs_006': { name: 'リペアレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
     	'legs_007': { name: 'グリッチレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
     	'legs_008': { name: 'ガードレッグ', maxHp: 50, mobility: 50, armor: 50, propulsion: 50, stability: 50 },
+        'legs_009': { name: 'スタンレッグ', maxHp: 65, mobility: 35, armor: 35, propulsion: 35, stability: 35 },
     }
 }

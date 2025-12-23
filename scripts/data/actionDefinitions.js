@@ -80,6 +80,30 @@ export const ActionDefinitions = {
         }
     },
 
+    STUN_STRIKE: {
+        actionType: 'MELEE',
+        isSupport: false,
+        targetTiming: TargetTiming.POST_MOVE,
+        postMoveTargeting: TargetingStrategyKey.NEAREST_ENEMY,
+        targetScope: EffectScope.ENEMY_SINGLE,
+        effects: [
+            { 
+                type: EffectType.APPLY_STUN, 
+                calculation: {
+                    baseStat: 'success',
+                    powerStat: 'might',
+                    defenseStat: 'armor',
+                }
+            }
+        ],
+        visuals: {
+            declaration: { messageKey: 'ATTACK_DECLARATION', animation: 'attack' },
+            effects: {
+                [EffectType.APPLY_STUN]: { messageKey: 'STUN_APPLIED', showHpBar: true }
+            }
+        }
+    },
+
     // --- 回復系 ---
     SINGLE_HEAL: {
         actionType: 'HEAL',

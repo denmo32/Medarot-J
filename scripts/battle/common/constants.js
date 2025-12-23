@@ -63,7 +63,8 @@ export const EffectType = {
     HEAL: 'HEAL',
     APPLY_GLITCH: 'APPLY_GLITCH',
     APPLY_GUARD: 'APPLY_GUARD',
-    CONSUME_GUARD: 'CONSUME_GUARD', // ガード消費を追加
+    CONSUME_GUARD: 'CONSUME_GUARD',
+    APPLY_STUN: 'APPLY_STUN', 
 };
 
 /**

@@ -3,7 +3,7 @@
  * @description ゲージ更新システム。
  * QueryService -> BattleQueries
  */
-import { Gauge, BattleSequenceState, SequencePending, PauseState, IsCharging, IsCooldown } from '../../components/index.js';
+import { Gauge, BattleSequenceState, SequencePending, PauseState, IsCharging, IsCooldown, IsStunned } from '../../components/index.js';
 import { GaugeFullTag } from '../../components/Requests.js';
 import { Parts } from '../../../components/index.js';
 import { BattleFlowState } from '../../components/BattleFlowState.js';
@@ -54,6 +54,11 @@ export class GaugeSystem extends System {
             }
 
             if (this.world.getComponent(entityId, GaugeFullTag)) {
+                continue;
+            }
+
+            // スタン状態チェック
+            if (this.world.getComponent(entityId, IsStunned)) {
                 continue;
             }
 

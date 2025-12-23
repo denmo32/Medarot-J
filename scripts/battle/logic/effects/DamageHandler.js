@@ -5,7 +5,7 @@
 import { EffectHandler } from './EffectHandler.js';
 import { ApplyEffect, EffectContext } from '../../components/effects/Effects.js';
 import { Parts } from '../../../components/index.js'; // Common
-import { ActiveEffects, IsGuarding } from '../../components/index.js'; // Battle
+import { ActiveEffects, IsGuarding, IsStunned } from '../../components/index.js'; // Battle
 import { PartStatus } from '../../components/parts/PartComponents.js';
 import { EffectType } from '../../common/constants.js';
 import { PartInfo } from '../../../common/constants.js';
@@ -53,6 +53,19 @@ export class DamageHandler extends EffectHandler {
         const actualDamage = oldHp - newHp;
         
         partStatus.hp = newHp;
+
+        // --- スタン解除ロジック ---
+        // ダメージを一度でも受けたらスタン解除
+        const isStunned = world.getComponent(targetId, IsStunned);
+        let wasStunReleased = false;
+        if (isStunned && actualDamage > 0) {
+            world.removeComponent(targetId, IsStunned);
+            const activeEffects = world.getComponent(targetId, ActiveEffects);
+            if (activeEffects) {
+                activeEffects.effects = activeEffects.effects.filter(e => e.type !== EffectType.APPLY_STUN);
+            }
+            wasStunReleased = true;
+        }
         
         let isPartBroken = false;
         let isGuardBroken = false;
@@ -112,6 +125,7 @@ export class DamageHandler extends EffectHandler {
             isDefended,
             isPartBroken,
             isGuardBroken,
+            wasStunReleased, // スタン解除フラグ
             isPenetration: effect.isPenetration,
             overkillDamage,
             stateUpdates,
@@ -141,6 +155,9 @@ export class DamageHandler extends EffectHandler {
         
         const overrideKey = visualConfig?.messageKey;
         if (overrideKey) messageKey = overrideKey;
+
+        // スタン解除メッセージの追加（必要なら複合メッセージ化）
+        // 今回は単純に被弾メッセージを返す
 
         return { messageKey };
     }

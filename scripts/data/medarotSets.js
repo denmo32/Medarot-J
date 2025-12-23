@@ -76,4 +76,13 @@ export const MEDAROT_SETS = [
             [PartInfo.LEGS.key]: 'legs_008'
         }
     },
+    {
+        name: 'スタンテスト',
+        parts: {
+            [PartInfo.HEAD.key]: 'head_009',
+            [PartInfo.RIGHT_ARM.key]: 'rarm_009',
+            [PartInfo.LEFT_ARM.key]: 'larm_009',
+            [PartInfo.LEGS.key]: 'legs_009'
+        }
+    },
 ];

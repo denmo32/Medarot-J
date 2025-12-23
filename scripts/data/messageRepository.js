@@ -25,6 +25,8 @@ export const MessageTemplates = {
     DEFEND_GUARD_SUCCESS: '味方への攻撃を{guardCount}回庇う！',
     GUARD_BROKEN: 'ガードパーツ破壊！　ガード解除！',
     GUARD_EXPIRED: '{actorName}のガード解除！',
+    STUN_APPLIED: 'スタン発生！ {targetName}は{duration}秒間、動作停止！',
+    STUN_RELEASED: '{targetName}のスタン解除！',
 
     // --- 行動中断 ---
     CANCEL_PART_BROKEN: '行動予約パーツ破壊！　{actorName}は放熱へ移行！',

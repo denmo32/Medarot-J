@@ -9,6 +9,7 @@ import { GuardHandler } from '../logic/effects/GuardHandler.js';
 import { GuardConsumeHandler } from '../logic/effects/GuardConsumeHandler.js';
 import { ScanHandler } from '../logic/effects/ScanHandler.js';
 import { GlitchHandler } from '../logic/effects/GlitchHandler.js';
+import { StunHandler } from '../logic/effects/StunHandler.js';
 
 class EffectRegistryImpl {
     constructor() {
@@ -43,6 +44,7 @@ class EffectRegistryImpl {
         this.register(EffectType.CONSUME_GUARD, new GuardConsumeHandler());
         this.register(EffectType.APPLY_SCAN, new ScanHandler());
         this.register(EffectType.APPLY_GLITCH, new GlitchHandler());
+        this.register(EffectType.APPLY_STUN, new StunHandler());
     }
 }
 

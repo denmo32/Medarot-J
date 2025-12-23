@@ -1,7 +1,7 @@
 /**
  * @file ActionExecutionSystem.js
  * @description アクションの実行（計算とエフェクト生成）を行うシステム。
- * CombatParameterBuilder の import を関数版に変更。
+ * 特性「スタン」を持つパーツのダメージエフェクトをスタンエフェクトに変換するロジックを追加。
  */
 import { System } from '../../../../engine/core/System.js';
 import { 
@@ -42,7 +42,6 @@ export class ActionExecutionSystem extends System {
         // 1. 命中判定・結果計算 (Calculator + Builder)
         const params = buildHitOutcomeParams(this.world, ctx);
         
-        // 確率計算（Calculatorへ委譲）
         const calcParams = {
             ...params,
             evasionChance: CombatCalculator.calculateEvasionChance({
@@ -61,7 +60,7 @@ export class ActionExecutionSystem extends System {
 
         ctx.outcome = CombatCalculator.resolveHitOutcome(calcParams);
 
-        // 2. エフェクトエンティティの生成 (旧spawnEffectEntities)
+        // 2. エフェクトエンティティの生成
         this._spawnEffects(entityId, ctx);
 
         // 3. パイプライン遷移
@@ -72,7 +71,6 @@ export class ActionExecutionSystem extends System {
     _spawnEffects(entityId, ctx) {
         const { action, attackingPart, attackerId, finalTargetId, outcome, guardianInfo } = ctx;
 
-        // 命中しなかった場合はエフェクトを生成しない（支援行動は必中扱い）
         if (!outcome.isHit && finalTargetId) {
             return;
         }
@@ -97,10 +95,18 @@ export class ActionExecutionSystem extends System {
         // 2. メインエフェクト群
         const effects = attackingPart.effects || [];
         for (const effectDef of effects) {
+            let effectType = effectDef.type;
+
+            // --- 特性「スタン」の適用ロジック ---
+            // 攻撃パーツが特性「スタン」を持っており、かつエフェクトがDAMAGE系の場合、APPLY_STUNへ変換する
+            if (attackingPart.trait === 'スタン' && effectType === EffectType.DAMAGE) {
+                effectType = EffectType.APPLY_STUN;
+            }
+
             const effectEntity = this.world.createEntity();
             
             this.world.addComponent(effectEntity, new ApplyEffect({
-                type: effectDef.type,
+                type: effectType,
                 value: 0, 
                 calculation: effectDef.calculation,
                 params: effectDef.params,
@@ -109,8 +115,7 @@ export class ActionExecutionSystem extends System {
 
             let targetPartKey = action.targetPartKey;
             
-            // ダメージ系かつターゲットがいる場合、命中判定結果（身代わり含む）の部位を採用
-            if (effectDef.type === EffectType.DAMAGE && finalTargetId) {
+            if ((effectType === EffectType.DAMAGE || effectType === EffectType.APPLY_STUN) && finalTargetId) {
                 targetPartKey = outcome.finalTargetPartKey;
             }
 
@@ -128,7 +133,6 @@ export class ActionExecutionSystem extends System {
     _handleCancel(entityId, ctx) {
         const state = this.world.getComponent(entityId, BattleSequenceState);
         
-        // キャンセル用の簡易結果データを構築
         const resultData = {
             attackerId: ctx.attackerId,
             attackingPartId: ctx.attackingPartId,

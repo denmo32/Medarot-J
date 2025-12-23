@@ -6,6 +6,7 @@
 import { Parts } from '../../components/index.js'; // Common
 import { BattleQueries } from '../queries/BattleQueries.js';
 import { StatCalculator } from './StatCalculator.js';
+import { IsStunned } from '../components/combat/TagComponents.js';
 
 /**
  * CombatContextの内容から計算用パラメータを生成する
@@ -38,7 +39,7 @@ export function buildHitOutcomeParams(world, ctx) {
     const targetLegsStats = BattleQueries.getPartStats(world, targetParts.legs);
 
     // 計算に使用するステータス
-    const calcParams = attackingPart.effects?.find(e => e.type === 'DAMAGE')?.calculation || {};
+    const calcParams = attackingPart.effects?.find(e => e.type === 'DAMAGE' || e.type === 'APPLY_STUN')?.calculation || {};
     const baseStatKey = calcParams.baseStat || 'success';
     const defenseStatKey = calcParams.defenseStat || 'armor';
 
@@ -52,7 +53,12 @@ export function buildHitOutcomeParams(world, ctx) {
     const targetMobility = targetLegsStats?.mobility || 0;
 
     // 補正済みクリティカル率
-    const bonusChance = attackingPart.criticalBonus || 0;
+    let bonusChance = attackingPart.criticalBonus || 0;
+
+    // スタン状態の相手には確定クリティカル
+    if (world.getComponent(finalTargetId, IsStunned)) {
+        bonusChance = 1.0;
+    }
 
     // 防御側装甲（回避判定用ではなく防御発生率用）
     const targetArmor = targetLegsStats?.[defenseStatKey] || 0;
@@ -88,7 +94,7 @@ export function buildDamageParams(world, { sourceId, targetId, attackingPart, ou
     const attackerLegsStats = BattleQueries.getPartStats(world, attackerParts.legs);
     const targetLegsStats = BattleQueries.getPartStats(world, targetParts.legs);
 
-    const calcParams = attackingPart.effects?.find(e => e.type === 'DAMAGE')?.calculation || {};
+    const calcParams = attackingPart.effects?.find(e => e.type === 'DAMAGE' || e.type === 'APPLY_STUN')?.calculation || {};
     const baseStatKey = calcParams.baseStat || 'success';
     const powerStatKey = calcParams.powerStat || 'might';
     const defenseStatKey = calcParams.defenseStat || 'armor';

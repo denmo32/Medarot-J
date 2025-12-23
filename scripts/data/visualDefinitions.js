@@ -48,6 +48,13 @@ export const VisualDefinitions = {
             expired: 'GUARD_EXPIRED'
         }
     },
+    [EffectType.APPLY_STUN]: {
+        showHpBar: true,
+        keys: {
+            success: 'STUN_APPLIED',
+            failed: 'DAMAGE_APPLIED'
+        }
+    },
 
     // 汎用イベント設定
     EVENTS: {

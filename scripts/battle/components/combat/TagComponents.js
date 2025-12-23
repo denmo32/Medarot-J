@@ -31,6 +31,7 @@ export class IsCooldown { constructor() {} }
 export class IsGuarding { constructor() {} }
 export class IsBroken { constructor() {} }
 export class IsAwaitingAnimation { constructor() {} }
+export class IsStunned { constructor() {} } // スタン状態タグ
 
 // --- 戦闘シーケンスフェーズタグ ---
 /** 計算フェーズ実行中（ターゲット解決、命中判定） */
@@ -64,7 +65,7 @@ export const SequencePhaseTags = [
 
 export const PlayerStateTags = [
     IsReadyToSelect, IsReadyToExecute, IsCharging, IsCooldown, 
-    IsGuarding, IsBroken, IsAwaitingAnimation
+    IsGuarding, IsBroken, IsAwaitingAnimation, IsStunned
 ];
 
 // --- Mapping Helper ---

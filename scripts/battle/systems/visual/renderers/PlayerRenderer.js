@@ -1,7 +1,7 @@
 /**
  * @file PlayerRenderer.js
  * @description プレイヤーのDOM描画ロジック。
- * スキャンインジケーターに残り時間を表示するように修正。
+ * スキャン、スタンインジケーターに残り時間を表示するように修正。
  */
 import { el } from '../../../../../engine/utils/DOMUtils.js';
 import { CONFIG } from '../../../common/config.js';
@@ -34,11 +34,18 @@ export class PlayerRenderer {
             style: { display: 'none' } 
         });
 
+        // スタン中を示すインジケーター要素
+        const stunIndicator = el('div', { 
+            className: 'stun-indicator',
+            style: { display: 'none' } 
+        });
+
         const marker = el('div', {
             className: 'home-marker',
             style: { left: `${homeX * 100}%`, top: `${homeY}%` }
         }, [
-            scanIndicator
+            scanIndicator,
+            stunIndicator
         ]);
 
         const targetIndicator = el('div', { className: 'target-indicator' }, [
@@ -99,7 +106,8 @@ export class PlayerRenderer {
             partDOMElements: partDOMElements,
             targetIndicatorElement: targetIndicator,
             guardIndicatorElement: guardIndicator,
-            scanIndicatorElement: scanIndicator
+            scanIndicatorElement: scanIndicator,
+            stunIndicatorElement: stunIndicator
         });
 
         visual.domId = `player-${entityId}`;
@@ -114,6 +122,7 @@ export class PlayerRenderer {
         this._updateStateAppearance(entityId, domElements, cache);
         this._updateGuardIndicator(entityId, domElements);
         this._updateScanIndicator(entityId, domElements);
+        this._updateStunIndicator(entityId, domElements);
     }
 
     _updatePartsInfo(visual, partElements, cache) {
@@ -212,26 +221,38 @@ export class PlayerRenderer {
             const scanEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_SCAN);
             
             if (scanEffect) {
-                // 残り時間（秒）を計算。小数点第一位まで表示。
                 let timeText = '';
                 if (scanEffect.duration && scanEffect.duration !== Infinity) {
                     const remainingMs = Math.max(0, scanEffect.duration - (scanEffect.elapsedTime || 0));
                     timeText = (remainingMs / 1000).toFixed(1);
                 }
-
                 const displayText = `📡 ${timeText}`;
-
-                // flexを適用するため、style.displayは直接 'flex' に
-                if (scanIndicator.style.display !== 'flex') {
-                    scanIndicator.style.display = 'flex';
-                }
-                if (scanIndicator.textContent !== displayText) {
-                    scanIndicator.textContent = displayText;
-                }
+                if (scanIndicator.style.display !== 'flex') scanIndicator.style.display = 'flex';
+                if (scanIndicator.textContent !== displayText) scanIndicator.textContent = displayText;
             } else {
-                if (scanIndicator.style.display !== 'none') {
-                    scanIndicator.style.display = 'none';
+                if (scanIndicator.style.display !== 'none') scanIndicator.style.display = 'none';
+            }
+        }
+    }
+
+    _updateStunIndicator(entityId, domElements) {
+        const activeEffects = this.world.getComponent(entityId, ActiveEffects);
+        const stunIndicator = domElements.stunIndicatorElement;
+        
+        if (activeEffects && stunIndicator) {
+            const stunEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_STUN);
+            
+            if (stunEffect) {
+                let timeText = '';
+                if (stunEffect.duration && stunEffect.duration !== Infinity) {
+                    const remainingMs = Math.max(0, stunEffect.duration - (stunEffect.elapsedTime || 0));
+                    timeText = (remainingMs / 1000).toFixed(1);
                 }
+                const displayText = `⚡ ${timeText}`;
+                if (stunIndicator.style.display !== 'flex') stunIndicator.style.display = 'flex';
+                if (stunIndicator.textContent !== displayText) stunIndicator.textContent = displayText;
+            } else {
+                if (stunIndicator.style.display !== 'none') stunIndicator.style.display = 'none';
             }
         }
     }
