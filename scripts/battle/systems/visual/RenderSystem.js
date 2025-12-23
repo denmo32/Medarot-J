@@ -1,6 +1,7 @@
 /**
  * @file RenderSystem.js
  * @description 初期化時のパーツデータ同期ロジックをQueryService経由に修正。
+ * レイアウト定数をCSS変数としてDOMに注入する機能を追加。
  */
 import { System } from '../../../../engine/core/System.js';
 import { Visual, Position } from '../../components/index.js';
@@ -10,6 +11,7 @@ import { TeamID } from '../../../common/constants.js';
 import { PlayerRenderer } from './renderers/PlayerRenderer.js';
 import { EffectRenderer } from './renderers/EffectRenderer.js';
 import { BattleQueries } from '../../queries/BattleQueries.js';
+import { CONFIG } from '../../common/config.js';
 
 export class RenderSystem extends System {
     constructor(world) {
@@ -26,6 +28,29 @@ export class RenderSystem extends System {
         this.effectRenderer = new EffectRenderer(this.battlefield, this.uiManager);
 
         this.managedEntities = new Set();
+
+        // 初期化時にCSS変数を設定
+        this._setupCSSVariables();
+    }
+
+    /**
+     * CONFIGの数値をCSS変数として注入し、JSとCSSのレイアウトを同期させる
+     * @private
+     */
+    _setupCSSVariables() {
+        if (!this.battlefield) return;
+
+        const bf = CONFIG.BATTLEFIELD;
+        const styles = {
+            '--action-line-1': bf.ACTION_LINE_TEAM1,
+            '--action-line-2': bf.ACTION_LINE_TEAM2,
+            '--home-margin-1': bf.HOME_MARGIN_TEAM1,
+            '--home-margin-2': bf.HOME_MARGIN_TEAM2,
+        };
+
+        for (const [key, value] of Object.entries(styles)) {
+            this.battlefield.style.setProperty(key, value);
+        }
     }
 
     destroy() {

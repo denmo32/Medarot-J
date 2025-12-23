@@ -50,10 +50,10 @@
     line-height: 1.2;
 }
 
-/* アクションライン */
+/* アクションライン (JSから注入された変数を使用) */
 .action-line-1 {
     position: absolute;
-    left: 45%;
+    left: calc(var(--action-line-1) * 100%);
     top: 0;
     bottom: 0;
     width: 2px;
@@ -62,7 +62,7 @@
 }
 .action-line-2 {
     position: absolute;
-    left: 55%;
+    left: calc(var(--action-line-2) * 100%);
     top: 0;
     bottom: 0;
     width: 2px;
