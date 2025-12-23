@@ -113,8 +113,11 @@ export const ActionDefinitions = {
             { 
                 type: EffectType.APPLY_SCAN, 
                 params: {
-                    valueSource: 'might',
-                    valueFactor: 0.5
+                    statName: 'success',        // 上昇させるステータス
+                    valueSource: 'might',       // バフ値計算の参照
+                    valueFactor: 0.5,           // 係数
+                    durationSource: 'success',  // 持続時間計算の参照
+                    durationFactor: 200         // 持続時間係数 (ms)
                 }
             }
         ],

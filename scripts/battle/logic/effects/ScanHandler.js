@@ -13,17 +13,22 @@ export class ScanHandler extends EffectHandler {
         const { sourceId, targetId, partKey, attackingPart } = context;
 
         const params = effect.params || {};
-        const valueSource = params.valueSource || 'might';
-        const valueFactor = params.valueFactor || 0.5;
-
-        // mightパラメータに基づいてパラメータ上昇量を計算
-        const mightValue = attackingPart['might'] || 0;
-        const scanBonusValue = Math.floor(mightValue * valueFactor);
         
-        // successパラメータに基づいて効果持続時間を計算（時間ベース）
-        const successValue = attackingPart['success'] || 0;
-        // success値をもとにミリ秒単位の持続時間を計算（success値 × 200ms）
-        const durationMs = successValue * 200;
+        // --- データ駆動によるパラメータ抽出 ---
+        const statName = params.statName || 'success';      // 上昇させるステータス名
+        const valueSource = params.valueSource || 'might';   // 威力計算の参照ステータス
+        const valueFactor = params.valueFactor || 0.5;       // 威力係数
+        
+        const durationSource = params.durationSource || 'success'; // 持続時間計算の参照ステータス
+        const durationFactor = params.durationFactor || 200;       // 持続時間係数 (ms)
+
+        // 威力（バフ量）の計算
+        const baseMightValue = attackingPart[valueSource] || 0;
+        const bonusValue = Math.floor(baseMightValue * valueFactor);
+        
+        // 持続時間の計算 (ms)
+        const baseSuccessValue = attackingPart[durationSource] || 0;
+        const durationMs = baseSuccessValue * durationFactor;
 
         // チーム全体が対象の場合、targetIdがnullになるケースがあるため、
         // sourceId（自分自身）を基点に有効な味方（自分を含む）を取得する
@@ -37,15 +42,21 @@ export class ScanHandler extends EffectHandler {
                 targetId: tid,
                 componentType: ActiveEffects,
                 customHandler: (activeEffects) => {
-                    // 重複排除（上書き）
-                    activeEffects.effects = activeEffects.effects.filter(e => e.type !== EffectType.APPLY_SCAN);
+                    // 同一ステータスに対する既存のバフがあれば上書き（重複防止）
+                    activeEffects.effects = activeEffects.effects.filter(e => 
+                        !(e.type === EffectType.APPLY_SCAN && e.params?.statName === statName)
+                    );
+
                     activeEffects.effects.push({
                         type: EffectType.APPLY_SCAN,
-                        value: scanBonusValue,
-                        duration: durationMs, // ターン数からミリ秒に変更
+                        value: bonusValue,
+                        duration: durationMs,
                         tickInterval: 1000,   // 1秒ごとに経過をチェック
                         elapsedTime: 0,       // 経過時間初期値
-                        partKey: partKey      // 発動に使用したパーツ情報
+                        partKey: partKey,     // 発動に使用したパーツ情報
+                        params: { 
+                            statName: statName // StatCalculatorが参照するための識別子
+                        }
                     });
                 }
             });
@@ -54,8 +65,8 @@ export class ScanHandler extends EffectHandler {
         this.finish(world, effectEntityId, {
             type: EffectType.APPLY_SCAN,
             targetId: anchorId,
-            value: scanBonusValue,
-            duration: Math.floor(durationMs / 1000), // ミリ秒から秒に変換
+            value: bonusValue,
+            duration: Math.floor(durationMs / 1000), // 表示用に秒へ変換
             stateUpdates
         });
     }

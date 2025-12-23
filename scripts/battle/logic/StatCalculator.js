@@ -1,7 +1,6 @@
 /**
  * @file StatCalculator.js
  * @description ステータス補正計算を行うロジック関数群。
- * importパス修正: ../components/index.js (battle/components)
  */
 import { ActiveEffects } from '../components/index.js'; 
 import { EffectType } from '../common/constants.js';
@@ -66,14 +65,12 @@ export const StatCalculator = {
 
         const definitions = [
             TypeDefinitions[attackingPart.type],
-            // 将来的に: TraitDefinitions[attackingPart.trait]
         ];
 
         for (const def of definitions) {
             if (!def) continue;
 
             if (hookName === HookPhase.ON_CALCULATE_STAT && def.statModifiers) {
-                // STAT_MODIFIER トレイトを呼び出し
                 for (const mod of def.statModifiers) {
                     const val = TraitRegistry.executeTraitLogic('STAT_MODIFIER', hookName, { ...context, params: mod });
                     if (val !== 0) {
@@ -83,7 +80,6 @@ export const StatCalculator = {
                 }
             }
 
-            // TypeDefinition自体が Trait パラメータを持っている場合 (speedMultiplier, criticalBonus)
             if (hookName === HookPhase.ON_CALCULATE_SPEED_MULTIPLIER && def.speedMultiplier !== undefined) {
                 const val = TraitRegistry.executeTraitLogic('STAT_MODIFIER', hookName, { ...context, params: def });
                 results.push(val);
@@ -106,10 +102,10 @@ export const StatCalculator = {
         const activeEffects = world.getComponent(entityId, ActiveEffects);
         if (!activeEffects) return 0;
 
-        if (statName === 'success') {
-            const scanEffects = activeEffects.effects.filter(e => e.type === EffectType.APPLY_SCAN);
-            bonus += scanEffects.reduce((sum, e) => sum + e.value, 0);
-        }
+        // 汎用的なバフの検索: e.params.statName が要求されたステータスと一致するものを集計
+        bonus += activeEffects.effects
+            .filter(e => e.params?.statName === statName)
+            .reduce((sum, e) => sum + e.value, 0);
 
         return bonus;
     }
