@@ -212,17 +212,18 @@ export class PlayerRenderer {
             const scanEffect = activeEffects.effects.find(e => e.type === EffectType.APPLY_SCAN);
             
             if (scanEffect) {
-                // 残り時間（秒）を計算
+                // 残り時間（秒）を計算。小数点第一位まで表示。
                 let timeText = '';
                 if (scanEffect.duration && scanEffect.duration !== Infinity) {
                     const remainingMs = Math.max(0, scanEffect.duration - (scanEffect.elapsedTime || 0));
-                    timeText = Math.ceil(remainingMs / 1000).toString();
+                    timeText = (remainingMs / 1000).toFixed(1);
                 }
 
-                const displayText = `📡${timeText}`;
+                const displayText = `📡 ${timeText}`;
 
-                if (scanIndicator.style.display !== 'block') {
-                    scanIndicator.style.display = 'block';
+                // flexを適用するため、style.displayは直接 'flex' に
+                if (scanIndicator.style.display !== 'flex') {
+                    scanIndicator.style.display = 'flex';
                 }
                 if (scanIndicator.textContent !== displayText) {
                     scanIndicator.textContent = displayText;
